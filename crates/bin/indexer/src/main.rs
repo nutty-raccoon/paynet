@@ -8,7 +8,7 @@ const APIBARA_TOKEN_ENV_VAR: &str = "APIBARA_TOKEN";
 async fn main() -> anyhow::Result<()> {
     #[cfg(debug_assertions)]
     dotenvy::from_filename("indexer.env")?;
-
+    
     let dna_token =
         std::env::var(APIBARA_TOKEN_ENV_VAR).expect("missing `APIBARA_TOKEN` env variable");
 

@@ -21,4 +21,7 @@ Cargo.lock
 #.idea/
 
 *.env
+.env
+indexer.env
+/crates/bin/indexer/indexer.env
 .DS_Store
