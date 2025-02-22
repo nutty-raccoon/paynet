@@ -10,3 +10,6 @@ node = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 url = { workspace = true }
 anyhow = { workspace = true }
+rusqlite = { workspace = true }
+dirs = { workspace = true }
+

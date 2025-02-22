@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use node::NodeClient;
 use std::path::PathBuf;
 
@@ -10,7 +10,7 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
     #[arg(long, value_hint(ValueHint::FilePath))]
-    db_path: PathBuf,
+    db_path: Option<PathBuf>,
     #[arg(long, short, value_hint(ValueHint::Url))]
     node_url: String,
 }
@@ -56,14 +56,31 @@ enum Commands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
+    let db_path = cli
+        .db_path
+        .or(dirs::data_dir().map(|mut dp| {
+            dp.push("cli-wallet.sqlite3");
+            dp
+        }))
+        .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?;
+    println!("database: {:?}", db_path);
+
+    let mut db_conn = rusqlite::Connection::open(db_path)?;
+    wallet::create_tables(&mut db_conn)?;
 
     match cli.command {
         Commands::Mint { amount, unit } => {
             println!("Asking {} to mint {} {}", cli.node_url, amount, unit);
             // Add mint logic here
-            let mint_quote_response =
-                wallet::create_mint_quote(&mut node_client, "starknet".to_string(), amount, unit)
-                    .await?;
+            let mint_quote_response = wallet::create_mint_quote(
+                &mut db_conn,
+                &mut node_client,
+                "starknet".to_string(),
+                amount,
+                unit,
+            )
+            .await?;
+
             println!("received quote:\n{:#?}", mint_quote_response);
         }
         Commands::Melt { amount, from } => {
