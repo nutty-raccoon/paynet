@@ -20,11 +20,10 @@ use nuts::nut02::KeysetId;
 use nuts::{Amount, SplitTarget};
 use rusqlite::{Connection, params};
 use tonic::transport::Channel;
-use rusqlite::Connection;
 
 pub use db::create_tables;
 
-pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof>{
+pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
     inputs
         .iter()
         .map(|p| node::Proof {
@@ -109,11 +108,10 @@ pub async fn mint(
     quote: String,
     outputs: &[BlindedMessage],
 ) -> Result<MintResponse> {
-    
     let req = MintRequest {
         method,
         quote,
-        outputs: convert_outputs(outputs)
+        outputs: convert_outputs(outputs),
     };
 
     let resp = node_client.mint(req).await?;
@@ -612,4 +610,3 @@ pub async fn register_node(
 
     Ok(resp.into_inner())
 }
-
