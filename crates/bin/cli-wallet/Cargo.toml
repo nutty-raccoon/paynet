@@ -1,0 +1,9 @@
+[package]
+name = "cli-wallet"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wallet = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+url = { workspace = true }

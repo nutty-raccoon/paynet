@@ -7,7 +7,7 @@ members = [
   "crates/starknet-payment-indexer",
   "crates/db-node",
   "crates/nuts",
-  "crates/starknet",
+  "crates/starknet", "crates/wallet", "crates/bin/cli-wallet",
 ]
 
 [workspace.dependencies]
@@ -60,6 +60,7 @@ starknet-types = { path = "crates/starknet" }
 db-node  = { path = "crates/db-node" }
 starknet-payment-indexer = { path = "crates/starknet-payment-indexer" }
 signer = { path = "crates/bin/signer" }
+wallet = { path = "crates/wallet" }
 
 
 
