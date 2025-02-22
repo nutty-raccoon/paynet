@@ -19,9 +19,10 @@ impl Args {
         let file_content =
             fs::read_to_string(&self.config).map_err(InitializationError::CannotReadConfig)?;
 
-        let config = toml::from_str(&file_content).map_err(InitializationError::Toml)?;
+        let config: ConfigFileContent =
+            toml::from_str(&file_content).map_err(InitializationError::Toml)?;
 
-        Ok(config)
+        Ok(config.try_into().unwrap())
     }
 }
 
@@ -93,16 +94,16 @@ impl<'de> Deserialize<'de> for ChainId {
 #[derive(Debug, Serialize, Deserialize)]
 struct ConfigFileContent {
     /// The chain we are using as backend
-    pub chain_id: ChainId,
+    chain_id: ChainId,
     /// The address of the STRK token address
     ///
     /// Optional if chain_id is "mainnet" or "sepolia"
     strk_address: Option<Felt>,
     /// The url of the signer service
-    pub signer_url: String,
+    signer_url: String,
     /// The address of the on-chain account managing deposited assets
-    pub recipient_address: Felt,
-    pub grpc_server_port: u16,
+    recipient_address: Felt,
+    grpc_server_port: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

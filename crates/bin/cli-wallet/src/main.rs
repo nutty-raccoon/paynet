@@ -1,3 +1,5 @@
+use anyhow::Result;
+use node::NodeClient;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueHint};
@@ -9,14 +11,14 @@ struct Cli {
     command: Commands,
     #[arg(long, value_hint(ValueHint::FilePath))]
     db_path: PathBuf,
+    #[arg(long, short, value_hint(ValueHint::Url))]
+    node_url: String,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     /// Mint new tokens
     Mint {
-        #[arg(long, short, value_hint(ValueHint::Url))]
-        node_url: String,
         #[arg(long, short)]
         amount: u64,
         #[arg(long, short)]
@@ -50,18 +52,19 @@ enum Commands {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
 
-    match &cli.command {
-        Commands::Mint {
-            node_url,
-            amount,
-            unit,
-        } => {
-            println!("Asking {} to mint {} {}", node_url, amount, unit);
+    match cli.command {
+        Commands::Mint { amount, unit } => {
+            println!("Asking {} to mint {} {}", cli.node_url, amount, unit);
             // Add mint logic here
-            wallet::mint().unwrap();
+            let mint_quote_response =
+                wallet::create_mint_quote(&mut node_client, "starknet".to_string(), amount, unit)
+                    .await?;
+            println!("received quote:\n{:#?}", mint_quote_response);
         }
         Commands::Melt { amount, from } => {
             println!("Melting {} tokens from {}", amount, from);
@@ -79,4 +82,6 @@ fn main() {
             // Add swap logic here
         }
     }
+
+    Ok(())
 }

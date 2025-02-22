@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { workspace = true }
 wallet = { workspace = true }
+node = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 url = { workspace = true }
+anyhow = { workspace = true }

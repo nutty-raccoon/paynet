@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = { workspace = true }
+node = { workspace = true }
+nuts = { workspace = true }
+tonic  = { workspace = true }

@@ -1,5 +1,5 @@
 chain_id = "sepolia"
 signer_url = "http://[::1]:10000"
 recipient_address = "0x07487f6e8fc8c60049e82cf8b6593211aeefef7efd0021db585c7e78cc29ac9a"  
-grpc_server_port = "20000"
+grpc_server_port = 20000
 

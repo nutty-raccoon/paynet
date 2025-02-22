@@ -175,6 +175,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let svc = SignerServer::new(signer_logic);
 
+    println!("listening to new request on {}", socket_addr);
+
     Server::builder()
         .add_service(svc)
         .serve(socket_addr)

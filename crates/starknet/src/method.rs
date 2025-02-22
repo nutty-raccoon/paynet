@@ -8,7 +8,7 @@ use thiserror::Error;
 #[serde(into = "&'static str", try_from = "&str")]
 pub struct Method;
 
-const STARKNET_METHOD: &str = "strarknet";
+const STARKNET_METHOD: &str = "starknet";
 
 impl From<Method> for &'static str {
     fn from(_value: Method) -> Self {
