@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use node::{MintQuoteState, NodeClient};
 use std::path::PathBuf;
+use wallet::types::PreMint;
 
 use clap::{Parser, Subcommand, ValueHint};
 
@@ -51,11 +52,11 @@ enum Commands {
         to_token: String,
     },
 }
+const STARKNET_METHOD: &str = "starknet";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
     let db_path = cli
         .db_path
         .or(dirs::data_dir().map(|mut dp| {
@@ -63,11 +64,19 @@ async fn main() -> Result<()> {
             dp
         }))
         .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?;
-    println!("database: {:?}", db_path);
-    const STARKNET_METHOD: &str = "staknet";
+    println!("database located at `{:?}`", db_path);
 
     let mut db_conn = rusqlite::Connection::open(db_path)?;
-    wallet::create_tables(&mut db_conn)?;
+
+    let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
+
+    println!("0");
+    wallet::db::create_tables(&mut db_conn)?;
+    println!("1");
+    wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
+    println!("2");
+    wallet::refresh_node_keysets(&mut db_conn, &mut node_client, &cli.node_url).await?;
+    println!("2");
 
     match cli.command {
         Commands::Mint { amount, unit } => {
@@ -78,7 +87,7 @@ async fn main() -> Result<()> {
                 &mut node_client,
                 STARKNET_METHOD.to_string(),
                 amount,
-                unit,
+                unit.clone(),
             )
             .await?;
 
@@ -95,21 +104,38 @@ async fn main() -> Result<()> {
                     mint_quote_response.quote.clone(),
                 )
                 .await?;
+                println!("state: {:?}", state);
 
                 if state == MintQuoteState::MnqsPaid {
                     break;
                 }
             }
 
-            let outputs = todo!();
+            let keyset_id = wallet::get_active_keyst_for_unit(&mut db_conn, &cli.node_url, unit)?;
 
-            wallet::mint(
-                &mut node_client,
-                STARKNET_METHOD.to_string(),
-                mint_quote_response.quote,
-                outputs,
-            )
-            .await?;
+            let pre_mints = PreMint::generate_for_amount(amount.into(), keyset_id)?;
+
+            let keyset_id_as_vec = keyset_id.to_bytes().to_vec();
+
+            let outputs = pre_mints
+                .iter()
+                .map(|pm| node::BlindedMessage {
+                    amount: pm.blinded_message.amount.into(),
+                    keyset_id: keyset_id_as_vec.clone(),
+                    blinded_secret: pm.blinded_message.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect();
+
+            let mint_response = node_client
+                .mint(node::MintRequest {
+                    method: STARKNET_METHOD.to_string(),
+                    quote: mint_quote_response.quote,
+                    outputs,
+                })
+                .await?
+                .into_inner();
+
+            println!("{:?}", mint_response);
         }
         Commands::Melt { amount, from } => {
             println!("Melting {} tokens from {}", amount, from);

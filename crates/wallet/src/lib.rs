@@ -1,15 +1,17 @@
-mod db;
-use anyhow::Result;
+pub mod db;
+mod outputs;
+pub mod types;
+
+use anyhow::{Result, anyhow};
 use node::{
-    MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest,
-    QuoteStateRequest, SwapRequest, SwapResponse,
+    GetKeysetsRequest, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
+    MintQuoteState, MintRequest, QuoteStateRequest, SwapRequest, SwapResponse,
 };
 use node::{MintResponse, NodeClient};
 use nuts::nut00::{BlindedMessage, Proof};
+use nuts::nut02::KeysetId;
 use rusqlite::Connection;
 use tonic::transport::Channel;
-
-pub use db::create_tables;
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
     inputs
@@ -123,4 +125,34 @@ pub async fn swap(
     let resp = node_client.swap(req).await?;
 
     Ok(resp.into_inner())
+}
+
+pub async fn refresh_node_keysets(
+    db_conn: &mut Connection,
+    node_client: &mut NodeClient<Channel>,
+    node_url: &str,
+) -> Result<()> {
+    let keysets = node_client
+        .keysets(GetKeysetsRequest {})
+        .await?
+        .into_inner()
+        .keysets;
+
+    crate::db::upsert_node_keysets(db_conn, node_url, keysets)?;
+
+    Ok(())
+}
+
+pub fn get_active_keyst_for_unit(
+    db_conn: &mut Connection,
+    node_url: &str,
+    unit: String,
+) -> Result<KeysetId> {
+    let keyset_id_as_i64 =
+        db::fetch_one_active_keyset_id_for_node_and_unit(db_conn, node_url, unit)?
+            .ok_or(anyhow!("not matching keyset"))?;
+
+    let keyset_id = KeysetId::from_bytes(&keyset_id_as_i64.to_be_bytes())?;
+
+    Ok(keyset_id)
 }

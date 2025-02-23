@@ -1,8 +1,10 @@
+use crate::{Error, keyset_cache::CachedKeysetInfo};
 use std::{str::FromStr, sync::Arc};
 
 use node::{
-    BlindSignature, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest,
-    MintResponse, Node, QuoteStateRequest, SwapRequest, SwapResponse,
+    BlindSignature, GetKeysetsRequest, GetKeysetsResponse, Keyset, MeltRequest, MeltResponse,
+    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, QuoteStateRequest,
+    SwapRequest, SwapResponse,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -49,6 +51,41 @@ impl GrpcState {
             signer: Arc::new(RwLock::new(signer_client)),
         }
     }
+
+    pub async fn init_first_keysets(
+        &self,
+        method: Method,
+        units: &[Unit],
+        index: u32,
+        max_order: u32,
+    ) -> Result<(), Error> {
+        let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
+
+        for unit in units {
+            let keyset_id = {
+                let mut signer_lock = self.signer.write().await;
+                let response = signer_lock
+                    .declare_keyset(signer::DeclareKeysetRequest {
+                        method: method.to_string(),
+                        unit: unit.to_string(),
+                        index,
+                        max_order,
+                    })
+                    .await?;
+                KeysetId::from_bytes(&response.into_inner().keyset_id)?
+            };
+
+            insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
+            self.keyset_cache
+                .insert(keyset_id, CachedKeysetInfo::new(true, *unit))
+                .await;
+        }
+
+        let mut conn = self.pg_pool.acquire().await?;
+        insert_keysets_query_builder.execute(&mut conn).await?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Error)]
@@ -75,6 +112,29 @@ impl From<ParseGrpcError> for Status {
 
 #[tonic::async_trait]
 impl Node for GrpcState {
+    async fn keysets(
+        &self,
+        _request: Request<GetKeysetsRequest>,
+    ) -> Result<Response<GetKeysetsResponse>, Status> {
+        let mut conn = self
+            .pg_pool
+            .acquire()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let keysets = db_node::get_keysets(&mut conn)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .map(|(id, unit, active)| Keyset {
+                id: id.to_vec(),
+                unit,
+                active,
+            })
+            .collect();
+
+        Ok(Response::new(GetKeysetsResponse { keysets }))
+    }
+
     async fn swap(
         &self,
         swap_request: Request<SwapRequest>,

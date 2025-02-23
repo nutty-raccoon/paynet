@@ -1,10 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use nuts::nut02::KeysetId;
-use parking_lot::RwLock;
 use sqlx::PgConnection;
 use starknet_types::Unit;
 use thiserror::Error;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -19,6 +19,9 @@ pub struct CachedKeysetInfo {
 }
 
 impl CachedKeysetInfo {
+    pub fn new(active: bool, unit: Unit) -> Self {
+        Self { active, unit }
+    }
     pub fn active(&self) -> bool {
         self.active
     }
@@ -42,6 +45,12 @@ pub struct KeysetCache {
 }
 
 impl KeysetCache {
+    pub async fn insert(&self, keyset_id: KeysetId, info: CachedKeysetInfo) {
+        let mut write_lock = self.keysets.write().await;
+
+        write_lock.insert(keyset_id, info);
+    }
+
     pub async fn get_keyset_info(
         &self,
         conn: &mut PgConnection,
@@ -49,7 +58,7 @@ impl KeysetCache {
     ) -> Result<CachedKeysetInfo, Error> {
         // happy path: the infos are already in the cache
         {
-            let cache_read_lock = self.keysets.read();
+            let cache_read_lock = self.keysets.read().await;
             if let Some(info) = cache_read_lock.get(&keyset_id) {
                 return Ok(info.clone());
             }
@@ -63,7 +72,7 @@ impl KeysetCache {
 
         // Save the infos in the cache
         {
-            let mut cache_write_lock = self.keysets.write();
+            let mut cache_write_lock = self.keysets.write().await;
             cache_write_lock.insert(keyset_id, keyset_info.clone());
         }
 

@@ -1,5 +1,5 @@
-use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::Hash;
+use bitcoin::hashes::sha256::Hash as Sha256;
 use core::fmt;
 use std::str::FromStr;
 

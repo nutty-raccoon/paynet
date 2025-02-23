@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use nuts::{nut01::PublicKey, nut02::KeysetId, traits::Unit, Amount};
+use nuts::{Amount, nut01::PublicKey, nut02::KeysetId, traits::Unit};
 use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
 use thiserror::Error;
 
@@ -8,6 +8,8 @@ mod insert_spent_proofs;
 pub use insert_spent_proofs::InsertSpentProofsQueryBuilder;
 mod insert_blind_signatures;
 pub use insert_blind_signatures::InsertBlindSignaturesQueryBuilder;
+mod insert_keysets;
+pub use insert_keysets::InsertKeysetsQueryBuilder;
 pub mod melt_quote;
 pub mod mint_quote;
 
@@ -50,6 +52,18 @@ impl<U: Unit> KeysetInfo<U> {
     }
 }
 
+pub async fn get_keysets(
+    conn: &mut PgConnection,
+) -> Result<impl Iterator<Item = ([u8; 8], String, bool)>, sqlx::Error> {
+    let record = sqlx::query!("SELECT id, unit, active FROM keyset")
+        .fetch_all(conn)
+        .await?;
+
+    Ok(record
+        .into_iter()
+        .map(|r| (r.id.to_be_bytes(), r.unit, r.active)))
+}
+
 pub async fn get_keyset<U: FromStr>(
     conn: &mut PgConnection,
     keyset_id: &KeysetId,
@@ -71,6 +85,22 @@ pub async fn get_keyset<U: FromStr>(
     };
 
     Ok(info)
+}
+
+pub async fn get_active_keyset_for_unit(
+    conn: &mut PgConnection,
+    unit: String,
+) -> Result<[u8; 8], sqlx::Error> {
+    let record = sqlx::query!(
+        r#"SELECT id
+        FROM keyset
+        WHERE unit = $1 AND active = true"#,
+        unit
+    )
+    .fetch_one(conn)
+    .await?;
+
+    Ok(record.id.to_be_bytes())
 }
 
 /// Will return true if this secret has already been signed by us

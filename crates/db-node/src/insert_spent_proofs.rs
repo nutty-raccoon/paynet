@@ -77,10 +77,10 @@ impl Default for InsertSpentProofsQueryBuilder<'_> {
 mod query_builder {
     use num_traits::One;
     use nuts::{
-        nut00::{secret::Secret, Proof},
+        Amount,
+        nut00::{Proof, secret::Secret},
         nut01::PublicKey,
         nut02::KeysetId,
-        Amount,
     };
 
     use crate::InsertSpentProofsQueryBuilder;
@@ -102,6 +102,9 @@ mod query_builder {
         builder.add_row(&y, &proof);
         builder.add_row(&y, &proof);
         let query = builder.builder.sql();
-        assert_eq!(query, "INSERT INTO proof (y, amount, keyset_id, secret, c, state) VALUES ($1, $2, $3, $4, $5, 1), ($6, $7, $8, $9, $10, 1)");
+        assert_eq!(
+            query,
+            "INSERT INTO proof (y, amount, keyset_id, secret, c, state) VALUES ($1, $2, $3, $4, $5, 1), ($6, $7, $8, $9, $10, 1)"
+        );
     }
 }

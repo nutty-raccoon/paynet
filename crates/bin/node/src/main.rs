@@ -13,6 +13,7 @@ use sqlx::PgPool;
 use starknet_types::Unit;
 use tokio::try_join;
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 mod app_state;
 mod commands;
@@ -39,7 +40,9 @@ async fn connect_to_db_and_run_migrations(pg_url: &str) -> Result<PgPool, Initia
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
     info!("Initializing node...");
 
     // Read args and env
@@ -79,10 +82,19 @@ async fn main() -> Result<(), Error> {
         .map_err(InitializationError::SignerConnection)?;
 
     // Launch tonic server task
-    let grpc_service = GrpcState::new(pg_pool, signer_client, nuts_settings, QuoteTTLConfig {
-        mint_ttl: 3600,
-        melt_ttl: 3600,
-    });
+    let grpc_service = GrpcState::new(
+        pg_pool,
+        signer_client,
+        nuts_settings,
+        QuoteTTLConfig {
+            mint_ttl: 3600,
+            melt_ttl: 3600,
+        },
+    );
+    grpc_service
+        .init_first_keysets(Method::Starknet, &[Unit::Strk], 0, 32)
+        .await?;
+
     let addr = format!("[::1]:{}", config.grpc_server_port)
         .parse()
         .unwrap();

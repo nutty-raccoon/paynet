@@ -5,6 +5,8 @@ package node;
 import "bdhke.proto";
 
 service Node {
+  // Keyset
+  rpc Keysets (GetKeysetsRequest) returns (GetKeysetsResponse);
   // Swap
   rpc Swap (SwapRequest) returns (SwapResponse);
   // Mint
@@ -17,6 +19,18 @@ service Node {
 
   // TODO: add Acknowledgment route
   // for the client to say he successfully stored the quote_id
+}
+
+message GetKeysetsRequest {}
+
+message GetKeysetsResponse {
+  repeated Keyset keysets = 1;
+}
+
+message Keyset {
+  bytes id = 1;
+  string unit = 2;
+  bool active = 3;
 }
 
 message MintQuoteRequest {
