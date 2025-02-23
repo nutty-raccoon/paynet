@@ -4,12 +4,14 @@ pub mod types;
 
 use anyhow::{Result, anyhow};
 use node::{
-    GetKeysetsRequest, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
-    MintQuoteState, MintRequest, QuoteStateRequest, SwapRequest, SwapResponse,
+    NodeClient,
+    GetKeysetsRequest, MeltRequest, MeltResponse, MintResponse, MintQuoteRequest, MintQuoteResponse,
+    MintQuoteState, MintRequest, QuoteStateRequest, SwapRequest, SwapResponse, MeltState
 };
-use node::{MintResponse, NodeClient};
 use nuts::nut00::{BlindedMessage, Proof};
 use nuts::nut02::KeysetId;
+// use nuts::nut05::MeltQuoteState;
+
 use rusqlite::Connection;
 use tonic::transport::Channel;
 
@@ -95,21 +97,44 @@ pub async fn mint(
 }
 
 pub async fn create_melt(
+    db_conn: &mut Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
+    amount: u64,
     unit: String,
     request: String,
     inputs: &[Proof],
 ) -> Result<MeltResponse> {
     let req = MeltRequest {
-        method,
-        unit,
+        method: method.clone(),
+        unit: unit.clone(),
         request,
         inputs: convert_inputs(inputs),
     };
-    let resp = node_client.melt(req).await?;
+    let resp = node_client.melt(req).await?.into_inner();
 
-    Ok(resp.into_inner())
+    db::store_melt(db_conn, method, unit, amount, &resp)?;
+    Ok(resp)
+}
+
+pub async fn get_melt_quote_state(
+    db_conn: &mut Connection,
+    node_client: &mut NodeClient<Channel>,
+    method: String,
+    quote_id: String
+) -> Result<MeltState> {
+    let resp = node_client.melt_quote_state(
+        QuoteStateRequest {
+            method,
+            quote: quote_id
+        }
+    )
+    .await?
+    .into_inner();
+
+    db::set_melt_quote_state(db_conn, resp.quote, resp.state)?;
+
+    Ok(MeltState::try_from(resp.state)?)
 }
 
 pub async fn swap(
