@@ -17,10 +17,8 @@ use tonic::transport::Channel;
 use rusqlite::Connection;
 
 pub use db::create_tables;
-// use nuts::nut03::SwapRequest;
-// use nuts::nut03::SwapResponse;
 
-pub fn parse_inputs(inputs: &[Proof]) -> Vec<node::Proof>{
+pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof>{
     inputs
         .iter()
         .map(|p| node::Proof {
@@ -32,7 +30,7 @@ pub fn parse_inputs(inputs: &[Proof]) -> Vec<node::Proof>{
         .collect()
 } 
 
-pub fn parse_outputs(outputs: &[BlindedMessage]) -> Vec<node::BlindedMessage> {
+pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node::BlindedMessage> {
     outputs
         .iter()
         .map(|o| node::BlindedMessage {
@@ -73,13 +71,11 @@ pub async fn mint(
     quote: String,
     outputs: &[BlindedMessage]
 ) -> Result<MintResponse> {
-
-    let parsed_outputs = parse_outputs(outputs);
-
+    
     let req = MintRequest {
         method,
         quote,
-        outputs: parsed_outputs
+        outputs: convert_outputs(outputs)
     };
 
     let resp = node_client.mint(req).await?;
@@ -95,13 +91,11 @@ pub async fn create_melt(
     request: String,
     inputs: &[Proof],
 ) -> Result<MeltResponse> {
-    let parsed_inputs = parse_inputs(inputs);
-
     let req = MeltRequest {
         method,
         unit,
         request,
-        inputs: parsed_inputs,
+        inputs: convert_inputs(inputs),
     };
     let resp = node_client.melt(req).await?;
 
@@ -113,13 +107,9 @@ pub async fn swap(
     inputs: &[Proof],
     outputs: &[BlindedMessage],
 ) -> Result<SwapResponse> {
-    let parsed_inputs = parse_inputs(inputs);
-
-    let parsed_outputs = parse_outputs(outputs);
-
     let req = SwapRequest {
-        inputs: parsed_inputs,
-        outputs: parsed_outputs,
+        inputs: convert_inputs(inputs),
+        outputs: convert_outputs(outputs),
     };
 
     let resp = node_client.swap(req).await?;
