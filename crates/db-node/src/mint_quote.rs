@@ -23,10 +23,11 @@ pub async fn insert_new<U: Unit>(
     let expiry =
         OffsetDateTime::from_unix_timestamp(expiry).map_err(|_| Error::RuntimeToDbConversion)?;
     let mut hasher = Sha256::new();
+    hasher.update(quote_id.as_bytes());
     sqlx::query!(
         r#"INSERT INTO mint_quote (id, invoice, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
         quote_id,
-        format!("{:X}", hasher.update(quote_id.as_bytes()).finalize()),
+        format!("{:X}", hasher.finalize()),
         &unit.to_string(),
         amount.into_i64_repr(),
         request,

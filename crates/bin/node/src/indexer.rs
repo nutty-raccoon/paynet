@@ -58,8 +58,9 @@ pub async fn listen_to_indexer(
                     .bind(payment_event.invoice_id)
                     .fetch_one(&db_conn)
                     .await?;
-                    if Strk.convert_u256_into_amount(amt) >= Strk.convert_u256_into_amount(amount):
+                    if Strk.convert_u256_into_amount(amt)?.0 >= Strk.convert_u256_into_amount(amount)?.0 {
                         break
+                    }
                 }
             },  
             Message::Invalidate { 
