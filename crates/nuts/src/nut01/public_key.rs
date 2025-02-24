@@ -2,11 +2,11 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use bitcoin::hashes::sha256::Hash as Sha256Hash;
+use bitcoin::XOnlyPublicKey;
 use bitcoin::hashes::Hash;
+use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::secp256k1::Message;
 use bitcoin::secp256k1::{self, schnorr::Signature};
-use bitcoin::XOnlyPublicKey;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::SECP256K1;

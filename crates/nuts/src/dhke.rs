@@ -2,19 +2,19 @@
 
 use std::ops::Deref;
 
-use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
+use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::secp256k1::{
     Parity, PublicKey as NormalizedPublicKey, Scalar, Secp256k1, XOnlyPublicKey,
 };
 use thiserror::Error;
 
+use crate::SECP256K1;
 use crate::nut00::secret::Secret;
 use crate::nut00::{BlindSignature, Proof, Proofs};
 use crate::nut01::PublicKey;
 use crate::nut01::SecretKey;
 use crate::nut01::SetPubKeys;
-use crate::SECP256K1;
 
 const DOMAIN_SEPARATOR: &[u8; 28] = b"Secp256k1_HashToCurve_Cashu_";
 
@@ -55,7 +55,7 @@ pub fn hash_to_curve(message: &[u8]) -> Result<PublicKey, Error> {
         // Try to parse public key
         match XOnlyPublicKey::from_slice(&hash) {
             Ok(pk) => {
-                return Ok(NormalizedPublicKey::from_x_only_public_key(pk, Parity::Even).into())
+                return Ok(NormalizedPublicKey::from_x_only_public_key(pk, Parity::Even).into());
             }
             Err(_) => {
                 counter += 1;

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{nut00::Proofs, traits::Unit, Amount};
+use crate::{Amount, nut00::Proofs, traits::Unit};
 
 /// NUT05 Error
 #[derive(Debug, Error)]

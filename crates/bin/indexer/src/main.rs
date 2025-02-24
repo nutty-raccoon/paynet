@@ -8,7 +8,7 @@ const APIBARA_TOKEN_ENV_VAR: &str = "APIBARA_TOKEN";
 async fn main() -> anyhow::Result<()> {
     #[cfg(debug_assertions)]
     dotenvy::from_filename("indexer.env")?;
-    
+
     let dna_token =
         std::env::var(APIBARA_TOKEN_ENV_VAR).expect("missing `APIBARA_TOKEN` env variable");
 
@@ -20,10 +20,11 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let conn = rusqlite::Connection::open_in_memory()?;
-    let mut indexer_service = ApibaraIndexerService::init(conn, dna_token, vec![(
-        our_recipient_account,
-        starknet_token_address,
-    )])
+    let mut indexer_service = ApibaraIndexerService::init(
+        conn,
+        dna_token,
+        vec![(our_recipient_account, starknet_token_address)],
+    )
     .await?;
 
     while let Some(event) = indexer_service.try_next().await? {

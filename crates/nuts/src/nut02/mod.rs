@@ -10,9 +10,9 @@ use bitcoin::key::Secp256k1;
 use bitcoin::secp256k1;
 use serde::{Deserialize, Serialize};
 
+use crate::Amount;
 use crate::nut01::{KeyPair, SetKeyPairs, SetPubKeys};
 use crate::traits::Unit;
-use crate::Amount;
 
 mod error;
 pub use error::*;

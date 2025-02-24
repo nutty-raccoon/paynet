@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{nut02::KeysetId, Amount, AmountStr};
+use crate::{Amount, AmountStr, nut02::KeysetId};
 
 use super::{mint_keys::SetKeyPairs, public_key::PublicKey};
 

@@ -57,7 +57,7 @@ impl Default for InsertBlindSignaturesQueryBuilder<'_> {
 #[cfg(test)]
 mod query_builder {
     use num_traits::One;
-    use nuts::{nut00::BlindSignature, nut01::PublicKey, nut02::KeysetId, Amount};
+    use nuts::{Amount, nut00::BlindSignature, nut01::PublicKey, nut02::KeysetId};
 
     use crate::InsertBlindSignaturesQueryBuilder;
 
@@ -81,6 +81,9 @@ mod query_builder {
         builder.add_row(y, &proof);
         builder.add_row(y, &proof);
         let query = builder.builder.sql();
-        assert_eq!(query, "INSERT INTO blind_signature (y, amount, keyset_id, c) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)");
+        assert_eq!(
+            query,
+            "INSERT INTO blind_signature (y, amount, keyset_id, c) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)"
+        );
     }
 }

@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Amount,
     nut00::{BlindSignature, BlindedMessage},
     traits::Unit,
-    Amount,
 };
 
 #[derive(
