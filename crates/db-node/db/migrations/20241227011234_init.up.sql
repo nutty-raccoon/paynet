@@ -42,6 +42,7 @@ CREATE TYPE mint_quote_state AS ENUM ('UNPAID', 'PAID', 'ISSUED');
 
 CREATE TABLE IF NOT EXISTS mint_quote (
     id UUID PRIMARY KEY,
+    invoice TEXT NOT NULL,
     unit TEXT NOT NULL,
     amount INT8 NOT NULL,
     request TEXT NOT NULL,

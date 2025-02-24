@@ -5,6 +5,7 @@ use nuts::{
 };
 use sqlx::{PgConnection, types::time::OffsetDateTime};
 use uuid::Uuid;
+use sha2::{Sha256, Digest};
 
 use crate::Error;
 
@@ -21,10 +22,11 @@ pub async fn insert_new<U: Unit>(
         .map_err(|_| Error::RuntimeToDbConversion)?;
     let expiry =
         OffsetDateTime::from_unix_timestamp(expiry).map_err(|_| Error::RuntimeToDbConversion)?;
-
+    let mut hasher = Sha256::new();
     sqlx::query!(
-        r#"INSERT INTO mint_quote (id, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, 'UNPAID')"#,
+        r#"INSERT INTO mint_quote (id, invoice, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
         quote_id,
+        hasher.update(quote_id.as_bytes()).finalize(),
         &unit.to_string(),
         amount.into_i64_repr(),
         request,

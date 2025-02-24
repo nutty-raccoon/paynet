@@ -9,6 +9,7 @@ use nuts::{
     Amount, QuoteTTLConfig, nut04::MintMethodSettings, nut05::MeltMethodSettings,
     nut06::NutsSettings,
 };
+use rusqlite::Connection;
 use sqlx::PgPool;
 use starknet_types::Unit;
 use tokio::try_join;
@@ -83,7 +84,7 @@ async fn main() -> Result<(), Error> {
 
     // Launch tonic server task
     let grpc_service = GrpcState::new(
-        pg_pool,
+        pg_pool.clone(),
         signer_client,
         nuts_settings,
         QuoteTTLConfig {
@@ -110,7 +111,13 @@ async fn main() -> Result<(), Error> {
         config.recipient_address,
     )
     .await?;
-    let indexer_future = indexer::listen_to_indexer(indexer_service);
+
+    let mut db_conn = pg_pool.acquire().await?;
+
+    let indexer_future = indexer::listen_to_indexer(
+        &mut db_conn,
+        indexer_service
+    );
 
     // Run them forever
     info!("Initialized!");
