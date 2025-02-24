@@ -32,35 +32,34 @@ pub async fn listen_to_indexer(
     mut indexer_service: ApibaraIndexerService,
 ) -> Result<(), ServiceError> {
     info!("Listening indexer events");
-
-    let mut current_amount:u64 = 0;
     
     while let Some(event) = indexer_service
         .try_next()
         .await
         .map_err(ServiceError::Indexer)?
     {
-        let tx = sqrlx::query_as!(
-            invoice,
-            r#"
-            SELECT invoice_id
-            FROM invoices
-            WHERE invoice_id = $1
-            "#,
-            invoice_id
-        )
-        .fetch_optional(db_conn)
-        .await;
-
         match event.clone() {
             Message::Payment(payment_events) => {
                 for payment_event in payment_events {
-                    let converted_amount = Strk.convert_u256_into_amount(payment_event.amount)?;
-                    current_amount += converted_amount;
-                    if current_amount >= tx.amount:
-                    break
+                    let amt = sqlx::query_as(
+                        "SELECT amount FROM mint_quote WHERE invoice = ?"
+                    )
+                    .bind(payment_event.invoice_id)
+                    .fetch_all(&db_conn)
+                    .await?
+                    .iter()
+                    .sum();
+                    let quote_id = sqlx::query_as(
+                        "SELECT id FROM mint_quote WHERE invoice = ?"
+                    )
+                    .bind(payment_event.invoice_id)
+                    .fetch_one(&db_conn)
+                    .await?;
+                    let converted_amt = Strk.convert_u256_into_amount(amt)?;
+                    if converted_amt >= payment_event:
+                        break
                 }
-            },
+            },  
             Message::Invalidate { 
                 last_valid_block_number,
                 last_valid_block_hash
@@ -68,10 +67,10 @@ pub async fn listen_to_indexer(
                 todo!();
             }
         }
-        //aqui eu vou pegar o evento
+
         debug!("Event received:\n{:?}", event);
     }
-    db_node::mint_quote::set_state(db_conn, tx.quote_id, MintQuoteState::Paid);
+    db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid);
 
     Ok(())
 }

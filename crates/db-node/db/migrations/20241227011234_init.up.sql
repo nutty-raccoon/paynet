@@ -50,6 +50,18 @@ CREATE TABLE IF NOT EXISTS mint_quote (
     state mint_quote_state NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS payment_event [
+    id INT8 NOT NULL,
+    tx_hash TEXT PRIMARY KEY,
+    event_index INT2 NOT NULL,
+    payee TEXT NOT NULL,
+    asset TEXT NOT NULL,
+    invoice_id TEXT NOT NULL,
+    payer TEXT NOT NULL,
+    amount_low TEXT NOT NULL,
+    amount_high TEXT NOT NULL
+];
+
 CREATE INDEX IF NOT EXISTS mint_quote_unit ON mint_quote(unit);
 CREATE INDEX IF NOT EXISTS mint_quote_state ON mint_quote(state);
 CREATE INDEX IF NOT EXISTS mint_quote_expiry ON mint_quote(expiry);
