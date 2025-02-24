@@ -76,7 +76,7 @@ async fn main() -> Result<()> {
     wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
     println!("2");
     wallet::refresh_node_keysets(&mut db_conn, &mut node_client, &cli.node_url).await?;
-    println!("2");
+    println!("3");
 
     match cli.command {
         Commands::Mint { amount, unit } => {
@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
                     mint_quote_response.quote.clone(),
                 )
                 .await?;
-                println!("state: {:?}", state);
+                // println!("state: {:?}", state);
 
                 if state == MintQuoteState::MnqsPaid {
                     break;
