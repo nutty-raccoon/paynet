@@ -1,13 +1,13 @@
-use starknet_types::Unit;
 use futures::TryFutureExt;
 use num_traits::CheckedAdd;
+use starknet_types::Unit;
 use std::collections::HashSet;
 use thiserror::Error;
 use tonic::Status;
 
-use signer::VerifyProofsRequest;
 use db_node::InsertSpentProofsQueryBuilder;
 use nuts::{Amount, nut00::Proof, nut01::PublicKey};
+use signer::VerifyProofsRequest;
 use sqlx::PgConnection;
 
 use crate::{
@@ -82,7 +82,7 @@ pub async fn process_melt_inputs<'a>(
             .map_err(Error::KeysetCache)?;
 
         // Check all units are the same
-        let unit = keyset_info.unit();
+        let unit = keyset_info.1;
         match common_unit {
             Some(u) => {
                 if u != unit {
@@ -136,7 +136,7 @@ pub async fn process_swap_inputs<'a>(
 
         let keyset_info = keyset_cache.get_keyset_info(conn, proof.keyset_id).await?;
 
-        let keyset_unit = keyset_info.unit();
+        let keyset_unit = keyset_info.1;
         match amounts_per_unit.iter_mut().find(|(u, _)| *u == keyset_unit) {
             Some((_, a)) => {
                 *a = a

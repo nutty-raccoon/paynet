@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 node = { workspace = true }
+futures = { workspace = true }
 nuts = { workspace = true }
 tonic  = { workspace = true }
 rusqlite = { workspace = true }
+log = { workspace = true }

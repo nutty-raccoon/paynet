@@ -7,6 +7,8 @@ import "bdhke.proto";
 service Node {
   // Keyset
   rpc Keysets (GetKeysetsRequest) returns (GetKeysetsResponse);
+  // Keys
+  rpc Keys (GetKeysRequest) returns (GetKeysResponse);
   // Swap
   rpc Swap (SwapRequest) returns (SwapResponse);
   // Mint
@@ -31,6 +33,25 @@ message Keyset {
   bytes id = 1;
   string unit = 2;
   bool active = 3;
+}
+
+message GetKeysRequest {
+  optional bytes keyset_id = 1;
+}
+
+message GetKeysResponse {
+  repeated KeysetKeys keysets = 1;
+}
+
+message KeysetKeys {
+  bytes id = 1;
+  string unit = 2;
+  repeated Key keys = 3;
+}
+
+message Key {
+  uint64 amount = 1;
+  string pubkey = 2;
 }
 
 message MintQuoteRequest {

@@ -1,7 +1,8 @@
 use anyhow::{Result, anyhow};
 use node::{MintQuoteState, NodeClient};
-use std::path::PathBuf;
-use wallet::types::PreMint;
+use std::{path::PathBuf, time::Duration};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 use clap::{Parser, Subcommand, ValueHint};
 
@@ -56,6 +57,10 @@ const STARKNET_METHOD: &str = "starknet";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let cli = Cli::parse();
     let db_path = cli
         .db_path
@@ -64,23 +69,19 @@ async fn main() -> Result<()> {
             dp
         }))
         .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?;
-    println!("database located at `{:?}`", db_path);
+    info!("database located at `{:?}`", db_path);
 
     let mut db_conn = rusqlite::Connection::open(db_path)?;
 
     let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
 
-    println!("0");
     wallet::db::create_tables(&mut db_conn)?;
-    println!("1");
-    wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
-    println!("2");
-    wallet::refresh_node_keysets(&mut db_conn, &mut node_client, &cli.node_url).await?;
-    println!("2");
+    let node_id = wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
+    wallet::refresh_node_keysets(&mut db_conn, &mut node_client, node_id).await?;
 
     match cli.command {
         Commands::Mint { amount, unit } => {
-            println!("Asking {} to mint {} {}", cli.node_url, amount, unit);
+            info!("Requesting {} to mint {} {}", cli.node_url, amount, unit);
             // Add mint logic here
             let mint_quote_response = wallet::create_mint_quote(
                 &mut db_conn,
@@ -91,12 +92,15 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            println!(
-                "MintQuote created with id: {}\nProceed to payment:\n{:?}",
+            info!(
+                "MintQuote created with id: {}\nProceed to payment:\n{}",
                 &mint_quote_response.quote, &mint_quote_response.request
             );
 
             loop {
+                // Wait a bit
+                tokio::time::sleep(Duration::from_secs(1)).await;
+
                 let state = wallet::get_mint_quote_state(
                     &mut db_conn,
                     &mut node_client,
@@ -104,38 +108,24 @@ async fn main() -> Result<()> {
                     mint_quote_response.quote.clone(),
                 )
                 .await?;
-                println!("state: {:?}", state);
 
                 if state == MintQuoteState::MnqsPaid {
+                    info!("On-chain deposit received");
                     break;
                 }
             }
 
-            let keyset_id = wallet::get_active_keyst_for_unit(&mut db_conn, &cli.node_url, unit)?;
-
-            let pre_mints = PreMint::generate_for_amount(amount.into(), keyset_id)?;
-
-            let keyset_id_as_vec = keyset_id.to_bytes().to_vec();
-
-            let outputs = pre_mints
-                .iter()
-                .map(|pm| node::BlindedMessage {
-                    amount: pm.blinded_message.amount.into(),
-                    keyset_id: keyset_id_as_vec.clone(),
-                    blinded_secret: pm.blinded_message.blinded_secret.to_bytes().to_vec(),
-                })
-                .collect();
-
-            let mint_response = node_client
-                .mint(node::MintRequest {
-                    method: STARKNET_METHOD.to_string(),
-                    quote: mint_quote_response.quote,
-                    outputs,
-                })
-                .await?
-                .into_inner();
-
-            println!("{:?}", mint_response);
+            wallet::mint_and_store_new_tokens(
+                &mut db_conn,
+                &mut node_client,
+                STARKNET_METHOD.to_string(),
+                mint_quote_response.quote,
+                node_id,
+                &unit,
+                amount,
+            )
+            .await?;
+            info!("Finished.");
         }
         Commands::Melt { amount, from } => {
             println!("Melting {} tokens from {}", amount, from);

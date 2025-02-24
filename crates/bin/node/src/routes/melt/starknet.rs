@@ -108,7 +108,7 @@ pub async fn starknet_melt(
 
     let (quote_id, total_amount, fee, expiry) = validate_and_register_quote(
         &mut conn,
-        signer.clone(),
+        signer,
         keyset_cache.clone(),
         settings,
         melt_ttl,

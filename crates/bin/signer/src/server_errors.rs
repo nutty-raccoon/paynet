@@ -1,4 +1,4 @@
-use nuts::{dhke, nut02::KeysetId, Amount};
+use nuts::{Amount, dhke, nut02::KeysetId};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

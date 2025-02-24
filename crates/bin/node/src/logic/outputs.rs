@@ -1,16 +1,16 @@
 use std::collections::HashSet;
 
-use signer::SignBlindedMessagesRequest;
-use starknet_types::Unit;
 use db_node::InsertBlindSignaturesQueryBuilder;
 use num_traits::CheckedAdd;
 use nuts::{
+    Amount,
     nut00::{BlindSignature, BlindedMessage},
     nut01::PublicKey,
     nut02::KeysetId,
-    Amount,
 };
+use signer::SignBlindedMessagesRequest;
 use sqlx::PgConnection;
+use starknet_types::Unit;
 use thiserror::Error;
 
 use crate::{
@@ -58,11 +58,11 @@ pub async fn check_outputs_allow_single_unit(
             .await?;
 
         // We only sign with active keysets
-        if !keyset_info.active() {
+        if !keyset_info.0 {
             return Err(Error::InactiveKeyset(blind_message.keyset_id));
         }
 
-        match (unit, keyset_info.unit()) {
+        match (unit, keyset_info.1) {
             (None, u) => unit = Some(u),
             (Some(unit), u) if u != unit => return Err(Error::MultipleUnits),
             _ => {}
@@ -101,12 +101,12 @@ pub async fn check_outputs_allow_multiple_units(
             .await?;
 
         // We only sign with active keysets
-        if !keyset_info.active() {
+        if !keyset_info.0 {
             return Err(Error::InactiveKeyset(blind_message.keyset_id));
         }
 
         // Incement total amount
-        let keyset_unit = keyset_info.unit();
+        let keyset_unit = keyset_info.1;
         match total_amounts.iter_mut().find(|(u, _)| *u == keyset_unit) {
             Some((_, a)) => {
                 *a = a

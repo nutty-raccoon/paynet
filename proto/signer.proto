@@ -11,15 +11,19 @@ service Signer {
 }
 
 message DeclareKeysetRequest {
-  string method = 1;
-  string unit = 2;
-  uint32 index = 3;
-  uint32 max_order = 4;
-
+  string unit = 1;
+  uint32 index = 2;
+  uint32 max_order = 3;
 }
 
 message DeclareKeysetResponse {
   bytes keyset_id = 1;
+  repeated Key keys = 2;
+}
+
+message Key {
+  uint64 amount = 1;
+  string pubkey = 2;
 }
 
 message SignBlindedMessagesRequest {

@@ -7,7 +7,7 @@ use nuts::{
 };
 use server_errors::Error;
 use signer::{
-    DeclareKeysetRequest, DeclareKeysetResponse, Method, SignBlindedMessagesRequest,
+    DeclareKeysetRequest, DeclareKeysetResponse, Key, SignBlindedMessagesRequest,
     SignBlindedMessagesResponse, SignerServer, VerifyProofsRequest, VerifyProofsResponse,
 };
 use state::{SharedKeySetCache, SharedRootKey};
@@ -38,37 +38,38 @@ impl signer::Signer for SignerState {
     ) -> Result<Response<DeclareKeysetResponse>, Status> {
         let declare_keyset_request = declare_keyset_request.get_ref();
 
-        let method = Method::from_str(&declare_keyset_request.method).map_err(|_| {
-            Status::invalid_argument(
-                Error::UnknownMethod(&declare_keyset_request.method).to_string(),
-            )
-        })?;
         let unit = starknet_types::Unit::from_str(&declare_keyset_request.unit).map_err(|_| {
             Status::invalid_argument(Error::UnknownUnit(&declare_keyset_request.unit).to_string())
         })?;
 
-        let keyset = match method {
-            Method::Starknet => {
-                let keyset = create_new_starknet_keyset(
-                    self.root_key.clone(),
-                    unit,
-                    declare_keyset_request.index,
-                    declare_keyset_request
-                        .max_order
-                        .try_into()
-                        .map_err(|_| Status::invalid_argument(Error::MaxOrderTooBig.to_string()))?,
-                );
+        let keyset = {
+            let keyset = create_new_starknet_keyset(
+                self.root_key.clone(),
+                unit,
+                declare_keyset_request.index,
+                declare_keyset_request
+                    .max_order
+                    .try_into()
+                    .map_err(|_| Status::invalid_argument(Error::MaxOrderTooBig.to_string()))?,
+            );
 
-                self.keyset_cache
-                    .insert(keyset.id, keyset.keys.clone())
-                    .map_err(|e| Status::internal(e.to_string()))?;
+            self.keyset_cache
+                .insert(keyset.id, keyset.keys.clone())
+                .map_err(|e| Status::internal(e.to_string()))?;
 
-                keyset
-            }
+            keyset
         };
 
         Ok(Response::new(DeclareKeysetResponse {
             keyset_id: keyset.id.to_bytes().to_vec(),
+            keys: keyset
+                .keys
+                .iter()
+                .map(|(&amout, keypair)| Key {
+                    amount: amout.into(),
+                    pubkey: keypair.public_key.to_string(),
+                })
+                .collect(),
         }))
     }
     async fn sign_blinded_messages(

@@ -2,9 +2,9 @@ use crate::{Error, keyset_cache::CachedKeysetInfo};
 use std::{str::FromStr, sync::Arc};
 
 use node::{
-    BlindSignature, GetKeysetsRequest, GetKeysetsResponse, Keyset, MeltRequest, MeltResponse,
-    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, QuoteStateRequest,
-    SwapRequest, SwapResponse,
+    BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, Key,
+    Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
+    MintRequest, MintResponse, Node, QuoteStateRequest, SwapRequest, SwapResponse,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -54,7 +54,6 @@ impl GrpcState {
 
     pub async fn init_first_keysets(
         &self,
-        method: Method,
         units: &[Unit],
         index: u32,
         max_order: u32,
@@ -62,22 +61,37 @@ impl GrpcState {
         let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
 
         for unit in units {
-            let keyset_id = {
+            let response = {
                 let mut signer_lock = self.signer.write().await;
-                let response = signer_lock
+                signer_lock
                     .declare_keyset(signer::DeclareKeysetRequest {
-                        method: method.to_string(),
                         unit: unit.to_string(),
                         index,
                         max_order,
                     })
-                    .await?;
-                KeysetId::from_bytes(&response.into_inner().keyset_id)?
+                    .await?
             };
+            let response = response.into_inner();
+            let keyset_id = KeysetId::from_bytes(&response.keyset_id)?;
 
             insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
             self.keyset_cache
-                .insert(keyset_id, CachedKeysetInfo::new(true, *unit))
+                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit))
+                .await;
+            self.keyset_cache
+                .insert_keys(
+                    keyset_id,
+                    response
+                        .keys
+                        .into_iter()
+                        .map(|k| {
+                            (
+                                Amount::from(k.amount),
+                                PublicKey::from_str(&k.pubkey).unwrap(),
+                            )
+                        })
+                        .collect(),
+                )
                 .await;
         }
 
@@ -122,7 +136,7 @@ impl Node for GrpcState {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        let keysets = db_node::get_keysets(&mut conn)
+        let keysets = db_node::keyset::get_keysets(&mut conn)
             .await
             .map_err(|e| Status::internal(e.to_string()))?
             .map(|(id, unit, active)| Keyset {
@@ -133,6 +147,76 @@ impl Node for GrpcState {
             .collect();
 
         Ok(Response::new(GetKeysetsResponse { keysets }))
+    }
+
+    async fn keys(
+        &self,
+        request: Request<GetKeysRequest>,
+    ) -> Result<Response<GetKeysResponse>, Status> {
+        let request = request.into_inner();
+
+        let mut conn = self
+            .pg_pool
+            .acquire()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let keysets = match request.keyset_id {
+            Some(keyset_id) => {
+                let keyset_id = KeysetId::from_bytes(&keyset_id)
+                    .map_err(|e| Status::invalid_argument(e.to_string()))?;
+                let keyset_info = db_node::keyset::get_keyset(&mut conn, &keyset_id)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+                let keys = self
+                    .keyset_cache
+                    .get_keyset_keys(&mut conn, self.signer.clone(), keyset_id)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+
+                vec![KeysetKeys {
+                    id: keyset_id.to_bytes().to_vec(),
+                    unit: keyset_info.unit(),
+                    keys: keys
+                        .into_iter()
+                        .map(|(a, pk)| Key {
+                            amount: a.into(),
+                            pubkey: pk.to_string(),
+                        })
+                        .collect(),
+                }]
+            }
+            None => {
+                let keysets_info = db_node::keyset::get_active_keysets::<String>(&mut conn)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+
+                let mut keysets = Vec::with_capacity(keysets_info.len());
+                // TODO: add concurency
+                for (keyset_id, keyset_info) in keysets_info {
+                    let keys = self
+                        .keyset_cache
+                        .get_keyset_keys(&mut conn, self.signer.clone(), keyset_id)
+                        .await
+                        .map_err(|e| Status::internal(e.to_string()))?;
+
+                    keysets.push(KeysetKeys {
+                        id: keyset_id.to_bytes().to_vec(),
+                        unit: keyset_info.unit(),
+                        keys: keys
+                            .into_iter()
+                            .map(|(a, pk)| Key {
+                                amount: a.into(),
+                                pubkey: pk.to_string(),
+                            })
+                            .collect(),
+                    })
+                }
+                keysets
+            }
+        };
+
+        Ok(Response::new(GetKeysResponse { keysets }))
     }
 
     async fn swap(

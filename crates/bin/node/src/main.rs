@@ -92,7 +92,7 @@ async fn main() -> Result<(), Error> {
         },
     );
     grpc_service
-        .init_first_keysets(Method::Starknet, &[Unit::Strk], 0, 32)
+        .init_first_keysets(&[Unit::Strk], 0, 32)
         .await?;
 
     let addr = format!("[::1]:{}", config.grpc_server_port)

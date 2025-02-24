@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use nuts::{Amount, nut01::PublicKey, nut02::KeysetId, traits::Unit};
+use nuts::{Amount, nut01::PublicKey, traits::Unit};
 use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
 use thiserror::Error;
 
@@ -10,6 +8,7 @@ mod insert_blind_signatures;
 pub use insert_blind_signatures::InsertBlindSignaturesQueryBuilder;
 mod insert_keysets;
 pub use insert_keysets::InsertKeysetsQueryBuilder;
+pub mod keyset;
 pub mod melt_quote;
 pub mod mint_quote;
 
@@ -27,80 +26,6 @@ pub enum Error {
     DbToRuntimeConversion,
     #[error("Failed to convert the runtime type into the db type")]
     RuntimeToDbConversion,
-}
-
-#[derive(Debug, Clone)]
-pub struct KeysetInfo<U> {
-    unit: U,
-    active: bool,
-    max_order: u8,
-    derivation_path_index: u32,
-}
-
-impl<U: Unit> KeysetInfo<U> {
-    pub fn unit(&self) -> U {
-        self.unit
-    }
-    pub fn active(&self) -> bool {
-        self.active
-    }
-    pub fn max_order(&self) -> u8 {
-        self.max_order
-    }
-    pub fn derivation_path_index(&self) -> u32 {
-        self.derivation_path_index
-    }
-}
-
-pub async fn get_keysets(
-    conn: &mut PgConnection,
-) -> Result<impl Iterator<Item = ([u8; 8], String, bool)>, sqlx::Error> {
-    let record = sqlx::query!("SELECT id, unit, active FROM keyset")
-        .fetch_all(conn)
-        .await?;
-
-    Ok(record
-        .into_iter()
-        .map(|r| (r.id.to_be_bytes(), r.unit, r.active)))
-}
-
-pub async fn get_keyset<U: FromStr>(
-    conn: &mut PgConnection,
-    keyset_id: &KeysetId,
-) -> Result<KeysetInfo<U>, Error> {
-    let record = sqlx::query!(
-        r#"SELECT unit, active, max_order, derivation_path_index
-        FROM keyset
-        WHERE id = $1"#,
-        keyset_id.as_i64()
-    )
-    .fetch_one(conn)
-    .await?;
-
-    let info = KeysetInfo {
-        unit: U::from_str(&record.unit).map_err(|_| Error::InvalidUnit(record.unit))?,
-        active: record.active,
-        max_order: u8::try_from(record.max_order).map_err(|_| Error::DbToRuntimeConversion)?,
-        derivation_path_index: u32::from_be_bytes(record.derivation_path_index.to_be_bytes()),
-    };
-
-    Ok(info)
-}
-
-pub async fn get_active_keyset_for_unit(
-    conn: &mut PgConnection,
-    unit: String,
-) -> Result<[u8; 8], sqlx::Error> {
-    let record = sqlx::query!(
-        r#"SELECT id
-        FROM keyset
-        WHERE unit = $1 AND active = true"#,
-        unit
-    )
-    .fetch_one(conn)
-    .await?;
-
-    Ok(record.id.to_be_bytes())
 }
 
 /// Will return true if this secret has already been signed by us
