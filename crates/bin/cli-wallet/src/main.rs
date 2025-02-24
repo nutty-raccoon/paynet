@@ -108,10 +108,6 @@ async fn main() -> Result<()> {
                     mint_quote_response.quote.clone(),
                 )
                 .await?;
-<<<<<<< HEAD
-=======
-                // println!("state: {:?}", state);
->>>>>>> 20488e9 (initial: listener)
 
                 if state == MintQuoteState::MnqsPaid {
                     info!("On-chain deposit received");

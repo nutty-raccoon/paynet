@@ -7,11 +7,10 @@ use std::str::FromStr;
 use anyhow::{Result, anyhow};
 use futures::StreamExt;
 use node::{
-    NodeClient,
-    GetKeysetsRequest, MeltRequest, MeltResponse, MintResponse, MintQuoteRequest, MintQuoteResponse,
-    MintQuoteState, MintRequest, QuoteStateRequest, SwapRequest, SwapResponse, MeltState
+    GetKeysetsRequest, MeltRequest, MeltResponse, MeltState, MintQuoteRequest, MintQuoteResponse,
+    MintQuoteState, MintRequest, MintResponse, NodeClient, QuoteStateRequest, SwapRequest,
+    SwapResponse,
 };
-use node::{MintResponse, NodeClient};
 use nuts::Amount;
 use nuts::dhke::{hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -103,46 +102,6 @@ pub async fn mint(
     Ok(resp.into_inner())
 }
 
-pub async fn create_melt(
-    db_conn: &mut Connection,
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    amount: u64,
-    unit: String,
-    request: String,
-    inputs: &[Proof],
-) -> Result<MeltResponse> {
-    let req = MeltRequest {
-        method: method.clone(),
-        unit: unit.clone(),
-        request,
-        inputs: convert_inputs(inputs),
-    };
-    let resp = node_client.melt(req).await?.into_inner();
-
-    db::store_melt(db_conn, method, unit, amount, &resp)?;
-    Ok(resp)
-}
-
-pub async fn get_melt_quote_state(
-    db_conn: &mut Connection,
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote_id: String,
-) -> Result<MeltState> {
-    let resp = node_client
-        .melt_quote_state(QuoteStateRequest {
-            method,
-            quote: quote_id,
-        })
-        .await?
-        .into_inner();
-
-    db::set_melt_quote_state(db_conn, resp.quote, resp.state)?;
-
-    Ok(MeltState::try_from(resp.state)?)
-}
-
 pub async fn swap(
     node_client: &mut NodeClient<Channel>,
     inputs: &[Proof],
@@ -218,7 +177,6 @@ pub fn get_active_keyset_for_unit(
     Ok(keyset_id)
 }
 
-<<<<<<< HEAD
 pub async fn mint_and_store_new_tokens(
     db_conn: &mut Connection,
     node_client: &mut NodeClient<Channel>,
@@ -312,5 +270,3 @@ pub fn construct_proofs(
 
     Ok(())
 }
-=======
->>>>>>> 20488e9 (initial: listener)

@@ -108,18 +108,6 @@ pub fn insert_node(conn: &mut Connection, node_url: &str) -> Result<u32> {
     Ok(id)
 }
 
-pub fn insert_node(conn: &mut Connection, node_url: &str) -> Result<u32> {
-    conn.execute(
-        "INSERT INTO node (url) VALUES (?1) ON CONFLICT DO NOTHING;",
-        [node_url],
-    )?;
-
-    let mut stmt = conn.prepare("SELECT id FROM node WHERE url = ?1;")?;
-    let id = stmt.query_row([node_url], |r| r.get::<_, u32>(0))?;
-
-    Ok(id)
-}
-
 pub fn upsert_node_keysets(
     conn: &mut Connection,
     node_id: u32,
