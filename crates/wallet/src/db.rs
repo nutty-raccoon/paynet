@@ -1,4 +1,4 @@
-use node::MintQuoteResponse;
+use node::{MintQuoteResponse, MeltResponse};
 use rusqlite::{Connection, Result};
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
@@ -72,6 +72,51 @@ pub fn set_mint_quote_state(conn: &mut Connection, quote_id: String, state: i32)
     "#;
 
     conn.execute(SET_MINT_QUOTE_STATE, (&quote_id, state))?;
+
+    Ok(())
+}
+
+pub fn store_melt(
+    conn: &mut Connection,
+    method: String,
+    unit: String,
+    amount: u64,
+    response: &MeltResponse,
+) -> Result<()> {
+
+    const INSERT_NEW_MELT: &str = r#"
+        INSERT INTO melt (id, method, amount, fee, unit, state, expiry) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    "#;
+
+    conn.execute(
+        INSERT_NEW_MELT,
+        (
+            &response.quote,
+            method,
+            amount,
+            &response.fee,
+            unit,
+            response.state,
+            response.expiry,
+        ),
+    )?;
+
+    Ok(())
+}
+
+pub fn set_melt_quote_state(
+    conn: &mut Connection,
+    quote_id: String,
+    state: i32,
+) -> Result<()> {
+
+    const INSERT_NEW_MELT_QUOTE: &str = r#"
+        UPDATE melt_quote_state
+        SET state = $2
+        WHERE id = $1;
+    "#;
+
+    conn.execute(INSERT_NEW_MELT_QUOTE, (&quote_id, state))?;
 
     Ok(())
 }
