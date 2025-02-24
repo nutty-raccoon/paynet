@@ -26,7 +26,7 @@ pub async fn insert_new<U: Unit>(
     sqlx::query!(
         r#"INSERT INTO mint_quote (id, invoice, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
         quote_id,
-        hasher.update(quote_id.as_bytes()).finalize(),
+        format!("{:X}", hasher.update(quote_id.as_bytes()).finalize()),
         &unit.to_string(),
         amount.into_i64_repr(),
         request,

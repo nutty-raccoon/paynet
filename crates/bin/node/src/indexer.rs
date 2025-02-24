@@ -41,22 +41,24 @@ pub async fn listen_to_indexer(
         match event.clone() {
             Message::Payment(payment_events) => {
                 for payment_event in payment_events {
-                    let amt = sqlx::query_as(
-                        "SELECT amount FROM mint_quote WHERE invoice = ?"
-                    )
-                    .bind(payment_event.invoice_id)
-                    .fetch_all(&db_conn)
-                    .await?
-                    .iter()
-                    .sum();
-                    let quote_id = sqlx::query_as(
-                        "SELECT id FROM mint_quote WHERE invoice = ?"
+                    db_node::insert_new_payment_event(
+                        &payment_event
+                    );
+                    let amt = sqlx::query!(
+                        "SELECT SUM(amount) as total_amount
+                        FROM payment_event
+                        WHERE invoice_id = $1"  
                     )
                     .bind(payment_event.invoice_id)
                     .fetch_one(&db_conn)
                     .await?;
-                    let converted_amt = Strk.convert_u256_into_amount(amt)?;
-                    if converted_amt >= payment_event:
+                    let amount = sqlx::query!(
+                        "SELECT amount FROM mint_quote WHERE invoice = ? LIMIT 1"
+                    )
+                    .bind(payment_event.invoice_id)
+                    .fetch_one(&db_conn)
+                    .await?;
+                    if Strk.convert_u256_into_amount(amt) >= Strk.convert_u256_into_amount(amount):
                         break
                 }
             },  
