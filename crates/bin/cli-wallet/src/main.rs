@@ -76,8 +76,16 @@ async fn main() -> Result<()> {
     let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
 
     wallet::db::create_tables(&mut db_conn)?;
+<<<<<<< HEAD
     let node_id = wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
     wallet::refresh_node_keysets(&mut db_conn, &mut node_client, node_id).await?;
+=======
+    println!("1");
+    wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
+    println!("2");
+    wallet::refresh_node_keysets(&mut db_conn, &mut node_client, &cli.node_url).await?;
+    println!("3");
+>>>>>>> 20488e9 (initial: listener)
 
     match cli.command {
         Commands::Mint { amount, unit } => {
@@ -108,6 +116,10 @@ async fn main() -> Result<()> {
                     mint_quote_response.quote.clone(),
                 )
                 .await?;
+<<<<<<< HEAD
+=======
+                // println!("state: {:?}", state);
+>>>>>>> 20488e9 (initial: listener)
 
                 if state == MintQuoteState::MnqsPaid {
                     info!("On-chain deposit received");

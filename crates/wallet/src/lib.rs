@@ -219,6 +219,7 @@ pub fn get_active_keyset_for_unit(
     Ok(keyset_id)
 }
 
+<<<<<<< HEAD
 pub async fn mint_and_store_new_tokens(
     db_conn: &mut Connection,
     node_client: &mut NodeClient<Channel>,
@@ -312,3 +313,5 @@ pub fn construct_proofs(
 
     Ok(())
 }
+=======
+>>>>>>> 20488e9 (initial: listener)
