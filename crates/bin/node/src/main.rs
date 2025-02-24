@@ -9,7 +9,6 @@ use nuts::{
     Amount, QuoteTTLConfig, nut04::MintMethodSettings, nut05::MeltMethodSettings,
     nut06::NutsSettings,
 };
-use rusqlite::Connection;
 use sqlx::PgPool;
 use starknet_types::Unit;
 use tokio::try_join;
@@ -102,7 +101,7 @@ async fn main() -> Result<(), Error> {
     let tonic_future = tonic::transport::Server::builder()
         .add_service(NodeServer::new(grpc_service))
         .serve(addr)
-        .map_err(ServiceError::TonicTransport);
+        .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
     // Launch indexer task
     let indexer_service = indexer::init_indexer_task(

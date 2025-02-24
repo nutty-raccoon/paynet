@@ -51,9 +51,9 @@ CREATE TABLE IF NOT EXISTS mint_quote (
 );
 
 CREATE TABLE IF NOT EXISTS payment_event (
-    block_id INT8 NOT NULL,
+    block_id TEXT NOT NULL,
     tx_hash TEXT PRIMARY KEY,
-    event_index INT2 NOT NULL,
+    event_index BIGINT NOT NULL,
     payee TEXT NOT NULL,
     asset TEXT NOT NULL,
     invoice_id TEXT NOT NULL,

@@ -97,3 +97,29 @@ pub async fn set_state(
 
     Ok(())
 }
+
+pub async fn get_quote_id_by_invoice_id(
+    conn: &mut PgConnection,
+    invoice_id: String,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    let quote_id = sqlx::query!(
+        r#"
+            SELECT id from mint_quote WHERE invoice = $1
+        "#,
+        invoice_id
+    )
+    .fetch_optional(conn)
+    .await;
+
+    match quote_id {
+        Ok(Some(r)) => {
+            Ok(Some(r.id))
+        }
+        Ok(None) => {
+            Ok(None)
+        }
+        Err(e) => {
+            Err(e)
+        }
+    }
+}

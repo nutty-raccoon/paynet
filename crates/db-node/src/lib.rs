@@ -11,6 +11,7 @@ pub use insert_keysets::InsertKeysetsQueryBuilder;
 pub mod keyset;
 pub mod melt_quote;
 pub mod mint_quote;
+pub mod payment_event;
 
 #[derive(Debug, Error)]
 pub enum Error {

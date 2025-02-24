@@ -12,6 +12,7 @@ starknet-types = { workspace = true }
 num-traits = { workspace = true }
 dotenvy = { workspace = true }
 sha2 = { workspace = true }
+starknet-payment-indexer = { workspace = true }
 
 [dev-dependencies]
 sqlx = { workspace = true, features = ["runtime-tokio"] }

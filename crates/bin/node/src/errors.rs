@@ -1,6 +1,7 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use nuts::{dhke, nut00::CashuError, nut02};
 use thiserror::Error;
+use tower::Service;
 
 use crate::commands::ConfigError;
 
