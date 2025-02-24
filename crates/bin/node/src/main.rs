@@ -113,10 +113,7 @@ async fn main() -> Result<(), Error> {
 
     let mut db_conn = pg_pool.acquire().await?;
 
-    let indexer_future = indexer::listen_to_indexer(
-        &mut db_conn,
-        indexer_service
-    );
+    let indexer_future = indexer::listen_to_indexer(&mut db_conn, indexer_service);
 
     // Run them forever
     info!("Initialized!");

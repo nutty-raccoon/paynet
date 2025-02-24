@@ -128,16 +128,15 @@ pub async fn get_melt_quote_state(
     db_conn: &mut Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
-    quote_id: String
+    quote_id: String,
 ) -> Result<MeltState> {
-    let resp = node_client.melt_quote_state(
-        QuoteStateRequest {
+    let resp = node_client
+        .melt_quote_state(QuoteStateRequest {
             method,
-            quote: quote_id
-        }
-    )
-    .await?
-    .into_inner();
+            quote: quote_id,
+        })
+        .await?
+        .into_inner();
 
     db::set_melt_quote_state(db_conn, resp.quote, resp.state)?;
 

@@ -3,9 +3,9 @@ use nuts::{
     nut04::{MintQuoteResponse, MintQuoteState},
     traits::Unit,
 };
+use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, types::time::OffsetDateTime};
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
 
 use crate::Error;
 
@@ -112,14 +112,8 @@ pub async fn get_quote_id_by_invoice_id(
     .await;
 
     match quote_id {
-        Ok(Some(r)) => {
-            Ok(Some(r.id))
-        }
-        Ok(None) => {
-            Ok(None)
-        }
-        Err(e) => {
-            Err(e)
-        }
+        Ok(Some(r)) => Ok(Some(r.id)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e),
     }
 }

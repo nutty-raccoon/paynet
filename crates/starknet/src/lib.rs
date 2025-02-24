@@ -2,8 +2,8 @@ use num_bigint::BigUint;
 use nuts::Amount;
 use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
-use thiserror::Error;
 use std::cmp::Ordering;
+use thiserror::Error;
 
 mod unit;
 pub use unit::{Unit, UnitFromStrError};
@@ -104,7 +104,7 @@ impl PartialOrd for StarknetU256 {
 
         let self_val: primitive_types::U256 = self.into();
         let other_val: primitive_types::U256 = other.into();
-        
+
         self_val.partial_cmp(&other_val)
     }
 }

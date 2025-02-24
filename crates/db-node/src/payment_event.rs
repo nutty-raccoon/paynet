@@ -1,6 +1,6 @@
-use sqlx::{PgConnection};
-use starknet_payment_indexer::{PaymentEvent};
 use crate::Error;
+use sqlx::PgConnection;
+use starknet_payment_indexer::PaymentEvent;
 
 pub async fn insert_new_payment_event(
     db_conn: &mut PgConnection,
@@ -18,6 +18,6 @@ pub async fn insert_new_payment_event(
     )
     .execute(db_conn)
     .await?;
-    
+
     Ok(())
 }
