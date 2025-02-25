@@ -1,18 +1,22 @@
 use crate::{Error, keyset_cache::CachedKeysetInfo};
 use std::{str::FromStr, sync::Arc};
 
+use hex::{decode, encode};
 use node::{
-    BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, Key,
-    Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
-    MintRequest, MintResponse, Node, QuoteStateRequest, SwapRequest, SwapResponse,
+    BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
+    GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest,
+    MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
+    SwapRequest, SwapResponse,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
     nut00::{BlindedMessage, Proof, secret::Secret},
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
-    nut06::NutsSettings,
+    nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
 };
+use serde::{Deserialize, Serialize};
+use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
 use starknet_types::{MeltPaymentRequest, Unit};
 use thiserror::Error;
@@ -400,6 +404,50 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
+        }))
+    }
+
+    async fn get_node_info(
+        &self,
+        node_info_request: Request<GetNodeInfoRequest>,
+    ) -> Result<Response<NodeInfoResponse>, Status> {
+        let nuts_config = {
+            let nuts_read_lock = self.nuts.read().await;
+            nuts_read_lock.clone()
+        };
+        let pub_key = {
+            let mut signer_write_lock = self.signer.write().await;
+            signer_write_lock
+                .get_root_pub_key(Request::new(GetRootPubKeyRequest {}))
+                .await?
+                .into_inner()
+                .root_pubkey
+        };
+        let node_info = NodeInfo {
+            name: Some("Paynet Test Node".to_string()),
+            pubkey: Some(PublicKey::from_str(&pub_key).unwrap()),
+            version: Some(NodeVersion {
+                name: "some_name".to_string(),
+                version: "0.0.0".to_string(),
+            }),
+            description: Some("A test node".to_string()),
+            description_long: Some("This is a longer description of the test node.".to_string()),
+            contact: Some(vec![ContactInfo {
+                method: "some_method".to_string(),
+                info: "some_info".to_string(),
+            }]),
+            nuts: nuts_config,
+            icon_url: Some("http://example.com/icon.png".to_string()),
+            urls: Some(vec!["http://example.com".to_string()]),
+            motd: Some("Welcome to the node!".to_string()),
+            time: Some(1616161616),
+        };
+
+        let node_info_str = serde_json::to_string(&node_info)
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(NodeInfoResponse {
+            info: node_info_str,
         }))
     }
 }

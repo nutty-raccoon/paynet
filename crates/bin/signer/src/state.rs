@@ -5,7 +5,7 @@ use std::{
 
 use bitcoin::{
     bip32::{ChildNumber, DerivationPath, Xpriv},
-    key::Secp256k1,
+    key::Secp256k1
 };
 use nuts::{
     nut01::SetKeyPairs,
@@ -35,6 +35,12 @@ impl SharedRootKey {
             .expect("RNG busted");
 
         MintKeySet::generate(&secp_ctx, xpriv, unit, max_order)
+    }
+
+    pub fn get_pubkey(&self) -> bitcoin::secp256k1::PublicKey {
+        let secp256k1 = Secp256k1::new();
+        let private_key = &self.0.private_key;
+        private_key.public_key(&secp256k1)
     }
 }
 
