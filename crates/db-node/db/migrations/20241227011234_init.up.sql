@@ -42,7 +42,7 @@ CREATE TYPE mint_quote_state AS ENUM ('UNPAID', 'PAID', 'ISSUED');
 
 CREATE TABLE IF NOT EXISTS mint_quote (
     id UUID PRIMARY KEY,
-    invoice TEXT NOT NULL,
+    invoice_id TEXT NOT NULL UNIQUE,
     unit TEXT NOT NULL,
     amount INT8 NOT NULL,
     request TEXT NOT NULL,
@@ -52,14 +52,15 @@ CREATE TABLE IF NOT EXISTS mint_quote (
 
 CREATE TABLE IF NOT EXISTS payment_event (
     block_id TEXT NOT NULL,
-    tx_hash TEXT PRIMARY KEY,
+    tx_hash TEXT NOT NULL,
     event_index BIGINT NOT NULL,
     payee TEXT NOT NULL,
     asset TEXT NOT NULL,
-    invoice_id TEXT NOT NULL,
+    invoice_id TEXT NOT NULL REFERENCES mint_quote(invoice_id),
     payer TEXT NOT NULL,
     amount_low TEXT NOT NULL,
-    amount_high TEXT NOT NULL
+    amount_high TEXT NOT NULL,
+    PRIMARY KEY (tx_hash, event_index)
 );
 
 CREATE INDEX IF NOT EXISTS mint_quote_unit ON mint_quote(unit);

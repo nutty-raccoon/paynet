@@ -21,3 +21,24 @@ pub async fn insert_new_payment_event(
 
     Ok(())
 }
+
+pub async fn get_current_paid(
+    db_conn: &mut PgConnection,
+    invoice_id: String
+) -> Result<impl Iterator<Item = (String,String)>,Error> {
+    let record = sqlx::query!(
+        r#"SELECT  amount_low, amount_high
+        FROM payment_event
+        WHERE invoice_id = $1"#,
+        invoice_id
+    )
+    .fetch_all(&mut *db_conn)
+    .await?;
+
+    let amounts_iterator = record
+    .into_iter().
+    map(|r|(r.amount_low,r.amount_high));
+
+    Ok(amounts_iterator)
+
+}

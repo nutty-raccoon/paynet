@@ -90,24 +90,6 @@ impl StarknetU256 {
     }
 }
 
-impl PartialOrd for StarknetU256 {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // let low1 = &self.low.trim_start_matches("0x").unwrap();
-        // let high1 = &self.high.trim_start_matches("0x").unwrap();
-
-        // let low2 = u128::from_le_bytes(bytes[..16].try_into().unwrap());
-        // let high2 = u128::from_le_bytes(bytes[16..].try_into().unwrap());
-
-        // self_val.partial_cmp(&other_val)
-
-        //why the above is wrong
-
-        let self_val: primitive_types::U256 = self.into();
-        let other_val: primitive_types::U256 = other.into();
-
-        self_val.partial_cmp(&other_val)
-    }
-}
 impl core::fmt::Display for StarknetU256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "low: {:#x} - high: {:#x}", self.low, self.high)
