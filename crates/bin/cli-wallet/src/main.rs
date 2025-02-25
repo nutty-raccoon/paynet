@@ -75,7 +75,11 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::AddNode { node_url } => {
             let _node_client = NodeClient::connect(node_url.clone()).await?;
-            let _ = wallet::db::insert_node(&db_conn, &node_url)?;
+            let node_id = wallet::db::insert_node(&db_conn, &node_url)?;
+            println!(
+                "Successfully registered {} as node with id `{}`",
+                &node_url, node_id
+            );
         }
         Commands::Mint {
             amount,
@@ -142,7 +146,7 @@ async fn main() -> Result<()> {
             node_id,
         } => {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
-            println!("Sending {} {} using mint {}", amount, unit, &node_url);
+            println!("Sending {} {} using node {}", amount, unit, &node_url);
             let tokens = wallet::fetch_send_inputs_from_db(
                 &db_conn,
                 &mut node_client,
@@ -155,7 +159,7 @@ async fn main() -> Result<()> {
             match tokens {
                 Some(tokens) => {
                     let s = serde_json::to_string(&tokens)?;
-                    println!("{}", s);
+                    println!("Tokens:\n{}", s);
                 }
                 None => println!("Not enough funds"),
             }

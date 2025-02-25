@@ -104,6 +104,7 @@ async fn main() -> Result<(), Error> {
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
     // Launch indexer task
+    #[cfg(not(feature = "uncollateralized"))]
     let indexer_service = indexer::init_indexer_task(
         env_variables.apibara_token,
         config.strk_address,
@@ -111,14 +112,19 @@ async fn main() -> Result<(), Error> {
     )
     .await?;
 
+    #[cfg(not(feature = "uncollateralized"))]
     let mut db_conn = pg_pool.acquire().await?;
 
+    #[cfg(not(feature = "uncollateralized"))]
     let indexer_future = indexer::listen_to_indexer(&mut db_conn, indexer_service);
 
     // Run them forever
     info!("Initialized!");
     info!("Running gRPC server on port {}", config.grpc_server_port);
+    #[cfg(not(feature = "uncollateralized"))]
     let ((), ()) = try_join!(tonic_future, indexer_future)?;
+    #[cfg(feature = "uncollateralized")]
+    let ((),) = try_join!(tonic_future)?;
 
     Ok(())
 }

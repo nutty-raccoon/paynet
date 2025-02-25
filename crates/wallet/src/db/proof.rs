@@ -5,7 +5,7 @@ use crate::types::ProofState;
 pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE TABLE IF NOT EXISTS proof (
             y BLOB(33) PRIMARY KEY,
-            node_id TEXT NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             keyset_id BLOB(8) REFERENCES keyset(id) ON DELETE CASCADE,
             amount INTEGER NOT NULL,
             secret TEXT NOT NULL,
