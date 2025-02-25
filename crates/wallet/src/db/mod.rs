@@ -46,7 +46,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
         );"#;
     const CREATE_TABLE_MELT_RESPONSE: &str = r#"
         CREATE TABLE IF NOT EXISTS melt_response (
-            id TEXT NOT NULL,
+            id BLOB (16) PRIMARY KEY,
             amount INTEGER NOT NULL,
             fee INT2 NOT NULL,
             state INT2 NOT NULL,

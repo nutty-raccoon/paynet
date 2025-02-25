@@ -6,7 +6,7 @@ use starknet_types_core::felt::Felt;
 use std::{path::PathBuf, time::Duration};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-use wallet::convert_inputs;
+
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::AddNode { node_url } => {
             let _node_client = NodeClient::connect(node_url.clone()).await?;
-            let node_id = wallet::db::insert_node(&mut db_conn, &node_url)?;
+            let node_id = wallet::db::insert_node(&db_conn, &node_url)?;
             println!(
                 "Successfully registered {} as node with id `{}`",
                 &node_url, node_id
@@ -175,12 +175,10 @@ async fn main() -> Result<()> {
                             low: Felt::from_hex_unchecked("0x123"),
                         },
                     })?,
-                    inputs: convert_inputs(&inputs),
+                    inputs: wallet::convert_inputs(&inputs),
                 })
                 .await?
                 .into_inner();
-
-            let tx = db_conn.transaction()?;
 
             const INSERT_MELT_RESPONSE: &str = r#"
             INSERT INTO melt_response (
@@ -188,7 +186,7 @@ async fn main() -> Result<()> {
             ) VALUES (?1, ?2, ?3, ?4, ?5)
             "#;
 
-            tx.execute(
+            db_conn.execute(
                 INSERT_MELT_RESPONSE,
                 [
                     &resp.quote,
@@ -198,8 +196,6 @@ async fn main() -> Result<()> {
                     &resp.expiry.to_string(),
                 ],
             )?;
-
-            tx.commit()?;
         }
         Commands::Send {
             amount,
