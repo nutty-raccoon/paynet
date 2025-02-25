@@ -8,6 +8,13 @@ service Signer {
   rpc DeclareKeyset (DeclareKeysetRequest) returns (DeclareKeysetResponse);
   rpc SignBlindedMessages (SignBlindedMessagesRequest) returns (SignBlindedMessagesResponse);
   rpc VerifyProofs (VerifyProofsRequest) returns (VerifyProofsResponse);
+  rpc GetRootPubKey (GetRootPubKeyRequest) returns (GetRootPubKeyResponse);
+}
+
+message GetRootPubKeyRequest {}
+
+message GetRootPubKeyResponse {
+  string root_pubkey = 1;
 }
 
 message DeclareKeysetRequest {

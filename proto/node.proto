@@ -18,9 +18,17 @@ service Node {
   // Melt
   rpc Melt (MeltRequest) returns (MeltResponse);
   rpc MeltQuoteState (QuoteStateRequest) returns (MeltResponse);
-
+  
+  rpc GetNodeInfo (GetNodeInfoRequest) returns (NodeInfoResponse);
+  
   // TODO: add Acknowledgment route
   // for the client to say he successfully stored the quote_id
+}
+
+message GetNodeInfoRequest {} 
+
+message NodeInfoResponse {
+  string info = 1;
 }
 
 message GetKeysetsRequest {}
