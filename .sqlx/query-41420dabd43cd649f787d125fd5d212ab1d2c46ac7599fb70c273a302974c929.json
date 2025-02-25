@@ -1,16 +1,16 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT amount_high, amount_low\n                        FROM payment_event\n                        WHERE invoice_id = $1",
+  "query": "SELECT  amount_low, amount_high\n        FROM payment_event\n        WHERE invoice_id = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "amount_high",
+        "name": "amount_low",
         "type_info": "Text"
       },
       {
         "ordinal": 1,
-        "name": "amount_low",
+        "name": "amount_high",
         "type_info": "Text"
       }
     ],
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "062a7cd84ea839549107e3233e92b466e5b310fe6ee7d6b4fcf8977a698d375e"
+  "hash": "41420dabd43cd649f787d125fd5d212ab1d2c46ac7599fb70c273a302974c929"
 }

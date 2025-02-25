@@ -25,7 +25,7 @@ pub async fn insert_new<U: Unit>(
     let mut hasher = Sha256::new();
     hasher.update(quote_id.as_bytes());
     sqlx::query!(
-        r#"INSERT INTO mint_quote (id, invoice, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
+        r#"INSERT INTO mint_quote (id, invoice_id, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
         quote_id,
         format!("{:X}", hasher.finalize()),
         &unit.to_string(),
@@ -104,7 +104,7 @@ pub async fn get_quote_id_by_invoice_id(
 ) -> Result<Option<Uuid>, sqlx::Error> {
     let record = sqlx::query!(
         r#"
-            SELECT id from mint_quote WHERE invoice = $1 LIMIT 1
+            SELECT id from mint_quote WHERE invoice_id = $1 LIMIT 1
         "#,
         invoice_id
     )
@@ -123,7 +123,7 @@ pub async fn get_amount_from_invoice_id(
     invoice_id: String
 ) -> Result<i64, sqlx::Error> {
     Ok(sqlx::query!(
-        r#"SELECT amount FROM mint_quote WHERE invoice = $1 LIMIT 1"#,
+        r#"SELECT amount FROM mint_quote WHERE invoice_id = $1 LIMIT 1"#,
         invoice_id
     )
     .fetch_one(conn)
