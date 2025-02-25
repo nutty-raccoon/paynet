@@ -31,7 +31,6 @@ signer = { workspace = true }
 starknet-payment-indexer = { workspace = true }
 db-node = { workspace = true }
 starknet-types-core = { workspace = true }
-hex = { workspace = true }
 sqlx = { workspace = true, features = ["postgres", "uuid"] }
 rusqlite = { workspace = true }
 
