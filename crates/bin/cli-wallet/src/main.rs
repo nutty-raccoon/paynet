@@ -1,12 +1,11 @@
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand, ValueHint};
 use node::{MintQuoteState, NodeClient};
+use nuts::nut00;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
 use std::{path::PathBuf, time::Duration};
-use tracing::info;
 use tracing_subscriber::EnvFilter;
-
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -32,7 +31,6 @@ enum Commands {
         #[arg(long, short)]
         node_id: u32,
     },
-
     /// Melt (burn) existing tokens
     Melt {
         #[arg(long, short)]
@@ -42,13 +40,19 @@ enum Commands {
         #[arg(long, short)]
         node_id: u32,
     },
-
     /// Send tokens
     Send {
         #[arg(long, short)]
         amount: u64,
         #[arg(long, short)]
         unit: String,
+        #[arg(long, short)]
+        node_id: u32,
+    },
+    /// Receive tokens
+    Receive {
+        #[arg(long, short)]
+        tokens: String,
         #[arg(long, short)]
         node_id: u32,
     },
@@ -69,7 +73,7 @@ async fn main() -> Result<()> {
             dp
         }))
         .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?;
-    info!("database located at `{:?}`", db_path);
+    println!("using database at `{:?}`", db_path);
 
     let mut db_conn = rusqlite::Connection::open(db_path)?;
 
@@ -220,6 +224,14 @@ async fn main() -> Result<()> {
                 }
                 None => println!("Not enough funds"),
             }
+        }
+        Commands::Receive { tokens, node_id } => {
+            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            let tokens: Vec<nut00::Proof> = serde_json::from_str(&tokens)?;
+
+            println!("Receiving tokens on `{}`", node_url);
+            wallet::receive_tokens(&db_conn, &mut node_client, node_id, tokens).await?;
+            println!("Finished");
         }
     }
 

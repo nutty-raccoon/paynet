@@ -68,9 +68,9 @@ pub fn set_proof_to_state(conn: &Connection, y: [u8; 33], state: ProofState) -> 
 
     Ok(())
 }
-pub fn set_proofs_to_state(
+pub fn set_proofs_to_state<'a>(
     conn: &Connection,
-    ys: impl Iterator<Item = [u8; 33]>,
+    ys: impl Iterator<Item = &'a [u8; 33]>,
     state: ProofState,
 ) -> Result<()> {
     let mut stmt = conn.prepare("UPDATE proof SET state = ?2 WHERE y = ?1")?;

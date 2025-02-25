@@ -208,3 +208,12 @@ pub fn get_node_url(conn: &Connection, node_id: u32) -> Result<Option<String>> {
 
     Ok(opt_url)
 }
+
+pub fn get_keyset_unit(conn: &Connection, keyset_id: [u8; 8]) -> Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT unit FROM keyset WHERE id = ?1 LIMIT 1")?;
+    let opt_unit = stmt
+        .query_row([keyset_id], |r| r.get::<_, String>(0))
+        .optional()?;
+
+    Ok(opt_unit)
+}
