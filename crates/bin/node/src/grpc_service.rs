@@ -1,7 +1,6 @@
 use crate::{Error, keyset_cache::CachedKeysetInfo};
 use std::{str::FromStr, sync::Arc};
 
-use hex::{decode, encode};
 use node::{
     BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
     GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest,
@@ -15,7 +14,6 @@ use nuts::{
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
 };
-use serde::{Deserialize, Serialize};
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
 use starknet_types::{MeltPaymentRequest, Unit};
@@ -409,7 +407,7 @@ impl Node for GrpcState {
 
     async fn get_node_info(
         &self,
-        node_info_request: Request<GetNodeInfoRequest>,
+        _node_info_request: Request<GetNodeInfoRequest>,
     ) -> Result<Response<NodeInfoResponse>, Status> {
         let nuts_config = {
             let nuts_read_lock = self.nuts.read().await;
@@ -443,8 +441,8 @@ impl Node for GrpcState {
             time: Some(1616161616),
         };
 
-        let node_info_str = serde_json::to_string(&node_info)
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let node_info_str =
+            serde_json::to_string(&node_info).map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(NodeInfoResponse {
             info: node_info_str,

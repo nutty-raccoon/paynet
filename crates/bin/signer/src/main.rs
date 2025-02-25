@@ -7,7 +7,9 @@ use nuts::{
 };
 use server_errors::Error;
 use signer::{
-    DeclareKeysetRequest, DeclareKeysetResponse, GetRootPubKeyRequest, GetRootPubKeyResponse, Key, SignBlindedMessagesRequest, SignBlindedMessagesResponse, SignerServer, VerifyProofsRequest, VerifyProofsResponse
+    DeclareKeysetRequest, DeclareKeysetResponse, GetRootPubKeyRequest, GetRootPubKeyResponse, Key,
+    SignBlindedMessagesRequest, SignBlindedMessagesResponse, SignerServer, VerifyProofsRequest,
+    VerifyProofsResponse,
 };
 use state::{SharedKeySetCache, SharedRootKey};
 use std::{
@@ -152,11 +154,13 @@ impl signer::Signer for SignerState {
 
     async fn get_root_pub_key(
         &self,
-        _get_root_pub_key_request:tonic::Request<GetRootPubKeyRequest>,
-    ) -> Result<Response<GetRootPubKeyResponse>, Status>{
+        _get_root_pub_key_request: tonic::Request<GetRootPubKeyRequest>,
+    ) -> Result<Response<GetRootPubKeyResponse>, Status> {
         let pub_key = self.root_key.get_pubkey();
 
-        Ok(Response::new(GetRootPubKeyResponse{ root_pubkey: pub_key.to_string()}))
+        Ok(Response::new(GetRootPubKeyResponse {
+            root_pubkey: pub_key.to_string(),
+        }))
     }
 }
 

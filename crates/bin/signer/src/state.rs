@@ -5,7 +5,7 @@ use std::{
 
 use bitcoin::{
     bip32::{ChildNumber, DerivationPath, Xpriv},
-    key::Secp256k1
+    key::Secp256k1,
 };
 use nuts::{
     nut01::SetKeyPairs,
