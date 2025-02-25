@@ -115,18 +115,19 @@ pub async fn get_quote_id_by_invoice_id(
         Some(r) => Ok(Some(r.id)),
         None => Ok(None),
     }
-
 }
 
 pub async fn get_amount_from_invoice_id(
     conn: &mut PgConnection,
-    invoice_id: String
-) -> Result<i64, sqlx::Error> {
-    Ok(sqlx::query!(
+    invoice_id: String,
+) -> Result<u64, sqlx::Error> {
+    let amount: i64 = sqlx::query!(
         r#"SELECT amount FROM mint_quote WHERE invoice_id = $1 LIMIT 1"#,
         invoice_id
     )
     .fetch_one(conn)
     .await?
-    .amount)
+    .amount;
+
+    Ok(u64::from_be_bytes(amount.to_be_bytes()))
 }
