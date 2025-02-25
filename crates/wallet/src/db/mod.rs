@@ -44,11 +44,21 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
             expiry INTEGER NOT NULL
         );"#;
+    const CREATE_TABLE_MELT_RESPONSE: &str = r#"
+        CREATE TABLE IF NOT EXISTS melt_response (
+            id TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            fee INT2 NOT NULL,
+            state INT2 NOT NULL,
+            expiry INTEGER NOT NULL
+        )
+    "#;
 
     tx.execute(CREATE_TABLE_NODE, ())?;
     tx.execute(CREATE_TABLE_KEYSET, ())?;
     tx.execute(CREATE_TABLE_KEY, ())?;
     tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
+    tx.execute(CREATE_TABLE_MELT_RESPONSE, ())?;
     tx.execute(proof::CREATE_TABLE_PROOF, ())?;
 
     tx.commit()?;
