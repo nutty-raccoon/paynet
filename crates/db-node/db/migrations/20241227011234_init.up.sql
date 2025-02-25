@@ -50,19 +50,6 @@ CREATE TABLE IF NOT EXISTS mint_quote (
     state mint_quote_state NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS payment_event (
-    block_id TEXT NOT NULL,
-    tx_hash TEXT NOT NULL,
-    event_index BIGINT NOT NULL,
-    payee TEXT NOT NULL,
-    asset TEXT NOT NULL,
-    invoice_id TEXT NOT NULL REFERENCES mint_quote(invoice_id),
-    payer TEXT NOT NULL,
-    amount_low TEXT NOT NULL,
-    amount_high TEXT NOT NULL,
-    PRIMARY KEY (tx_hash, event_index)
-);
-
 CREATE INDEX IF NOT EXISTS mint_quote_unit ON mint_quote(unit);
 CREATE INDEX IF NOT EXISTS mint_quote_state ON mint_quote(state);
 CREATE INDEX IF NOT EXISTS mint_quote_expiry ON mint_quote(expiry);
@@ -84,3 +71,19 @@ CREATE TABLE IF NOT EXISTS melt_quote (
 CREATE INDEX IF NOT EXISTS melt_quote_unit ON melt_quote(unit);
 CREATE INDEX IF NOT EXISTS melt_quote_state ON melt_quote(state);
 CREATE INDEX IF NOT EXISTS melt_quote_expiry ON melt_quote(expiry);
+
+-- Starknet payment events
+
+CREATE TABLE IF NOT EXISTS payment_event (
+    block_id TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    event_index BIGINT NOT NULL,
+    payee TEXT NOT NULL,
+    asset TEXT NOT NULL,
+    invoice_id TEXT NOT NULL REFERENCES mint_quote(invoice_id),
+    payer TEXT NOT NULL,
+    amount_low TEXT NOT NULL,
+    amount_high TEXT NOT NULL,
+    PRIMARY KEY (tx_hash, event_index)
+);
+

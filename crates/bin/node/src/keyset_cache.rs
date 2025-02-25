@@ -30,9 +30,6 @@ impl CachedKeysetInfo {
     pub fn new(active: bool, unit: Unit) -> Self {
         Self { active, unit }
     }
-    pub fn active(&self) -> bool {
-        self.active
-    }
 }
 
 #[derive(Debug, Default, Clone)]

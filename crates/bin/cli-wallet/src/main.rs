@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use node::{MintQuoteState, NodeClient};
+use rusqlite::Connection;
 use std::{path::PathBuf, time::Duration};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -13,44 +14,40 @@ struct Cli {
     command: Commands,
     #[arg(long, value_hint(ValueHint::FilePath))]
     db_path: Option<PathBuf>,
-    #[arg(long, short, value_hint(ValueHint::Url))]
-    node_url: String,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    AddNode {
+        #[arg(long, short)]
+        node_url: String,
+    },
     /// Mint new tokens
     Mint {
         #[arg(long, short)]
         amount: u64,
         #[arg(long, short)]
         unit: String,
+        #[arg(long, short)]
+        node_id: u32,
     },
 
     /// Melt (burn) existing tokens
     Melt {
-        /// Amount of tokens to melt
-        #[arg(long)]
+        #[arg(long, short)]
         amount: u64,
-
-        /// Address to melt from
-        #[arg(long)]
-        from: String,
+        #[arg(long, short)]
+        unit: String,
     },
 
-    /// Swap tokens
-    Swap {
-        /// Amount of tokens to swap
-        #[arg(long)]
+    /// Send tokens
+    Send {
+        #[arg(long, short)]
         amount: u64,
-
-        /// Token to swap from
-        #[arg(long)]
-        from_token: String,
-
-        /// Token to swap to
-        #[arg(long)]
-        to_token: String,
+        #[arg(long, short)]
+        unit: String,
+        #[arg(long, short)]
+        node_id: u32,
     },
 }
 const STARKNET_METHOD: &str = "starknet";
@@ -73,15 +70,22 @@ async fn main() -> Result<()> {
 
     let mut db_conn = rusqlite::Connection::open(db_path)?;
 
-    let mut node_client = NodeClient::connect(cli.node_url.clone()).await?;
-
     wallet::db::create_tables(&mut db_conn)?;
-    let node_id = wallet::db::insert_node(&mut db_conn, &cli.node_url)?;
-    wallet::refresh_node_keysets(&mut db_conn, &mut node_client, node_id).await?;
 
     match cli.command {
-        Commands::Mint { amount, unit } => {
-            info!("Requesting {} to mint {} {}", cli.node_url, amount, unit);
+        Commands::AddNode { node_url } => {
+            let _node_client = NodeClient::connect(node_url.clone()).await?;
+            let _ = wallet::db::insert_node(&db_conn, &node_url)?;
+        }
+        Commands::Mint {
+            amount,
+            unit,
+            node_id,
+        } => {
+            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            println!("Requesting {} to mint {} {}", &node_url, amount, unit);
+
+            wallet::refresh_node_keysets(&mut db_conn, &mut node_client, node_id).await?;
             // Add mint logic here
             let mint_quote_response = wallet::create_mint_quote(
                 &mut db_conn,
@@ -92,7 +96,7 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            info!(
+            println!(
                 "MintQuote created with id: {}\nProceed to payment:\n{}",
                 &mint_quote_response.quote, &mint_quote_response.request
             );
@@ -110,7 +114,7 @@ async fn main() -> Result<()> {
                 .await?;
 
                 if state == MintQuoteState::MnqsPaid {
-                    info!("On-chain deposit received");
+                    println!("On-chain deposit received");
                     break;
                 }
             }
@@ -125,24 +129,48 @@ async fn main() -> Result<()> {
                 amount,
             )
             .await?;
-            info!("Finished.");
+            // TODO: remove mint_quote
+            println!("Token stored. Finised.");
         }
-        Commands::Melt { amount, from } => {
-            println!("Melting {} tokens from {}", amount, from);
+        Commands::Melt { amount, unit } => {
+            println!("Melting {} tokens from {}", amount, unit);
             // Add melt logic here
         }
-        Commands::Swap {
+        Commands::Send {
             amount,
-            from_token,
-            to_token,
+            unit,
+            node_id,
         } => {
-            println!(
-                "Swapping {} tokens from {} to {}",
-                amount, from_token, to_token
-            );
-            // Add swap logic here
+            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            println!("Sending {} {} using mint {}", amount, unit, &node_url);
+            let tokens = wallet::fetch_send_inputs_from_db(
+                &db_conn,
+                &mut node_client,
+                node_id,
+                amount,
+                &unit,
+            )
+            .await?;
+
+            match tokens {
+                Some(tokens) => {
+                    let s = serde_json::to_string(&tokens)?;
+                    println!("{}", s);
+                }
+                None => println!("Not enough funds"),
+            }
         }
     }
 
     Ok(())
+}
+
+pub async fn connect_to_node(
+    conn: &mut Connection,
+    node_id: u32,
+) -> Result<(NodeClient<tonic::transport::Channel>, String)> {
+    let node_url = wallet::db::get_node_url(conn, node_id)?
+        .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
+    let node_client = NodeClient::connect(node_url.clone()).await?;
+    Ok((node_client, node_url))
 }

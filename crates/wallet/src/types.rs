@@ -1,11 +1,15 @@
 use nuts::{
-    Amount,
+    Amount, SplitTarget,
     dhke::blind_message,
     nut00::secret::Secret,
     nut01::{PublicKey, SecretKey},
 };
 
 use anyhow::Result;
+use rusqlite::{
+    ToSql,
+    types::{FromSql, FromSqlError},
+};
 
 #[derive(Debug, Clone)]
 pub struct PreMint {
@@ -16,9 +20,12 @@ pub struct PreMint {
 }
 
 impl PreMint {
-    pub fn generate_for_amount(total_amount: Amount) -> Result<Vec<Self>> {
+    pub fn generate_for_amount(
+        total_amount: Amount,
+        split_target: &SplitTarget,
+    ) -> Result<Vec<Self>> {
         total_amount
-            .split()
+            .split_targeted(split_target)?
             .into_iter()
             .map(|amount| -> Result<_> {
                 let secret = Secret::generate();
@@ -34,5 +41,30 @@ impl PreMint {
                 Ok(pm)
             })
             .collect()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ProofState {
+    Unspent = 1,
+    Pending = 2,
+    Spent = 3,
+    Reserved = 4,
+}
+
+impl ToSql for ProofState {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok((*self as u8).into())
+    }
+}
+
+impl FromSql for ProofState {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        u8::column_result(value).and_then(|v| match v {
+            1 => Ok(ProofState::Unspent),
+            2 => Ok(ProofState::Pending),
+            3 => Ok(ProofState::Spent),
+            v => Err(FromSqlError::OutOfRange(v.into())),
+        })
     }
 }

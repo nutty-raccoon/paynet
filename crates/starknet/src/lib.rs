@@ -2,15 +2,13 @@ use num_bigint::BigUint;
 use nuts::Amount;
 use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
-use std::cmp::Ordering;
-use thiserror::Error;
 
 mod unit;
 pub use unit::{Unit, UnitFromStrError};
 mod method;
 pub use method::{Method, MethodFromStrError};
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(
         "Starknet u256 amount of {1} is to big to be converted into a cashu Amount for unit {0}"
@@ -105,7 +103,7 @@ impl From<Amount> for StarknetU256 {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum TryU256FromBigUintError {
     #[error("BigUint too big")]
     TooBig,
@@ -201,7 +199,7 @@ pub fn felt_to_short_string(felt: Felt) -> Result<String, std::string::FromUtf8E
 }
 
 /// Possible errors for encoding a Cairo short string.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum CairoShortStringToFeltError {
     /// The string provided contains non-ASCII characters.
     #[error("NonAsciiCharacter")]

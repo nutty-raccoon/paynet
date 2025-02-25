@@ -29,7 +29,7 @@ impl From<Unit> for u32 {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 #[error("invalid value for enum `Unit`")]
 pub struct UnitFromStrError;
 

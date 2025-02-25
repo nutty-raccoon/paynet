@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 tokio = { workspace = true }
+tonic = { workspace = true }
+serde_json = { workspace = true }
 wallet = { workspace = true }
 node = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
