@@ -41,8 +41,8 @@ pub fn get_proof_and_set_state_pending(
     y: [u8; 33],
 ) -> Result<Option<([u8; 8], [u8; 33], String)>> {
     let n_rows = conn.execute(
-        "UPDATE proof SET state = ?2 WHERE y = ?1 AND state != ?2;",
-        (y, ProofState::Pending),
+        "UPDATE proof SET state = ?2 WHERE y = ?1 AND state == ?3 ;",
+        (y, ProofState::Pending, ProofState::Unspent),
     )?;
     let values = if n_rows == 0 {
         None
