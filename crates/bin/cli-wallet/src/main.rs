@@ -1,11 +1,11 @@
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand, ValueHint};
 use node::{MintQuoteState, NodeClient};
-use nuts::nut00;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
+use wallet::types::Wad;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -18,43 +18,53 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Register a new node
     AddNode {
+        /// Url of the node
         #[arg(long, short)]
         node_url: String,
     },
     /// Mint new tokens
     Mint {
+        /// Amount requested
         #[arg(long, short)]
         amount: u64,
+        /// Unit requested
         #[arg(long, short)]
         unit: String,
+        /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
     },
-    /// Melt (burn) existing tokens
+    /// Melt existing tokens
     Melt {
+        /// Amount to melt
         #[arg(long, short)]
         amount: u64,
+        /// Unit to melt
         #[arg(long, short)]
         unit: String,
+        /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
     },
     /// Send tokens
     Send {
+        /// Amount to send
         #[arg(long, short)]
         amount: u64,
+        /// Unit to send
         #[arg(long, short)]
         unit: String,
+        /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
     },
-    /// Receive tokens
+    /// Receive a wad of proofs
     Receive {
+        /// Json string of the wad
         #[arg(long, short)]
-        tokens: String,
-        #[arg(long, short)]
-        node_id: u32,
+        wad_as_json: String,
     },
 }
 const STARKNET_METHOD: &str = "starknet";
@@ -81,8 +91,9 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::AddNode { node_url } => {
-            let _node_client = NodeClient::connect(node_url.clone()).await?;
-            let node_id = wallet::db::insert_node(&db_conn, &node_url)?;
+            let tx = db_conn.transaction()?;
+            let (mut _node_client, node_id) = wallet::register_node(&tx, node_url.clone()).await?;
+            tx.commit()?;
             println!(
                 "Successfully registered {} as node with id `{}`",
                 &node_url, node_id
@@ -96,16 +107,17 @@ async fn main() -> Result<()> {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Requesting {} to mint {} {}", &node_url, amount, unit);
 
-            wallet::refresh_node_keysets(&mut db_conn, &mut node_client, node_id).await?;
+            let tx = db_conn.transaction()?;
             // Add mint logic here
             let mint_quote_response = wallet::create_mint_quote(
-                &mut db_conn,
+                &tx,
                 &mut node_client,
                 STARKNET_METHOD.to_string(),
                 amount,
                 unit.clone(),
             )
             .await?;
+            tx.commit()?;
 
             println!(
                 "MintQuote created with id: {}\nProceed to payment:\n{}",
@@ -130,8 +142,9 @@ async fn main() -> Result<()> {
                 }
             }
 
+            let tx = db_conn.transaction()?;
             wallet::mint_and_store_new_tokens(
-                &mut db_conn,
+                &tx,
                 &mut node_client,
                 STARKNET_METHOD.to_string(),
                 mint_quote_response.quote,
@@ -140,6 +153,8 @@ async fn main() -> Result<()> {
                 amount,
             )
             .await?;
+            tx.commit()?;
+
             // TODO: remove mint_quote
             println!("Token stored. Finished.");
         }
@@ -153,14 +168,11 @@ async fn main() -> Result<()> {
             println!("Melting {} tokens from {}", amount, unit);
             // Add melt logic here
 
-            let tokens = wallet::fetch_send_inputs_from_db(
-                &db_conn,
-                &mut node_client,
-                node_id,
-                amount,
-                &unit,
-            )
-            .await?;
+            let tx = db_conn.transaction()?;
+            let tokens =
+                wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
+                    .await?;
+            tx.commit()?;
 
             let inputs = match tokens {
                 Some(proof_vector) => proof_vector,
@@ -184,22 +196,7 @@ async fn main() -> Result<()> {
                 .await?
                 .into_inner();
 
-            const INSERT_MELT_RESPONSE: &str = r#"
-            INSERT INTO melt_response (
-                id, amount, fee, state, expiry
-            ) VALUES (?1, ?2, ?3, ?4, ?5)
-            "#;
-
-            db_conn.execute(
-                INSERT_MELT_RESPONSE,
-                [
-                    &resp.quote,
-                    &resp.amount.to_string(),
-                    &resp.fee.to_string(),
-                    &resp.state.to_string(),
-                    &resp.expiry.to_string(),
-                ],
-            )?;
+            wallet::db::register_melt_quote(&db_conn, &resp)?;
         }
         Commands::Send {
             amount,
@@ -208,29 +205,30 @@ async fn main() -> Result<()> {
         } => {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Sending {} {} using node {}", amount, unit, &node_url);
-            let tokens = wallet::fetch_send_inputs_from_db(
-                &db_conn,
-                &mut node_client,
-                node_id,
-                amount,
-                &unit,
-            )
-            .await?;
 
-            match tokens {
-                Some(tokens) => {
-                    let s = serde_json::to_string(&tokens)?;
-                    println!("Tokens:\n{}", s);
+            let tx = db_conn.transaction()?;
+            let opt_proofs =
+                wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
+                    .await?;
+            tx.commit()?;
+
+            let wad = match opt_proofs {
+                Some(proofs) => Wad { node_url, proofs },
+                None => {
+                    println!("Not enough funds");
+                    return Ok(());
                 }
-                None => println!("Not enough funds"),
-            }
+            };
+            println!("Wad:\n{}", serde_json::to_string(&wad)?);
         }
-        Commands::Receive { tokens, node_id } => {
-            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
-            let tokens: Vec<nut00::Proof> = serde_json::from_str(&tokens)?;
+        Commands::Receive { wad_as_json } => {
+            let wad: Wad = serde_json::from_str(&wad_as_json)?;
+            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
 
-            println!("Receiving tokens on `{}`", node_url);
-            wallet::receive_tokens(&db_conn, &mut node_client, node_id, tokens).await?;
+            println!("Receiving tokens on node `{}`", node_id);
+            let tx = db_conn.transaction()?;
+            wallet::receive_wad(&tx, &mut node_client, node_id, wad.proofs).await?;
+            tx.commit()?;
             println!("Finished");
         }
     }

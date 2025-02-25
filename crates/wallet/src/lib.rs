@@ -60,7 +60,7 @@ pub fn build_outputs_from_premints(
 }
 
 pub async fn create_mint_quote(
-    db_conn: &mut Connection,
+    db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
     amount: u64,
@@ -118,7 +118,7 @@ pub async fn mint(
 }
 
 pub async fn refresh_node_keysets(
-    db_conn: &mut Connection,
+    db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
 ) -> Result<()> {
@@ -214,7 +214,7 @@ pub fn get_active_keyset_for_unit(
 }
 
 pub async fn mint_and_store_new_tokens(
-    db_conn: &mut Connection,
+    db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
@@ -319,7 +319,7 @@ pub fn construct_proofs_from_blind_signatures(
     Ok(new_tokens)
 }
 
-pub async fn fetch_send_inputs_from_db(
+pub async fn fetch_inputs_from_db_or_node(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
@@ -469,7 +469,7 @@ pub async fn swap_to_have_target_amount(
     Ok((keyset_id, pre_mints, swap_response))
 }
 
-pub async fn receive_tokens(
+pub async fn receive_wad(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
@@ -568,4 +568,16 @@ pub async fn receive_tokens(
     }
 
     Ok(())
+}
+
+pub async fn register_node(
+    db_conn: &Connection,
+    node_url: String,
+) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
+    let mut node_client = NodeClient::connect(node_url.clone()).await?;
+
+    let node_id = db::insert_node(db_conn, &node_url)?;
+    refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
+
+    Ok((node_client, node_id))
 }

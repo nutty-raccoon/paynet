@@ -120,13 +120,11 @@ pub fn insert_node(conn: &Connection, node_url: &str) -> Result<u32> {
 }
 
 pub fn upsert_node_keysets(
-    conn: &mut Connection,
+    conn: &Connection,
     node_id: u32,
     keysets: Vec<node::Keyset>,
 ) -> anyhow::Result<Vec<[u8; 8]>> {
-    let tx = conn.transaction()?;
-
-    tx.execute(
+    conn.execute(
         r#"
         CREATE TEMPORARY TABLE IF NOT EXISTS _tmp_inserted (id INTEGER PRIMARY KEY);
         INSERT INTO _tmp_inserted (id) SELECT id FROM keyset;"#,
@@ -146,7 +144,7 @@ pub fn upsert_node_keysets(
             .id
             .try_into()
             .map_err(|_| anyhow::anyhow!("invalid keyset id"))?;
-        tx.execute(
+        conn.execute(
             UPSERT_NODE_KEYSET,
             (id, node_id, keyset.unit, keyset.active),
         )?;
@@ -157,13 +155,12 @@ pub fn upsert_node_keysets(
     "#;
 
     let new_keyset_ids = {
-        let mut stmt = tx.prepare(GET_NEW_KEYSETS)?;
+        let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
         stmt.query_map((), |r| r.get::<_, [u8; 8]>(0))?
             .collect::<Result<Vec<_>>>()?
     };
 
-    tx.execute("DELETE FROM _tmp_inserted", [])?;
-    tx.commit()?;
+    conn.execute("DELETE FROM _tmp_inserted", [])?;
 
     Ok(new_keyset_ids)
 }
@@ -216,4 +213,25 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: [u8; 8]) -> Result<Option<S
         .optional()?;
 
     Ok(opt_unit)
+}
+
+pub fn register_melt_quote(conn: &Connection, response: &node::MeltResponse) -> Result<()> {
+    const INSERT_MELT_RESPONSE: &str = r#"
+            INSERT INTO melt_response (
+                id, amount, fee, state, expiry
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            "#;
+
+    conn.execute(
+        INSERT_MELT_RESPONSE,
+        [
+            &response.quote,
+            &response.amount.to_string(),
+            &response.fee.to_string(),
+            &response.state.to_string(),
+            &response.expiry.to_string(),
+        ],
+    )?;
+
+    Ok(())
 }

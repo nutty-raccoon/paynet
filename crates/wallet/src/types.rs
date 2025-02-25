@@ -1,7 +1,7 @@
 use nuts::{
     Amount, SplitTarget,
     dhke::blind_message,
-    nut00::secret::Secret,
+    nut00::{self, secret::Secret},
     nut01::{PublicKey, SecretKey},
 };
 
@@ -67,4 +67,10 @@ impl FromSql for ProofState {
             v => Err(FromSqlError::OutOfRange(v.into())),
         })
     }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Wad {
+    pub node_url: String,
+    pub proofs: Vec<nut00::Proof>,
 }
