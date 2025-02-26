@@ -14,7 +14,7 @@ use starknet_types::Unit;
 use thiserror::Error;
 
 use crate::{
-    app_state::SharedSignerClient,
+    app_state::SignerClient,
     keyset_cache::{self, KeysetCache},
 };
 
@@ -126,28 +126,25 @@ pub async fn check_outputs_allow_multiple_units(
 }
 
 pub async fn process_outputs<'a>(
-    signer: &SharedSignerClient,
+    mut signer: SignerClient,
     outputs: &[BlindedMessage],
 ) -> Result<(Vec<BlindSignature>, InsertBlindSignaturesQueryBuilder<'a>), Error> {
     let mut query_builder = InsertBlindSignaturesQueryBuilder::new();
 
-    let blind_signatures = {
-        let mut signer_write_lock = signer.write().await;
-        signer_write_lock
-            .sign_blinded_messages(SignBlindedMessagesRequest {
-                messages: outputs
-                    .iter()
-                    .map(|bm| signer::BlindedMessage {
-                        amount: bm.amount.into(),
-                        keyset_id: bm.keyset_id.to_bytes().to_vec(),
-                        blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
-                    })
-                    .collect(),
-            })
-            .await?
-            .into_inner()
-            .signatures
-    };
+    let blind_signatures = signer
+        .sign_blinded_messages(SignBlindedMessagesRequest {
+            messages: outputs
+                .iter()
+                .map(|bm| signer::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: bm.keyset_id.to_bytes().to_vec(),
+                    blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect(),
+        })
+        .await?
+        .into_inner()
+        .signatures;
 
     let blind_signatures = outputs
         .iter()

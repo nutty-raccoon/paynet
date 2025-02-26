@@ -105,7 +105,7 @@ impl GrpcState {
 
         // Output process
         let (blind_signatures, insert_blind_signatures_query_builder) =
-            process_outputs(&self.signer, outputs).await?;
+            process_outputs(self.signer.clone(), outputs).await?;
 
         insert_spent_proofs_query_builder.execute(&mut tx).await?;
         insert_blind_signatures_query_builder

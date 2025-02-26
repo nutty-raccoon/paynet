@@ -10,7 +10,7 @@ use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 
-use crate::app_state::SharedSignerClient;
+use crate::app_state::SignerClient;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -54,7 +54,7 @@ impl KeysetCache {
     pub async fn get_keyset_keys(
         &self,
         conn: &mut PgConnection,
-        signer: SharedSignerClient,
+        signer: SignerClient,
         keyset_id: KeysetId,
     ) -> Result<BTreeMap<Amount, PublicKey>, Error> {
         // happy path: the infos are already in the cache
@@ -70,16 +70,14 @@ impl KeysetCache {
             .await
             .map_err(|e| Error::UnknownKeysetId(keyset_id, e))?;
 
-        let signer_response = {
-            let mut signer = signer.write().await;
-            signer
-                .declare_keyset(signer::DeclareKeysetRequest {
-                    unit: db_content.unit().to_string(),
-                    index: db_content.derivation_path_index(),
-                    max_order: db_content.max_order().into(),
-                })
-                .await?
-        };
+        let signer_response = signer
+            .clone()
+            .declare_keyset(signer::DeclareKeysetRequest {
+                unit: db_content.unit().to_string(),
+                index: db_content.derivation_path_index(),
+                max_order: db_content.max_order().into(),
+            })
+            .await?;
         let signer_keyset_info = signer_response.into_inner();
         let keys = signer_keyset_info
             .keys

@@ -11,7 +11,7 @@ use signer::VerifyProofsRequest;
 use sqlx::PgConnection;
 
 use crate::{
-    app_state::SharedSignerClient,
+    app_state::SignerClient,
     keyset_cache::{self, KeysetCache},
 };
 
@@ -58,7 +58,7 @@ impl From<Error> for Status {
 
 pub async fn process_melt_inputs<'a>(
     conn: &mut PgConnection,
-    signer: SharedSignerClient,
+    signer: SignerClient,
     keyset_cache: KeysetCache,
     inputs: &'a [Proof],
 ) -> Result<(Amount, InsertSpentProofsQueryBuilder<'a>), Error> {
@@ -116,7 +116,7 @@ pub async fn process_melt_inputs<'a>(
 
 pub async fn process_swap_inputs<'a>(
     conn: &mut PgConnection,
-    signer: SharedSignerClient,
+    signer: SignerClient,
     keyset_cache: KeysetCache,
     inputs: &'a [Proof],
 ) -> Result<(Vec<(Unit, Amount)>, InsertSpentProofsQueryBuilder<'a>), Error> {
@@ -166,15 +166,15 @@ pub async fn process_swap_inputs<'a>(
 async fn run_verification_queries(
     conn: &mut PgConnection,
     secrets: HashSet<PublicKey>,
-    signer: SharedSignerClient,
+    mut signer: SignerClient,
     verify_proofs_request: Vec<signer::Proof>,
 ) -> Result<(), Error> {
     let query_signer_future = async {
-        let mut lock = signer.write().await;
-        lock.verify_proofs(VerifyProofsRequest {
-            proofs: verify_proofs_request,
-        })
-        .await
+        signer
+            .verify_proofs(VerifyProofsRequest {
+                proofs: verify_proofs_request,
+            })
+            .await
     };
 
     // Parrallelize the two calls

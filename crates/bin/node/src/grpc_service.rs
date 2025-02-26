@@ -23,7 +23,7 @@ use tonic::{Request, Response, Status, transport::Channel};
 use uuid::Uuid;
 
 use crate::{
-    app_state::{NutsSettingsState, QuoteTTLConfigState, SharedSignerClient},
+    app_state::{NutsSettingsState, QuoteTTLConfigState, SignerClient},
     keyset_cache::KeysetCache,
     methods::Method,
 };
@@ -31,7 +31,7 @@ use crate::{
 #[derive(Debug)]
 pub struct GrpcState {
     pub pg_pool: PgPool,
-    pub signer: SharedSignerClient,
+    pub signer: SignerClient,
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
@@ -50,7 +50,7 @@ impl GrpcState {
             keyset_cache: Default::default(),
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
-            signer: Arc::new(RwLock::new(signer_client)),
+            signer: signer_client,
         }
     }
 
@@ -64,8 +64,8 @@ impl GrpcState {
 
         for unit in units {
             let response = {
-                let mut signer_lock = self.signer.write().await;
-                signer_lock
+                self.signer
+                    .clone()
                     .declare_keyset(signer::DeclareKeysetRequest {
                         unit: unit.to_string(),
                         index,
@@ -415,14 +415,13 @@ impl Node for GrpcState {
             let nuts_read_lock = self.nuts.read().await;
             nuts_read_lock.clone()
         };
-        let pub_key = {
-            let mut signer_write_lock = self.signer.write().await;
-            signer_write_lock
-                .get_root_pub_key(Request::new(GetRootPubKeyRequest {}))
-                .await?
-                .into_inner()
-                .root_pubkey
-        };
+        let pub_key = self
+            .signer
+            .clone()
+            .get_root_pub_key(Request::new(GetRootPubKeyRequest {}))
+            .await?
+            .into_inner()
+            .root_pubkey;
         let node_info = NodeInfo {
             name: Some("Paynet Test Node".to_string()),
             pubkey: Some(PublicKey::from_str(&pub_key).unwrap()),

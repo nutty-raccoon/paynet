@@ -8,7 +8,7 @@ use starknet_types::{MeltPaymentRequest, Unit};
 use uuid::Uuid;
 
 use crate::{
-    app_state::SharedSignerClient, keyset_cache::KeysetCache, logic::process_melt_inputs,
+    app_state::SignerClient, keyset_cache::KeysetCache, logic::process_melt_inputs,
     methods::Method, utils::unix_time,
 };
 
@@ -16,7 +16,7 @@ use super::errors::Error;
 
 pub async fn validate_and_register_quote(
     conn: &mut PgConnection,
-    signer: SharedSignerClient,
+    signer: SignerClient,
     keyset_cache: KeysetCache,
     settings: MeltMethodSettings<Method, Unit>,
     mint_ttl: u64,
@@ -97,7 +97,7 @@ pub async fn validate_and_register_quote(
 
 pub async fn starknet_melt(
     pool: PgPool,
-    signer: SharedSignerClient,
+    signer: SignerClient,
     keyset_cache: KeysetCache,
     settings: MeltMethodSettings<Method, Unit>,
     melt_ttl: u64,

@@ -10,14 +10,14 @@ use tonic::transport::Channel;
 use crate::{keyset_cache::KeysetCache, methods::Method};
 
 pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
-pub type SharedSignerClient = Arc<RwLock<signer::SignerClient<Channel>>>;
+pub type SignerClient = signer::SignerClient<Channel>;
 
 // the application state
 #[derive(Debug, Clone, FromRef)]
 pub struct AppState {
     pg_pool: PgPool,
     keyset_cache: KeysetCache,
-    signer_client: SharedSignerClient,
+    signer_client: SignerClient,
     nuts: NutsSettingsState,
     quote_ttl: Arc<QuoteTTLConfigState>,
 }
@@ -34,7 +34,7 @@ impl AppState {
             keyset_cache: Default::default(),
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
-            signer_client: Arc::new(RwLock::new(signer_client)),
+            signer_client,
         }
     }
 }
