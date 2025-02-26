@@ -54,7 +54,8 @@ message GetKeysResponse {
 message KeysetKeys {
   bytes id = 1;
   string unit = 2;
-  repeated Key keys = 3;
+  bool active = 3;
+  repeated Key keys = 4;
 }
 
 message Key {

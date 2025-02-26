@@ -185,10 +185,9 @@ pub async fn read_or_import_node_keyset(
         .into_inner();
     let keyset = resp.keysets.first().unwrap();
 
-    // TODO: add active field to getkey response so I can insert it here corectlu (this is a bug)
     let _ = db_conn.execute(
-        "INSERT INTO keyset (id, node_id, unit, active) VALUES ($1, $2, $3, TRUE)",
-        (keyset_id_as_bytes, node_id, &keyset.unit),
+        "INSERT INTO keyset (id, node_id, unit, active) VALUES (?1, ?2, ?3, ?4)",
+        (keyset_id_as_bytes, node_id, &keyset.unit, keyset.active),
     )?;
 
     db::insert_keyset_keys(

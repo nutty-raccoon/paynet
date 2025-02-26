@@ -179,6 +179,7 @@ impl Node for GrpcState {
                 vec![KeysetKeys {
                     id: keyset_id.to_bytes().to_vec(),
                     unit: keyset_info.unit(),
+                    active: keyset_info.active(),
                     keys: keys
                         .into_iter()
                         .map(|(a, pk)| Key {
@@ -205,6 +206,7 @@ impl Node for GrpcState {
                     keysets.push(KeysetKeys {
                         id: keyset_id.to_bytes().to_vec(),
                         unit: keyset_info.unit(),
+                        active: keyset_info.active(),
                         keys: keys
                             .into_iter()
                             .map(|(a, pk)| Key {
