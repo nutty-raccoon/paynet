@@ -212,24 +212,26 @@ async fn main() -> Result<()> {
                     .await?;
             tx.commit()?;
 
-            let wad = match opt_proofs {
-                Some(proofs) => Wad { node_url, proofs },
-                None => {
-                    println!("Not enough funds");
-                    return Ok(());
-                }
-            };
+            let wad = opt_proofs
+                .map(|proofs| Wad { node_url, proofs })
+                .ok_or(anyhow!("Not enough funds"))?;
             println!("Wad:\n{}", serde_json::to_string(&wad)?);
         }
         Commands::Receive { wad_as_json } => {
             let wad: Wad = serde_json::from_str(&wad_as_json)?;
-            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
 
+            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
+
             let tx = db_conn.transaction()?;
-            wallet::receive_wad(&tx, &mut node_client, node_id, wad.proofs).await?;
+            let amounts_received_per_unit =
+                wallet::receive_wad(&tx, &mut node_client, node_id, &wad.proofs).await?;
             tx.commit()?;
-            println!("Finished");
+
+            println!("Received:");
+            for (unit, amount) in amounts_received_per_unit {
+                println!("{} {}", amount, unit);
+            }
         }
     }
 

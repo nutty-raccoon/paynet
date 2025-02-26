@@ -472,8 +472,8 @@ pub async fn receive_wad(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    token: Vec<nut00::Proof>,
-) -> Result<()> {
+    proofs: &[nut00::Proof],
+) -> Result<HashMap<String, Amount>> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
             (y, node_id, keyset_id, amount, secret, unblind_signature, state)
@@ -485,9 +485,9 @@ pub async fn receive_wad(
     let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
     let mut keyset_id_to_unit = HashMap::new();
     let mut unit_to_amount = HashMap::new();
-    let mut ys = Vec::with_capacity(token.len());
+    let mut ys = Vec::with_capacity(proofs.len());
 
-    for proof in token.iter() {
+    for proof in proofs.iter() {
         let y = hash_to_curve(proof.secret.as_ref())?;
         ys.push(y.to_bytes());
 
@@ -522,13 +522,13 @@ pub async fn receive_wad(
             .ok_or(anyhow!("amount overflow"))?;
     }
 
-    let inputs = convert_inputs(&token);
+    let inputs = convert_inputs(proofs);
 
     let mut outputs = Vec::new();
     let mut unit_to_premints = HashMap::new();
-    for (unit, amount) in unit_to_amount.into_iter() {
-        let pre_mints = PreMint::generate_for_amount(amount, &SplitTarget::None)?;
-        let keyset_id = get_active_keyset_for_unit(db_conn, node_id, &unit)?;
+    for (unit, amount) in unit_to_amount.iter() {
+        let pre_mints = PreMint::generate_for_amount(*amount, &SplitTarget::None)?;
+        let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
         outputs.extend_from_slice(
             build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints).as_slice(),
         );
@@ -566,7 +566,7 @@ pub async fn receive_wad(
         )?;
     }
 
-    Ok(())
+    Ok(unit_to_amount)
 }
 
 pub async fn register_node(

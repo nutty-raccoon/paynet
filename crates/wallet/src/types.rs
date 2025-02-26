@@ -69,7 +69,7 @@ impl FromSql for ProofState {
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Wad {
     pub node_url: String,
     pub proofs: Vec<nut00::Proof>,
