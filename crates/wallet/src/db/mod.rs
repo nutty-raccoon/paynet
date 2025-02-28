@@ -1,6 +1,8 @@
 use node::CREATE_TABLE_NODE;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
+use crate::types::NodeUrl;
+
 pub mod node;
 pub mod proof;
 
@@ -178,10 +180,12 @@ pub fn insert_keyset_keys<'a>(
     Ok(())
 }
 
-pub fn get_node_url(conn: &Connection, node_id: u32) -> Result<Option<String>> {
+pub fn get_node_url(conn: &Connection, node_id: u32) -> Result<Option<NodeUrl>> {
     let mut stmt = conn.prepare("SELECT url FROM node WHERE id = ?1 LIMIT 1")?;
     let opt_url = stmt
-        .query_row([node_id], |r| r.get::<_, String>(0))
+        .query_row([node_id], |r| {
+            r.get::<_, String>(0).map(NodeUrl::new_unchecked)
+        })
         .optional()?;
 
     Ok(opt_url)

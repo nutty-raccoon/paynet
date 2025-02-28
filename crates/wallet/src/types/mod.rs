@@ -11,6 +11,9 @@ use rusqlite::{
     types::{FromSql, FromSqlError},
 };
 
+mod node_url;
+pub use node_url::{Error as NodeUrlError, NodeUrl};
+
 #[derive(Debug, Clone)]
 pub struct PreMint {
     pub amount: Amount,
@@ -71,6 +74,6 @@ impl FromSql for ProofState {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Wad {
-    pub node_url: String,
+    pub node_url: NodeUrl,
     pub proofs: Vec<nut00::Proof>,
 }

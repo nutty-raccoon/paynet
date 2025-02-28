@@ -10,7 +10,7 @@ use num_traits::CheckedAdd;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::mint_url::MintUrl;
+// use crate::mint_url::MintUrl;
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
 
@@ -22,7 +22,7 @@ use super::{Proofs, errors::Error};
 pub struct TokenV4<U: Unit> {
     /// Mint Url
     #[serde(rename = "m")]
-    pub mint_url: MintUrl,
+    pub mint_url: String,
     /// Token Unit
     #[serde(rename = "u")]
     pub unit: U,

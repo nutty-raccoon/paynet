@@ -1,5 +1,7 @@
 use rusqlite::{Connection, Result};
 
+use crate::types::NodeUrl;
+
 pub const CREATE_TABLE_NODE: &str = r#"
         CREATE TABLE IF NOT EXISTS node (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -9,14 +11,14 @@ pub const CREATE_TABLE_NODE: &str = r#"
         CREATE INDEX node_url ON node(url); 
     "#;
 
-pub fn insert(conn: &Connection, node_url: &str) -> Result<u32> {
+pub fn insert(conn: &Connection, node_url: &NodeUrl) -> Result<u32> {
     conn.execute(
         "INSERT INTO node (url) VALUES (?1) ON CONFLICT DO NOTHING;",
-        [node_url],
+        [node_url.as_ref()],
     )?;
 
     let mut stmt = conn.prepare("SELECT id FROM node WHERE url = ?1;")?;
-    let id = stmt.query_row([node_url], |r| r.get::<_, u32>(0))?;
+    let id = stmt.query_row([node_url.as_ref()], |r| r.get::<_, u32>(0))?;
 
     Ok(id)
 }

@@ -4,7 +4,6 @@
 // Copyright (c) 2024 Cashu Dev Kit Developers
 
 mod amount;
-mod mint_url;
 mod types;
 
 pub mod dhke;

@@ -3,9 +3,9 @@ use clap::{Parser, Subcommand, ValueHint};
 use node::{MintQuoteState, NodeClient};
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
-use wallet::types::Wad;
+use wallet::types::{NodeUrl, Wad};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -110,6 +110,8 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Node(NodeCommands::Add { node_url }) => {
+            let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
+
             let tx = db_conn.transaction()?;
             let (mut _node_client, node_id) = wallet::register_node(&tx, node_url.clone()).await?;
             tx.commit()?;
@@ -201,10 +203,7 @@ async fn main() -> Result<()> {
                     .await?;
             tx.commit()?;
 
-            let inputs = match tokens {
-                Some(proof_vector) => proof_vector,
-                None => Err(anyhow!("not enough funds"))?,
-            };
+            let inputs = tokens.ok_or(anyhow!("not enough funds"))?;
 
             let resp = node_client
                 .melt(node::MeltRequest {
@@ -268,9 +267,9 @@ async fn main() -> Result<()> {
 pub async fn connect_to_node(
     conn: &mut Connection,
     node_id: u32,
-) -> Result<(NodeClient<tonic::transport::Channel>, String)> {
+) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
     let node_url = wallet::db::get_node_url(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = NodeClient::connect(node_url.clone()).await?;
+    let node_client = NodeClient::connect(&node_url).await?;
     Ok((node_client, node_url))
 }

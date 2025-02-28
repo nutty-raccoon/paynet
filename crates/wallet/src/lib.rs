@@ -20,7 +20,7 @@ use nuts::nut02::KeysetId;
 use nuts::{Amount, SplitTarget};
 use rusqlite::{Connection, params};
 use tonic::transport::Channel;
-use types::{PreMint, ProofState};
+use types::{NodeUrl, PreMint, ProofState};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
     inputs
@@ -571,9 +571,9 @@ pub async fn receive_wad(
 
 pub async fn register_node(
     db_conn: &Connection,
-    node_url: String,
+    node_url: NodeUrl,
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
-    let mut node_client = NodeClient::connect(node_url.clone()).await?;
+    let mut node_client = NodeClient::connect(&node_url).await?;
 
     let node_id = db::node::insert(db_conn, &node_url)?;
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
