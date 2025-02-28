@@ -1,19 +1,12 @@
-use node::MintQuoteResponse;
+use node::CREATE_TABLE_NODE;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
+pub mod node;
 pub mod proof;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
-    const CREATE_TABLE_NODE: &str = r#"
-        CREATE TABLE IF NOT EXISTS node (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT NOT NULL UNIQUE
-        );
-
-        CREATE INDEX node_url ON node(url); 
-    "#;
     const CREATE_TABLE_KEYSET: &str = r#"
         CREATE TABLE IF NOT EXISTS keyset (
             id BLOB(8) PRIMARY KEY,
@@ -71,7 +64,7 @@ pub fn store_mint_quote(
     method: String,
     amount: u64,
     unit: String,
-    response: &MintQuoteResponse,
+    response: &::node::MintQuoteResponse,
 ) -> Result<()> {
     const INSERT_NEW_MINT_QUOTE: &str = r#"
         INSERT INTO mint_quote
@@ -107,22 +100,10 @@ pub fn set_mint_quote_state(conn: &Connection, quote_id: String, state: i32) -> 
     Ok(())
 }
 
-pub fn insert_node(conn: &Connection, node_url: &str) -> Result<u32> {
-    conn.execute(
-        "INSERT INTO node (url) VALUES (?1) ON CONFLICT DO NOTHING;",
-        [node_url],
-    )?;
-
-    let mut stmt = conn.prepare("SELECT id FROM node WHERE url = ?1;")?;
-    let id = stmt.query_row([node_url], |r| r.get::<_, u32>(0))?;
-
-    Ok(id)
-}
-
 pub fn upsert_node_keysets(
     conn: &Connection,
     node_id: u32,
-    keysets: Vec<node::Keyset>,
+    keysets: Vec<::node::Keyset>,
 ) -> anyhow::Result<Vec<[u8; 8]>> {
     conn.execute(
         r#"
@@ -215,7 +196,7 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: [u8; 8]) -> Result<Option<S
     Ok(opt_unit)
 }
 
-pub fn register_melt_quote(conn: &Connection, response: &node::MeltResponse) -> Result<()> {
+pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -> Result<()> {
     const INSERT_MELT_RESPONSE: &str = r#"
             INSERT INTO melt_response (
                 id, amount, fee, state, expiry

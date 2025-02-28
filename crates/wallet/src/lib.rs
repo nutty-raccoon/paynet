@@ -575,7 +575,7 @@ pub async fn register_node(
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
     let mut node_client = NodeClient::connect(node_url.clone()).await?;
 
-    let node_id = db::insert_node(db_conn, &node_url)?;
+    let node_id = db::node::insert(db_conn, &node_url)?;
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
 
     Ok((node_client, node_id))

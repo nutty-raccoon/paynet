@@ -12,18 +12,31 @@ use wallet::types::Wad;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+    /// The path to the wallet sqlite database
+    ///
+    /// If left blank the default one will be used:
+    /// `dirs::data_dir().cli-wallet.sqlite3`
     #[arg(long, value_hint(ValueHint::FilePath))]
     db_path: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+enum NodeCommands {
     /// Register a new node
-    AddNode {
+    Add {
         /// Url of the node
         #[arg(long, short)]
         node_url: String,
     },
+    /// List all know nodes
+    #[clap(name = "ls")]
+    List {},
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    #[command(subcommand)]
+    Node(NodeCommands),
     /// Mint new tokens
     Mint {
         /// Amount requested
@@ -83,14 +96,20 @@ async fn main() -> Result<()> {
             dp
         }))
         .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?;
-    println!("using database at `{:?}`", db_path);
+    println!(
+        "Using database at {:?}\n",
+        db_path
+            .as_path()
+            .to_str()
+            .ok_or(anyhow!("invalid db path"))?
+    );
 
     let mut db_conn = rusqlite::Connection::open(db_path)?;
 
     wallet::db::create_tables(&mut db_conn)?;
 
     match cli.command {
-        Commands::AddNode { node_url } => {
+        Commands::Node(NodeCommands::Add { node_url }) => {
             let tx = db_conn.transaction()?;
             let (mut _node_client, node_id) = wallet::register_node(&tx, node_url.clone()).await?;
             tx.commit()?;
@@ -98,6 +117,14 @@ async fn main() -> Result<()> {
                 "Successfully registered {} as node with id `{}`",
                 &node_url, node_id
             );
+        }
+        Commands::Node(NodeCommands::List {}) => {
+            let nodes = wallet::db::node::fetch_all(&db_conn)?;
+
+            println!("Available nodes");
+            for (id, url) in nodes {
+                println!("{} {}", id, url);
+            }
         }
         Commands::Mint {
             amount,
