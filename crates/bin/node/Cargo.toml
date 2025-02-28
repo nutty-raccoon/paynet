@@ -28,17 +28,16 @@ prost = { workspace = true }
 nuts = { workspace = true }
 starknet-types = { workspace = true }
 signer = { workspace = true }
-starknet-payment-indexer = { workspace = true }
 db-node = { workspace = true }
-starknet-types-core = { workspace = true }
 sqlx = { workspace = true, features = ["postgres", "uuid"] }
 rusqlite = { workspace = true }
 
-axum-response-cache = { workspace = true, optional = true }
+starknet-types-core = { workspace = true, optional = true }
+starknet-payment-indexer = { workspace = true, optional = true }
 
 [features]
-default = []
-uncollateralized = []
+default = ["indexer"]
+indexer = ["dep:starknet-types-core", "dep:starknet-payment-indexer"]
 
 [build-dependencies]
 tonic-build = "*"

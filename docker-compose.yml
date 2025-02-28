@@ -1,0 +1,44 @@
+services:
+  db:
+    image: "postgres"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=node
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - database_data:/var/lib/postgresql/data
+  signer:
+    image: "signer"
+    restart: always
+    environment:
+      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+      - SOCKET_IP=[::0]
+      - SOCKET_PORT=10000
+    ports:
+      - "10000:10000"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/signer.Dockerfile
+  node:
+    image: "node"
+    restart: always
+    env_file: "node.env"
+    environment:
+      - PG_URL=postgres://postgres:password@db/node
+      - SIGNER_URL=http://signer:10000
+      - GRPC_IP=[::0]
+      - GRPC_PORT=20000
+    ports:
+      - "20000:20000"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/node.Dockerfile
+    depends_on:
+      - db
+      - signer
+volumes:
+  database_data:
+    driver: local

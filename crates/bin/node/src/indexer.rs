@@ -3,7 +3,8 @@ use crate::errors::{InitializationError, ServiceError};
 use futures::TryStreamExt;
 use nuts::Amount;
 use nuts::nut04::MintQuoteState;
-use sqlx::PgConnection;
+use sqlx::pool::PoolConnection;
+use sqlx::{PgConnection, Postgres};
 use starknet_payment_indexer::{ApibaraIndexerService, Message, PaymentEvent};
 use starknet_types::{StarknetU256, Unit::Strk};
 use starknet_types_core::felt::Felt;
@@ -29,7 +30,7 @@ pub async fn init_indexer_task(
 }
 
 pub async fn listen_to_indexer(
-    db_conn: &mut PgConnection,
+    mut db_conn: PoolConnection<Postgres>,
     mut indexer_service: ApibaraIndexerService,
 ) -> Result<(), crate::errors::Error> {
     info!("Listening indexer events");
@@ -41,7 +42,7 @@ pub async fn listen_to_indexer(
     {
         match event {
             Message::Payment(payment_events) => {
-                process_payment_event(payment_events, db_conn).await?;
+                process_payment_event(payment_events, &mut db_conn).await?;
             }
             Message::Invalidate {
                 last_valid_block_number: _,

@@ -99,11 +99,8 @@ struct ConfigFileContent {
     ///
     /// Optional if chain_id is "mainnet" or "sepolia"
     strk_address: Option<Felt>,
-    /// The url of the signer service
-    signer_url: String,
     /// The address of the on-chain account managing deposited assets
     recipient_address: Felt,
-    grpc_server_port: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -112,11 +109,8 @@ pub struct Config {
     pub chain_id: ChainId,
     /// The address of the STRK token address
     pub strk_address: Felt,
-    /// The url of the signer service
-    pub signer_url: String,
     /// The address of the on-chain account managing deposited assets
     pub recipient_address: Felt,
-    pub grpc_server_port: u16,
 }
 
 const MAINNET_STRK_TOKEN_CONTRACT: Felt =
@@ -151,9 +145,7 @@ impl TryFrom<ConfigFileContent> for Config {
         Ok(Config {
             chain_id: value.chain_id,
             strk_address: token_address,
-            signer_url: value.signer_url,
             recipient_address: value.recipient_address,
-            grpc_server_port: value.grpc_server_port,
         })
     }
 }
@@ -165,10 +157,19 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
 
     let apibara_token = std::env::var("APIBARA_TOKEN").map_err(InitializationError::Env)?;
     let pg_url = std::env::var("PG_URL").map_err(InitializationError::Env)?;
+    let signer_url = std::env::var("SIGNER_URL").map_err(InitializationError::Env)?;
+    let grpc_ip = std::env::var("GRPC_IP").map_err(InitializationError::Env)?;
+    let grpc_port = std::env::var("GRPC_PORT")
+        .map_err(InitializationError::Env)?
+        .parse()
+        .map_err(InitializationError::ParseInt)?;
 
     Ok(EnvVariables {
         apibara_token,
         pg_url,
+        signer_url,
+        grpc_ip,
+        grpc_port,
     })
 }
 
@@ -176,4 +177,7 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
 pub struct EnvVariables {
     pub apibara_token: String,
     pub pg_url: String,
+    pub signer_url: String,
+    pub grpc_ip: String,
+    pub grpc_port: u16,
 }

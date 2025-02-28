@@ -128,7 +128,7 @@ pub async fn starknet_melt(
     })
 }
 
-#[cfg(feature = "uncollateralized")]
+#[cfg(not(feature = "indexer"))]
 async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,
@@ -139,7 +139,7 @@ async fn proceed_to_payment(
     Ok(new_state)
 }
 
-#[cfg(not(feature = "uncollateralized"))]
+#[cfg(feature = "indexer")]
 async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,

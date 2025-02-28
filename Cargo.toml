@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/bin/node",
-  "crates/bin/indexer",
-  "crates/bin/signer",
+  "crates/bin/node", "crates/bin/indexer", "crates/bin/signer",
   "crates/starknet-payment-indexer",
   "crates/db-node",
   "crates/nuts",
-  "crates/starknet", "crates/wallet", "crates/bin/cli-wallet",
+  "crates/starknet",
+  "crates/wallet",
+  "crates/bin/cli-wallet",
 ]
 
 [workspace.dependencies]
@@ -54,6 +54,8 @@ tokio-stream = "0.1.17"
 prost = "0.13.5"
 dirs = "6.0.0"
 sha2 = "0.10"
+testcontainers = "0.23.3"
+testcontainers-modules = "0.11.6"
 
 # Local crates
 nuts = { path = "crates/nuts" }

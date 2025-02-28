@@ -24,6 +24,7 @@ mod state;
 
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
 const SOCKET_PORT_ENV_VAR: &str = "SOCKET_PORT";
+const SOCKET_IP_ENV_VAR: &str = "SOCKET_IP";
 
 #[derive(Debug)]
 pub struct SignerState {
@@ -170,9 +171,11 @@ async fn main() -> Result<(), anyhow::Error> {
     dotenvy::from_filename("signer.env")?;
 
     let socket_addr = {
+        let socket_ip_env_var: String =
+            std::env::var(SOCKET_IP_ENV_VAR).expect("env var `SOCKET_IP` should be set");
         let socket_port_env_var: String =
             std::env::var(SOCKET_PORT_ENV_VAR).expect("env var `SOCKET_PORT` should be set");
-        format!("[::1]:{}", socket_port_env_var).parse()?
+        format!("{}:{}", socket_ip_env_var, socket_port_env_var).parse()?
     };
     let root_private_key = {
         let root_key_env_var: String =

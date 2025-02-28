@@ -19,6 +19,7 @@ mod app_state;
 mod commands;
 mod errors;
 mod grpc_service;
+#[cfg(feature = "indexer")]
 mod indexer;
 mod keyset_cache;
 mod logic;
@@ -77,7 +78,7 @@ async fn main() -> Result<(), Error> {
     };
 
     // Connect to the signer service
-    let signer_client = signer::SignerClient::connect(config.signer_url)
+    let signer_client = signer::SignerClient::connect(env_variables.signer_url)
         .await
         .map_err(InitializationError::SignerConnection)?;
 
@@ -95,7 +96,7 @@ async fn main() -> Result<(), Error> {
         .init_first_keysets(&[Unit::Strk], 0, 32)
         .await?;
 
-    let addr = format!("[::1]:{}", config.grpc_server_port)
+    let addr = format!("{}:{}", env_variables.grpc_ip, env_variables.grpc_port)
         .parse()
         .unwrap();
     let tonic_future = tonic::transport::Server::builder()
@@ -104,26 +105,26 @@ async fn main() -> Result<(), Error> {
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
     // Launch indexer task
-    #[cfg(not(feature = "uncollateralized"))]
-    let indexer_service = indexer::init_indexer_task(
-        env_variables.apibara_token,
-        config.strk_address,
-        config.recipient_address,
-    )
-    .await?;
-
-    #[cfg(not(feature = "uncollateralized"))]
-    let mut db_conn = pg_pool.acquire().await?;
-
-    #[cfg(not(feature = "uncollateralized"))]
-    let indexer_future = indexer::listen_to_indexer(&mut db_conn, indexer_service);
+    #[cfg(feature = "indexer")]
+    let indexer_future = {
+        let indexer_service = indexer::init_indexer_task(
+            env_variables.apibara_token,
+            config.strk_address,
+            config.recipient_address,
+        )
+        .await?;
+        let db_conn = pg_pool.acquire().await?;
+        indexer::listen_to_indexer(db_conn, indexer_service)
+    };
 
     // Run them forever
     info!("Initialized!");
-    info!("Running gRPC server on port {}", config.grpc_server_port);
-    #[cfg(not(feature = "uncollateralized"))]
+    info!("Running gRPC server at {}", addr);
+
+    #[cfg(feature = "indexer")]
     let ((), ()) = try_join!(tonic_future, indexer_future)?;
-    #[cfg(feature = "uncollateralized")]
+
+    #[cfg(not(feature = "indexer"))]
     let ((),) = try_join!(tonic_future)?;
 
     Ok(())

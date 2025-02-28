@@ -65,6 +65,8 @@ pub enum InitializationError {
     #[error("Failed to read variable from environment: {0}")]
     Env(#[source] std::env::VarError),
     #[error(transparent)]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error(transparent)]
     Config(#[from] ConfigError),
     #[error("Failed init apibara indexer: {0}")]
     InitIndexer(#[source] starknet_payment_indexer::Error),

@@ -131,7 +131,7 @@ async fn new_starknet_mint_quote(
         .map_err(Error::Db)?;
 
     let state = {
-        #[cfg(feature = "uncollateralized")]
+        #[cfg(not(feature = "indexer"))]
         {
             use futures::TryFutureExt;
 
@@ -141,7 +141,7 @@ async fn new_starknet_mint_quote(
                 .await?;
             new_state
         }
-        #[cfg(not(feature = "uncollateralized"))]
+        #[cfg(feature = "indexer")]
         MintQuoteState::Unpaid
     };
 
