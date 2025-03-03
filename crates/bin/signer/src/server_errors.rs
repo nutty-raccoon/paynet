@@ -5,8 +5,6 @@ use thiserror::Error;
 pub enum Error<'a> {
     #[error(transparent)]
     Dhke(#[from] dhke::Error),
-    #[error("The lock has been poisoined")]
-    LockPoisoned,
     #[error("Keyset with id {0} not found")]
     KeysetNotFound(KeysetId),
     #[error("Amount {0} not found in keyset with id {1}")]
@@ -21,8 +19,8 @@ pub enum Error<'a> {
     BadKeysetId,
     #[error("Invalid secret")]
     BadSecret,
-    #[error("Invalid secret")]
-    BadC,
+    #[error("Invalid signature")]
+    BadSignature,
 }
 
 impl<'a> From<Error<'a>> for String {

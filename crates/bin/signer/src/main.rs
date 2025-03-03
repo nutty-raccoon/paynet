@@ -12,11 +12,8 @@ use signer::{
     VerifyProofsResponse,
 };
 use state::{SharedKeySetCache, SharedRootKey};
-use std::{
-    collections::HashMap,
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
+use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 
 mod server_errors;
@@ -57,7 +54,7 @@ impl signer::Signer for SignerState {
 
             self.keyset_cache
                 .insert(keyset.id, keyset.keys.clone())
-                .map_err(|e| Status::internal(e.to_string()))?;
+                .await;
 
             keyset
         };
@@ -74,6 +71,7 @@ impl signer::Signer for SignerState {
                 .collect(),
         }))
     }
+
     async fn sign_blinded_messages(
         &self,
         sign_blinded_messages_request: Request<SignBlindedMessagesRequest>,
@@ -82,11 +80,7 @@ impl signer::Signer for SignerState {
 
         let mut signatures = Vec::with_capacity(blinded_messages.len());
 
-        let keyset_cache_read_lock = self
-            .keyset_cache
-            .0
-            .read()
-            .map_err(|_| Status::internal(Error::LockPoisoned))?;
+        let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
         for blinded_message in blinded_messages {
             let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id)
@@ -124,11 +118,7 @@ impl signer::Signer for SignerState {
             let amount = Amount::from(proof.amount);
 
             let secret_key = {
-                let keyset_cache_read_lock = self
-                    .keyset_cache
-                    .0
-                    .read()
-                    .map_err(|_| Status::internal(Error::LockPoisoned))?;
+                let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
                 let keyset = keyset_cache_read_lock
                     .get(&keyset_id)
@@ -141,7 +131,7 @@ impl signer::Signer for SignerState {
             };
 
             let c = PublicKey::from_slice(&proof.unblind_signature)
-                .map_err(|_| Status::invalid_argument(Error::BadC))?;
+                .map_err(|_| Status::invalid_argument(Error::BadSignature))?;
 
             if !verify_message(&secret_key, c, proof.secret.as_bytes())
                 .map_err(|e| Status::internal(Error::Dhke(e)))?

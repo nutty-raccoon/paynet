@@ -24,6 +24,7 @@ async fn is_healthy_works() -> Result<()> {
         ))
     }
 }
+
 #[tokio::test]
 async fn declare_keyset_works() -> Result<()> {
     let mut client = init_signer_client().await?;

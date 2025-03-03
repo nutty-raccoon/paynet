@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use bitcoin::{
     bip32::{ChildNumber, DerivationPath, Xpriv},
@@ -12,8 +9,7 @@ use nuts::{
     nut02::{KeysetId, MintKeySet},
     traits::Unit,
 };
-
-use crate::server_errors::Error;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub struct SharedRootKey(pub Arc<Xpriv>);
@@ -48,11 +44,9 @@ impl SharedRootKey {
 pub struct SharedKeySetCache(pub Arc<RwLock<HashMap<KeysetId, Arc<SetKeyPairs>>>>);
 
 impl SharedKeySetCache {
-    pub fn insert(&self, keyset_id: KeysetId, key_pairs: SetKeyPairs) -> Result<(), Error> {
-        let mut write_lock = self.0.write().map_err(|_| Error::LockPoisoned)?;
+    pub async fn insert(&self, keyset_id: KeysetId, key_pairs: SetKeyPairs) {
+        let mut write_lock = self.0.write().await;
 
         write_lock.insert(keyset_id, Arc::new(key_pairs));
-
-        Ok(())
     }
 }
