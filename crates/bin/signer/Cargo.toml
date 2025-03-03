@@ -8,6 +8,7 @@ bitcoin = { workspace = true }
 nuts = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tonic = { workspace = true }
+tonic-health = { workspace = true }
 thiserror = { workspace = true }
 tokio-stream = { workspace = true }
 url = { workspace = true }

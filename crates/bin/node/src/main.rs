@@ -1,4 +1,3 @@
-use clap::Parser;
 use commands::read_env_variables;
 use errors::{Error, InitializationError, ServiceError};
 use futures::TryFutureExt;
@@ -47,8 +46,13 @@ async fn main() -> Result<(), Error> {
     info!("Initializing node...");
 
     // Read args and env
-    let args = commands::Args::parse();
-    let config = args.read_config()?;
+    #[cfg(feature = "indexer")]
+    let config = {
+        use clap::Parser;
+
+        let args = commands::Args::parse();
+        args.read_config()?
+    };
     let env_variables = read_env_variables()?;
 
     // Connect to db

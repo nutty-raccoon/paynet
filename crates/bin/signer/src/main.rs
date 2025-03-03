@@ -17,7 +17,7 @@ use std::{
     str::FromStr,
     sync::{Arc, RwLock},
 };
-use tonic::{Request, Response, Status, transport::Server};
+use tonic::{Request, Response, Status};
 
 mod server_errors;
 mod state;
@@ -191,10 +191,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let svc = SignerServer::new(signer_logic);
 
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter
+        .set_serving::<SignerServer<SignerState>>()
+        .await;
+
     println!("listening to new request on {}", socket_addr);
 
-    Server::builder()
+    tonic::transport::Server::builder()
         .add_service(svc)
+        .add_service(health_service)
         .serve(socket_addr)
         .await?;
 

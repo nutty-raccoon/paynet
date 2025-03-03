@@ -68,6 +68,7 @@ pub enum InitializationError {
     ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[cfg(feature = "indexer")]
     #[error("Failed init apibara indexer: {0}")]
     InitIndexer(#[source] starknet_payment_indexer::Error),
     #[error("Failed bind tcp listener: {0}")]

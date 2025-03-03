@@ -1,11 +1,11 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 use thiserror::Error;
 
-use crate::errors::{Error, InitializationError};
+use crate::errors::InitializationError;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -14,15 +14,16 @@ pub struct Args {
     config: PathBuf,
 }
 
+#[cfg(feature = "indexer")]
 impl Args {
-    pub fn read_config(&self) -> Result<Config, Error> {
+    pub fn read_config(&self) -> Result<Config, InitializationError> {
         let file_content =
-            fs::read_to_string(&self.config).map_err(InitializationError::CannotReadConfig)?;
+            std::fs::read_to_string(&self.config).map_err(InitializationError::CannotReadConfig)?;
 
         let config: ConfigFileContent =
             toml::from_str(&file_content).map_err(InitializationError::Toml)?;
 
-        Ok(config.try_into().unwrap())
+        config.try_into().map_err(InitializationError::Config)
     }
 }
 
@@ -155,6 +156,7 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
     #[cfg(debug_assertions)]
     dotenvy::from_filename("node.env").map_err(InitializationError::Dotenvy)?;
 
+    #[cfg(feature = "indexer")]
     let apibara_token = std::env::var("APIBARA_TOKEN").map_err(InitializationError::Env)?;
     let pg_url = std::env::var("PG_URL").map_err(InitializationError::Env)?;
     let signer_url = std::env::var("SIGNER_URL").map_err(InitializationError::Env)?;
@@ -165,6 +167,7 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
         .map_err(InitializationError::ParseInt)?;
 
     Ok(EnvVariables {
+        #[cfg(feature = "indexer")]
         apibara_token,
         pg_url,
         signer_url,
@@ -175,6 +178,7 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
 
 #[derive(Debug)]
 pub struct EnvVariables {
+    #[cfg(feature = "indexer")]
     pub apibara_token: String,
     pub pg_url: String,
     pub signer_url: String,

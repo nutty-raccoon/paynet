@@ -1,0 +1,18 @@
+[package]
+name = "signer-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+signer = { workspace = true }
+tonic = { workspace = true }
+tonic-health = { workspace = true }
+nuts = { workspace = true }
+
+[[test]]
+name = "declare_keyset"
+path = "declare_keyset.rs"
+
+
