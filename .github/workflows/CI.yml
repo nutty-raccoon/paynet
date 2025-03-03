@@ -25,7 +25,7 @@ jobs:
     
     - name: Set up Rust cache
       uses: Swatinem/rust-cache@v2
-    
+
     - name: Build
       run: |
        cargo build -p starknet-payment-indexer --all-targets --all-features
@@ -54,6 +54,7 @@ jobs:
       run: |
         cargo run --bin signer &
         SIGNER_RUN_PID=$!
+        while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
         cargo test -p signer-tests
         kill $SIGNER_RUN_PID
         

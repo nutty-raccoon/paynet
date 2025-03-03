@@ -1,43 +1,14 @@
 use std::sync::{Arc, atomic::AtomicU64};
 
-use axum::extract::FromRef;
 use nuts::{QuoteTTLConfig, nut06::NutsSettings};
-use sqlx::PgPool;
 use starknet_types::Unit;
 use tokio::sync::RwLock;
 use tonic::transport::Channel;
 
-use crate::{keyset_cache::KeysetCache, methods::Method};
+use crate::methods::Method;
 
 pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
 pub type SignerClient = signer::SignerClient<Channel>;
-
-// the application state
-#[derive(Debug, Clone, FromRef)]
-pub struct AppState {
-    pg_pool: PgPool,
-    keyset_cache: KeysetCache,
-    signer_client: SignerClient,
-    nuts: NutsSettingsState,
-    quote_ttl: Arc<QuoteTTLConfigState>,
-}
-
-impl AppState {
-    pub fn new(
-        pg_pool: PgPool,
-        signer_client: signer::SignerClient<Channel>,
-        nuts_settings: NutsSettings<Method, Unit>,
-        quote_ttl: QuoteTTLConfig,
-    ) -> Self {
-        Self {
-            pg_pool,
-            keyset_cache: Default::default(),
-            nuts: Arc::new(RwLock::new(nuts_settings)),
-            quote_ttl: Arc::new(quote_ttl.into()),
-            signer_client,
-        }
-    }
-}
 
 /// Quote Time To Live config
 ///
