@@ -16,3 +16,8 @@ name = "declare_keyset"
 path = "declare_keyset.rs"
 
 
+[[test]]
+name = "health_check"
+path = "health_check.rs"
+
+

@@ -7,7 +7,7 @@ use tonic::transport::Channel;
 async fn get_signer_channel() -> Result<Channel> {
     let signer_port = std::env::var("SOCKET_PORT")?;
 
-    let address = format!("http://localhost:{}", signer_port);
+    let address = format!("https://localhost:{}", signer_port);
 
     let timeout = Instant::now() + Duration::from_secs(3);
     let channel = loop {

@@ -4,6 +4,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 use thiserror::Error;
+use tracing::error;
 
 use crate::errors::InitializationError;
 
@@ -154,7 +155,10 @@ impl TryFrom<ConfigFileContent> for Config {
 pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
     // Only if we are in debug mode, we allow loading env variable from a .env file
     #[cfg(debug_assertions)]
-    dotenvy::from_filename("node.env").map_err(InitializationError::Dotenvy)?;
+    {
+        let _ = dotenvy::from_filename("node.env")
+            .inspect_err(|e| error!("dotenvy initialization failed: {e}"));
+    }
 
     #[cfg(feature = "indexer")]
     let apibara_token = std::env::var("APIBARA_TOKEN").map_err(InitializationError::Env)?;

@@ -7,7 +7,10 @@ const APIBARA_TOKEN_ENV_VAR: &str = "APIBARA_TOKEN";
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     #[cfg(debug_assertions)]
-    dotenvy::from_filename("indexer.env")?;
+    {
+        let _ = dotenvy::from_filename("indexer.env")
+            .inspect_err(|e| println!("dotenvy initialization failed: {e}"));
+    }
 
     let dna_token =
         std::env::var(APIBARA_TOKEN_ENV_VAR).expect("missing `APIBARA_TOKEN` env variable");

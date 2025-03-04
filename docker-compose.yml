@@ -19,7 +19,6 @@ services:
     restart: always
     environment:
       - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
-      - SOCKET_IP=[::0]
       - SOCKET_PORT=10001
     ports:
       - "10001:10001"
@@ -33,7 +32,6 @@ services:
   node:
     image: "node"
     restart: always
-    env_file: "node.env"
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001

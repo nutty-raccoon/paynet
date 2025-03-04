@@ -10,7 +10,6 @@ env:
   CARGO_TERM_COLOR: always
   ROOT_KEY: "tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
   SOCKET_PORT: "10000"
-  SOCKET_IP: "[::0]"
 
 jobs:
   build:
@@ -52,7 +51,7 @@ jobs:
 
     - name: Run signer integration tests
       run: |
-        cargo run --bin signer &
+        cargo run --release --bin signer &
         SIGNER_RUN_PID=$!
         while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
         cargo test -p signer-tests

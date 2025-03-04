@@ -10,6 +10,16 @@ members = [
   "crates/bin/cli-wallet",
   "crates/tests/signer-tests",
 ]
+default-members = [
+  "crates/bin/node", "crates/bin/indexer", "crates/bin/signer",
+  "crates/starknet-payment-indexer",
+  "crates/db-node",
+  "crates/nuts",
+  "crates/starknet",
+  "crates/wallet",
+  "crates/bin/cli-wallet",
+]
+
 
 [workspace.dependencies]
 axum = "0.8.1"
