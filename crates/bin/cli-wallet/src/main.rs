@@ -74,7 +74,7 @@ enum Commands {
         node_id: u32,
 
         /// Output file to save the JSON result instead of printing
-        #[arg(long, value_hint(ValueHint::FilePath))]
+        #[arg(long, short, value_hint(ValueHint::FilePath))]
         output: Option<PathBuf>,
     },
     /// Receive a wad of proofs
@@ -247,25 +247,24 @@ async fn main() -> Result<()> {
                 .map(|proofs| Wad { node_url, proofs })
                 .ok_or(anyhow!("Not enough funds"))?;
 
-            if let Some(output_path) = output {
-                if let Some(ext) = output_path.extension() {
-                    if ext != "json" {
-                        eprintln!("Error: Output file must have a .json extension.");
-                        std::process::exit(1);
+            match output {
+                Some(output_path) => {
+                    if let Some(ext) = output_path.extension() {
+                        if ext != "json" {
+                            return Err(anyhow!("Error: Output file must have a .json extension."));
+                        }
+                    } else {
+                        return Err(anyhow!("Output file should be a `.json` file"));
                     }
-                } else {
-                    eprintln!("Error: Invalid output file path.");
-                    std::process::exit(1);
-                }
 
-                if let Err(e) = fs::write(&output_path, serde_json::to_string_pretty(&wad)?) {
-                    eprintln!("Error writing to file {}: {}", output_path.display(), e);
-                    std::process::exit(1);
+                    fs::write(&output_path, serde_json::to_string_pretty(&wad)?).map_err(|e| {
+                        anyhow!("could not write tot file {:?}: {}", output_path, e)
+                    })?;
+                    println!("Wad saved to {:?}", output_path);
                 }
-                println!("Output saved to {}", output_path.display());
-            }else{
-                println!("Wad:\n{}", serde_json::to_string(&wad)?);
-
+                None => {
+                    println!("Wad:\n{}", serde_json::to_string(&wad)?);
+                }
             }
         }
         Commands::Receive { wad_as_json } => {
