@@ -39,11 +39,18 @@ Therefore, at the moment we only support one blockchain, [Starknet](https://www.
 The project takes large inspiration from the [cashu](https://cashu.space/) project and sometime even pieces of code from its [Rust implementation](https://github.com/cashubtc/cdk). 
 As a consequence, we are using bitcoin's secp256k1 eliptic curve for our public-key cryptography.
 
-## Contact
+## Try it out
 
-Feel free to DM me on telegram at [@tdelabro](https://t.me/tdelabro).
+A quick tutorial on how to run the project locally lives in [USAGE.md](./USAGE.md).
 
 ## Contributing
 
-Helpful informations are available in [CONTRIBUTING.md](./CONTRIBUTING.md)
+We welcome any help. Please look into the open issues and find the one you like.
 
+Helpful informations are available in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+We are also registered on [OnlyDust](https://app.onlydust.com/projects/paynet/overview).
+
+## Contact
+
+Feel free to DM me on telegram at [@tdelabro](https://t.me/tdelabro).
