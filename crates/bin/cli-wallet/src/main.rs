@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand, ValueHint};
 use node::{MintQuoteState, NodeClient};
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
 use wallet::types::{NodeUrl, Wad};
 
@@ -78,6 +78,10 @@ enum Commands {
         /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
+
+        /// File where to save the JSON token wad        
+        #[arg(long, short, value_hint(ValueHint::FilePath))]
+        output: Option<PathBuf>,
     },
     /// Receive a wad of proofs
     Receive {
@@ -252,7 +256,22 @@ async fn main() -> Result<()> {
             amount,
             unit,
             node_id,
+            output,
         } => {
+            let output: Option<PathBuf> = output
+                .map(|output_path| {
+                    if output_path
+                        .extension()
+                        .ok_or_else(|| anyhow!("output file must have a .json extension."))?
+                        == "json"
+                    {
+                        Ok(output_path)
+                    } else {
+                        Err(anyhow!("Output file should be a `.json` file"))
+                    }
+                })
+                .transpose()?;
+
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Sending {} {} using node {}", amount, unit, &node_url);
 
@@ -260,12 +279,26 @@ async fn main() -> Result<()> {
             let opt_proofs =
                 wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
                     .await?;
-            tx.commit()?;
 
             let wad = opt_proofs
                 .map(|proofs| Wad { node_url, proofs })
                 .ok_or(anyhow!("Not enough funds"))?;
-            println!("Wad:\n{}", serde_json::to_string(&wad)?);
+
+            match output {
+                Some(output_path) => {
+                    let path_str = output_path
+                        .as_path()
+                        .to_str()
+                        .ok_or_else(|| anyhow!("invalid db path"))?;
+                    fs::write(&output_path, serde_json::to_string_pretty(&wad)?)
+                        .map_err(|e| anyhow!("could not write to file {}: {}", path_str, e))?;
+                    println!("Wad saved to {:?}", path_str);
+                }
+                None => {
+                    println!("Wad:\n{}", serde_json::to_string(&wad)?);
+                }
+            }
+            tx.commit()?;
         }
         Commands::Receive { wad_as_json } => {
             let wad: Wad = serde_json::from_str(&wad_as_json)?;
