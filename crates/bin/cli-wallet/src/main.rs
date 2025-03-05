@@ -136,14 +136,14 @@ async fn main() -> Result<()> {
         }
         Commands::Balance { node_id } => match node_id {
             Some(node_id) => {
-                let balances = wallet::db::get_balance_for_node(&db_conn, node_id)?;
+                let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
                 println!("Balance for node {}:", node_id);
                 for (unit, amount) in balances {
                     println!("  {} {}", amount, unit);
                 }
             }
             None => {
-                let nodes_with_balances = wallet::db::get_all_nodes_with_balances(&db_conn)?;
+                let nodes_with_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
                 for (node_id, url, balances) in nodes_with_balances {
                     println!("Balance for node {} ({}):", node_id, url);
                     for (unit, amount) in balances {
