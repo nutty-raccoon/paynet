@@ -37,6 +37,12 @@ enum NodeCommands {
 enum Commands {
     #[command(subcommand)]
     Node(NodeCommands),
+    /// Show balance
+    Balance {
+        /// Optional: Show balance for specific node ID only
+        #[arg(long, short)]
+        node_id: Option<u32>,
+    },
     /// Mint new tokens
     Mint {
         /// Amount requested
@@ -126,6 +132,30 @@ async fn main() -> Result<()> {
             println!("Available nodes");
             for (id, url) in nodes {
                 println!("{} {}", id, url);
+            }
+        }
+        Commands::Balance { node_id } => {
+            if let Some(node_id) = node_id {
+                // Show balance for specific node
+                let balances = wallet::db::get_balance_for_node(&db_conn, node_id)?;
+                println!("Balance for node {}:", node_id);
+                for (unit, amount) in balances {
+                    println!("  {} {}", amount, unit);
+                }
+            } else {
+                // Show balance for all nodes
+                let nodes = wallet::db::node::fetch_all(&db_conn)?;
+                for (node_id, node_url) in nodes {
+                    println!("\nBalance for node {} ({}):", node_id, node_url);
+                    let balances = wallet::db::get_balance_for_node(&db_conn, node_id)?;
+                    if balances.is_empty() {
+                        println!("  No assets");
+                    } else {
+                        for (unit, amount) in balances {
+                            println!("  {} {}", amount, unit);
+                        }
+                    }
+                }
             }
         }
         Commands::Mint {

@@ -3,8 +3,11 @@ use rusqlite::{Connection, OptionalExtension, Result, params};
 
 use crate::types::NodeUrl;
 
+pub mod balance;
 pub mod node;
 pub mod proof;
+
+pub use balance::get_balance_for_node;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
@@ -17,9 +20,9 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             active BOOL NOT NULL
         );
 
-        CREATE INDEX keyset_node_id ON keyset(node_id); 
-        CREATE INDEX keyset_unit ON keyset(unit); 
-        CREATE INDEX keyset_active ON keyset(active); 
+        CREATE INDEX keyset_node_id ON keyset(node_id);
+        CREATE INDEX keyset_unit ON keyset(unit);
+        CREATE INDEX keyset_active ON keyset(active);
     "#;
     const CREATE_TABLE_KEY: &str = r#"
         CREATE TABLE IF NOT EXISTS key (
