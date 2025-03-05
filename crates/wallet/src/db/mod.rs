@@ -7,16 +7,13 @@ pub mod balance;
 pub mod node;
 pub mod proof;
 
-pub use balance::get_all_nodes_with_balances;
-pub use balance::get_balance_for_node;
-
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
     const CREATE_TABLE_KEYSET: &str = r#"
         CREATE TABLE IF NOT EXISTS keyset (
             id BLOB(8) PRIMARY KEY,
-            node_id TEXT NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             unit TEXT NOT NULL,
             active BOOL NOT NULL
         );

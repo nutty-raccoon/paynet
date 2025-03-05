@@ -1,7 +1,7 @@
 use crate::types::ProofState;
 use rusqlite::{Connection, Result};
 
-pub fn get_balance_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, i64)>> {
+pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, i64)>> {
     let mut stmt = conn.prepare(
         r#"SELECT CAST(k.unit as TEXT), SUM(p.amount) as total_amount
            FROM node n
@@ -19,9 +19,7 @@ pub fn get_balance_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(Stri
     .collect()
 }
 
-pub fn get_all_nodes_with_balances(
-    conn: &Connection,
-) -> Result<Vec<(i64, String, Vec<(String, i64)>)>> {
+pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<(i64, String, Vec<(String, i64)>)>> {
     let sql = r#"
         SELECT n.id, n.url, k.unit, SUM(p.amount) as amount
         FROM node n
