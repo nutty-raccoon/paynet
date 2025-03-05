@@ -73,7 +73,7 @@ enum Commands {
         #[arg(long, short)]
         node_id: u32,
 
-        /// Output file to save the JSON result instead of printing
+        /// File where to save the JSON token wad        
         #[arg(long, short, value_hint(ValueHint::FilePath))]
         output: Option<PathBuf>,
     },
@@ -234,6 +234,20 @@ async fn main() -> Result<()> {
             node_id,
             output,
         } => {
+            let output: Option<PathBuf> = output
+                .map(|output_path| {
+                    if output_path
+                        .extension()
+                        .ok_or_else(|| anyhow!("output file must have a .json extension."))?
+                        == "json"
+                    {
+                        Ok(output_path)
+                    } else {
+                        Err(anyhow!("Output file should be a `.json` file"))
+                    }
+                })
+                .transpose()?;
+
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Sending {} {} using node {}", amount, unit, &node_url);
 
@@ -241,7 +255,6 @@ async fn main() -> Result<()> {
             let opt_proofs =
                 wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
                     .await?;
-            tx.commit()?;
 
             let wad = opt_proofs
                 .map(|proofs| Wad { node_url, proofs })
@@ -249,23 +262,19 @@ async fn main() -> Result<()> {
 
             match output {
                 Some(output_path) => {
-                    if let Some(ext) = output_path.extension() {
-                        if ext != "json" {
-                            return Err(anyhow!("Error: Output file must have a .json extension."));
-                        }
-                    } else {
-                        return Err(anyhow!("Output file should be a `.json` file"));
-                    }
-
-                    fs::write(&output_path, serde_json::to_string_pretty(&wad)?).map_err(|e| {
-                        anyhow!("could not write tot file {:?}: {}", output_path, e)
-                    })?;
-                    println!("Wad saved to {:?}", output_path);
+                    let path_str = output_path
+                        .as_path()
+                        .to_str()
+                        .ok_or_else(|| anyhow!("invalid db path"))?;
+                    fs::write(&output_path, serde_json::to_string_pretty(&wad)?)
+                        .map_err(|e| anyhow!("could not write to file {}: {}", path_str, e))?;
+                    println!("Wad saved to {:?}", path_str);
                 }
                 None => {
                     println!("Wad:\n{}", serde_json::to_string(&wad)?);
                 }
             }
+            tx.commit()?;
         }
         Commands::Receive { wad_as_json } => {
             let wad: Wad = serde_json::from_str(&wad_as_json)?;
