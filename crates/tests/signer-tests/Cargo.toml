@@ -20,4 +20,6 @@ path = "declare_keyset.rs"
 name = "health_check"
 path = "health_check.rs"
 
-
+[[test]]
+name = "sign_blinded_message"
+path = "sign_blinded_message.rs"
