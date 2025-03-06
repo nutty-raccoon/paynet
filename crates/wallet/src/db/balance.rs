@@ -40,27 +40,17 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<(i64, String, Vec<(Str
         ))
     })?;
 
-    let mut result = Vec::new();
-    let mut current_node: Option<(i64, String, Vec<(String, i64)>)> = None;
+    let mut result: Vec<(i64, String, Vec<(String, i64)>)> = Vec::new();
 
     for row in rows {
         let (node_id, url, unit, amount) = row?;
 
-        match &mut current_node {
-            Some(node) if node.0 == node_id => {
-                node.2.push((unit, amount));
+        match result.last_mut() {
+            Some((id, _, balances)) if &node_id == id => {
+                balances.push((unit, amount));
             }
-            _ => {
-                if let Some(node) = current_node {
-                    result.push(node);
-                }
-                current_node = Some((node_id, url, vec![(unit, amount)]));
-            }
+            Some(_) | None => result.push((node_id, url, vec![(unit, amount)])),
         }
-    }
-
-    if let Some(node) = current_node {
-        result.push(node);
     }
 
     Ok(result)
