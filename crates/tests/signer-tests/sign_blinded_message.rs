@@ -62,7 +62,6 @@ async fn ok() -> Result<()> {
         .into_inner()
         .signatures;
 
-    println!("{:?}", blind_signatures);
     Ok(())
 }
 
