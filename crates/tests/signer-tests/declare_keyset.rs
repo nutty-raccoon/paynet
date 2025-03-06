@@ -1,5 +1,5 @@
 use anyhow::Result;
-use nuts::{nut01::PublicKey, nut02::KeysetId};
+use nuts::{Error, nut01::PublicKey, nut02::KeysetId};
 use signer::{DeclareKeysetRequest, DeclareKeysetResponse};
 use signer_tests::init_signer_client;
 use std::str::FromStr;
@@ -34,6 +34,41 @@ async fn ok() -> Result<()> {
         keyset_id.to_bytes().to_vec(),
         declare_keyset_response.keyset_id
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_unit() -> Result<()> {
+    let mut client = init_signer_client().await?;
+    let res = client
+        .declare_keyset(DeclareKeysetRequest {
+            unit: "stark".to_string(),
+            index: 1,
+            max_order: 32,
+        })
+        .await;
+
+    assert!(res.is_err());
+    assert!(matches!(res, Err(status) if status.code() == tonic::Code::InvalidArgument ));
+
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn exceed_max_order() -> Result<()> {
+    let mut client = init_signer_client().await?;
+    let res = client
+        .declare_keyset(DeclareKeysetRequest {
+            unit: "strk".to_string(),
+            index: 1,
+            max_order: 300,
+        })
+        .await;
+
+    assert!(res.is_err());
+    assert!(matches!(res, Err(status) if status.code() == tonic::Code::InvalidArgument ));
 
     Ok(())
 }
