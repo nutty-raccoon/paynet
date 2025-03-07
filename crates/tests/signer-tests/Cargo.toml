@@ -21,3 +21,6 @@ name = "health_check"
 path = "health_check.rs"
 
 
+[[test]]
+name = "get_root_pubkey"
+path = "get_root_pubkey.rs"
