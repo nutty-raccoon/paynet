@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package keyset_rotation;
+
+service KeysetRotationService {
+  rpc RotateKeysets (RotateKeysetsRequest) returns (RotateKeysetsResponse);
+}
+
+message RotateKeysetsRequest {}
+
+message RotateKeysetsResponse {
+  bool status = 1;
+}

@@ -3,6 +3,7 @@ use errors::{Error, InitializationError, ServiceError};
 use futures::TryFutureExt;
 use grpc_service::GrpcState;
 use methods::Method;
+use node::KeysetRotationServiceServer;
 use node::NodeServer;
 use nuts::{
     Amount, QuoteTTLConfig, nut04::MintMethodSettings, nut05::MeltMethodSettings,
@@ -104,7 +105,8 @@ async fn main() -> Result<(), Error> {
         .parse()
         .unwrap();
     let tonic_future = tonic::transport::Server::builder()
-        .add_service(NodeServer::new(grpc_service))
+        .add_service(NodeServer::new(grpc_service.clone()))
+        .add_service(KeysetRotationServiceServer::new(grpc_service.clone()))
         .serve(addr)
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
