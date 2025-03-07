@@ -15,6 +15,7 @@ use state::{SharedKeySetCache, SharedRootKey};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
+use tonic_types::{ErrorDetails, FieldViolation};
 
 mod server_errors;
 mod state;
@@ -111,7 +112,7 @@ impl signer::Signer for SignerState {
         &self,
         verify_proofs_request: Request<VerifyProofsRequest>,
     ) -> Result<Response<VerifyProofsResponse>, Status> {
-        for proof in &verify_proofs_request.get_ref().proofs {
+        for proof in &verify_proofs_request.get_ref().proofs {                  
             let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
                 .map_err(|_| Status::invalid_argument(Error::BadKeysetId))?;
             let amount = Amount::from(proof.amount);
@@ -132,13 +133,26 @@ impl signer::Signer for SignerState {
             let c = PublicKey::from_slice(&proof.unblind_signature)
                 .map_err(|_| Status::invalid_argument(Error::BadSignature))?;
 
-            if !verify_message(&secret_key, c, proof.secret.as_bytes())
-                .map_err(|e| Status::internal(Error::Dhke(e)))?
-            {
-                return Ok(Response::new(VerifyProofsResponse { is_valid: false }));
+            let response = match verify_message(&secret_key, c, proof.secret.as_bytes()){
+                Ok(response) => {
+                    if response {
+                        return Ok(Response::new(VerifyProofsResponse{ is_valid: true }));
+                    }
+                    else {
+                        let mut err_details = ErrorDetails::new();
+                        err_details.set_request_info("".to_string(),"".to_string());
+                        return Ok(Response::new(VerifyProofsResponse { is_valid: false })); 
+                    }
+                }
+                Err(status) => {
+                    let mut err_details = ErrorDetails::new();
+                    err_details.set_bad_request(vec![
+                        FieldViolation::new("bad signature", "signature in wrong format"),
+                    ]);
+                    return Ok(Response::new(VerifyProofsResponse { is_valid: false }));
+                }
             };
         }
-
         Ok(Response::new(VerifyProofsResponse { is_valid: true }))
     }
 
