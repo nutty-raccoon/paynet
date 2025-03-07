@@ -7,6 +7,7 @@ use node::{
     MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
     SwapRequest, SwapResponse,
 };
+
 use nuts::{
     Amount, QuoteTTLConfig,
     nut00::{BlindedMessage, Proof, secret::Secret},
@@ -28,7 +29,7 @@ use crate::{
     methods::Method,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GrpcState {
     pub pg_pool: PgPool,
     pub signer: SignerClient,
