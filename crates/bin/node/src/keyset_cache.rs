@@ -51,6 +51,22 @@ impl KeysetCache {
         write_lock.insert(keyset_id, keys);
     }
 
+    pub async fn remove_info(&self, keyset_id: &KeysetId) {
+        let mut write_lock = self.infos.write().await;
+
+        if write_lock.contains_key(keyset_id) {
+            write_lock.remove(keyset_id);
+        }
+    }
+
+    pub async fn remove_keys(&self, keyset_id: &KeysetId) {
+        let mut write_lock = self.keys.write().await;
+
+        if write_lock.contains_key(keyset_id) {
+            write_lock.remove(keyset_id);
+        }
+    }
+
     pub async fn get_keyset_keys(
         &self,
         conn: &mut PgConnection,

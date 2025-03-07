@@ -3,9 +3,9 @@ use std::{str::FromStr, sync::Arc};
 
 use node::{
     BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
-    GetNodeInfoRequest, Key, Keyset, KeysetKeys, KeysetRotationService, MeltRequest, MeltResponse,
-    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
-    QuoteStateRequest, RotateKeysetsRequest, RotateKeysetsResponse, SwapRequest, SwapResponse,
+    GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest,
+    MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
+    SwapRequest, SwapResponse,
 };
 
 use nuts::{
@@ -449,86 +449,5 @@ impl Node for GrpcState {
         Ok(Response::new(NodeInfoResponse {
             info: node_info_str,
         }))
-    }
-}
-
-#[tonic::async_trait]
-impl KeysetRotationService for GrpcState {
-    async fn rotate_keysets(
-        &self,
-        _request: Request<RotateKeysetsRequest>,
-    ) -> Result<Response<RotateKeysetsResponse>, Status> {
-        let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
-
-        let mut conn = self
-            .pg_pool
-            .acquire()
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        let keysets_info = db_node::keyset::get_active_keysets::<String>(&mut conn)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        // TODO: add concurency
-        for (keyset_id, keyset_info) in keysets_info {
-            let unit = keyset_info.unit();
-            let index = keyset_info.derivation_path_index() + 1;
-            let max_order = keyset_info.max_order() as u32;
-
-            let response = {
-                self.signer
-                    .clone()
-                    .declare_keyset(signer::DeclareKeysetRequest {
-                        unit: unit.clone(),
-                        index,
-                        max_order,
-                    })
-                    .await?
-            };
-
-            let response = response.into_inner();
-            let new_keyset_id = KeysetId::from_bytes(&response.keyset_id)
-                .map_err(|e| Status::internal(e.to_string()))?;
-
-            insert_keysets_query_builder.add_row(new_keyset_id, &unit, max_order, index);
-            let unit = Unit::from_str(&unit).map_err(|e| Status::internal(e.to_string()))?;
-            self.keyset_cache
-                .insert_info(new_keyset_id, CachedKeysetInfo::new(true, unit))
-                .await;
-            self.keyset_cache
-                .insert_keys(
-                    new_keyset_id,
-                    response
-                        .keys
-                        .into_iter()
-                        .map(|k| {
-                            (
-                                Amount::from(k.amount),
-                                PublicKey::from_str(&k.pubkey).unwrap(),
-                            )
-                        })
-                        .collect(),
-                )
-                .await;
-
-            // Deactivate old keyset
-            db_node::keyset::deactivate_keyset(&mut conn, &keyset_id)
-                .await
-                .map_err(|e| Status::internal(e.to_string()))?;
-        }
-
-        let mut conn = self
-            .pg_pool
-            .acquire()
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        insert_keysets_query_builder
-            .execute(&mut conn)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        Ok(Response::new(RotateKeysetsResponse { status: true }))
     }
 }

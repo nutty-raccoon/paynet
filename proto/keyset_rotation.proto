@@ -8,6 +8,4 @@ service KeysetRotationService {
 
 message RotateKeysetsRequest {}
 
-message RotateKeysetsResponse {
-  bool status = 1;
-}
+message RotateKeysetsResponse {}
