@@ -148,7 +148,6 @@ async fn non_existent_keysetid() -> Result<()> {
             max_order: 32,
         })
         .await?;
-
     let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
 
     let keyset_id = KeysetId::from_iter(
@@ -205,7 +204,6 @@ async fn bad_version_keysetid() -> Result<()> {
             max_order: 32,
         })
         .await?;
-
     let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
 
     let keyset_id = KeysetId::from_iter(
