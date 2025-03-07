@@ -3,7 +3,7 @@ use nuts::{
     Amount,
     nut00::BlindedMessage,
     nut01::PublicKey,
-    nut02::{KeySetVersion, KeysetId},
+    nut02::{Error, KeySetVersion, KeysetId},
 };
 use signer::SignBlindedMessagesRequest;
 use signer::{DeclareKeysetRequest, DeclareKeysetResponse};
@@ -23,7 +23,6 @@ async fn ok() -> Result<()> {
         .await?;
 
     let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
-    // println!("{:?}",declare_keyset_response);
 
     let keyset_id = KeysetId::from_iter(
         declare_keyset_response
@@ -37,7 +36,6 @@ async fn ok() -> Result<()> {
         .iter()
         .map(|k| k.pubkey.clone())
         .collect();
-    println!("{:?}", public_keys);
 
     let public_key = PublicKey::from_str(&public_keys[0]).unwrap();
 
@@ -58,9 +56,9 @@ async fn ok() -> Result<()> {
                 })
                 .collect(),
         })
-        .await?
-        .into_inner()
-        .signatures;
+        .await;
+
+    assert!(blind_signatures.is_ok());
 
     Ok(())
 }
@@ -92,10 +90,33 @@ async fn invalid_secret() -> Result<()> {
         .map(|k| k.pubkey.clone())
         .collect();
 
-    let public_key =
-        PublicKey::from_str("031d032d4042b010310f9ed54b12c819afc334505752e9e31a9fb13a43ad2eea2");
+    let blinded_message = BlindedMessage {
+        amount: Amount::ONE,
+        keyset_id,
+        blinded_secret: PublicKey::from_str(&public_keys[0]).unwrap(),
+    };
 
-    assert!(public_key.is_err());
+    let blind_signatures = client
+        .sign_blinded_messages(SignBlindedMessagesRequest {
+            messages: [blinded_message]
+                .iter()
+                .map(|bm| signer::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: bm.keyset_id.to_bytes().to_vec(),
+                    blinded_secret: (&[
+                        3, 85, 24, 29, 104, 49, 180, 12, 119, 81, 28, 46, 22, 174, 183, 57, 39, 29,
+                        73, 2, 238, 102, 75, 12, 73, 112, 82, 223, 115, 145, 247, 121,
+                    ])
+                        .to_vec(),
+                })
+                .collect(),
+        })
+        .await;
+
+    assert!(blind_signatures.is_err());
+    assert!(
+        matches!(blind_signatures, Err(ref e) if e.code() == tonic::Code::InvalidArgument && e.message() == "Invalid secret")
+    );
 
     Ok(())
 }
@@ -149,6 +170,10 @@ async fn amount_not_present() -> Result<()> {
         .await;
 
     assert!(blind_signatures.is_err());
+    assert!(
+        matches!(blind_signatures, Err(ref e) if e.code() == tonic::Code::NotFound && e.message() == format!("Amount 7 not found in keyset with id {}",keyset_id))
+    );
+
     Ok(())
 }
 
@@ -163,11 +188,46 @@ async fn non_existent_keysetid() -> Result<()> {
             max_order: 32,
         })
         .await?;
+    let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
 
-    let keyset_id =
-        KeysetId::from_str("034a013c42af6d4ae91e67de936d6039e0e35899d0c3936a59c9292b9646adf68");
+    let keyset_id = KeysetId::new(
+        KeySetVersion::try_from(0).unwrap(),
+        [87, 81, 63, 81, 28, 247, 196],
+    );
 
-    assert!(keyset_id.is_err());
+    let public_keys: Vec<String> = declare_keyset_response
+        .keys
+        .iter()
+        .map(|k| k.pubkey.clone())
+        .collect();
+
+    let public_key = PublicKey::from_str(&public_keys[0]).unwrap();
+
+    let blinded_message = BlindedMessage {
+        amount: Amount::ONE,
+        keyset_id,
+        blinded_secret: public_key,
+    };
+
+    let blind_signatures = client
+        .sign_blinded_messages(SignBlindedMessagesRequest {
+            messages: [blinded_message]
+                .iter()
+                .map(|bm| signer::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: bm.keyset_id.to_bytes().to_vec(),
+                    blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect(),
+        })
+        .await;
+
+    assert!(blind_signatures.is_err());
+    assert!(matches!(blind_signatures, Err(ref e) if e.code() == tonic::Code::NotFound));
+    assert!(
+        matches!(blind_signatures, Err(ref e) if e.code() == tonic::Code::NotFound && e.message() == format!("Keyset with id {} not found",keyset_id))
+    );
+
     Ok(())
 }
 
@@ -182,12 +242,46 @@ async fn bad_version_keysetid() -> Result<()> {
             max_order: 32,
         })
         .await?;
-
     let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
 
-    let keyset_version = KeySetVersion::try_from(1);
+    let keyset_id = KeysetId::from_iter(
+        declare_keyset_response
+            .clone()
+            .keys
+            .into_iter()
+            .map(|k| PublicKey::from_str(&k.pubkey).unwrap()),
+    );
+    let public_keys: Vec<String> = declare_keyset_response
+        .keys
+        .iter()
+        .map(|k| k.pubkey.clone())
+        .collect();
 
-    assert!(keyset_version.is_err());
+    let public_key = PublicKey::from_str(&public_keys[0]).unwrap();
+
+    let blinded_message = BlindedMessage {
+        amount: Amount::ONE,
+        keyset_id,
+        blinded_secret: public_key,
+    };
+
+    let blind_signatures = client
+        .sign_blinded_messages(SignBlindedMessagesRequest {
+            messages: [blinded_message]
+                .iter()
+                .map(|bm| signer::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: (&[1, 87, 81, 63, 81, 28, 247, 186]).to_vec(),
+                    blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect(),
+        })
+        .await;
+
+    assert!(blind_signatures.is_err());
+    assert!(
+        matches!(blind_signatures, Err(ref e) if e.code() == tonic::Code::InvalidArgument && e.message() == "Invalid keyset id")
+    );
 
     Ok(())
 }
