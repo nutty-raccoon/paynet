@@ -27,7 +27,10 @@ mod routes;
 mod utils;
 
 async fn connect_to_db_and_run_migrations(pg_url: &str) -> Result<PgPool, InitializationError> {
-    let pool = PgPool::connect(pg_url)
+    let pool = PgPool::new()
+        .max_connections(32)
+        .min_connections(6)
+        .connect(pg_url)
         .await
         .map_err(InitializationError::DbConnect)?;
 
