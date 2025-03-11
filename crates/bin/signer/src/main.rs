@@ -119,11 +119,11 @@ impl signer::Signer for SignerState {
                 Err(_) => {
                     err_details.add_bad_request_violation(
                         "keyset_id".to_string(),
-                        "error when parsing keyset_id from bytes".to_string()
+                        "Invalid bytes for type KeysetId".to_string()
                     );
                     let status = Status::with_error_details( 
-                        Code::FailedPrecondition,
-                        "error when parsing keyset_id from bytes".to_string(),
+                        Code::InvalidArgument,
+                        "Bad request".to_string(),
                         err_details
                     );
                     return Err(status);
@@ -141,11 +141,11 @@ impl signer::Signer for SignerState {
                     None => {
                         err_details.add_bad_request_violation(
                             "keyset_id".to_string(),
-                            "keyset not found".to_string()
+                            format!("no keyset with id {}", keyset_id)
                         );
                         let status = Status::with_error_details( 
                             Code::NotFound,
-                            "keyset not found".to_string(),
+                            "Bad request".to_string(),
                             err_details
                         );
                         return Err(status);
@@ -157,11 +157,11 @@ impl signer::Signer for SignerState {
                     None => {
                         err_details.add_quota_failure_violation(
                             "amount".to_string(),
-                            "amount not found".to_string()
+                            format!("amount {} does not exist for keyset with is {}", amount, keyset_id)
                         );
                         let status = Status::with_error_details( 
                             Code::NotFound,
-                            "amount not found".to_string(),
+                            "Bad request".to_string(),
                             err_details
                         );
                         return Err(status);
@@ -177,7 +177,7 @@ impl signer::Signer for SignerState {
                         "error when parsing unblind_signature from bytes".to_string()
                     );
                     let status = Status::with_error_details( 
-                        Code::FailedPrecondition,
+                        Code::InvalidArgument,
                         "error when parsing unblind_signature from bytes".to_string(),
                         err_details
                     );
@@ -197,7 +197,7 @@ impl signer::Signer for SignerState {
                             "signature is not valid".to_string()
                         );
                         let status = Status::with_error_details( 
-                            Code::FailedPrecondition,
+                            Code::InvalidArgument,
                             "signature is not valid".to_string(),
                             err_details
                         );             
@@ -211,8 +211,8 @@ impl signer::Signer for SignerState {
                         "signature in wrong format".to_string()
                     );
                     let status = Status::with_error_details( 
-                        Code::Internal,
-                        "signature in wrong format".to_string(),
+                        Code::InvalidArgument,
+                        "Invalid secret".to_string(),
                         err_details
                     );
                     return Err(status);
