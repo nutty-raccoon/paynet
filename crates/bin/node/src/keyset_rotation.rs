@@ -1,5 +1,6 @@
 use crate::Amount;
 use crate::keyset_cache::CachedKeysetInfo;
+use db_node::keyset::deactivate_keysets;
 use grpc_service::GrpcState;
 use node::{KeysetRotationService, RotateKeysetsRequest, RotateKeysetsResponse};
 
@@ -26,7 +27,7 @@ impl KeysetRotationService for GrpcState {
 
         let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
 
-        let mut deactivate_keysets_query_builder = db_node::DeactivateKeysetsQueryBuilder::new();
+        let mut prev_keyset_ids: Vec<i64> = vec![];
 
         // TODO: add concurency
         for (keyset_id, keyset_info) in keysets_info {
@@ -46,6 +47,7 @@ impl KeysetRotationService for GrpcState {
             };
 
             let response = response.into_inner();
+
             let new_keyset_id = KeysetId::from_bytes(&response.keyset_id)
                 .map_err(|e| Status::internal(e.to_string()))?;
 
@@ -54,8 +56,6 @@ impl KeysetRotationService for GrpcState {
             self.keyset_cache
                 .insert_info(new_keyset_id, CachedKeysetInfo::new(true, unit))
                 .await;
-
-            self.keyset_cache.remove_info(&keyset_id).await;
 
             self.keyset_cache
                 .insert_keys(
@@ -73,9 +73,10 @@ impl KeysetRotationService for GrpcState {
                 )
                 .await;
 
+            self.keyset_cache.remove_info(&keyset_id).await;
             self.keyset_cache.remove_keys(&keyset_id).await;
 
-            deactivate_keysets_query_builder.add_keyset(keyset_id);
+            prev_keyset_ids.push(keyset_id.as_i64());
         }
 
         insert_keysets_query_builder
@@ -83,8 +84,7 @@ impl KeysetRotationService for GrpcState {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        deactivate_keysets_query_builder
-            .execute(&mut tx)
+        deactivate_keysets(&mut tx, &prev_keyset_ids)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 

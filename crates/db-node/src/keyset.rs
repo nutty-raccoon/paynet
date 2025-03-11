@@ -115,9 +115,9 @@ pub async fn get_active_keysets<U: FromStr>(
     Ok(keysets_info)
 }
 
-pub async fn deactivate_keyset(conn: &mut PgConnection, keyset_id: &KeysetId) -> Result<(), Error> {
-    sqlx::query("UPDATE keyset SET active = false WHERE id = $1")
-        .bind(keyset_id.as_i64())
+pub async fn deactivate_keysets(conn: &mut PgConnection, keyset_ids: &[i64]) -> Result<(), Error> {
+    sqlx::query("UPDATE keyset SET active = false WHERE id = ANY($1)")
+        .bind(keyset_ids)
         .execute(conn)
         .await?;
 

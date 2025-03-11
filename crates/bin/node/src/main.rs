@@ -21,8 +21,8 @@ mod errors;
 mod grpc_service;
 #[cfg(feature = "indexer")]
 mod indexer;
-mod key_rotation;
 mod keyset_cache;
+mod keyset_rotation;
 mod logic;
 mod methods;
 mod routes;
