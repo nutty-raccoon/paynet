@@ -598,15 +598,3 @@ pub async fn register_node(
 
     Ok((node_client, node_id))
 }
-    inputs: &[Proof],
-    outputs: &[BlindedMessage],
-) -> Result<SwapResponse> {
-    let req = SwapRequest {
-        inputs: convert_inputs(inputs),
-        outputs: convert_outputs(outputs),
-    };
-
-    let resp = node_client.swap(req).await?;
-
-    Ok(resp.into_inner())
-}

@@ -81,10 +81,16 @@ async fn main() -> Result<(), Error> {
         },
     };
 
-    // Connect to the signer service
-    let signer_client = signer::SignerClient::connect(env_variables.signer_url)
-        .await
-        .map_err(InitializationError::SignerConnection)?;
+    // // Connect to the signer service
+    // let signer_client = signer::SignerClient::connect(env_variables.signer_url)
+    //     .await
+    //     .map_err(InitializationError::SignerConnection)?;
+
+    let secure_signer_channel = tls::create_secure_channel(env_variables.signer_url)
+    .await
+    // .map_err(|err| errors::Error::Init(InitializationError::Env(err)))
+    ?;
+    let mut signer_client = signer::SignerClient::new(secure_signer_channel);
 
     // Launch tonic server task
     let grpc_service = GrpcState::new(

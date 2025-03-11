@@ -136,9 +136,8 @@ impl signer::Signer for SignerState {
             let response = match verify_message(&secret_key, c, proof.secret.as_bytes()){
                 Ok(response) => {
                     if response {
-                        return Ok(Response::new(VerifyProofsResponse{ is_valid: true }));
-                    }
-                    else {
+                        return Ok(Response::new(VerifyProofsResponse { is_valid: true }));
+                    } else {
                         let mut err_details = ErrorDetails::new();
                         err_details.set_request_info("".to_string(),"".to_string());
                         return Ok(Response::new(VerifyProofsResponse { is_valid: false })); 
