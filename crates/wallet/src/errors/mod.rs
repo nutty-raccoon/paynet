@@ -1,8 +1,8 @@
 use thiserror::Error;
-use tonic::Status;
-use nuts::nut00::NutError;
-use nuts::nut01::KeyError;
-use nuts::nut02::KeysetIdError;
+use tonic::transport;
+use nuts::error::Error as NutsError;
+
+
 
 #[derive(Error, Debug)]
 pub enum WalletError {
@@ -14,15 +14,6 @@ pub enum WalletError {
     
     #[error("gRPC error: {0}")]
     Grpc(#[from] Status),
-
-    #[error("Nut error: {0}")]
-    Nut(#[from] NutError),
-
-    #[error("Key error: {0}")]
-    Key(#[from] KeyError),
-
-    #[error("Keyset ID error: {0}")]
-    KeysetId(#[from] KeysetIdError),
 
     #[error("Amount overflow")]
     AmountOverflow,

@@ -1,6 +1,7 @@
 pub mod db;
 mod outputs;
 pub mod types;
+pub mod errors;
 
 use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
