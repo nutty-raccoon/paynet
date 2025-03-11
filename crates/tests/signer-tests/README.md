@@ -4,6 +4,10 @@ This crates contains the integration tests for the signer service.
 
 ## How to run?
 
+### Setup environment variables
+
+Create a `signer.env` at the root of the file and add fields according to the [example file](./.env.example/signer.env.example).
+
 ### Launch the signer server
 
 #### Manualy
@@ -11,7 +15,9 @@ This crates contains the integration tests for the signer service.
 ```shell
 $ cargo run --bin signer
 ```
+
 or
+
 ```shell
 $ cargo run --release --bin signer
 ```
