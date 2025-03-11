@@ -25,6 +25,7 @@ default-members = [
 axum = "0.8.1"
 tonic = "0.12.3"
 tonic-health = "0.12.3"
+tonic-types = "0.12.3"
 hyper = "1.6.0"
 axum-response-cache = "0.2.0"
 http = "1.2.0"

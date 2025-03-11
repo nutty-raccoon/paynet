@@ -32,8 +32,8 @@ db-node = { workspace = true }
 sqlx = { workspace = true, features = ["postgres", "uuid"] }
 rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
-
 starknet-payment-indexer = { workspace = true, optional = true }
+tls = { workspace = true }
 
 [features]
 default = ["indexer"]

@@ -20,7 +20,8 @@ use nuts::nut02::KeysetId;
 use nuts::{Amount, SplitTarget};
 use rusqlite::{Connection, params};
 use tonic::transport::Channel;
-use types::{NodeUrl, PreMint, ProofState};
+
+pub use db::create_tables;
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
     inputs
@@ -34,6 +35,7 @@ pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
         .collect()
 }
 
+pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node::BlindedMessage> {
 pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node::BlindedMessage> {
     outputs
         .iter()
@@ -470,6 +472,22 @@ pub async fn swap_to_have_target_amount(
 
 pub async fn receive_wad(
     db_conn: &Connection,
+    unit: String,
+    request: String,
+    inputs: &[Proof],
+) -> Result<MeltResponse> {
+    let req = MeltRequest {
+        method,
+        unit,
+        request,
+        inputs: convert_inputs(inputs),
+    };
+    let resp = node_client.melt(req).await?;
+
+    Ok(resp.into_inner())
+}
+
+pub async fn swap(
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     proofs: &[nut00::Proof],
