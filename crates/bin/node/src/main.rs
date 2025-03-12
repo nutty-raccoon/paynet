@@ -9,6 +9,7 @@ use nuts::{
     nut06::NutsSettings,
 };
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use starknet_types::Unit;
 use tokio::try_join;
 use tracing::info;
@@ -27,7 +28,10 @@ mod routes;
 mod utils;
 
 async fn connect_to_db_and_run_migrations(pg_url: &str) -> Result<PgPool, InitializationError> {
-    let pool = PgPool::connect(pg_url)
+    let pool = PgPoolOptions::new()
+        .max_connections(32)
+        .min_connections(6)
+        .connect(pg_url)
         .await
         .map_err(InitializationError::DbConnect)?;
 
