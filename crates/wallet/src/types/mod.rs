@@ -5,12 +5,12 @@ use nuts::{
     nut01::{PublicKey, SecretKey},
 };
 
-use anyhow::Result;
 use rusqlite::{
     ToSql,
     types::{FromSql, FromSqlError},
 };
 
+use crate::errors::WalletError;
 mod node_url;
 pub use node_url::{Error as NodeUrlError, NodeUrl};
 
@@ -26,11 +26,11 @@ impl PreMint {
     pub fn generate_for_amount(
         total_amount: Amount,
         split_target: &SplitTarget,
-    ) -> Result<Vec<Self>> {
+    ) -> Result<Vec<Self>, WalletError> {
         total_amount
             .split_targeted(split_target)?
             .into_iter()
-            .map(|amount| -> Result<_> {
+            .map(|amount| -> Result<_, WalletError> {
                 let secret = Secret::generate();
                 let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
 

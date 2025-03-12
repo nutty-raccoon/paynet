@@ -98,7 +98,7 @@ pub async fn get_mint_quote_state(
 
     db::set_mint_quote_state(db_conn, response.quote, response.state)?;
 
-    Ok(MintQuoteState::try_from(response.state)?)
+    Ok(MintQuoteState::try_from(response.state).unwrap())
 }
 
 pub async fn mint(
