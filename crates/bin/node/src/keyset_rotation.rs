@@ -59,16 +59,12 @@ impl KeysetRotationService for GrpcState {
             self.keyset_cache
                 .insert_keys(
                     new_keyset_id,
-                    response
-                        .keys
-                        .into_iter()
-                        .map(|k| {
-                            (
-                                Amount::from(k.amount),
-                                PublicKey::from_str(&k.pubkey).unwrap(),
-                            )
-                        })
-                        .collect(),
+                    response.keys.into_iter().map(|k| {
+                        (
+                            Amount::from(k.amount),
+                            PublicKey::from_str(&k.pubkey).unwrap(),
+                        )
+                    }),
                 )
                 .await;
 

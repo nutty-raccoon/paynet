@@ -45,10 +45,12 @@ impl KeysetCache {
         write_lock.insert(keyset_id, info);
     }
 
-    pub async fn insert_keys(&self, keyset_id: KeysetId, keys: BTreeMap<Amount, PublicKey>) {
+    pub async fn insert_keys<I>(&self, keyset_id: KeysetId, keys: I)
+    where
+        I: IntoIterator<Item = (Amount, PublicKey)>,
+    {
         let mut write_lock = self.keys.write().await;
-
-        write_lock.insert(keyset_id, keys);
+        write_lock.insert(keyset_id, keys.into_iter().collect());
     }
 
     pub async fn disable_keys(&self, keyset_ids: &[KeysetId]) {
