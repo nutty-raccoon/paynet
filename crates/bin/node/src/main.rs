@@ -105,9 +105,15 @@ async fn main() -> Result<(), Error> {
     let addr = format!("{}:{}", env_variables.grpc_ip, env_variables.grpc_port)
         .parse()
         .unwrap();
+
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+
+    health_reporter.set_serving::<NodeServer<GrpcState>>().await;
+
     let tonic_future = tonic::transport::Server::builder()
         .add_service(NodeServer::new(grpc_service.clone()))
         .add_service(KeysetRotationServiceServer::new(grpc_service.clone()))
+        .add_service(health_service)
         .serve(addr)
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 

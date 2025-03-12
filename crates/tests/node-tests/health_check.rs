@@ -7,7 +7,7 @@ async fn ok() -> Result<()> {
     let mut client = init_health_client().await?;
     let res = client
         .check(HealthCheckRequest {
-            service: "signer.Signer".to_string(),
+            service: "node.Node".to_string(),
         })
         .await?;
     let serving_status = ServingStatus::try_from(res.into_inner().status)?;

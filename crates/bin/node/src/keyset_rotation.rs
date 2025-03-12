@@ -27,7 +27,7 @@ impl KeysetRotationService for GrpcState {
 
         let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
 
-        let mut prev_keyset_ids: Vec<i64> = vec![];
+        let mut prev_keyset_ids: Vec<KeysetId> = vec![];
 
         // TODO: add concurency
         for (keyset_id, keyset_info) in keysets_info {
@@ -35,16 +35,15 @@ impl KeysetRotationService for GrpcState {
             let index = keyset_info.derivation_path_index() + 1;
             let max_order = keyset_info.max_order() as u32;
 
-            let response = {
-                self.signer
-                    .clone()
-                    .declare_keyset(signer::DeclareKeysetRequest {
-                        unit: unit.to_string(),
-                        index,
-                        max_order,
-                    })
-                    .await?
-            };
+            let response = self
+                .signer
+                .clone()
+                .declare_keyset(signer::DeclareKeysetRequest {
+                    unit: unit.to_string(),
+                    index,
+                    max_order,
+                })
+                .await?;
 
             let response = response.into_inner();
 
@@ -73,10 +72,7 @@ impl KeysetRotationService for GrpcState {
                 )
                 .await;
 
-            self.keyset_cache.remove_info(&keyset_id).await;
-            self.keyset_cache.remove_keys(&keyset_id).await;
-
-            prev_keyset_ids.push(keyset_id.as_i64());
+            prev_keyset_ids.push(keyset_id);
         }
 
         insert_keysets_query_builder
@@ -84,13 +80,22 @@ impl KeysetRotationService for GrpcState {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        deactivate_keysets(&mut tx, &prev_keyset_ids)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        deactivate_keysets(
+            &mut tx,
+            &prev_keyset_ids
+                .iter()
+                .map(|keyset_id| keyset_id.as_i64())
+                .collect::<Vec<_>>(),
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
 
         tx.commit()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
+
+        // disable prev ids
+        self.keyset_cache.disable_keys(&prev_keyset_ids).await;
 
         Ok(Response::new(RotateKeysetsResponse {}))
     }

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use node::{
     GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, RotateKeysetsRequest,
 };
@@ -8,7 +8,7 @@ use std::collections::HashMap;
 #[tokio::test]
 async fn ok() -> Result<()> {
     let mut node_client = init_node_client().await?;
-    let mut client = init_keyset_client().await?;
+    let mut keyset_client = init_keyset_client().await?;
 
     // Existing keysets before rotation
     let res = node_client.keysets(GetKeysetsRequest {}).await?;
@@ -27,42 +27,47 @@ async fn ok() -> Result<()> {
     }
 
     // trigger rotate keysets
-    let _ = client.rotate_keysets(RotateKeysetsRequest {}).await?;
-
-    // get new keysets
-    let res = node_client.keysets(GetKeysetsRequest {}).await?;
-
-    let curr_keysets_response: GetKeysetsResponse = res.into_inner();
+    let _ = keyset_client
+        .rotate_keysets(RotateKeysetsRequest {})
+        .await?;
 
     // Check that old keysets are deactivated
     for (old_id, was_active) in &old_keysets {
         if *(was_active) {
-            let res = node_client
+            let get_keys_response: GetKeysResponse = node_client
                 .keys(GetKeysRequest {
                     keyset_id: Some(old_id.clone()),
                 })
-                .await?;
+                .await?
+                .into_inner();
 
-            let old_keyset: GetKeysResponse = res.into_inner();
+            let keyset = get_keys_response
+                .keysets
+                .first()
+                .expect("Expected at least one keyset");
 
             assert!(
-                old_keyset.keysets.iter().all(|k| !k.active),
+                !keyset.active,
                 "Old keyset with ID {:?} is still active",
                 old_id
-            )
+            );
         }
     }
 
-    // check that new keysets are active
-    let mut new_keys_found = false;
+    // get new keysets
+    let res = node_client.keysets(GetKeysetsRequest {}).await?;
+    let curr_keysets_response: GetKeysetsResponse = res.into_inner();
+
     for keyset in &curr_keysets_response.keysets {
         if !old_keysets.contains_key(&keyset.id) {
             assert!(keyset.active, "New keyset {:?} is not active!", keyset.id);
-            new_keys_found = true;
+        } else {
+            return Err(anyhow!(
+                "Unexpected keyset {:?} found in old keysets!",
+                keyset.id
+            ));
         }
     }
-
-    assert!(new_keys_found, "No new active keysets were created!");
 
     Ok(())
 }

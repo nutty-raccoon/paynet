@@ -51,19 +51,13 @@ impl KeysetCache {
         write_lock.insert(keyset_id, keys);
     }
 
-    pub async fn remove_info(&self, keyset_id: &KeysetId) {
+    pub async fn disable_keys(&self, keyset_ids: &[KeysetId]) {
         let mut write_lock = self.infos.write().await;
 
-        if write_lock.contains_key(keyset_id) {
-            write_lock.remove(keyset_id);
-        }
-    }
-
-    pub async fn remove_keys(&self, keyset_id: &KeysetId) {
-        let mut write_lock = self.keys.write().await;
-
-        if write_lock.contains_key(keyset_id) {
-            write_lock.remove(keyset_id);
+        for keyset_id in keyset_ids {
+            if let Some(info) = write_lock.get_mut(keyset_id) {
+                info.active = false;
+            }
         }
     }
 

@@ -8,9 +8,9 @@ use node::node_client::NodeClient;
 use tonic::transport::Channel;
 
 async fn get_grpc_channel() -> Result<Channel> {
-    let signer_port = std::env::var("SOCKET_PORT")?;
-
-    let address = format!("https://localhost:{}", signer_port);
+    let grpc_port = std::env::var("GRPC_PORT")?;
+    let grpc_ip = std::env::var("GPRC_IP")?;
+    let address = format!("http://{}:{}", grpc_ip, grpc_port);
 
     let timeout = Instant::now() + Duration::from_secs(3);
     let channel = loop {
@@ -21,7 +21,7 @@ async fn get_grpc_channel() -> Result<Channel> {
             break c;
         }
         if Instant::now() > timeout {
-            return Err(anyhow!("timeout waiting for signer"));
+            return Err(anyhow!("timeout waiting for node"));
         }
     };
 
