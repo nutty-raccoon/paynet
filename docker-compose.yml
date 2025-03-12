@@ -3,6 +3,8 @@ services:
     image: "postgres"
     environment:
       - POSTGRES_USER=postgres
+      # Required by pg_isready
+      - PGUSER=postgres    
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=node
     ports:
