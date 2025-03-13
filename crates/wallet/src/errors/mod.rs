@@ -1,4 +1,5 @@
 use thiserror::Error;
+use tonic::Status;
 
 #[derive(Error, Debug)]
 pub enum WalletError {
@@ -14,48 +15,20 @@ pub enum WalletError {
     ProofNotAvailable,
     #[error("Invalid public key: {0}")]
     InvalidPublicKey(String),
-    #[error("Invalid keyset ID: {0}")]
-    InvalidKeysetId(String),
+    #[error("Invalid keyset ID")]
+    InvalidKeysetId(#[from] std::array::TryFromSliceError),
     #[error("gRPC error: {0}")]
-    Grpc(String),
+    Grpc(#[from] Status),
     #[error("Protocol error: {0}")]
     Protocol(String),
     #[error("Nut01 error: {0}")]
-    Nut01(String),
+    Nut01(#[from] nuts::nut01::Error),
     #[error("Nut02 error: {0}")]
-    Nut02(String),
+    Nut02(#[from] nuts::nut02::Error),
     #[error("DHKE error: {0}")]
-    Dhke(String),
+    Dhke(#[from] nuts::dhke::Error),
+    #[error("Nuts error: {0}")]
+    Nuts(#[from] nuts::Error),
 }
 
 pub type Result<T> = std::result::Result<T, WalletError>;
-
-impl From<tonic::Status> for WalletError {
-    fn from(value: tonic::Status) -> Self {
-        WalletError::Grpc(value.message().to_string())
-    }
-}
-
-impl From<nuts::Error> for WalletError {
-    fn from(value: nuts::Error) -> Self {
-        WalletError::Protocol(value.to_string())
-    }
-}
-
-impl From<nuts::nut01::Error> for WalletError {
-    fn from(value: nuts::nut01::Error) -> Self {
-        WalletError::Nut01(value.to_string())
-    }
-}
-
-impl From<nuts::nut02::Error> for WalletError {
-    fn from(value: nuts::nut02::Error) -> Self {
-        WalletError::Nut02(value.to_string())
-    }
-}
-
-impl From<nuts::dhke::Error> for WalletError {
-    fn from(value: nuts::dhke::Error) -> Self {
-        WalletError::Dhke(value.to_string())
-    }
-}

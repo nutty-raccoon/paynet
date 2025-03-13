@@ -1,10 +1,7 @@
 use node::CREATE_TABLE_NODE;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Result, params};
 
 use crate::types::NodeUrl;
-use crate::errors::WalletError;
-use crate::errors::Result;
-
 
 pub mod balance;
 pub mod node;
@@ -130,7 +127,7 @@ pub fn upsert_node_keysets(
         let id: [u8; 8] = keyset
             .id
             .try_into()
-            .map_err(|_| WalletError::InvalidKeysetId("invalid keyset id".to_string()))?;
+            .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Invalid keyset ID: {:?}", e)))?;
         conn.execute(
             UPSERT_NODE_KEYSET,
             (id, node_id, keyset.unit, keyset.active),
@@ -144,7 +141,7 @@ pub fn upsert_node_keysets(
     let new_keyset_ids = {
         let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
         stmt.query_map([], |row| row.get(0))?
-        .map(|res| res.map_err(|e| WalletError::from(e)))
+        .map(|res| res)
         .collect::<Result<Vec<_>>>()?
     };
 
