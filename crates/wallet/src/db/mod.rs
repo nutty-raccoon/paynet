@@ -107,7 +107,7 @@ pub fn upsert_node_keysets(
     conn: &Connection,
     node_id: u32,
     keysets: Vec<::node::Keyset>,
-) -> anyhow::Result<Vec<[u8; 8]>> {
+) -> Result<Vec<[u8; 8]>> {
     conn.execute(
         r#"
         CREATE TEMPORARY TABLE IF NOT EXISTS _tmp_inserted (id INTEGER PRIMARY KEY);
@@ -127,7 +127,7 @@ pub fn upsert_node_keysets(
         let id: [u8; 8] = keyset
             .id
             .try_into()
-            .map_err(|_| anyhow::anyhow!("invalid keyset id"))?;
+            .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Invalid keyset ID: {:?}", e)))?;
         conn.execute(
             UPSERT_NODE_KEYSET,
             (id, node_id, keyset.unit, keyset.active),
@@ -140,8 +140,9 @@ pub fn upsert_node_keysets(
 
     let new_keyset_ids = {
         let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
-        stmt.query_map((), |r| r.get::<_, [u8; 8]>(0))?
-            .collect::<Result<Vec<_>>>()?
+        stmt.query_map([], |row| row.get(0))?
+        .map(|res| res)
+        .collect::<Result<Vec<_>>>()?
     };
 
     conn.execute("DELETE FROM _tmp_inserted", [])?;
@@ -161,7 +162,7 @@ pub fn fetch_one_active_keyset_id_for_node_and_unit(
     let mut stmt = conn.prepare(FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT)?;
     let mut rows_iter = stmt.query_map(params![node_id, unit], |row| row.get::<_, [u8; 8]>(0))?;
 
-    rows_iter.next().transpose()
+    Ok(rows_iter.next().transpose()?)
 }
 
 pub fn insert_keyset_keys<'a>(
