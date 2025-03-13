@@ -10,6 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   ROOT_KEY: "tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
   SOCKET_PORT: "10000"
+  GRPC_IP: "localhost"
   GRPC_PORT: "23432"
   SIGNER_URL: "https://localhost:10000"
   PG_URL: "postgres://postgres:postgres@localhost:5432/postgres"
