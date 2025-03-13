@@ -12,9 +12,15 @@ use signer::{
     VerifyProofsResponse,
 };
 use state::{SharedKeySetCache, SharedRootKey};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{
+    collections::{HashMap, btree_map::Keys},
+    os::macos::raw::stat,
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::sync::RwLock;
-use tonic::{Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
+use tonic_types::{ErrorDetails, StatusExt};
 
 mod server_errors;
 mod state;
@@ -112,33 +118,113 @@ impl signer::Signer for SignerState {
         verify_proofs_request: Request<VerifyProofsRequest>,
     ) -> Result<Response<VerifyProofsResponse>, Status> {
         for proof in &verify_proofs_request.get_ref().proofs {
-            let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
-                .map_err(|_| Status::invalid_argument(Error::BadKeysetId))?;
+            let mut err_details = ErrorDetails::new();
+            let keyset_id = match KeysetId::from_bytes(&proof.keyset_id) {
+                Ok(keyset_id) => keyset_id,
+                Err(_) => {
+                    err_details.add_bad_request_violation(
+                        "keyset_id".to_string(),
+                        "Invalid bytes for type KeysetId".to_string(),
+                    );
+                    let status = Status::with_error_details(
+                        Code::InvalidArgument,
+                        "Bad request".to_string(),
+                        err_details,
+                    );
+                    return Err(status);
+                }
+            };
+
             let amount = Amount::from(proof.amount);
 
             let secret_key = {
                 let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
-                let keyset = keyset_cache_read_lock
-                    .get(&keyset_id)
-                    .ok_or(Status::not_found(Error::KeysetNotFound(keyset_id)))?;
-                keyset
-                    .get(&amount)
-                    .ok_or(Status::not_found(Error::AmountNotFound(amount, keyset_id)))?
-                    .secret_key
-                    .clone()
+                let keyset = match keyset_cache_read_lock.get(&keyset_id) {
+                    Some(keyset) => keyset,
+                    None => {
+                        err_details.add_bad_request_violation(
+                            "keyset_id".to_string(),
+                            format!("no keyset with id {}", keyset_id),
+                        );
+                        let status = Status::with_error_details(
+                            Code::NotFound,
+                            "Bad request".to_string(),
+                            err_details,
+                        );
+                        return Err(status);
+                    }
+                };
+
+                match keyset.get(&amount) {
+                    Some(key) => key.secret_key.clone(),
+                    None => {
+                        err_details.add_bad_request_violation(
+                            "amount".to_string(),
+                            format!(
+                                "amount {} does not exist for keyset with is {}",
+                                amount, keyset_id
+                            ),
+                        );
+                        let status = Status::with_error_details(
+                            Code::NotFound,
+                            "Bad request".to_string(),
+                            err_details,
+                        );
+                        return Err(status);
+                    }
+                }
             };
 
-            let c = PublicKey::from_slice(&proof.unblind_signature)
-                .map_err(|_| Status::invalid_argument(Error::BadSignature))?;
+            let c = match PublicKey::from_slice(&proof.unblind_signature) {
+                Ok(c) => c,
+                Err(_) => {
+                    err_details.add_bad_request_violation(
+                        "unblind_signature".to_string(),
+                        "error when parsing unblind_signature from bytes".to_string(),
+                    );
+                    let status = Status::with_error_details(
+                        Code::InvalidArgument,
+                        "error when parsing unblind_signature from bytes".to_string(),
+                        err_details,
+                    );
+                    return Err(status);
+                }
+            };
 
-            if !verify_message(&secret_key, c, proof.secret.as_bytes())
-                .map_err(|e| Status::internal(Error::Dhke(e)))?
-            {
-                return Ok(Response::new(VerifyProofsResponse { is_valid: false }));
+            match verify_message(&secret_key, c, proof.secret.as_bytes()) {
+                Ok(response) => {
+                    if response {
+                        return Ok(Response::new(VerifyProofsResponse { is_valid: true }));
+                    } else {
+                        let mut err_details = ErrorDetails::new();
+                        err_details.add_bad_request_violation(
+                            "signature".to_string(),
+                            "signature is not valid".to_string(),
+                        );
+                        let status = Status::with_error_details(
+                            Code::InvalidArgument,
+                            "signature is not valid".to_string(),
+                            err_details,
+                        );
+                        return Err(status);
+                    }
+                }
+                Err(_) => {
+                    let mut err_details = ErrorDetails::new();
+                    err_details.add_bad_request_violation(
+                        "signature".to_string(),
+                        "signature in wrong format".to_string(),
+                    );
+                    let status = Status::with_error_details(
+                        Code::InvalidArgument,
+                        "Invalid secret".to_string(),
+                        err_details,
+                    );
+                    return Err(status);
+                }
             };
         }
-
         Ok(Response::new(VerifyProofsResponse { is_valid: true }))
     }
 
