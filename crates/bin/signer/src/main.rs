@@ -1,3 +1,4 @@
+use anyhow::ensure;
 use bitcoin::bip32::Xpriv;
 use nuts::{
     Amount,
@@ -35,11 +36,15 @@ impl signer::Signer for SignerState {
         declare_keyset_request: Request<DeclareKeysetRequest>,
     ) -> Result<Response<DeclareKeysetResponse>, Status> {
         let declare_keyset_request = declare_keyset_request.get_ref();
+        assert!(
+            declare_keyset_request.max_order < 64,
+            "{}",
+            Status::invalid_argument(Error::MaxOrderTooBig.to_string())
+        );
 
         let unit = starknet_types::Unit::from_str(&declare_keyset_request.unit).map_err(|_| {
             Status::invalid_argument(Error::UnknownUnit(&declare_keyset_request.unit).to_string())
         })?;
-
         let keyset = {
             let keyset = create_new_starknet_keyset(
                 self.root_key.clone(),
@@ -85,6 +90,19 @@ impl signer::Signer for SignerState {
             let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id)
                 .map_err(|_| Status::invalid_argument(Error::BadKeysetId))?;
             let amount = Amount::from(blinded_message.amount);
+            let keyset = keyset_cache_read_lock
+                .get(&keyset_id)
+                .ok_or(Status::not_found(Error::KeysetNotFound(keyset_id)))?;
+            let max_order = keyset.keys().max().copied().unwrap_or_default();
+
+            if !is_amount_power_of_two(amount) {
+                return Err(Status::invalid_argument(Error::AmountNotPowerOfTwo(amount)));
+            }
+            if is_amount_greater_than_max_order(amount, max_order) {
+                return Err(Status::invalid_argument(Error::AmountGreaterThanMax(
+                    amount, max_order,
+                )));
+            }
 
             let key_pair = {
                 let keyset = keyset_cache_read_lock
@@ -115,19 +133,30 @@ impl signer::Signer for SignerState {
             let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
                 .map_err(|_| Status::invalid_argument(Error::BadKeysetId))?;
             let amount = Amount::from(proof.amount);
-
+            let max_order;
             let secret_key = {
                 let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
                 let keyset = keyset_cache_read_lock
                     .get(&keyset_id)
                     .ok_or(Status::not_found(Error::KeysetNotFound(keyset_id)))?;
+                max_order = keyset.keys().max().copied().unwrap_or_default();
+
                 keyset
                     .get(&amount)
                     .ok_or(Status::not_found(Error::AmountNotFound(amount, keyset_id)))?
                     .secret_key
                     .clone()
             };
+
+            if !is_amount_power_of_two(amount) {
+                return Err(Status::invalid_argument(Error::AmountNotPowerOfTwo(amount)));
+            }
+            if is_amount_greater_than_max_order(amount, max_order) {
+                return Err(Status::invalid_argument(Error::AmountGreaterThanMax(
+                    amount, max_order,
+                )));
+            }
 
             let c = PublicKey::from_slice(&proof.unblind_signature)
                 .map_err(|_| Status::invalid_argument(Error::BadSignature))?;
@@ -152,6 +181,16 @@ impl signer::Signer for SignerState {
             root_pubkey: pub_key.to_string(),
         }))
     }
+}
+
+// Helper functions for early checks
+fn is_amount_power_of_two(amount: Amount) -> bool {
+    let value: u64 = amount.into();
+    value.is_power_of_two()
+}
+
+fn is_amount_greater_than_max_order(amount: Amount, max_order: Amount) -> bool {
+    amount > max_order
 }
 
 #[tokio::main]
