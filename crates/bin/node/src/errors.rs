@@ -1,6 +1,12 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
-use nuts::{dhke, nut00::CashuError, nut02};
+use nuts::{
+    dhke,
+    nut00::CashuError,
+    nut01,
+    nut02::{self, KeysetId},
+};
 use thiserror::Error;
+use tonic::Status;
 
 use crate::commands::ConfigError;
 
@@ -12,6 +18,8 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Dhke(#[from] dhke::Error),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
     #[error(transparent)]
     Nut02(#[from] nut02::Error),
     #[error(transparent)]
@@ -35,11 +43,21 @@ pub enum Error {
     /// Inactive Keyset
     #[error("Inactive Keyset")]
     InactiveKeyset,
+    #[error("Failed to load keyset with id {0} in db: {1}")]
+    UnknownKeysetId(KeysetId, #[source] db_node::Error),
+    #[error("SignerClient error: {0}")]
+    SignerClient(tonic::Status),
 }
 
 impl From<Error> for CashuError {
     fn from(_value: Error) -> Self {
         Self::new(0, String::new())
+    }
+}
+
+impl From<Error> for Status {
+    fn from(value: Error) -> Self {
+        Status::invalid_argument(value.to_string())
     }
 }
 
@@ -76,7 +94,8 @@ pub enum InitializationError {
     #[error("Failed to open the SqLite db: {0}")]
     OpenSqlite(#[source] rusqlite::Error),
     #[error("Failed parse the Grpc address")]
-    InvalidGrpcAddress,
+    InvalidGrpcAddress(#[from] std::net::AddrParseError),
+    // TonicTransport(#[from] tonic::transport::Error),
     #[error("failed to connect to signer")]
     SignerConnection(tonic::transport::Error),
 }

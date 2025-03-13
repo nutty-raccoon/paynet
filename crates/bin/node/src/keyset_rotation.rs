@@ -1,4 +1,5 @@
 use crate::Amount;
+use crate::errors::Error;
 use crate::keyset_cache::CachedKeysetInfo;
 use db_node::keyset::deactivate_keysets;
 use grpc_service::GrpcState;
@@ -27,7 +28,7 @@ impl KeysetRotationService for GrpcState {
 
         let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
 
-        let mut prev_keyset_ids: Vec<KeysetId> = vec![];
+        let mut prev_keyset_ids: Vec<KeysetId> = Vec::with_capacity(keysets_info.len());
 
         // TODO: add concurency
         for (keyset_id, keyset_info) in keysets_info {
@@ -56,16 +57,19 @@ impl KeysetRotationService for GrpcState {
                 .insert_info(new_keyset_id, CachedKeysetInfo::new(true, unit))
                 .await;
 
+            let keys = response
+                .keys
+                .into_iter()
+                .map(|k| -> Result<(Amount, PublicKey), Error> {
+                    Ok((
+                        Amount::from(k.amount),
+                        PublicKey::from_str(&k.pubkey).map_err(|e| Error::Nut01(e))?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
             self.keyset_cache
-                .insert_keys(
-                    new_keyset_id,
-                    response.keys.into_iter().map(|k| {
-                        (
-                            Amount::from(k.amount),
-                            PublicKey::from_str(&k.pubkey).unwrap(),
-                        )
-                    }),
-                )
+                .insert_keys(new_keyset_id, keys.into_iter())
                 .await;
 
             prev_keyset_ids.push(keyset_id);

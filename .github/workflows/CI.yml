@@ -10,11 +10,9 @@ env:
   CARGO_TERM_COLOR: always
   ROOT_KEY: "tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
   SOCKET_PORT: "10000"
-  GRPC_IP: "localhost"
   GRPC_PORT: "23432"
   SIGNER_URL: "https://localhost:10000"
   PG_URL: "postgres://postgres:postgres@localhost:5432/postgres"
-  APIBARA_TOKEN: "dna_5ZotRAZ2T6YfzuJAT4cR"
 
 jobs:
   build:
@@ -25,8 +23,8 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: node
         ports:
           - 5432:5432
         options: >-
@@ -45,20 +43,6 @@ jobs:
 
       - name: Set up Rust cache
         uses: Swatinem/rust-cache@v2
-
-      - name: Install PostgreSQL Client
-        run: sudo apt-get install -y postgresql-client
-
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          until pg_isready -h localhost -p 5432 -U postgres; do
-            sleep 1
-          done
-          echo "PostgreSQL is ready"
-
-      - name: Run migrations (if needed)
-        run: |
-          psql $PG_URL -c "SELECT 'Database is ready!'"
 
       - name: Build
         run: |
@@ -94,11 +78,8 @@ jobs:
 
       - name: Run node integration tests
         run: |
-          cargo run --release --bin node &
+          cargo run --release --bin node --no-default -features &
           NODE_RUN_PID=$!
-          until pg_isready -h localhost -p 5432 -U postgres; do
-            sleep 1
-          done
-          while ! echo exit | nc $GRPC_IP $GRPC_PORT; do sleep 1; done
+          while ! echo exit | nc localhost $GRPC_PORT; do sleep 1; done
           cargo test -p node-tests
           kill $NODE_RUN_PID

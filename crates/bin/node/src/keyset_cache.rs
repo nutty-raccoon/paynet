@@ -4,7 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
+use nuts::{
+    Amount,
+    nut01::{self, PublicKey},
+    nut02::KeysetId,
+};
 use sqlx::PgConnection;
 use starknet_types::Unit;
 use thiserror::Error;
@@ -18,6 +22,8 @@ pub enum Error {
     UnknownKeysetId(KeysetId, #[source] db_node::Error),
     #[error(transparent)]
     SignerClient(#[from] tonic::Status),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -94,13 +100,13 @@ impl KeysetCache {
         let keys = signer_keyset_info
             .keys
             .into_iter()
-            .map(|k| {
-                (
+            .map(|k| -> Result<(Amount, PublicKey), Error> {
+                Ok((
                     Amount::from(k.amount),
-                    PublicKey::from_str(&k.pubkey).unwrap(),
-                )
+                    PublicKey::from_str(&k.pubkey).map_err(|e| Error::Nut01(e))?,
+                ))
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
 
         // Save the infos in the cache
         {
