@@ -1,5 +1,5 @@
 use anyhow::Result;
-use nuts::{Error, nut01::PublicKey, nut02::KeysetId};
+use nuts::{nut01::PublicKey, nut02::KeysetId};
 use signer::{DeclareKeysetRequest, DeclareKeysetResponse};
 use signer_tests::init_signer_client;
 use std::str::FromStr;
