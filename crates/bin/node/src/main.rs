@@ -3,6 +3,7 @@ use errors::{Error, InitializationError, ServiceError};
 use futures::TryFutureExt;
 use grpc_service::GrpcState;
 use methods::Method;
+use node::KeysetRotationServiceServer;
 use node::NodeServer;
 use nuts::{
     Amount, QuoteTTLConfig, nut04::MintMethodSettings, nut05::MeltMethodSettings,
@@ -22,6 +23,7 @@ mod grpc_service;
 #[cfg(feature = "indexer")]
 mod indexer;
 mod keyset_cache;
+mod keyset_rotation;
 mod logic;
 mod methods;
 mod routes;
@@ -106,9 +108,16 @@ async fn main() -> Result<(), Error> {
 
     let addr = format!("{}:{}", env_variables.grpc_ip, env_variables.grpc_port)
         .parse()
-        .unwrap();
+        .map_err(|e| Error::Init(InitializationError::InvalidGrpcAddress(e)))?;
+
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+
+    health_reporter.set_serving::<NodeServer<GrpcState>>().await;
+
     let tonic_future = tonic::transport::Server::builder()
-        .add_service(NodeServer::new(grpc_service))
+        .add_service(NodeServer::new(grpc_service.clone()))
+        .add_service(KeysetRotationServiceServer::new(grpc_service.clone()))
+        .add_service(health_service)
         .serve(addr)
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
