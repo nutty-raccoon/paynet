@@ -1,10 +1,26 @@
 use anyhow::{Result, anyhow};
+use std::env;
 use std::time::{Duration, Instant};
 use tonic_health::pb::health_client::HealthClient;
 
 use tonic::transport::Channel;
 
+fn ensure_env_variables() -> Result<()> {
+    if env::var("SOCKET_PORT").is_ok() && env::var("ROOT_KEY").is_ok() {
+        return Ok(());
+    }
+
+    match dotenvy::from_filename("signer.env") {
+        Ok(_) => Ok(()),
+        Err(e) => Err(anyhow!(
+            "Environment variables not set and failed to load signer.env: {}",
+            e
+        )),
+    }
+}
+
 async fn get_signer_channel() -> Result<Channel> {
+    ensure_env_variables()?;
     let signer_port = std::env::var("SOCKET_PORT")?;
 
     let address = format!("https://localhost:{}", signer_port);
@@ -31,6 +47,7 @@ pub async fn init_health_client() -> Result<HealthClient<tonic::transport::Chann
 
     Ok(client)
 }
+
 pub async fn init_signer_client() -> Result<signer::SignerClient<tonic::transport::Channel>> {
     let channel = get_signer_channel().await?;
     let client = signer::SignerClient::new(channel);
