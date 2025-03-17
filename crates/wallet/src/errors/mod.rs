@@ -27,6 +27,8 @@ pub enum WalletError {
     Nut02(#[from] nuts::nut02::Error),
     #[error("DHKE error: {0}")]
     Dhke(#[from] nuts::dhke::Error),
+    #[error("Conversion error: {0}")]
+    Conversion(String),
     #[error("Nuts error: {0}")]
     Nuts(#[from] nuts::Error),
 }

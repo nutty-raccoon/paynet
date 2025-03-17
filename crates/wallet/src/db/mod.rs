@@ -127,7 +127,9 @@ pub fn upsert_node_keysets(
         let id: [u8; 8] = keyset
             .id
             .try_into()
-            .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Invalid keyset ID: {:?}", e)))?;
+            .map_err(|e: Vec<u8>| rusqlite::Error::ToSqlConversionFailure(
+                format!("Invalid keyset ID length: {}", e.len()).into()
+            ))?;
         conn.execute(
             UPSERT_NODE_KEYSET,
             (id, node_id, keyset.unit, keyset.active),
@@ -162,7 +164,7 @@ pub fn fetch_one_active_keyset_id_for_node_and_unit(
     let mut stmt = conn.prepare(FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT)?;
     let mut rows_iter = stmt.query_map(params![node_id, unit], |row| row.get::<_, [u8; 8]>(0))?;
 
-    Ok(rows_iter.next().transpose()?)
+    rows_iter.next().transpose()
 }
 
 pub fn insert_keyset_keys<'a>(
