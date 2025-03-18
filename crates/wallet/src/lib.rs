@@ -412,7 +412,7 @@ pub async fn fetch_inputs_from_db_or_node(
                 Ok(nut00::Proof {
                     amount: amount.into(),
                     keyset_id: KeysetId::from_bytes(&keyset_id)?,
-                    secret: Secret::new(secret),
+                    secret: Secret::new(secret)?,
                     c: PublicKey::from_slice(&unblinded_signature)?,
                 })
             },
