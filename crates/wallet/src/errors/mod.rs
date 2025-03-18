@@ -31,6 +31,8 @@ pub enum WalletError {
     Conversion(String),
     #[error("Nuts error: {0}")]
     Nuts(#[from] nuts::Error),
+    #[error("Secret error: {0}")]
+    Secret(#[from] nuts::nut00::secret::Error),
 }
 
 pub type Result<T> = std::result::Result<T, WalletError>;
