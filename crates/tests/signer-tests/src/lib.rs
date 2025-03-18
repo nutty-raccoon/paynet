@@ -10,13 +10,14 @@ fn ensure_env_variables() -> Result<()> {
         return Ok(());
     }
 
-    match dotenvy::from_filename("signer.env") {
-        Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!(
-            "Environment variables not set and failed to load signer.env: {}",
-            e
-        )),
-    }
+    dotenvy::from_filename("signer.env")
+        .map(|_| ()) 
+        .map_err(|e| {
+            anyhow!(
+                "Environment variables not set and failed to load signer.env: {}",
+                e
+            )
+        })
 }
 
 async fn get_signer_channel() -> Result<Channel> {

@@ -11,6 +11,7 @@ tonic = { workspace = true }
 tonic-health = { workspace = true }
 nuts = { workspace = true }
 dotenvy = { workspace = true }
+bitcoin = { workspace = true }
 
 [[test]]
 name = "declare_keyset"
