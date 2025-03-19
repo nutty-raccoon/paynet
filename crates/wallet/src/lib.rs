@@ -1,12 +1,12 @@
 pub mod db;
+pub mod errors;
 mod outputs;
 pub mod types;
-pub mod errors;
 
 use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
 
-use errors::{Result, WalletError};
+use errors::{Error, Result};
 use futures::StreamExt;
 use node::{
     GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest,
@@ -98,8 +98,7 @@ pub async fn get_mint_quote_state(
 
     db::set_mint_quote_state(db_conn, response.quote, response.state)?;
 
-    MintQuoteState::try_from(response.state)
-    .map_err(|e| WalletError::Conversion(e.to_string()))
+    MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
 }
 
 pub async fn mint(
@@ -207,7 +206,7 @@ pub fn get_active_keyset_for_unit(
     unit: &str,
 ) -> Result<KeysetId> {
     let keyset_id = db::fetch_one_active_keyset_id_for_node_and_unit(db_conn, node_id, unit)?
-        .ok_or(WalletError::NoMatchingKeyset)?;
+        .ok_or(Error::NoMatchingKeyset)?;
 
     let keyset_id = KeysetId::from_bytes(&keyset_id)?;
 
@@ -436,7 +435,7 @@ pub async fn swap_to_have_target_amount(
 
     let input_unblind_signature =
         db::proof::get_proof_and_set_state_pending(db_conn, proof_to_swap.0)?
-            .ok_or(WalletError::ProofNotAvailable)?;
+            .ok_or(Error::ProofNotAvailable)?;
 
     let pre_mints = PreMint::generate_for_amount(
         Amount::from(proof_to_swap.1),
@@ -521,7 +520,7 @@ pub async fn receive_wad(
         let entry = unit_to_amount.entry(unit).or_insert(Amount::ZERO);
         *entry = entry
             .checked_add(&proof.amount)
-            .ok_or(WalletError::AmountOverflow)?;
+            .ok_or(Error::AmountOverflow)?;
     }
 
     let inputs = convert_inputs(proofs);

@@ -2,37 +2,37 @@ use thiserror::Error;
 use tonic::Status;
 
 #[derive(Error, Debug)]
-pub enum WalletError {
-    #[error("Database error: {0}")]
+pub enum Error {
+    #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
-    #[error("Transport error: {0}")]
+    #[error("transport error: {0}")]
     Transport(#[from] tonic::transport::Error),
-    #[error("Amount overflow")]
+    #[error("amount overflow")]
     AmountOverflow,
-    #[error("No matching keyset found")]
+    #[error("no matching keyset found")]
     NoMatchingKeyset,
-    #[error("Proof not available")]
+    #[error("proof not available")]
     ProofNotAvailable,
-    #[error("Invalid public key: {0}")]
+    #[error("invalid public key: {0}")]
     InvalidPublicKey(String),
-    #[error("Invalid keyset ID")]
+    #[error("invalid keyset ID")]
     InvalidKeysetId(#[from] std::array::TryFromSliceError),
     #[error("gRPC error: {0}")]
     Grpc(#[from] Status),
-    #[error("Protocol error: {0}")]
+    #[error("protocol error: {0}")]
     Protocol(String),
-    #[error("Nut01 error: {0}")]
+    #[error("nut01 error: {0}")]
     Nut01(#[from] nuts::nut01::Error),
-    #[error("Nut02 error: {0}")]
+    #[error("nut02 error: {0}")]
     Nut02(#[from] nuts::nut02::Error),
-    #[error("DHKE error: {0}")]
+    #[error("bdhke error: {0}")]
     Dhke(#[from] nuts::dhke::Error),
-    #[error("Conversion error: {0}")]
+    #[error("conversion error: {0}")]
     Conversion(String),
-    #[error("Nuts error: {0}")]
+    #[error("nuts error: {0}")]
     Nuts(#[from] nuts::Error),
     #[error("Secret error: {0}")]
     Secret(#[from] nuts::nut00::secret::Error),
 }
 
-pub type Result<T> = std::result::Result<T, WalletError>;
+pub type Result<T> = std::result::Result<T, Error>;
