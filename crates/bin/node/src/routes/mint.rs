@@ -11,6 +11,7 @@ use crate::{
     grpc_service::GrpcState,
     logic::{OutputsError, check_outputs_allow_single_unit, process_outputs},
     methods::Method,
+    utils,
 };
 
 #[derive(Debug, Error)]
@@ -26,7 +27,7 @@ pub enum Error {
     Db(#[from] db_node::Error),
     #[error(transparent)]
     Outputs(#[from] OutputsError),
-    #[error("Invalid quote state {0} at this poin of the flow")]
+    #[error("Invalid quote state {0} at this point of the flow")]
     InvalidQuoteStateAtThisPoint(MintQuoteState),
     #[error(
         "The outputs' total amount {expected} doesn't match the one specified in the quote {received}"
@@ -75,16 +76,12 @@ impl GrpcState {
 
         let mut tx = db_node::begin_db_tx(&self.pg_pool).await?;
 
-        let (expected_amount, state) =
-            db_node::mint_quote::get_amount_and_state(&mut tx, quote).await?;
+        // Get the amount, state, and expiry
+        let (expected_amount, state, expiry) =
+            db_node::mint_quote::get_amount_state_and_expiry(&mut tx, quote).await?;
 
-        let quote_response = db_node::mint_quote::build_response_from_db(&mut tx, quote).await?;
-        let expiry = quote_response.expiry;
-
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| Error::Db(db_node::Error::DbToRuntimeConversion))?
-            .as_secs();
+        // Check if the quote has expired, using the utility function
+        let current_time = utils::unix_time();
 
         if current_time > expiry {
             return Err(Error::QuoteExpired);
