@@ -41,6 +41,7 @@ message Keyset {
   bytes id = 1;
   string unit = 2;
   bool active = 3;
+  int32 max_order = 4;
 }
 
 message GetKeysRequest {
