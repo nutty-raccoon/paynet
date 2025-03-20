@@ -11,7 +11,7 @@ fn ensure_env_variables() -> Result<()> {
     }
 
     dotenvy::from_filename("signer.env")
-        .map(|_| ()) 
+        .map(|_| ())
         .map_err(|e| {
             anyhow!(
                 "Environment variables not set and failed to load signer.env: {}",

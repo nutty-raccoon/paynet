@@ -25,21 +25,22 @@ impl<'a> From<Error<'a>> for Status {
         match err {
             Error::CouldNotSignMessage(idx, message, error) => Status::with_error_details(
                 Code::InvalidArgument,
-                format!("failed to sign message {}: {}", message, error),
+                "failed to sign message",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
                     format!("messages[{}].blinded_secret", idx),
-                    "the resulting key would have been invalid",
+                    format!(
+                        "given message {message} the resulting key would have been invalid: {error}"
+                    ),
                 )]),
             ),
             Error::CouldNotVerifyProof(idx, proof, secret, error) => Status::with_error_details(
                 Code::InvalidArgument,
-                format!(
-                    "failed to verify proof {} on secret {}: {}",
-                    proof, secret, error
-                ),
+                "failed to verify proof",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
                     format!("proofs[{}]", idx),
-                    "the resulting key would have been invalid",
+                    format!(
+                        "given proof {proof}, secret {secret} and the service private key the resulting key would have been invalid: {error}",
+                    ),
                 )]),
             ),
             Error::BadKeysetId(field, idx, bad_keyset_id, error) => Status::with_error_details(
@@ -48,28 +49,25 @@ impl<'a> From<Error<'a>> for Status {
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
                     format!("{}[{}].keyset_id", field, idx),
                     format!(
-                        "the provided keyset id '{:?}' is invalid: {}",
-                        bad_keyset_id, error
+                        "the provided keyset id '{:?}' is invalid: {error}",
+                        bad_keyset_id,
                     ),
                 )]),
             ),
             Error::KeysetNotFound(field, idx, keyset_id) => Status::with_error_details(
                 Code::NotFound,
-                format!("keyset with id {} not found", keyset_id),
+                "keyset not found",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
                     format!("{field}[{idx}].keyset_id"),
-                    "the specified keyset id does not exist",
+                    format!("the specified keyset id '{keyset_id}' does not exist"),
                 )]),
             ),
             Error::AmountNotFound(field, idx, keyset_id, amount) => Status::with_error_details(
                 Code::NotFound,
-                format!(
-                    "amount {} not found in keyset with id {}",
-                    amount, keyset_id
-                ),
+                "amount not found",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
                     format!("{field}[{idx}].amount"),
-                    "the specified amount does not exist in the keyset",
+                    format!("amount {amount} does not exist in the keyset with id {keyset_id}"),
                 )]),
             ),
             Error::UnknownUnit(unit) => Status::with_error_details(
