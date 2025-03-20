@@ -1,6 +1,5 @@
 mod errors;
 pub mod secret;
-mod token;
 use errors::Error;
 use num_traits::CheckedAdd;
 use secret::Secret;

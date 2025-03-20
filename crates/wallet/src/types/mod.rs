@@ -5,14 +5,15 @@ use nuts::{
     nut01::{PublicKey, SecretKey},
 };
 
-use anyhow::Result;
 use rusqlite::{
     ToSql,
     types::{FromSql, FromSqlError},
 };
 
+use crate::errors::Error;
 mod node_url;
 pub use node_url::{Error as NodeUrlError, NodeUrl};
+pub mod compact_wad;
 
 #[derive(Debug, Clone)]
 pub struct PreMint {
@@ -26,11 +27,11 @@ impl PreMint {
     pub fn generate_for_amount(
         total_amount: Amount,
         split_target: &SplitTarget,
-    ) -> Result<Vec<Self>> {
+    ) -> Result<Vec<Self>, Error> {
         total_amount
             .split_targeted(split_target)?
             .into_iter()
-            .map(|amount| -> Result<_> {
+            .map(|amount| -> Result<_, Error> {
                 let secret = Secret::generate();
                 let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
 

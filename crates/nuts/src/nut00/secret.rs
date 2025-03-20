@@ -18,6 +18,9 @@ pub enum Error {
     /// Invalid Length
     #[error("Invalid secret length: `{0}`")]
     InvalidLength(u64),
+    /// Invalid Character
+    #[error("Invalid hex character in secret")]
+    InvalidHexCharacter,
     // /// Hex Error
     // #[error(transparent)]
     // Hex(#[from] hex::Error),
@@ -34,12 +37,46 @@ impl Default for Secret {
 
 impl Secret {
     /// Create new [`Secret`]
+    ///
+    /// The secret must be a valid 64-character hex string representing
+    /// a 32-byte value
     #[inline]
-    pub fn new<S>(secret: S) -> Self
+    pub fn new<S>(secret: S) -> Result<Self, Error>
+    where
+        S: Into<String>,
+    {
+        let s = secret.into();
+        Self::validate(&s)?;
+        Ok(Self(s))
+    }
+
+    /// Create a new Secret without validation
+    ///
+    /// # Safety
+    ///
+    /// This function should only be used in contexts where the input
+    /// is guaranteed to be a valid 64-character hex string.
+    #[inline]
+    pub(crate) fn new_unchecked<S>(secret: S) -> Self
     where
         S: Into<String>,
     {
         Self(secret.into())
+    }
+
+    /// Validate that a string is a proper Secret
+    fn validate(s: &str) -> Result<(), Error> {
+        // Check the length
+        if s.len() != 64 {
+            return Err(Error::InvalidLength(s.len() as u64));
+        }
+
+        // Check that all characters are valid hex
+        if !s.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(Error::InvalidHexCharacter);
+        }
+
+        Ok(())
     }
 
     /// Create secret value
@@ -53,7 +90,7 @@ impl Secret {
         rng.fill_bytes(&mut random_bytes);
         // The secret string is hex encoded
         let secret = hex::encode(random_bytes);
-        Self(secret)
+        Self::new_unchecked(secret)
     }
 
     /// [`Secret`] as bytes
@@ -73,6 +110,7 @@ impl FromStr for Secret {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::validate(s)?;
         Ok(Self(s.to_string()))
     }
 }
@@ -125,5 +163,26 @@ mod tests {
         let secret_n = Secret::from_str(&secret_str).unwrap();
 
         assert_eq!(secret_n, secret)
+    }
+
+    #[test]
+    fn test_secret_validation() {
+        // Valid secret
+        let valid_hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert!(Secret::new(valid_hex).is_ok());
+        assert!(Secret::from_str(valid_hex).is_ok());
+
+        // Invalid length
+        let too_short = "0123456789abcdef";
+        let too_long = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef00";
+        assert!(Secret::new(too_short).is_err());
+        assert!(Secret::new(too_long).is_err());
+        assert!(Secret::from_str(too_short).is_err());
+        assert!(Secret::from_str(too_long).is_err());
+
+        // Invalid characters
+        let invalid_chars = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeg";
+        assert!(Secret::new(invalid_chars).is_err());
+        assert!(Secret::from_str(invalid_chars).is_err());
     }
 }
