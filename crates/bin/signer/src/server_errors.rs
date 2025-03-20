@@ -9,8 +9,8 @@ use tonic_types::{ErrorDetails, FieldViolation, StatusExt};
 
 #[derive(Debug)]
 pub enum Error<'a> {
-    AmountGreaterThanMax(Amount, Amount),
-    AmountNotPowerOfTwo(Amount),
+    AmountGreaterThanMax(usize, Amount, Amount),
+    AmountNotPowerOfTwo(usize, Amount),
     UnknownUnit(&'a str),
     MaxOrderTooBig(u32),
     CouldNotSignMessage(usize, PublicKey, dhke::Error),
@@ -25,24 +25,22 @@ pub enum Error<'a> {
 impl<'a> From<Error<'a>> for Status {
     fn from(err: Error<'a>) -> Self {
         match err {
-            Error::AmountGreaterThanMax(amount, max_order) => Status::with_error_details(
+            Error::AmountGreaterThanMax(idx, amount, max_order) => Status::with_error_details(
                 Code::InvalidArgument,
-                "Amount is greater than max order",
+                "amount is greater than max order",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
-                    format!("amount"),
+                    format!("messages[{idx}].amount"),
                     format!(
                         "the provided amount {amount} is greater than the max order: {max_order}"
                     ),
                 )]),
             ),
-            Error::AmountNotPowerOfTwo(amount, ) => Status::with_error_details(
+            Error::AmountNotPowerOfTwo(idx, amount) => Status::with_error_details(
                 Code::InvalidArgument,
-                "Amount is not a power of two",
+                "amount is not a power of two",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
-                    format!("amount"),
-                    format!(
-                        "the provided amount {amount} is not a power of two"
-                    ),
+                    format!("messages[{idx}].amount"),
+                    format!("the provided amount {amount} is not a power of two"),
                 )]),
             ),
             Error::CouldNotSignMessage(idx, message, error) => Status::with_error_details(

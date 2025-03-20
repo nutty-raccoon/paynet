@@ -1,4 +1,4 @@
-use bitcoin::bip32::Xpriv;
+use bitcoin::{bip32::Xpriv, key};
 use nuts::{
     Amount,
     dhke::{sign_message, verify_message},
@@ -38,7 +38,7 @@ impl signer::Signer for SignerState {
         declare_keyset_request: Request<DeclareKeysetRequest>,
     ) -> Result<Response<DeclareKeysetResponse>, Status> {
         let declare_keyset_request = declare_keyset_request.get_ref();
-        if declare_keyset_request.max_order >= 64 {
+        if declare_keyset_request.max_order > 64 {
             return Err(Error::MaxOrderTooBig(declare_keyset_request.max_order))?;
         }
 
@@ -88,8 +88,8 @@ impl signer::Signer for SignerState {
 
         for (idx, blinded_message) in blinded_messages.into_iter().enumerate() {
             let amount = Amount::from(blinded_message.amount);
-            if !Into::<u64>::into(amount).is_power_of_two() {
-                return Err(Error::AmountNotPowerOfTwo(amount))?;
+            if !blinded_message.amount.is_power_of_two() {
+                return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
             }
             let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id).map_err(|e| {
                 Error::BadKeysetId(MESSAGES_FIELD, idx, &blinded_message.keyset_id, e)
@@ -104,6 +104,7 @@ impl signer::Signer for SignerState {
                 .into();
             if u64::from(amount) > max_order {
                 return Err(Error::AmountGreaterThanMax(
+                    idx,
                     amount,
                     Amount::from(max_order),
                 ))?;
@@ -143,8 +144,8 @@ impl signer::Signer for SignerState {
             let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
                 .map_err(|e| Error::BadKeysetId(PROOFS_FIELD, idx, &proof.keyset_id, e))?;
             let amount = Amount::from(proof.amount);
-            if !u64::from(amount).is_power_of_two() {
-                return Err(Error::AmountNotPowerOfTwo(amount))?;
+            if !proof.amount.is_power_of_two() {
+                return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
             }
             let (secret_key, max_order) = {
                 let keyset_cache_read_lock = self.keyset_cache.0.read().await;
@@ -157,18 +158,18 @@ impl signer::Signer for SignerState {
                     .map(|(&k, _)| k)
                     .unwrap_or_default()
                     .into();
-                (
-                    keyset
-                        .get(&amount)
-                        .ok_or(Error::AmountNotFound(PROOFS_FIELD, idx, keyset_id, amount))?
-                        .secret_key
-                        .clone(),
-                    max_order,
-                )
+
+                let keyset = keyset
+                    .get(&amount)
+                    .ok_or(Error::AmountNotFound(PROOFS_FIELD, idx, keyset_id, amount))?
+                    .secret_key
+                    .clone();
+                (keyset, max_order)
             };
 
             if u64::from(amount) > max_order {
                 return Err(Error::AmountGreaterThanMax(
+                    idx,
                     amount,
                     Amount::from(max_order),
                 ))?;
