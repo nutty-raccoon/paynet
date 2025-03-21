@@ -330,13 +330,13 @@ pub async fn connect_to_node(
 
     let channel = tls::create_secure_channel(
         node_url.to_string(),
-        "../../../cert/node.crt",    
-        Some("wallet.crt"),          
-        Some("wallet.key"),          
-        "localhost",                 
-    ).await?;
+        "../../../cert/node.crt",
+        Some("wallet.crt"),
+        Some("wallet.key"),
+        "localhost",
+    )
+    .await?;
 
     let node_client = NodeClient::new(channel);
     Ok((node_client, node_url))
-
 }
