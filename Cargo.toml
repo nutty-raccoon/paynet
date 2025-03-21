@@ -78,7 +78,7 @@ starknet-payment-indexer = { path = "crates/starknet-payment-indexer" }
 signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
 wallet = { path = "crates/wallet" }
-
+tls = { path = "crates/tls" }
 
 
 

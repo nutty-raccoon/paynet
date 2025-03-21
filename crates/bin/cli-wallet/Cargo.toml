@@ -19,3 +19,4 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 starknet-types = { workspace = true }
 starknet-types-core = { workspace = true }
+tls = { workspace = true }

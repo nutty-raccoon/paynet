@@ -1,0 +1,10 @@
+[package]
+name = "tls"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tonic = { workspace = true, features = ["tls"] }
+tokio = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+tonic-build = "*"
