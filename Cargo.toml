@@ -26,6 +26,7 @@ axum = "0.8.1"
 tonic = "0.12.3"
 tonic-types = "0.12.3"
 tonic-health = "0.12.3"
+tonic-types = "0.12.3"
 hyper = "1.6.0"
 axum-response-cache = "0.2.0"
 http = "1.2.0"
@@ -78,7 +79,7 @@ starknet-payment-indexer = { path = "crates/starknet-payment-indexer" }
 signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
 wallet = { path = "crates/wallet" }
-
+tls = { path = "crates/tls" }
 
 
 
