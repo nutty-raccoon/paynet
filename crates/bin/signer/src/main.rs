@@ -15,6 +15,8 @@ use state::{SharedKeySetCache, SharedRootKey};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 mod server_errors;
 mod state;
@@ -202,10 +204,15 @@ impl signer::Signer for SignerState {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+    info!("Initializing signer...");
+
     #[cfg(debug_assertions)]
     {
         let _ = dotenvy::from_filename("signer.env")
-            .inspect_err(|e| println!("dotenvy initialization failed: {e}"));
+            .inspect_err(|e| error!("dotenvy initialization failed: {e}"));
     }
 
     let socket_addr = {
@@ -225,17 +232,17 @@ async fn main() -> Result<(), anyhow::Error> {
         keyset_cache: SharedKeySetCache(Arc::new(RwLock::new(HashMap::new()))),
     };
 
-    let svc = SignerServer::new(signer_logic);
+    let signer_server_service = SignerServer::new(signer_logic);
 
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<SignerServer<SignerState>>()
         .await;
 
-    println!("listening to new request on {}", socket_addr);
+    info!("listening to new request on {}", socket_addr);
 
     tonic::transport::Server::builder()
-        .add_service(svc)
+        .add_service(signer_server_service)
         .add_service(health_service)
         .serve(socket_addr)
         .await?;

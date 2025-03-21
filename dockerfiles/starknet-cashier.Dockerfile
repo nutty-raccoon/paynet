@@ -9,15 +9,15 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
 
-RUN cargo build --release -p signer
+RUN cargo build --release -p starknet-cashier
 
 #------------
 
 FROM debian:bookworm-slim
 
-COPY --from=builder ./target/release/signer ./
+COPY --from=builder ./target/release/starknet-cashier ./
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
 
 ENV RUST_LOG=info
 
-CMD ["./signer"]
+CMD ["./starknet-cashier"]

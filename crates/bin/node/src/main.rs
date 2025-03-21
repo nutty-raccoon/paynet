@@ -20,7 +20,7 @@ mod app_state;
 mod commands;
 mod errors;
 mod grpc_service;
-#[cfg(feature = "indexer")]
+#[cfg(feature = "starknet")]
 mod indexer;
 mod keyset_cache;
 mod keyset_rotation;
@@ -52,7 +52,7 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Initializing node...");
 
     // Read args and env
-    #[cfg(feature = "indexer")]
+    #[cfg(feature = "starknet")]
     let config = {
         use clap::Parser;
         let args = commands::Args::parse();
@@ -91,6 +91,12 @@ async fn main() -> Result<(), anyhow::Error> {
         .await
         .map_err(InitializationError::SignerConnection)?;
 
+    #[cfg(feature = "starknet")]
+    let starknet_cashier =
+        starknet_cashier::StarknetCashierClient::connect(env_variables.cashier_url)
+            .await
+            .map_err(InitializationError::SignerConnection)?;
+
     // Launch tonic server task
     let grpc_service = GrpcState::new(
         pg_pool.clone(),
@@ -100,6 +106,8 @@ async fn main() -> Result<(), anyhow::Error> {
             mint_ttl: 3600,
             melt_ttl: 3600,
         },
+        #[cfg(feature = "starknet")]
+        starknet_cashier,
     );
     grpc_service
         .init_first_keysets(&[Unit::Strk], 0, 32)
@@ -119,7 +127,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .serve(addr)
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
-    #[cfg(feature = "indexer")]
+    // Launch indexer task
+    #[cfg(feature = "starknet")]
     let indexer_future = {
         let indexer_service = indexer::init_indexer_task(
             env_variables.apibara_token,
@@ -135,10 +144,10 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Running gRPC server at {}", addr);
     println!("Running gRPC server at {}", addr);
 
-    #[cfg(feature = "indexer")]
+    #[cfg(feature = "starknet")]
     let ((), ()) = try_join!(tonic_future, indexer_future)?;
 
-    #[cfg(not(feature = "indexer"))]
+    #[cfg(not(feature = "starknet"))]
     let ((),) = try_join!(tonic_future)?;
 
     Ok(())

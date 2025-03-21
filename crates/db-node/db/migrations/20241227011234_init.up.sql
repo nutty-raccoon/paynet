@@ -60,6 +60,7 @@ CREATE TYPE melt_quote_state AS ENUM ('UNPAID', 'PENDING', 'PAID');
 
 CREATE TABLE IF NOT EXISTS melt_quote (
     id UUID PRIMARY KEY,
+    hash BYTEA CHECK (length(hash) = 32) NOT NULL, 
     unit TEXT NOT NULL,
     amount INT8 NOT NULL,
     fee INT8 NOT NULL,
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS melt_quote (
     state melt_quote_state NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS melt_quote_hash ON melt_quote(hash);
 CREATE INDEX IF NOT EXISTS melt_quote_unit ON melt_quote(unit);
 CREATE INDEX IF NOT EXISTS melt_quote_state ON melt_quote(state);
 CREATE INDEX IF NOT EXISTS melt_quote_expiry ON melt_quote(expiry);

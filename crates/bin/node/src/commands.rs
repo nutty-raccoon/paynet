@@ -15,7 +15,7 @@ pub struct Args {
     config: PathBuf,
 }
 
-#[cfg(feature = "indexer")]
+#[cfg(feature = "starknet")]
 impl Args {
     pub fn read_config(&self) -> Result<Config, InitializationError> {
         let file_content =
@@ -160,9 +160,12 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
             .inspect_err(|e| error!("dotenvy initialization failed: {e}"));
     }
 
-    #[cfg(feature = "indexer")]
+    #[cfg(feature = "starknet")]
     let apibara_token =
         std::env::var("APIBARA_TOKEN").map_err(|e| InitializationError::Env("APIBARA_TOKEN", e))?;
+    #[cfg(feature = "starknet")]
+    let cashier_url =
+        std::env::var("CASHIER_URL").map_err(|e| InitializationError::Env("CASHIER_URL", e))?;
     let pg_url = std::env::var("PG_URL").map_err(|e| InitializationError::Env("PG_URL", e))?;
     let signer_url =
         std::env::var("SIGNER_URL").map_err(|e| InitializationError::Env("SIGNER_URL", e))?;
@@ -173,8 +176,10 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
         .map_err(InitializationError::ParseInt)?;
 
     Ok(EnvVariables {
-        #[cfg(feature = "indexer")]
+        #[cfg(feature = "starknet")]
         apibara_token,
+        #[cfg(feature = "starknet")]
+        cashier_url,
         pg_url,
         signer_url,
         grpc_ip,
@@ -184,8 +189,10 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
 
 #[derive(Debug)]
 pub struct EnvVariables {
-    #[cfg(feature = "indexer")]
+    #[cfg(feature = "starknet")]
     pub apibara_token: String,
+    #[cfg(feature = "starknet")]
+    pub cashier_url: String,
     pub pg_url: String,
     pub signer_url: String,
     pub grpc_ip: String,

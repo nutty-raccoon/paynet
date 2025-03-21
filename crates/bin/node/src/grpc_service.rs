@@ -17,7 +17,7 @@ use nuts::{
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
-use starknet_types::{MeltPaymentRequest, Unit};
+use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
@@ -36,6 +36,8 @@ pub struct GrpcState {
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
+    #[cfg(feature = "starknet")]
+    pub starknet_cashier: crate::app_state::StarknetCashierClient,
     // TODO: add a cache for the mint_quote and melt routes
 }
 
@@ -45,6 +47,7 @@ impl GrpcState {
         signer_client: signer::SignerClient<Channel>,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
+        #[cfg(feature = "starknet")] starknet_cashier: crate::app_state::StarknetCashierClient,
     ) -> Self {
         Self {
             pg_pool,
@@ -52,6 +55,8 @@ impl GrpcState {
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
+            #[cfg(feature = "starknet")]
+            starknet_cashier,
         }
     }
 
@@ -117,8 +122,6 @@ enum ParseGrpcError {
     Method(crate::methods::FromStrError),
     #[error(transparent)]
     Uuid(uuid::Error),
-    #[error(transparent)]
-    MeltPayment(serde_json::Error),
     #[error(transparent)]
     Secret(nuts::nut00::secret::Error),
 }
@@ -377,8 +380,6 @@ impl Node for GrpcState {
 
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
         let unit = Unit::from_str(&melt_request.unit).map_err(ParseGrpcError::Unit)?;
-        let melt_payment_request: MeltPaymentRequest =
-            serde_json::from_str(&melt_request.request).map_err(ParseGrpcError::MeltPayment)?;
         let inputs = melt_request
             .inputs
             .into_iter()
@@ -395,7 +396,7 @@ impl Node for GrpcState {
             .collect::<Result<Vec<_>, _>>()?;
 
         let response = self
-            .inner_melt(method, unit, melt_payment_request, &inputs)
+            .inner_melt(method, unit, melt_request.request, &inputs)
             .await?;
 
         Ok(Response::new(MeltResponse {

@@ -28,6 +28,11 @@ pub enum Error {
     AmountTooLow(Amount, Amount),
     #[error("total inputs's amount {0} is higher than the node maximal amount {1} ")]
     AmountTooHigh(Amount, Amount),
+    #[error(transparent)]
+    InvalidPaymentRequest(serde_json::Error),
+    #[cfg(feature = "starknet")]
+    #[error("failed to trigger withdraw from starknet cashier: {0}")]
+    StarknetCashier(#[source] tonic::Status),
 }
 
 impl From<Error> for Status {
@@ -36,14 +41,17 @@ impl From<Error> for Status {
             Error::TxBegin(error) | Error::TxCommit(error) | Error::Sqlx(error) => {
                 Status::internal(error.to_string())
             }
-            Error::MeltDisabled => Status::failed_precondition(value.to_string()),
             Error::UnitNotSupported(_, _)
             | Error::InvalidAssetForUnit(_, _)
             | Error::AmountTooLow(_, _)
             | Error::AmountTooHigh(_, _)
-            | Error::TotalAmountTooBig => Status::invalid_argument(value.to_string()),
+            | Error::TotalAmountTooBig
+            | Error::InvalidPaymentRequest(_) => Status::invalid_argument(value.to_string()),
             Error::Inputs(error) => error.into(),
             Error::Db(error) => Status::internal(error.to_string()),
+            #[cfg(feature = "starknet")]
+            Error::MeltDisabled => Status::failed_precondition(value.to_string()),
+            Error::StarknetCashier(_) => Status::internal(value.to_string()),
         }
     }
 }

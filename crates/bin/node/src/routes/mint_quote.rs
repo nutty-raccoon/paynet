@@ -131,7 +131,7 @@ async fn new_starknet_mint_quote(
         .map_err(Error::Db)?;
 
     let state = {
-        #[cfg(not(feature = "indexer"))]
+        #[cfg(not(feature = "starknet"))]
         {
             use futures::TryFutureExt;
 
@@ -141,7 +141,7 @@ async fn new_starknet_mint_quote(
                 .await?;
             new_state
         }
-        #[cfg(feature = "indexer")]
+        #[cfg(feature = "starknet")]
         MintQuoteState::Unpaid
     };
 

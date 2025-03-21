@@ -18,4 +18,6 @@ RUN apt-get update && apt-get install -y libsqlite3-0 && rm -rf /var/lib/apt/lis
 COPY --from=builder ./target/release/node ./
 COPY --from=builder ./crates/bin/node/config/local.toml ./config.toml
 
+ENV RUST_LOG=info
+
 CMD ["./node", "--config", "./config.toml"]

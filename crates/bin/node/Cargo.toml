@@ -33,12 +33,14 @@ db-node = { workspace = true }
 sqlx = { workspace = true, features = ["postgres", "uuid"] }
 rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
+bitcoin_hashes = { workspace = true }
 
 starknet-payment-indexer = { workspace = true, optional = true }
+starknet-cashier = { workspace = true, optional = true }
 
 [features]
-default = ["indexer"]
-indexer = ["dep:starknet-payment-indexer"]
+default = ["starknet"]
+starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier"]
 
 [build-dependencies]
-tonic-build = "*"
+tonic-build = "0.12.3"

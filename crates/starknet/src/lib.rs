@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use num_bigint::BigUint;
 use nuts::Amount;
 use serde::{Deserialize, Serialize};
@@ -16,9 +18,6 @@ pub enum Error {
     StarknetAmountTooHigh(Unit, StarknetU256),
 }
 
-pub const STRK_TOKEN_ADDRESS: Felt =
-    Felt::from_hex_unchecked("0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d");
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Asset {
@@ -27,19 +26,30 @@ pub enum Asset {
 
 impl core::fmt::Display for Asset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Asset::Strk => "strk",
-            }
-        )
+        write!(f, "{}", self.as_ref())
     }
 }
 
-impl Asset {
-    pub fn address(&self) -> Felt {
-        STRK_TOKEN_ADDRESS
+impl AsRef<str> for Asset {
+    fn as_ref(&self) -> &str {
+        match self {
+            Asset::Strk => "strk",
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("invalid asset")]
+pub struct AssetFromStrError;
+
+impl FromStr for Asset {
+    type Err = AssetFromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "strk" => Ok(Asset::Strk),
+            _ => Err(AssetFromStrError),
+        }
     }
 }
 
@@ -47,7 +57,6 @@ impl Asset {
 pub struct MeltPaymentRequest {
     pub recipient: Felt,
     pub asset: Asset,
-    pub amount: StarknetU256,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

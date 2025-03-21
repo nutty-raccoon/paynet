@@ -240,10 +240,6 @@ async fn main() -> Result<()> {
                     request: serde_json::to_string(&starknet_types::MeltPaymentRequest {
                         recipient: Felt::from_hex_unchecked("0x123"),
                         asset: starknet_types::Asset::Strk,
-                        amount: starknet_types::StarknetU256 {
-                            high: Felt::ZERO,
-                            low: Felt::from_hex_unchecked("0x123"),
-                        },
                     })?,
                     inputs: wallet::convert_inputs(&inputs),
                 })

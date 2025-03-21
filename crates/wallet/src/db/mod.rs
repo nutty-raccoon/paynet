@@ -142,7 +142,6 @@ pub fn upsert_node_keysets(
     let new_keyset_ids = {
         let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
         stmt.query_map([], |row| row.get(0))?
-            .map(|res| res)
             .collect::<Result<Vec<_>>>()?
     };
 
