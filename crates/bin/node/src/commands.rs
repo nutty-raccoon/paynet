@@ -161,12 +161,14 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
     }
 
     #[cfg(feature = "indexer")]
-    let apibara_token = std::env::var("APIBARA_TOKEN").map_err(InitializationError::Env)?;
-    let pg_url = std::env::var("PG_URL").map_err(InitializationError::Env)?;
-    let signer_url = std::env::var("SIGNER_URL").map_err(InitializationError::Env)?;
-    let grpc_ip = std::env::var("GRPC_IP").map_err(InitializationError::Env)?;
+    let apibara_token =
+        std::env::var("APIBARA_TOKEN").map_err(|e| InitializationError::Env("APIBARA_TOKEN", e))?;
+    let pg_url = std::env::var("PG_URL").map_err(|e| InitializationError::Env("PG_URL", e))?;
+    let signer_url =
+        std::env::var("SIGNER_URL").map_err(|e| InitializationError::Env("SIGNER_URL", e))?;
+    let grpc_ip = std::env::var("GRPC_IP").map_err(|e| InitializationError::Env("GRPC_IP", e))?;
     let grpc_port = std::env::var("GRPC_PORT")
-        .map_err(InitializationError::Env)?
+        .map_err(|e| InitializationError::Env("APIBARA_TOKEN", e))?
         .parse()
         .map_err(InitializationError::ParseInt)?;
 

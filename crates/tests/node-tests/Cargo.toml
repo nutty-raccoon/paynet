@@ -16,7 +16,6 @@ node = { workspace = true }
 name = "keyset_rotation"
 path = "keyset_rotation.rs"
 
-
 [[test]]
 name = "health_check"
 path = "health_check.rs"

@@ -1,10 +1,5 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
-use nuts::{
-    dhke,
-    nut00::CashuError,
-    nut01,
-    nut02::{self, KeysetId},
-};
+use nuts::{dhke, nut00::CashuError, nut01, nut02};
 use thiserror::Error;
 use tonic::Status;
 
@@ -43,10 +38,6 @@ pub enum Error {
     /// Inactive Keyset
     #[error("Inactive Keyset")]
     InactiveKeyset,
-    #[error("Failed to load keyset with id {0} in db: {1}")]
-    UnknownKeysetId(KeysetId, #[source] db_node::Error),
-    #[error("SignerClient error: {0}")]
-    SignerClient(tonic::Status),
 }
 
 impl From<Error> for CashuError {
@@ -80,8 +71,8 @@ pub enum InitializationError {
     #[cfg(debug_assertions)]
     #[error("Failed to load .env file: {0}")]
     Dotenvy(#[source] dotenvy::Error),
-    #[error("Failed to read variable from environment: {0}")]
-    Env(#[source] std::env::VarError),
+    #[error("Failed to read environment variable `{0}`: {1}")]
+    Env(&'static str, #[source] std::env::VarError),
     #[error(transparent)]
     ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)]

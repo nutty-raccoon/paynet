@@ -88,7 +88,7 @@ impl GrpcState {
                 .map(|k| -> Result<(Amount, PublicKey), Error> {
                     Ok((
                         Amount::from(k.amount),
-                        PublicKey::from_str(&k.pubkey).map_err(|e| Error::Nut01(e))?,
+                        PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
                     ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -425,7 +425,7 @@ impl Node for GrpcState {
             .root_pubkey;
         let node_info = NodeInfo {
             name: Some("Paynet Test Node".to_string()),
-            pubkey: Some(PublicKey::from_str(&pub_key).map_err(|e| Error::Nut01(e))?),
+            pubkey: Some(PublicKey::from_str(&pub_key).map_err(Error::Nut01)?),
             version: Some(NodeVersion {
                 name: "some_name".to_string(),
                 version: "0.0.0".to_string(),

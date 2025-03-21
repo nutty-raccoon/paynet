@@ -45,7 +45,7 @@ async fn connect_to_db_and_run_migrations(pg_url: &str) -> Result<PgPool, Initia
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
@@ -55,7 +55,6 @@ async fn main() -> Result<(), Error> {
     #[cfg(feature = "indexer")]
     let config = {
         use clap::Parser;
-
         let args = commands::Args::parse();
         args.read_config()?
     };
@@ -111,7 +110,6 @@ async fn main() -> Result<(), Error> {
         .map_err(|e| Error::Init(InitializationError::InvalidGrpcAddress(e)))?;
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-
     health_reporter.set_serving::<NodeServer<GrpcState>>().await;
 
     let tonic_future = tonic::transport::Server::builder()
@@ -121,7 +119,6 @@ async fn main() -> Result<(), Error> {
         .serve(addr)
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
-    // Launch indexer task
     #[cfg(feature = "indexer")]
     let indexer_future = {
         let indexer_service = indexer::init_indexer_task(
@@ -134,9 +131,9 @@ async fn main() -> Result<(), Error> {
         indexer::listen_to_indexer(db_conn, indexer_service)
     };
 
-    // Run them forever
     info!("Initialized!");
     info!("Running gRPC server at {}", addr);
+    println!("Running gRPC server at {}", addr);
 
     #[cfg(feature = "indexer")]
     let ((), ()) = try_join!(tonic_future, indexer_future)?;

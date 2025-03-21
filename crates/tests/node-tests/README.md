@@ -1,59 +1,77 @@
-# Signer service integration tests
+# Node Integration Tests
 
-This crates contains the integration tests for the signer service.
+This crate contains the integration tests for the **node** service.
 
-## How to run?
+---
 
-### Launch the signer server
+## How to Run
 
-#### Manualy
+### 1. **Start Required Services**
 
-```shell
-$ cargo run --bin signer
-```
-or
-```shell
-$ cargo run --release --bin signer
-```
+To run the node integration tests, you must have the following running:
 
-The first one will use the environment variable defined in a `signer.env` file you must create,
-while the second requires that you set those variables manualy.
+- A **PostgreSQL** database
+- A **signer server**
+- The **node server** itself
 
-#### Alone using docker
+You can run them manually or via Docker Compose.
 
-##### Build
+---
 
-```shell
-$ docker build --tag signer --file dockerfiles/signer.Dockerfile .
-```
+### Manual Setup
 
-##### Run
+#### Required Environment Variables
 
-```shell
-$ docker run \
-  -p 10000:10000 \
-  --rm \
-  -e SOCKET_PORT="10000" \
-  -e ROOT_KEY="tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH" \
-  --name signer-server \
-  -d signer-server
+Make sure the following variables are set **in your terminal** before running the services:
+
+```bash
+# Required to run the node server
+export GRPC_IP="[::0]" 
+export GRPC_PORT=20001
+export PG_URL="pg url" // set your pg url
+export SIGNER_URL="http://localhost:10000"
+
+# Required to run the signer server
+export SOCKET_PORT=10000
+export ROOT_KEY="tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
 ```
 
-Note that you will have to manually pass the required environment variables.
+---
 
-#### With the other services using docker-compose
+#### Start the Signer Server
 
-```shell
-$ docker-compose -p paynet -f ./docker-compose.yml up -d
+```bash
+cargo run --release --bin signer
 ```
 
-This time the environment variables are set in the `docker-compose.yml` file at the repository's root.
+---
 
-### Run the tests
+#### Start the Node Server
 
-```shell
-$ cargo test -p signer-tests
+```bash
+cargo run --release --bin node --no-default-features -- --config ./config/local.toml
 ```
 
-The tests will read the `SOCKET_PORT` environment variable to contact the signer at `https://localhost:$SOCKET_PORT`.
-It should be defined accordingly with the port exposed by your running instance of the signer service.
+> The node server requires the environment variables above to run properly.
+
+---
+
+### 🐳 Alternatively: Use Docker Compose
+
+To start everything at once:
+
+```bash
+docker-compose -p paynet -f ./docker-compose.yml up -d
+```
+
+This will launch PostgreSQL, Signer, and Node with the proper environment variables already set.
+
+---
+
+## 2. Run the Integration Tests
+
+```bash
+GRPC_IP="[::0]" GRPC_PORT=20001 cargo test -p node-tests
+```
+
+> The tests will wait for the gRPC server to be ready at `http://$GRPC_IP:$GRPC_PORT`.

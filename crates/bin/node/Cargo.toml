@@ -12,7 +12,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 parking_lot = { workspace = true, features = ["arc_lock"] }
-serde = { workspace = true, features = ["derive"]}
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
@@ -37,7 +37,7 @@ starknet-types-core = { workspace = true }
 starknet-payment-indexer = { workspace = true, optional = true }
 
 [features]
-default = ["indexer"]
+# default = ["indexer"]
 indexer = ["dep:starknet-payment-indexer"]
 
 [build-dependencies]

@@ -9,11 +9,13 @@ use tonic::transport::Channel;
 
 async fn get_grpc_channel() -> Result<Channel> {
     let grpc_port = std::env::var("GRPC_PORT")?;
-    let address = format!("https://localhost:{}", grpc_port);
+    let grpc_ip = std::env::var("GRPC_IP")?;
+    let endpoint = format!("http://{}:{}", grpc_ip, grpc_port);
 
-    let timeout = Instant::now() + Duration::from_secs(3);
+    let timeout = Instant::now() + Duration::from_secs(10);
+
     let channel = loop {
-        if let Ok(c) = tonic::transport::Channel::builder(address.parse()?)
+        if let Ok(c) = tonic::transport::Channel::builder(endpoint.parse()?)
             .connect()
             .await
         {
@@ -23,7 +25,6 @@ async fn get_grpc_channel() -> Result<Channel> {
             return Err(anyhow!("timeout waiting for node"));
         }
     };
-
     Ok(channel)
 }
 

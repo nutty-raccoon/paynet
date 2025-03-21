@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use node::{
     GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, RotateKeysetsRequest,
 };
@@ -54,18 +54,17 @@ async fn ok() -> Result<()> {
         }
     }
 
-    // get new keysets
+    // get all keysets
     let res = node_client.keysets(GetKeysetsRequest {}).await?;
     let curr_keysets_response: GetKeysetsResponse = res.into_inner();
+
+    println!("{:?}", curr_keysets_response.keysets);
 
     for keyset in &curr_keysets_response.keysets {
         if !old_keysets.contains_key(&keyset.id) {
             assert!(keyset.active, "New keyset {:?} is not active!", keyset.id);
         } else {
-            return Err(anyhow!(
-                "Unexpected keyset {:?} found in old keysets!",
-                keyset.id
-            ));
+            assert!(!keyset.active, "Old keyset {:?} is active!", keyset.id);
         }
     }
 

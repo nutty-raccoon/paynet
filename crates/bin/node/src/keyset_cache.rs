@@ -103,7 +103,7 @@ impl KeysetCache {
             .map(|k| -> Result<(Amount, PublicKey), Error> {
                 Ok((
                     Amount::from(k.amount),
-                    PublicKey::from_str(&k.pubkey).map_err(|e| Error::Nut01(e))?,
+                    PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
