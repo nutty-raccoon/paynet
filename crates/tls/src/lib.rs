@@ -1,29 +1,32 @@
-use std::path::Path;
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
-// use crate::tls::errors::TlsChannelError;
-pub mod errors;
+use tonic::transport::{Channel, ClientTlsConfig, Certificate, Identity};
+use tokio::fs;
+use anyhow::Result;
 
-pub async fn create_secure_channel(url: String) -> Result<Channel, Box<dyn std::error::Error>> {
-    let pem = tokio::fs::read("path/to/ca.pem").await?;
-    let ca_cert = Certificate::from_pem(pem);
+pub async fn create_secure_channel(
+    url: String,
+    server_cert_path: &str,
+    client_cert_path: Option<&str>,
+    client_key_path: Option<&str>,
+    domain_name: &str,
+) -> Result<Channel> {
+    let server_cert = fs::read(server_cert_path).await?;
+    let ca_certificate = Certificate::from_pem(server_cert);
 
-    let tls_config = ClientTlsConfig::new()
-        .ca_certificate(ca_cert)
-        .domain_name("your.domain.com");
+    let mut tls_config = ClientTlsConfig::new()
+        .ca_certificate(ca_certificate)
+        .domain_name(domain_name);
 
-    // let channel = Channel::from_shared(url)?
-    //     .tls_config(tls_config)?
-    //     .connect()
-    //     .await?;
+    if let (Some(cert_path), Some(key_path)) = (client_cert_path, client_key_path) {
+        let client_cert = fs::read(cert_path).await?;
+        let client_key = fs::read(key_path).await?;
+        let client_identity = Identity::from_pem(client_cert, client_key);
+        tls_config = tls_config.identity(client_identity);
+    }
 
-    let channel_builder = Channel::from_shared(url)?
-    .tls_config(tls_config)
-    // .map_err(|err| errors::TlsChannelError::TlsConfiguration(err))
-    ?
-    .connect()
-    .await
-    // .map_err(|err|errors::TlsChannelError::ChannelCreation(err))
-    ?;
+    let channel = Channel::from_shared(url)?
+        .tls_config(tls_config)?
+        .connect()
+        .await?;
 
-    Ok(channel_builder)
+    Ok(channel)
 }
