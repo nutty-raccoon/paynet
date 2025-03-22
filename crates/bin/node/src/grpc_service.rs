@@ -231,6 +231,20 @@ impl Node for GrpcState {
     ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
+        if swap_request.inputs.len() > 64 {
+            return Err(Status::invalid_argument("Too many inputs: maximum allowed is 64"));
+        }
+        if swap_request.outputs.len() > 64 {
+            return Err(Status::invalid_argument("Too many outputs: maximum allowed is 64"));
+        }
+
+        if swap_request.inputs.is_empty() {
+            return Err(Status::invalid_argument("Inputs cannot be empty"));
+        }
+        if swap_request.outputs.is_empty() {
+            return Err(Status::invalid_argument("Outputs cannot be empty"));
+        }
+
         let inputs = swap_request
             .inputs
             .into_iter()
@@ -258,6 +272,55 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let mut conn = match self.pg_pool.acquire().await {
+            Ok(conn) => conn,
+            Err(e) => return Err(Status::internal(e.to_string())),
+        };
+
+        for input in &inputs {
+            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &input.keyset_id).await {
+                Ok(info) => info,
+                Err(e) => return Err(Status::internal(e.to_string())),
+            };
+            
+            let max_order_u8 = keyset_info.max_order();
+            let max_value = if max_order_u8 >= 64 {
+                u64::MAX
+            } else {
+                (1u64 << max_order_u8) - 1
+            };
+            
+            if u64::from(input.amount) > max_value {
+                return Err(Status::invalid_argument(format!(
+                    "Input amount {} exceeds max order {} for keyset",
+                    u64::from(input.amount),
+                    max_value
+                )));
+            }
+        }
+
+        for output in &outputs {
+            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &output.keyset_id).await {
+                Ok(info) => info,
+                Err(e) => return Err(Status::internal(e.to_string())),
+            };
+            
+            let max_order_u8 = keyset_info.max_order();
+            let max_value = if max_order_u8 >= 64 {
+                u64::MAX
+            } else {
+                (1u64 << max_order_u8) - 1
+            };
+            
+            if u64::from(output.amount) > max_value {
+                return Err(Status::invalid_argument(format!(
+                    "Output amount {} exceeds max order {} for keyset",
+                    u64::from(output.amount),
+                    max_value
+                )));
+            }
+        }
 
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
@@ -300,6 +363,14 @@ impl Node for GrpcState {
     ) -> Result<Response<MintResponse>, Status> {
         let mint_request = mint_request.into_inner();
 
+        if mint_request.outputs.len() > 64 {
+            return Err(Status::invalid_argument("Too many outputs: maximum allowed is 64"));
+        }
+
+        if mint_request.outputs.is_empty() {
+            return Err(Status::invalid_argument("Outputs cannot be empty"));
+        }
+
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
         let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
         let outputs = mint_request
@@ -315,6 +386,33 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let mut conn = match self.pg_pool.acquire().await {
+            Ok(conn) => conn,
+            Err(e) => return Err(Status::internal(e.to_string())),
+        };
+
+        for output in &outputs {
+            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &output.keyset_id).await {
+                Ok(info) => info,
+                Err(e) => return Err(Status::internal(e.to_string())),
+            };
+            
+            let max_order_u8 = keyset_info.max_order();
+            let max_value = if max_order_u8 >= 64 {
+                u64::MAX
+            } else {
+                (1u64 << max_order_u8) - 1
+            };
+            
+            if u64::from(output.amount) > max_value {
+                return Err(Status::invalid_argument(format!(
+                    "Output amount {} exceeds max order {} for keyset",
+                    u64::from(output.amount),
+                    max_value
+                )));
+            }
+        }
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
 
@@ -336,6 +434,14 @@ impl Node for GrpcState {
     ) -> Result<Response<MeltResponse>, Status> {
         let melt_request = melt_request.into_inner();
 
+        if melt_request.inputs.len() > 64 {
+            return Err(Status::invalid_argument("Too many inputs: maximum allowed is 64"));
+        }
+
+        if melt_request.inputs.is_empty() {
+            return Err(Status::invalid_argument("Inputs cannot be empty"));
+        }
+
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
         let unit = Unit::from_str(&melt_request.unit).map_err(ParseGrpcError::Unit)?;
         let melt_payment_request: MeltPaymentRequest =
@@ -354,6 +460,33 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let mut conn = match self.pg_pool.acquire().await {
+            Ok(conn) => conn,
+            Err(e) => return Err(Status::internal(e.to_string())),
+        };
+
+        for input in &inputs {
+            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &input.keyset_id).await {
+                Ok(info) => info,
+                Err(e) => return Err(Status::internal(e.to_string())),
+            };
+            
+            let max_order_u8 = keyset_info.max_order();
+            let max_value = if max_order_u8 >= 64 {
+                u64::MAX
+            } else {
+                (1u64 << max_order_u8) - 1
+            };
+            
+            if u64::from(input.amount) > max_value {
+                return Err(Status::invalid_argument(format!(
+                    "Input amount {} exceeds max order {} for keyset",
+                    u64::from(input.amount),
+                    max_value
+                )));
+            }
+        }
 
         let response = self
             .inner_melt(method, unit, melt_payment_request, &inputs)
