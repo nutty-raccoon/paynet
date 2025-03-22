@@ -1,11 +1,12 @@
 pub mod db;
+pub mod errors;
 mod outputs;
 pub mod types;
 
 use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
 
-use anyhow::{Result, anyhow};
+use errors::{Error, Result};
 use futures::StreamExt;
 use node::{
     GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest,
@@ -97,7 +98,7 @@ pub async fn get_mint_quote_state(
 
     db::set_mint_quote_state(db_conn, response.quote, response.state)?;
 
-    Ok(MintQuoteState::try_from(response.state)?)
+    MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
 }
 
 pub async fn mint(
@@ -205,7 +206,7 @@ pub fn get_active_keyset_for_unit(
     unit: &str,
 ) -> Result<KeysetId> {
     let keyset_id = db::fetch_one_active_keyset_id_for_node_and_unit(db_conn, node_id, unit)?
-        .ok_or(anyhow!("not matching keyset"))?;
+        .ok_or(Error::NoMatchingKeyset)?;
 
     let keyset_id = KeysetId::from_bytes(&keyset_id)?;
 
@@ -410,7 +411,7 @@ pub async fn fetch_inputs_from_db_or_node(
                 Ok(nut00::Proof {
                     amount: amount.into(),
                     keyset_id: KeysetId::from_bytes(&keyset_id)?,
-                    secret: Secret::new(secret),
+                    secret: Secret::new(secret)?,
                     c: PublicKey::from_slice(&unblinded_signature)?,
                 })
             },
@@ -434,7 +435,7 @@ pub async fn swap_to_have_target_amount(
 
     let input_unblind_signature =
         db::proof::get_proof_and_set_state_pending(db_conn, proof_to_swap.0)?
-            .ok_or(anyhow!("proof not available anymore"))?;
+            .ok_or(Error::ProofNotAvailable)?;
 
     let pre_mints = PreMint::generate_for_amount(
         Amount::from(proof_to_swap.1),
@@ -519,7 +520,7 @@ pub async fn receive_wad(
         let entry = unit_to_amount.entry(unit).or_insert(Amount::ZERO);
         *entry = entry
             .checked_add(&proof.amount)
-            .ok_or(anyhow!("amount overflow"))?;
+            .ok_or(Error::AmountOverflow)?;
     }
 
     let inputs = convert_inputs(proofs);

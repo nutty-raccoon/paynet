@@ -119,6 +119,8 @@ enum ParseGrpcError {
     Uuid(uuid::Error),
     #[error(transparent)]
     MeltPayment(serde_json::Error),
+    #[error(transparent)]
+    Secret(nuts::nut00::secret::Error),
 }
 
 impl From<ParseGrpcError> for Status {
@@ -238,7 +240,7 @@ impl Node for GrpcState {
                     amount: p.amount.into(),
                     keyset_id: KeysetId::from_bytes(&p.keyset_id)
                         .map_err(ParseGrpcError::KeysetId)?,
-                    secret: Secret::new(p.secret),
+                    secret: Secret::new(p.secret).map_err(ParseGrpcError::Secret)?,
                     c: PublicKey::from_slice(&p.unblind_signature)
                         .map_err(ParseGrpcError::PublicKey)?,
                 })
@@ -347,7 +349,7 @@ impl Node for GrpcState {
                     amount: p.amount.into(),
                     keyset_id: KeysetId::from_bytes(&p.keyset_id)
                         .map_err(ParseGrpcError::KeysetId)?,
-                    secret: Secret::new(p.secret),
+                    secret: Secret::new(p.secret).map_err(ParseGrpcError::Secret)?,
                     c: PublicKey::from_slice(&p.unblind_signature)
                         .map_err(ParseGrpcError::PublicKey)?,
                 })
