@@ -37,7 +37,7 @@ starknet-types-core = { workspace = true }
 starknet-payment-indexer = { workspace = true, optional = true }
 
 [features]
-# default = ["indexer"]
+default = ["indexer"]
 indexer = ["dep:starknet-payment-indexer"]
 
 [build-dependencies]

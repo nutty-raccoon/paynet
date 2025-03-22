@@ -168,7 +168,7 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
         std::env::var("SIGNER_URL").map_err(|e| InitializationError::Env("SIGNER_URL", e))?;
     let grpc_ip = std::env::var("GRPC_IP").map_err(|e| InitializationError::Env("GRPC_IP", e))?;
     let grpc_port = std::env::var("GRPC_PORT")
-        .map_err(|e| InitializationError::Env("APIBARA_TOKEN", e))?
+        .map_err(|e| InitializationError::Env("GRPC_PORT", e))?
         .parse()
         .map_err(InitializationError::ParseInt)?;
 
