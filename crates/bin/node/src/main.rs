@@ -3,6 +3,7 @@ use errors::{Error, InitializationError, ServiceError};
 use futures::TryFutureExt;
 use grpc_service::GrpcState;
 use methods::Method;
+use node::KeysetRotationServiceServer;
 use node::NodeServer;
 use nuts::{
     Amount, QuoteTTLConfig, nut04::MintMethodSettings, nut05::MeltMethodSettings,
@@ -22,6 +23,7 @@ mod grpc_service;
 #[cfg(feature = "indexer")]
 mod indexer;
 mod keyset_cache;
+mod keyset_rotation;
 mod logic;
 mod methods;
 mod routes;
@@ -43,7 +45,7 @@ async fn connect_to_db_and_run_migrations(pg_url: &str) -> Result<PgPool, Initia
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
@@ -53,7 +55,6 @@ async fn main() -> Result<(), Error> {
     #[cfg(feature = "indexer")]
     let config = {
         use clap::Parser;
-
         let args = commands::Args::parse();
         args.read_config()?
     };
@@ -106,13 +107,18 @@ async fn main() -> Result<(), Error> {
 
     let addr = format!("{}:{}", env_variables.grpc_ip, env_variables.grpc_port)
         .parse()
-        .unwrap();
+        .map_err(|e| Error::Init(InitializationError::InvalidGrpcAddress(e)))?;
+
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter.set_serving::<NodeServer<GrpcState>>().await;
+
     let tonic_future = tonic::transport::Server::builder()
-        .add_service(NodeServer::new(grpc_service))
+        .add_service(NodeServer::new(grpc_service.clone()))
+        .add_service(KeysetRotationServiceServer::new(grpc_service.clone()))
+        .add_service(health_service)
         .serve(addr)
         .map_err(|e| Error::Service(ServiceError::TonicTransport(e)));
 
-    // Launch indexer task
     #[cfg(feature = "indexer")]
     let indexer_future = {
         let indexer_service = indexer::init_indexer_task(
@@ -125,9 +131,9 @@ async fn main() -> Result<(), Error> {
         indexer::listen_to_indexer(db_conn, indexer_service)
     };
 
-    // Run them forever
     info!("Initialized!");
     info!("Running gRPC server at {}", addr);
+    println!("Running gRPC server at {}", addr);
 
     #[cfg(feature = "indexer")]
     let ((), ()) = try_join!(tonic_future, indexer_future)?;
