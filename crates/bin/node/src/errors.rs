@@ -85,7 +85,7 @@ pub enum InitializationError {
     #[error("Failed to open the SqLite db: {0}")]
     OpenSqlite(#[source] rusqlite::Error),
     #[error("Failed parse the Grpc address")]
-    InvalidGrpcAddress,
+    InvalidGrpcAddress(#[from] std::net::AddrParseError),
     #[error("failed to connect to signer")]
     SignerConnection(tonic::transport::Error),
 }
