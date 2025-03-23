@@ -28,7 +28,7 @@ Make sure the following variables are set **in your terminal** before running th
 # Required to run the node server
 export GRPC_IP="[::0]" 
 export GRPC_PORT=20001
-export PG_URL="pg url" // set your pg url
+export PG_URL="postgres://postgres:password@localhost:5432/node" // set your pg url
 export SIGNER_URL="http://localhost:10000"
 
 # Required to run the signer server

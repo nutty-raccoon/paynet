@@ -442,12 +442,7 @@ impl Node for GrpcState {
             icon_url: Some("http://example.com/icon.png".to_string()),
             urls: Some(vec!["http://example.com".to_string()]),
             motd: Some("Welcome to the node!".to_string()),
-            time: Some(
-                std::time::UNIX_EPOCH
-                    .elapsed()
-                    .map(|d| d.as_secs())
-                    .map_err(|e| Status::internal(e.to_string()))?,
-            ),
+            time: Some(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs()),
         };
 
         let node_info_str =

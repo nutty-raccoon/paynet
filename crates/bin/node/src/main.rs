@@ -107,7 +107,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let addr = format!("{}:{}", env_variables.grpc_ip, env_variables.grpc_port)
         .parse()
-        .map_err(|e| Error::Init(InitializationError::InvalidGrpcAddress(e)))?;
+        .map_err(|_| Error::Init(InitializationError::InvalidGrpcAddress))?;
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter.set_serving::<NodeServer<GrpcState>>().await;
