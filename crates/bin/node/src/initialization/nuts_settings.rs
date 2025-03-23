@@ -1,4 +1,4 @@
-use nuts::{Amount, nut04::MintMethodSettings, nut05::MeltMethodSettings, nut06::NutsSettings};
+use nuts::{nut04::MintMethodSettings, nut05::MeltMethodSettings, nut06::NutsSettings, Amount};
 use starknet_types::Unit;
 
 use crate::methods::Method;
@@ -24,6 +24,10 @@ pub(super) fn nuts_settings() -> NutsSettings<Method, Unit> {
                 max_amount: None,
             }],
             disabled: false,
+        },
+        nut19: nuts::nut19::Settings {
+            ttl: None,
+            cached_endpoints: vec![],
         },
     }
 }

@@ -1,23 +1,27 @@
-use crate::{Error, keyset_cache::CachedKeysetInfo, liquidity_sources::LiquiditySources};
-use std::{str::FromStr, sync::Arc};
-
+use crate::{
+    Error,
+    keyset_cache::CachedKeysetInfo,
+    liquidity_sources::LiquiditySources,
+    response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
+};
 use node::{
     BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
     GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest,
     MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
     SwapRequest, SwapResponse,
 };
-
 use nuts::{
     Amount, QuoteTTLConfig,
     nut00::{BlindedMessage, Proof, secret::Secret},
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
+    nut19::{HttpMethod, Path},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
 use starknet_types::Unit;
+use std::{fmt::Display, str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
@@ -38,6 +42,7 @@ pub struct GrpcState {
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     pub liquidity_sources: LiquiditySources,
     // TODO: add a cache for the mint_quote and melt routes
+    pub response_cache: Arc<InMemResponseCache<String, CachedResponse>>,
 }
 
 impl GrpcState {
@@ -55,7 +60,21 @@ impl GrpcState {
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
             liquidity_sources,
+            response_cache: Arc::new(InMemResponseCache::new(None)),
         }
+    }
+
+    pub async fn should_cache_endpoint<M: nuts::traits::Method + Display + FromStr>(
+        &self,
+        method: HttpMethod,
+        path: Path<M>,
+    ) -> bool {
+        let nuts_settings = self.nuts.read().await;
+
+        let nut19_settings = &nuts_settings.nut19;
+        nut19_settings.cached_endpoints.iter().any(|endpoint| {
+            endpoint.method == method && endpoint.path.to_string() == path.to_string()
+        })
     }
 
     pub async fn init_first_keysets(
@@ -333,7 +352,22 @@ impl Node for GrpcState {
         }
 
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
+
         let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
+        let cache_key = format!("{:?}{}", method, quote_id);
+        let use_cache = self
+            .should_cache_endpoint(HttpMethod::Post, Path::Mint(method))
+            .await;
+
+        if use_cache {
+            // Try to get from cache first
+            if let Some(CachedResponse::Mint(mint_response)) =
+                self.response_cache.clone().get(&cache_key)
+            {
+                return Ok(Response::new(mint_response));
+            }
+        }
+
         let outputs = mint_request
             .outputs
             .into_iter()
@@ -349,17 +383,29 @@ impl Node for GrpcState {
             .collect::<Result<Vec<_>, _>>()?;
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
+        let signatures = promises
+            .iter()
+            .map(|p| BlindSignature {
+                amount: p.amount.into(),
+                keyset_id: p.keyset_id.to_bytes().to_vec(),
+                blind_signature: p.c.to_bytes().to_vec(),
+            })
+            .collect::<Vec<_>>();
 
-        Ok(Response::new(MintResponse {
-            signatures: promises
-                .iter()
-                .map(|p| BlindSignature {
-                    amount: p.amount.into(),
-                    keyset_id: p.keyset_id.to_bytes().to_vec(),
-                    blind_signature: p.c.to_bytes().to_vec(),
-                })
-                .collect(),
-        }))
+        // Store in cache if needed
+        if use_cache {
+            self.response_cache
+                .clone()
+                .insert(
+                    cache_key,
+                    CachedResponse::Mint(MintResponse {
+                        signatures: signatures.clone(),
+                    }),
+                )
+                .map_err(|e| Status::internal(e.to_string()))?;
+        }
+
+        Ok(Response::new(MintResponse { signatures }))
     }
 
     async fn melt(
