@@ -99,7 +99,7 @@ pub struct PaymentEvent {
     pub tx_hash: Felt,
     pub event_idx: u64,
     pub asset: Felt,
-    pub invoice_id: u128,
+    pub invoice_id: StarknetU256,
     pub amount: StarknetU256,
 }
 
@@ -162,11 +162,18 @@ impl futures::Stream for ApibaraIndexerService {
                                     tx_hash: Felt::from_hex_unchecked(&tx_hash),
                                     event_idx: payment_event.index,
                                     asset: Felt::from_hex_unchecked(&payment_event.asset),
-                                    invoice_id: u128::from_str_radix(
-                                        &payment_event.invoice_id[2..],
-                                        16,
-                                    )
-                                    .unwrap(),
+                                    invoice_id: StarknetU256::from_parts(
+                                        u128::from_str_radix(
+                                            &payment_event.invoice_id_low[2..],
+                                            16,
+                                        )
+                                        .unwrap(),
+                                        u128::from_str_radix(
+                                            &payment_event.invoice_id_high[2..],
+                                            16,
+                                        )
+                                        .unwrap(),
+                                    ),
                                     amount: StarknetU256::from_parts(
                                         u128::from_str_radix(&payment_event.amount_low[2..], 16)
                                             .unwrap(),

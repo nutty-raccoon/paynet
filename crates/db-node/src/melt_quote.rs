@@ -27,7 +27,7 @@ pub async fn insert_new<U: Unit>(
         OffsetDateTime::from_unix_timestamp(expiry).map_err(|_| Error::RuntimeToDbConversion)?;
 
     sqlx::query!(
-        r#"INSERT INTO melt_quote (id, hash, unit, amount, fee, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, $7, 'UNPAID')"#,
+        r#"INSERT INTO melt_quote (id, invoice_id, unit, amount, fee, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, $7, 'UNPAID')"#,
         quote_id,
         quote_hash,
         &unit.to_string(),

@@ -41,11 +41,14 @@ pub mod InvoicePayment {
     /// A deposit was made for `invoice_id`
     #[derive(Debug, Drop, starknet::Event)]
     pub struct Remittance {
+        // Keys
         #[key]
         pub payee: ContractAddress,
         #[key]
         pub asset: ContractAddress,
+        // Data
         pub invoice_id: u256,
+        pub payer: ContractAddress,
         pub amount: u256,
     }
 
@@ -63,7 +66,7 @@ pub mod InvoicePayment {
 
             assert!(erc20_dispatcher.transfer_from(payer, payee, amount));
 
-            self.emit(Remittance { payee, asset, invoice_id, amount });
+            self.emit(Remittance { payee, asset, invoice_id, amount, payer });
         }
     }
 }

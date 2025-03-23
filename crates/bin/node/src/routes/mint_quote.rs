@@ -104,6 +104,7 @@ async fn new_starknet_mint_quote(
 ) -> Result<MintQuoteResponse<Uuid>, Error> {
     let expiry = unix_time() + mint_ttl;
     let quote = Uuid::new_v4();
+    let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
 
     let request = {
         let asset = unit.asset();
@@ -126,11 +127,20 @@ async fn new_starknet_mint_quote(
     };
 
     let mut conn = pool.acquire().await?;
-    db_node::mint_quote::insert_new(&mut conn, quote, unit, amount, &request, expiry)
-        .await
-        .map_err(Error::Db)?;
+    db_node::mint_quote::insert_new(
+        &mut conn,
+        quote,
+        quote_hash.as_byte_array(),
+        unit,
+        amount,
+        &request,
+        expiry,
+    )
+    .await
+    .map_err(Error::Db)?;
 
     let state = {
+        // If running with no backend, we immediatly set the state to paid
         #[cfg(not(feature = "starknet"))]
         {
             use futures::TryFutureExt;

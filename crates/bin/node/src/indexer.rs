@@ -63,7 +63,7 @@ async fn process_payment_event(
     for payment_event in payment_events {
         let quote_id = match db_node::mint_quote::get_quote_id_by_invoice_id(
             db_conn,
-            payment_event.invoice_id.to_string(),
+            &payment_event.invoice_id.to_bytes_be(),
         )
         .await?
         {
@@ -71,25 +71,27 @@ async fn process_payment_event(
             Some(mint_quote_id) => mint_quote_id,
         };
         db_node::payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-        let current_paid =
-            db_node::payment_event::get_current_paid(db_conn, payment_event.invoice_id.to_string())
-                .await?
-                .map(|(low, high)| -> Result<primitive_types::U256, Error> {
-                    let amount_as_strk_256 = StarknetU256 {
-                        low: Felt::from_str(&low).map_err(|e| ServiceError::Indexer(e.into()))?,
-                        high: Felt::from_str(&high).map_err(|e| ServiceError::Indexer(e.into()))?,
-                    };
+        let current_paid = db_node::payment_event::get_current_paid(
+            db_conn,
+            &payment_event.invoice_id.to_bytes_be(),
+        )
+        .await?
+        .map(|(low, high)| -> Result<primitive_types::U256, Error> {
+            let amount_as_strk_256 = StarknetU256 {
+                low: Felt::from_str(&low).map_err(|e| ServiceError::Indexer(e.into()))?,
+                high: Felt::from_str(&high).map_err(|e| ServiceError::Indexer(e.into()))?,
+            };
 
-                    Ok(primitive_types::U256::from(amount_as_strk_256))
-                })
-                .try_fold(primitive_types::U256::zero(), |acc, a| match a {
-                    Ok(v) => v.checked_add(acc).ok_or(Error::Overflow),
-                    Err(e) => Err(e),
-                })?;
+            Ok(primitive_types::U256::from(amount_as_strk_256))
+        })
+        .try_fold(primitive_types::U256::zero(), |acc, a| match a {
+            Ok(v) => v.checked_add(acc).ok_or(Error::Overflow),
+            Err(e) => Err(e),
+        })?;
 
         let quote_expected_amount = db_node::mint_quote::get_amount_from_invoice_id(
             db_conn,
-            payment_event.invoice_id.to_string(),
+            &payment_event.invoice_id.to_bytes_be(),
         )
         .await?;
 

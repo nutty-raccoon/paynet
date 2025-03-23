@@ -95,6 +95,14 @@ impl StarknetU256 {
             high: Felt::from(high),
         }
     }
+
+    pub fn to_bytes_be(&self) -> [u8; 32] {
+        let mut ret = self.low.to_bytes_be();
+
+        ret[0..16].copy_from_slice(&self.high.to_bytes_be()[16..32]);
+
+        ret
+    }
 }
 
 impl core::fmt::Display for StarknetU256 {

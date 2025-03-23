@@ -6,7 +6,8 @@ pub struct PaymentEvent {
     pub index: u64,
     pub payee: String,
     pub asset: String,
-    pub invoice_id: String,
+    pub invoice_id_low: String,
+    pub invoice_id_high: String,
     pub payer: String,
     pub amount_low: String,
     pub amount_high: String,
@@ -52,25 +53,30 @@ impl TryFrom<&apibara_core::starknet::v1alpha2::Event> for PaymentEvent {
                 .ok_or(TryPaymentEventFromApibaraEvent::Key(2))?
                 .to_string(),
             #[allow(clippy::get_first)]
-            invoice_id: value
+            invoice_id_low: value
                 .data
                 .get(0)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(0))?
                 .to_string(),
-            payer: value
+            invoice_id_high: value
                 .data
                 .get(1)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(1))?
                 .to_string(),
-            amount_low: value
+            payer: value
                 .data
                 .get(2)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(2))?
                 .to_string(),
-            amount_high: value
+            amount_low: value
                 .data
                 .get(3)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(3))?
+                .to_string(),
+            amount_high: value
+                .data
+                .get(4)
+                .ok_or(TryPaymentEventFromApibaraEvent::Data(4))?
                 .to_string(),
         })
     }
@@ -135,7 +141,8 @@ pub fn insert_payment_event(
             &payment_event.index,
             &payment_event.payee,
             &payment_event.asset,
-            &payment_event.invoice_id,
+            &payment_event.invoice_id_low,
+            &payment_event.invoice_id_high,
             &payment_event.payer,
             &payment_event.amount_low,
             &payment_event.amount_high,

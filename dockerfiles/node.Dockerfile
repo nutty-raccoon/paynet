@@ -7,7 +7,7 @@ COPY ./crates/ ./crates/
 COPY ./proto/ ./proto/
 COPY ./.sqlx/ ./.sqlx/
 
-RUN cargo build --release -p node --no-default-features
+RUN cargo build --release -p node
 
 #------------
 

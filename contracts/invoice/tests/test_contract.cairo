@@ -113,6 +113,7 @@ fn it_works() {
                             asset: erc20_abi.contract_address,
                             invoice_id: id_hash,
                             amount: AMOUNT,
+                            payer: SENDER(),
                         },
                     ),
                 ),

@@ -90,12 +90,18 @@ async fn main() -> Result<(), anyhow::Error> {
     let signer_client = signer::SignerClient::connect(env_variables.signer_url)
         .await
         .map_err(InitializationError::SignerConnection)?;
+    info!("Connected to signer server.");
 
     #[cfg(feature = "starknet")]
-    let starknet_cashier =
-        starknet_cashier::StarknetCashierClient::connect(env_variables.cashier_url)
-            .await
-            .map_err(InitializationError::SignerConnection)?;
+    let starknet_cashier = {
+        let starknet_cashier =
+            starknet_cashier::StarknetCashierClient::connect(env_variables.cashier_url)
+                .await
+                .map_err(InitializationError::SignerConnection)?;
+        info!("Connected to starknet cashier server.");
+
+        starknet_cashier
+    };
 
     // Launch tonic server task
     let grpc_service = GrpcState::new(
@@ -137,7 +143,10 @@ async fn main() -> Result<(), anyhow::Error> {
         )
         .await?;
         let db_conn = pg_pool.acquire().await?;
-        indexer::listen_to_indexer(db_conn, indexer_service)
+        let indexer_future = indexer::listen_to_indexer(db_conn, indexer_service);
+        info!("Listening to starknet indexer!");
+
+        indexer_future
     };
 
     info!("Initialized!");
