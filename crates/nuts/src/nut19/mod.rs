@@ -60,15 +60,11 @@ pub const V1_MELT: &str = "/v1/melt/";
 
 impl<M: Display> Display for Path<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Path::Mint(m) => format!("{}{}", V1_MINT, m),
-                Path::Melt(m) => format!("{}{}", V1_MELT, m),
-                Path::Swap => V1_SWAP.to_string(),
-            }
-        )
+        write!(f, "{}", match self {
+            Path::Mint(m) => format!("{}{}", V1_MINT, m),
+            Path::Melt(m) => format!("{}{}", V1_MELT, m),
+            Path::Swap => V1_SWAP.to_string(),
+        })
     }
 }
 
