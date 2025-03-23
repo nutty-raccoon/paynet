@@ -8,12 +8,12 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  ROOT_KEY: "tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
-  SOCKET_PORT: "10001"
+  ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+  SOCKET_PORT: 10001
   GRPC_IP: "[::0]"
-  GRPC_PORT: "20001"
-  SIGNER_URL: "https://localhost:10001"
-  PG_URL: postgres://postgres:password@db/node"
+  GRPC_PORT: 20001
+  SIGNER_URL: https://localhost:10001
+  PG_URL: postgres://postgres:password@localhost:5432/node
 
 jobs:
   build:
