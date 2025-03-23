@@ -82,9 +82,11 @@ jobs:
           cargo run --release --bin signer &
           SIGNER_RUN_PID=$!
           while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
-          cargo run --release --bin node --no-default-features -- --config ./crates/bin/node/config/local.toml &
+          cargo run -p node --no-default-features --release --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
           while ! echo exit | nc localhost $GRPC_PORT; do sleep 1; done
           cargo test -p node-tests
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID
+
+ 
