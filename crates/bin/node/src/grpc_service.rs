@@ -1,5 +1,9 @@
-use crate::{Error, keyset_cache::CachedKeysetInfo};
-use std::{str::FromStr, sync::Arc};
+use crate::{
+    Error,
+    keyset_cache::CachedKeysetInfo,
+    response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
+};
+use std::{fmt::Display, str::FromStr, sync::Arc};
 
 use node::{
     BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
@@ -13,6 +17,7 @@ use nuts::{
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
+    nut19::{HttpMethod, Path},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
@@ -36,6 +41,7 @@ pub struct GrpcState {
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     // TODO: add a cache for the mint_quote and melt routes
+    pub response_cache: Arc<InMemResponseCache<String, CachedResponse>>,
 }
 
 impl GrpcState {
@@ -51,7 +57,21 @@ impl GrpcState {
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
+            response_cache: Arc::new(InMemResponseCache::new(None)),
         }
+    }
+
+    pub async fn should_cache_endpoint<M: nuts::traits::Method + Display + FromStr>(
+        &self,
+        method: HttpMethod,
+        path: Path<M>,
+    ) -> bool {
+        let nuts_settings = self.nuts.read().await;
+
+        let nut19_settings = &nuts_settings.nut19;
+        nut19_settings.cached_endpoints.iter().any(|endpoint| {
+            endpoint.method == method && endpoint.path.to_string() == path.to_string()
+        })
     }
 
     pub async fn init_first_keysets(
@@ -301,6 +321,7 @@ impl Node for GrpcState {
         let mint_request = mint_request.into_inner();
 
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
+
         let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
         let outputs = mint_request
             .outputs
@@ -316,18 +337,44 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let promises = self.inner_mint(method, quote_id, &outputs).await?;
+        let cache_key = format!("{:?}{}", method, quote_id);
+        let use_cache = self
+            .should_cache_endpoint(HttpMethod::Post, Path::Mint(method.clone()))
+            .await;
 
-        Ok(Response::new(MintResponse {
-            signatures: promises
-                .iter()
-                .map(|p| BlindSignature {
-                    amount: p.amount.into(),
-                    keyset_id: p.keyset_id.to_bytes().to_vec(),
-                    blind_signature: p.c.to_bytes().to_vec(),
-                })
-                .collect(),
-        }))
+        if use_cache {
+            // Try to get from cache first
+            if let Some(cached_response) = self.response_cache.clone().get(&cache_key) {
+                if let CachedResponse::Mint(mint_response) = cached_response {
+                    return Ok(Response::new(mint_response));
+                }
+            }
+        }
+
+        let promises = self.inner_mint(method, quote_id, &outputs).await?;
+        let signatures = promises
+            .iter()
+            .map(|p| BlindSignature {
+                amount: p.amount.into(),
+                keyset_id: p.keyset_id.to_bytes().to_vec(),
+                blind_signature: p.c.to_bytes().to_vec(),
+            })
+            .collect::<Vec<_>>();
+
+        // Store in cache if needed
+        if use_cache {
+            self.response_cache
+                .clone()
+                .insert(
+                    cache_key,
+                    CachedResponse::Mint(MintResponse {
+                        signatures: signatures.clone(),
+                    }),
+                )
+                .map_err(|e| Status::internal(e.to_string()))?;
+        }
+
+        Ok(Response::new(MintResponse { signatures }))
     }
 
     async fn melt(

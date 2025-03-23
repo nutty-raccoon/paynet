@@ -12,7 +12,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 parking_lot = { workspace = true, features = ["arc_lock"] }
-serde = { workspace = true, features = ["derive"]}
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
@@ -25,7 +25,7 @@ toml = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tonic = { workspace = true }
 prost = { workspace = true }
-nuts = { workspace = true }
+nuts = { workspace = true, features = ["nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
@@ -34,10 +34,12 @@ rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
 
 starknet-payment-indexer = { workspace = true, optional = true }
+dashmap = { workspace = true }
 
 [features]
 default = ["indexer"]
 indexer = ["dep:starknet-payment-indexer"]
+
 
 [build-dependencies]
 tonic-build = "*"

@@ -24,6 +24,7 @@ mod indexer;
 mod keyset_cache;
 mod logic;
 mod methods;
+mod response_cache;
 mod routes;
 mod utils;
 
@@ -82,6 +83,10 @@ async fn main() -> Result<(), Error> {
                 max_amount: None,
             }],
             disabled: false,
+        },
+        nut19: nuts::nut19::Settings {
+            ttl: None,
+            cached_endpoints: vec![],
         },
     };
 

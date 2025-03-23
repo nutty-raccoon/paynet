@@ -9,7 +9,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 ciborium = { workspace = true }
-bitcoin = { workspace = true, features = ["base64", "rand-std"]}
+bitcoin = { workspace = true, features = ["base64", "rand-std"] }
 num-traits = { workspace = true }
 num-bigint = { workspace = true }
 once_cell = { workspace = true }
