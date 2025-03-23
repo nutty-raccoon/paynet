@@ -22,7 +22,7 @@ mod server_errors;
 mod state;
 
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
-const SOCKET_PORT_ENV_VAR: &str = "SOCKET_PORT";
+const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
 
 const PROOFS_FIELD: &str = "proofs";
 const MESSAGES_FIELD: &str = "messages";
@@ -217,7 +217,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let socket_addr = {
         let socket_port_env_var: String =
-            std::env::var(SOCKET_PORT_ENV_VAR).expect("env var `SOCKET_PORT` should be set");
+            std::env::var(GRPC_PORT_ENV_VAR).expect("env var `GRPC_PORT` should be set");
         format!("[::0]:{}", socket_port_env_var).parse()?
     };
     let root_private_key = {

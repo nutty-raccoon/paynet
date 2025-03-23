@@ -113,7 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .init_first_keysets(&[Unit::Strk], 0, 32)
         .await?;
 
-    let addr = format!("{}:{}", env_variables.grpc_ip, env_variables.grpc_port)
+    let addr = format!("[::0]:{}", env_variables.grpc_port)
         .parse()
         .map_err(|e| Error::Init(InitializationError::InvalidGrpcAddress(e)))?;
 

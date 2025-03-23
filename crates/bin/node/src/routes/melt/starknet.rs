@@ -1,3 +1,4 @@
+use bitcoin_hashes::Sha256;
 use nuts::{
     nut00::Proof,
     nut05::{MeltMethodSettings, MeltQuoteResponse, MeltQuoteState},
@@ -41,7 +42,7 @@ impl GrpcState {
         .await?;
 
         #[cfg(not(feature = "starknet"))]
-        let state = proceed_to_payment(&mut conn, quote_id).await?;
+        let state = proceed_to_payment(&mut conn, quote_id, quote_hash).await?;
         #[cfg(feature = "starknet")]
         let state = proceed_to_payment(
             &mut conn,
@@ -67,6 +68,7 @@ impl GrpcState {
 async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,
+    _quote_hash: Sha256,
 ) -> Result<MeltQuoteState, Error> {
     let new_state = MeltQuoteState::Paid;
 
@@ -78,7 +80,7 @@ async fn proceed_to_payment(
 async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,
-    quote_hash: bitcoin_hashes::Sha256,
+    quote_hash: Sha256,
     melt_payment_request: MeltPaymentRequest,
     amount: nuts::Amount,
     mut starknet_cashier: crate::app_state::StarknetCashierClient,

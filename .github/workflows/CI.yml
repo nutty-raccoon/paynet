@@ -9,10 +9,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
-  SOCKET_PORT: 10001
-  GRPC_IP: "[::0]"
-  GRPC_PORT: 20001
-  SIGNER_URL: https://localhost:10001
+  SIGNER_GRPC_PORT: 10001
+  NODE_GRPC_PORT: 20001
   PG_URL: postgres://postgres:password@localhost:5432/node
 
 jobs:
@@ -73,7 +71,7 @@ jobs:
         run: |
           cargo run --release --bin signer &
           SIGNER_RUN_PID=$!
-          while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
+          while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
           cargo test -p signer-tests
           kill $SIGNER_RUN_PID
 
@@ -81,10 +79,10 @@ jobs:
         run: |
           cargo run --release --bin signer &
           SIGNER_RUN_PID=$!
-          while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
+          while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
           cargo run -p node --no-default-features --release --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
-          while ! echo exit | nc localhost $GRPC_PORT; do sleep 1; done
+          while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
           cargo test -p node-tests
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID

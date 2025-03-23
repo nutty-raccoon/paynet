@@ -4,7 +4,7 @@ use url::Url;
 
 // Environment variable names
 pub const STARKNET_RPC_URL_ENV_VAR: &str = "STARKNET_RPC_URL";
-pub const SOCKET_PORT_ENV_VAR: &str = "SOCKET_PORT";
+pub const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
 pub const SIGNER_PRIVATE_KEY_ENV_VAR: &str = "SIGNER_PRIVATE_KEY";
 pub const ACCOUNT_ADDRESS_ENV_VAR: &str = "ACCOUNT_ADDRESS";
 
@@ -28,8 +28,7 @@ pub fn read_env_variables() -> anyhow::Result<(Url, Felt, Felt, String)> {
     )?;
 
     // Get socket port
-    let socket_port =
-        std::env::var(SOCKET_PORT_ENV_VAR).expect("env var `SOCKET_PORT` should be set");
+    let socket_port = std::env::var(GRPC_PORT_ENV_VAR).expect("env var `GRPC_PORT` should be set");
 
     Ok((rpc_url, private_key, address, socket_port))
 }

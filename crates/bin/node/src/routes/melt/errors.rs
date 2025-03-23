@@ -49,8 +49,8 @@ impl From<Error> for Status {
             | Error::InvalidPaymentRequest(_) => Status::invalid_argument(value.to_string()),
             Error::Inputs(error) => error.into(),
             Error::Db(error) => Status::internal(error.to_string()),
-            #[cfg(feature = "starknet")]
             Error::MeltDisabled => Status::failed_precondition(value.to_string()),
+            #[cfg(feature = "starknet")]
             Error::StarknetCashier(_) => Status::internal(value.to_string()),
         }
     }

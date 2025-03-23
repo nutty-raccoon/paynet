@@ -169,7 +169,6 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
     let pg_url = std::env::var("PG_URL").map_err(|e| InitializationError::Env("PG_URL", e))?;
     let signer_url =
         std::env::var("SIGNER_URL").map_err(|e| InitializationError::Env("SIGNER_URL", e))?;
-    let grpc_ip = std::env::var("GRPC_IP").map_err(|e| InitializationError::Env("GRPC_IP", e))?;
     let grpc_port = std::env::var("GRPC_PORT")
         .map_err(|e| InitializationError::Env("GRPC_PORT", e))?
         .parse()
@@ -182,7 +181,6 @@ pub fn read_env_variables() -> Result<EnvVariables, InitializationError> {
         cashier_url,
         pg_url,
         signer_url,
-        grpc_ip,
         grpc_port,
     })
 }
@@ -195,6 +193,5 @@ pub struct EnvVariables {
     pub cashier_url: String,
     pub pg_url: String,
     pub signer_url: String,
-    pub grpc_ip: String,
     pub grpc_port: u16,
 }
