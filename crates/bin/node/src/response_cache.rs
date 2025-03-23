@@ -79,5 +79,4 @@ pub enum CachedResponse {
     Mint(MintResponse),
     Melt(MeltResponse),
     Swap(SwapResponse),
-    // Other response types
 }
