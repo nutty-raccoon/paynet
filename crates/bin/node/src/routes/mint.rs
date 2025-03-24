@@ -11,6 +11,7 @@ use crate::{
     grpc_service::GrpcState,
     logic::{OutputsError, check_outputs_allow_single_unit, process_outputs},
     methods::Method,
+    utils::unix_time,
 };
 
 #[derive(Debug, Error)]
@@ -32,6 +33,8 @@ pub enum Error {
         "The outputs' total amount {expected} doesn't match the one specified in the quote {received}"
     )]
     OutputsAmount { expected: Amount, received: Amount },
+    #[error("Quote has expired")]
+    QuoteExpired,
 }
 
 impl From<Error> for Status {
@@ -56,9 +59,9 @@ impl From<Error> for Status {
                 }
                 OutputsError::Signer(status) => status,
             },
-            Error::InvalidQuoteStateAtThisPoint(_) | Error::OutputsAmount { .. } => {
-                Status::invalid_argument(value.to_string())
-            }
+            Error::InvalidQuoteStateAtThisPoint(_)
+            | Error::OutputsAmount { .. }
+            | Error::QuoteExpired => Status::invalid_argument(value.to_string()),
         }
     }
 }
@@ -76,8 +79,16 @@ impl GrpcState {
 
         let mut tx = db_node::begin_db_tx(&self.pg_pool).await?;
 
+        let quote_response = db_node::mint_quote::build_response_from_db(&mut tx, quote).await?;
+
         let (expected_amount, state) =
             db_node::mint_quote::get_amount_and_state(&mut tx, quote).await?;
+
+        let current_time = unix_time();
+
+        if current_time > quote_response.expiry {
+            return Err(Error::QuoteExpired);
+        }
 
         if state != MintQuoteState::Paid {
             return Err(Error::InvalidQuoteStateAtThisPoint(state));
