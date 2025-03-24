@@ -4,7 +4,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       # Required by pg_isready
-      - PGUSER=postgres    
+      - PGUSER=postgres
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=node
     ports:
@@ -49,6 +49,9 @@ services:
         condition: service_healthy
       signer:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "20001"]
+      start_period: 3s
 
 volumes:
   database_data:

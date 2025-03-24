@@ -1,6 +1,7 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
-use nuts::{dhke, nut00::CashuError, nut02};
+use nuts::{dhke, nut00::CashuError, nut01, nut02};
 use thiserror::Error;
+use tonic::Status;
 
 use crate::commands::ConfigError;
 
@@ -12,6 +13,8 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Dhke(#[from] dhke::Error),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
     #[error(transparent)]
     Nut02(#[from] nut02::Error),
     #[error(transparent)]
@@ -43,6 +46,12 @@ impl From<Error> for CashuError {
     }
 }
 
+impl From<Error> for Status {
+    fn from(value: Error) -> Self {
+        Status::invalid_argument(value.to_string())
+    }
+}
+
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         (StatusCode::BAD_REQUEST, Json(CashuError::from(self))).into_response()
@@ -62,8 +71,8 @@ pub enum InitializationError {
     #[cfg(debug_assertions)]
     #[error("Failed to load .env file: {0}")]
     Dotenvy(#[source] dotenvy::Error),
-    #[error("Failed to read variable from environment: {0}")]
-    Env(#[source] std::env::VarError),
+    #[error("Failed to read environment variable `{0}`: {1}")]
+    Env(&'static str, #[source] std::env::VarError),
     #[error(transparent)]
     ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)]
@@ -76,7 +85,7 @@ pub enum InitializationError {
     #[error("Failed to open the SqLite db: {0}")]
     OpenSqlite(#[source] rusqlite::Error),
     #[error("Failed parse the Grpc address")]
-    InvalidGrpcAddress,
+    InvalidGrpcAddress(#[from] std::net::AddrParseError),
     #[error("failed to connect to signer")]
     SignerConnection(tonic::transport::Error),
 }

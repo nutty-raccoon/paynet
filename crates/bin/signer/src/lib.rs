@@ -1,5 +1,7 @@
 mod methods;
 pub use methods::Method;
+mod server_errors;
+pub use server_errors::Error;
 
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
 pub use proto::signer::signer_client::SignerClient;

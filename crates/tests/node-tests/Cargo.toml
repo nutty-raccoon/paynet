@@ -1,5 +1,5 @@
 [package]
-name = "signer-tests"
+name = "node-tests"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,19 +10,12 @@ signer = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
 nuts = { workspace = true }
-dotenvy = { workspace = true }
-bitcoin = { workspace = true }
-assert_matches = { workspace = true }
+node = { workspace = true }
 
 [[test]]
-name = "declare_keyset"
-path = "declare_keyset.rs"
+name = "keyset_rotation"
+path = "keyset_rotation.rs"
+
 [[test]]
 name = "health_check"
 path = "health_check.rs"
-[[test]]
-name = "get_root_pubkey"
-path = "get_root_pubkey.rs"
-[[test]]
-name = "sign_blinded_message"
-path = "sign_blinded_message.rs"
