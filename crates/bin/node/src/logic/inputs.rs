@@ -91,12 +91,12 @@ pub async fn process_melt_inputs<'a>(
         } else {
             (1u64 << max_order) - 1
         };
-        
+
         if u64::from(proof.amount) > max_value {
             return Err(Error::AmountExceedsMaxOrder(
                 proof.keyset_id,
                 proof.amount,
-                max_value
+                max_value,
             ));
         }
 
@@ -156,7 +156,7 @@ pub async fn process_swap_inputs<'a>(
         let keyset_info = keyset_cache.get_keyset_info(conn, proof.keyset_id).await?;
 
         let keyset_unit = keyset_info.1;
-    
+
         // Validate amount doesn't exceed max_order
         let max_order = keyset_info.2;
         let max_value = if max_order >= 64 {
@@ -164,15 +164,15 @@ pub async fn process_swap_inputs<'a>(
         } else {
             (1u64 << max_order) - 1
         };
-        
+
         if u64::from(proof.amount) > max_value {
             return Err(Error::AmountExceedsMaxOrder(
                 proof.keyset_id,
                 proof.amount,
-                max_value
+                max_value,
             ));
         }
-        
+
         match amounts_per_unit.iter_mut().find(|(u, _)| *u == keyset_unit) {
             Some((_, a)) => {
                 *a = a

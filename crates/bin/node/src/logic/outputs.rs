@@ -98,7 +98,9 @@ pub async fn check_outputs_allow_multiple_units(
             return Err(Error::DuplicateOutput);
         }
 
-        let keyset_info = keyset_cache.get_keyset_info(conn, blind_message.keyset_id).await?;
+        let keyset_info = keyset_cache
+            .get_keyset_info(conn, blind_message.keyset_id)
+            .await?;
 
         // We only sign with active keysets
         if !keyset_info.0 {
@@ -112,12 +114,12 @@ pub async fn check_outputs_allow_multiple_units(
         } else {
             (1u64 << max_order) - 1
         };
-        
+
         if u64::from(blind_message.amount) > max_value {
             return Err(Error::AmountExceedsMaxOrder(
                 blind_message.keyset_id,
                 blind_message.amount,
-                max_value
+                max_value,
             ));
         }
 

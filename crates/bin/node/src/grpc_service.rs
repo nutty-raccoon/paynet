@@ -233,10 +233,14 @@ impl Node for GrpcState {
         let swap_request = swap_request.into_inner();
 
         if swap_request.inputs.len() > 64 {
-            return Err(Status::invalid_argument("Too many inputs: maximum allowed is 64"));
+            return Err(Status::invalid_argument(
+                "Too many inputs: maximum allowed is 64",
+            ));
         }
         if swap_request.outputs.len() > 64 {
-            return Err(Status::invalid_argument("Too many outputs: maximum allowed is 64"));
+            return Err(Status::invalid_argument(
+                "Too many outputs: maximum allowed is 64",
+            ));
         }
 
         if swap_request.inputs.is_empty() {
@@ -323,7 +327,9 @@ impl Node for GrpcState {
         let mint_request = mint_request.into_inner();
 
         if mint_request.outputs.len() > 64 {
-            return Err(Status::invalid_argument("Too many outputs: maximum allowed is 64"));
+            return Err(Status::invalid_argument(
+                "Too many outputs: maximum allowed is 64",
+            ));
         }
 
         if mint_request.outputs.is_empty() {
@@ -374,7 +380,9 @@ impl Node for GrpcState {
         let melt_request = melt_request.into_inner();
 
         if melt_request.inputs.len() > 64 {
-            return Err(Status::invalid_argument("Too many inputs: maximum allowed is 64"));
+            return Err(Status::invalid_argument(
+                "Too many inputs: maximum allowed is 64",
+            ));
         }
 
         if melt_request.inputs.is_empty() {

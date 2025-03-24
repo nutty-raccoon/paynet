@@ -35,7 +35,11 @@ pub struct CachedKeysetInfo {
 
 impl CachedKeysetInfo {
     pub fn new(active: bool, unit: Unit, max_order: u32) -> Self {
-        Self { active, unit, max_order }
+        Self {
+            active,
+            unit,
+            max_order,
+        }
     }
 }
 
@@ -149,6 +153,10 @@ impl KeysetCache {
             );
         }
 
-        Ok((db_content.active(), db_content.unit(), db_content.max_order().into()))
+        Ok((
+            db_content.active(),
+            db_content.unit(),
+            db_content.max_order().into(),
+        ))
     }
 }

@@ -54,7 +54,7 @@ impl KeysetRotationService for GrpcState {
             insert_keysets_query_builder.add_row(new_keyset_id, &unit, max_order, index);
 
             self.keyset_cache
-                .insert_info(new_keyset_id, CachedKeysetInfo::new(true, unit))
+                .insert_info(new_keyset_id, CachedKeysetInfo::new(true, unit, max_order))
                 .await;
 
             let keys = response

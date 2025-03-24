@@ -124,12 +124,11 @@ pub fn upsert_node_keysets(
     "#;
 
     for keyset in keysets {
-        let id: [u8; 8] = keyset
-            .id
-            .try_into()
-            .map_err(|e: Vec<u8>| rusqlite::Error::ToSqlConversionFailure(
-                format!("Invalid keyset ID length: {}", e.len()).into()
-            ))?;
+        let id: [u8; 8] = keyset.id.try_into().map_err(|e: Vec<u8>| {
+            rusqlite::Error::ToSqlConversionFailure(
+                format!("Invalid keyset ID length: {}", e.len()).into(),
+            )
+        })?;
         conn.execute(
             UPSERT_NODE_KEYSET,
             (id, node_id, keyset.unit, keyset.active),
@@ -143,8 +142,8 @@ pub fn upsert_node_keysets(
     let new_keyset_ids = {
         let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
         stmt.query_map([], |row| row.get(0))?
-        .map(|res| res)
-        .collect::<Result<Vec<_>>>()?
+            .map(|res| res)
+            .collect::<Result<Vec<_>>>()?
     };
 
     conn.execute("DELETE FROM _tmp_inserted", [])?;
