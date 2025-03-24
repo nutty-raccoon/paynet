@@ -6,6 +6,7 @@ use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
 use wallet::types::{NodeUrl, Wad};
+use wallet::types::compact_wad::CompactWad; 
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -78,18 +79,27 @@ enum Commands {
         /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
-
-        /// File where to save the JSON token wad        
+        /// File where to save the JSON token wad
         #[arg(long, short, value_hint(ValueHint::FilePath))]
         output: Option<PathBuf>,
+        /// Optional memo to add context to the wad
+        #[arg(long)]
+        memo: Option<String>,
     },
-    /// Receive a wad of proofs
+    /// Receive a wad of proofs encoded as a compact wad
     Receive {
-        /// Json string of the wad
+        /// Encoded compact wad string
         #[arg(long, short)]
-        wad_as_json: String,
+        wad: String,
+    },
+    /// Decode a compact wad, convert it to a regular wad and print it in pretty JSON
+    DecodeWad {
+        /// The compact wad string to decode
+        #[arg(long, short)]
+        wad: String,
     },
 }
+
 const STARKNET_METHOD: &str = "starknet";
 
 #[tokio::main]
@@ -257,6 +267,7 @@ async fn main() -> Result<()> {
             unit,
             node_id,
             output,
+            memo,
         } => {
             let output: Option<PathBuf> = output
                 .map(|output_path| {
@@ -279,10 +290,20 @@ async fn main() -> Result<()> {
             let opt_proofs =
                 wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
                     .await?;
+            tx.commit()?;
 
-            let wad = opt_proofs
-                .map(|proofs| Wad { node_url, proofs })
-                .ok_or(anyhow!("Not enough funds"))?;
+            // Ensure we have enough funds
+            let proofs = opt_proofs.ok_or(anyhow!("Not enough funds"))?;
+
+            // Create the CompactWad instead of a regular Wad.
+            // (Assuming here that the proofs you got are already in the proper format for the CompactWad.
+            // If not, you would need to convert/group them into Vec<CompactKeysetProofs>.)
+            let compact_wad = CompactWad {
+                node_url: node_url.clone(),
+                unit: unit.clone(),
+                memo: memo.clone(),
+                proofs, 
+            };
 
             match output {
                 Some(output_path) => {
@@ -290,31 +311,51 @@ async fn main() -> Result<()> {
                         .as_path()
                         .to_str()
                         .ok_or_else(|| anyhow!("invalid db path"))?;
-                    fs::write(&output_path, serde_json::to_string_pretty(&wad)?)
+                    // Write the compact wad (encoded via its Display impl)
+                    fs::write(&output_path, compact_wad.to_string())
                         .map_err(|e| anyhow!("could not write to file {}: {}", path_str, e))?;
-                    println!("Wad saved to {:?}", path_str);
+                    println!("Compact wad saved to {:?}", path_str);
                 }
                 None => {
-                    println!("Wad:\n{}", serde_json::to_string(&wad)?);
+                    println!("Compact wad:\n{}", compact_wad);
                 }
             }
-            tx.commit()?;
         }
-        Commands::Receive { wad_as_json } => {
-            let wad: Wad = serde_json::from_str(&wad_as_json)?;
+        Commands::Receive { wad } => {
+            // Instead of using serde_json, parse the input using CompactWad's FromStr implementation.
+            let compact_wad = CompactWad::from_str(&wad)
+                .map_err(|e| anyhow!("failed to decode compact wad: {}", e))?;
+            println!("Receiving tokens on node `{}`", compact_wad.node_url);
 
-            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
-            println!("Receiving tokens on node `{}`", node_id);
+            // Convert the compact wad into a regular wad by extracting its proofs.
+            let regular_wad = Wad {
+                node_url: compact_wad.node_url.clone(),
+                proofs: compact_wad.proofs(), // using the helper method to convert
+            };
 
             let tx = db_conn.transaction()?;
             let amounts_received_per_unit =
-                wallet::receive_wad(&tx, &mut node_client, node_id, &wad.proofs).await?;
+                wallet::receive_wad(&tx, &mut node_client, wallet::db::get_node_id(&db_conn, &compact_wad.node_url)?, &regular_wad.proofs)
+                    .await?;
             tx.commit()?;
 
             println!("Received:");
             for (unit, amount) in amounts_received_per_unit {
                 println!("{} {}", amount, unit);
             }
+        }
+        Commands::DecodeWad { wad } => {
+            // Decode the compact wad and convert to a regular wad for pretty-printing.
+            let compact_wad = CompactWad::from_str(&wad)
+                .map_err(|e| anyhow!("failed to decode compact wad: {}", e))?;
+            let regular_wad = Wad {
+                node_url: compact_wad.node_url,
+                proofs: compact_wad.proofs(),
+            };
+            println!(
+                "Decoded wad:\n{}",
+                serde_json::to_string_pretty(&regular_wad)?
+            );
         }
     }
 
