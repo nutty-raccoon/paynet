@@ -60,11 +60,11 @@ pub async fn check_outputs_allow_single_unit(
             .await?;
 
         // We only sign with active keysets
-        if !keyset_info.0 {
+        if !keyset_info.active() {
             return Err(Error::InactiveKeyset(blind_message.keyset_id));
         }
 
-        match (unit, keyset_info.1) {
+        match (unit, keyset_info.unit()) {
             (None, u) => unit = Some(u),
             (Some(unit), u) if u != unit => return Err(Error::MultipleUnits),
             _ => {}
@@ -103,12 +103,12 @@ pub async fn check_outputs_allow_multiple_units(
             .await?;
 
         // We only sign with active keysets
-        if !keyset_info.0 {
+        if !keyset_info.active() {
             return Err(Error::InactiveKeyset(blind_message.keyset_id));
         }
 
         // Validate amount doesn't exceed max_order
-        let max_order = keyset_info.2;
+        let max_order = keyset_info.max_order();
         let max_value = if max_order >= 64 {
             u64::MAX
         } else {
@@ -124,7 +124,7 @@ pub async fn check_outputs_allow_multiple_units(
         }
 
         // Incement total amount
-        let keyset_unit = keyset_info.1;
+        let keyset_unit = keyset_info.unit();
         match total_amounts.iter_mut().find(|(u, _)| *u == keyset_unit) {
             Some((_, a)) => {
                 *a = a

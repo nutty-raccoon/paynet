@@ -85,7 +85,7 @@ pub async fn process_melt_inputs<'a>(
             .map_err(Error::KeysetCache)?;
 
         // Validate amount doesn't exceed max_order
-        let max_order = keyset_info.2;
+        let max_order = keyset_info.max_order();
         let max_value = if max_order >= 64 {
             u64::MAX
         } else {
@@ -101,7 +101,7 @@ pub async fn process_melt_inputs<'a>(
         }
 
         // Check all units are the same
-        let unit = keyset_info.1;
+        let unit = keyset_info.unit();
         match common_unit {
             Some(u) => {
                 if u != unit {
@@ -155,10 +155,10 @@ pub async fn process_swap_inputs<'a>(
 
         let keyset_info = keyset_cache.get_keyset_info(conn, proof.keyset_id).await?;
 
-        let keyset_unit = keyset_info.1;
-
+        let keyset_unit = keyset_info.unit();
+        
         // Validate amount doesn't exceed max_order
-        let max_order = keyset_info.2;
+        let max_order = keyset_info.max_order();
         let max_value = if max_order >= 64 {
             u64::MAX
         } else {
