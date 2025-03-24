@@ -1,4 +1,4 @@
-use bitcoin::{bip32::Xpriv, key};
+use bitcoin::bip32::Xpriv;
 use nuts::{
     Amount,
     dhke::{sign_message, verify_message},

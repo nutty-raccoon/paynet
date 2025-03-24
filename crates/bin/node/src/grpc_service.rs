@@ -7,6 +7,7 @@ use node::{
     MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
     SwapRequest, SwapResponse,
 };
+
 use nuts::{
     Amount, QuoteTTLConfig,
     nut00::{BlindedMessage, Proof, secret::Secret},
@@ -28,7 +29,7 @@ use crate::{
     methods::Method,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GrpcState {
     pub pg_pool: PgPool,
     pub signer: SignerClient,
@@ -80,20 +81,20 @@ impl GrpcState {
             self.keyset_cache
                 .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit, max_order))
                 .await;
+
+            let keys = response
+                .keys
+                .into_iter()
+                .map(|k| -> Result<(Amount, PublicKey), Error> {
+                    Ok((
+                        Amount::from(k.amount),
+                        PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
             self.keyset_cache
-                .insert_keys(
-                    keyset_id,
-                    response
-                        .keys
-                        .into_iter()
-                        .map(|k| {
-                            (
-                                Amount::from(k.amount),
-                                PublicKey::from_str(&k.pubkey).unwrap(),
-                            )
-                        })
-                        .collect(),
-                )
+                .insert_keys(keyset_id, keys.into_iter())
                 .await;
         }
 
@@ -477,7 +478,7 @@ impl Node for GrpcState {
             .root_pubkey;
         let node_info = NodeInfo {
             name: Some("Paynet Test Node".to_string()),
-            pubkey: Some(PublicKey::from_str(&pub_key).unwrap()),
+            pubkey: Some(PublicKey::from_str(&pub_key).map_err(Error::Nut01)?),
             version: Some(NodeVersion {
                 name: "some_name".to_string(),
                 version: "0.0.0".to_string(),
