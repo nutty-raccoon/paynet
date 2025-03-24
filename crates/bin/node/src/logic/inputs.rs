@@ -86,11 +86,7 @@ pub async fn process_melt_inputs<'a>(
 
         // Validate amount doesn't exceed max_order
         let max_order = keyset_info.max_order();
-        let max_value = if max_order >= 64 {
-            u64::MAX
-        } else {
-            (1u64 << max_order) - 1
-        };
+        let max_value = (1u64 << max_order) - 1;
 
         if u64::from(proof.amount) > max_value {
             return Err(Error::AmountExceedsMaxOrder(
@@ -159,11 +155,7 @@ pub async fn process_swap_inputs<'a>(
         
         // Validate amount doesn't exceed max_order
         let max_order = keyset_info.max_order();
-        let max_value = if max_order >= 64 {
-            u64::MAX
-        } else {
-            (1u64 << max_order) - 1
-        };
+        let max_value = (1u64 << max_order) - 1;
 
         if u64::from(proof.amount) > max_value {
             return Err(Error::AmountExceedsMaxOrder(
