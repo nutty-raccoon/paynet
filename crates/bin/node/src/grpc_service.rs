@@ -394,7 +394,6 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-
         let response = self
             .inner_melt(method, unit, melt_payment_request, &inputs)
             .await?;
