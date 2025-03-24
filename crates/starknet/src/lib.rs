@@ -214,8 +214,12 @@ mod tests {
 
 pub fn felt_to_short_string(felt: Felt) -> String {
     let bytes = felt.to_bytes_be();
+    let first_char_idx = match bytes.iter().position(|&b| b != 0) {
+        Some(idx) => idx,
+        None => return String::new(),
+    };
 
-    unsafe { String::from_utf8_unchecked(bytes.to_vec()) }
+    unsafe { String::from_utf8_unchecked(bytes[first_char_idx..].to_vec()) }
 }
 
 /// Possible errors for encoding a Cairo short string.

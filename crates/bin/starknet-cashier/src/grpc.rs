@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
 use crate::env_vars::read_env_variables;
-use starknet_types::constants::ONCHAIN_CONSTANTS;
+use starknet_types::constants::ON_CHAIN_CONSTANTS;
 
 const PAY_INVOICE_SELECTOR: Felt =
     Felt::from_hex_unchecked("0x000d5c0f26335ab142eb700850eded4619418b0f6e98c5b92a6347b68d2f2a0c");
@@ -109,7 +109,7 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
             )
         };
 
-        let on_chain_constants = ONCHAIN_CONSTANTS
+        let on_chain_constants = ON_CHAIN_CONSTANTS
             .get(&chain_id)
             .ok_or_else(|| Status::internal("invalid chain id"))?;
 
