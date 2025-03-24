@@ -278,13 +278,6 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut conn = match self.pg_pool.acquire().await {
-            Ok(conn) => conn,
-            Err(e) => return Err(Status::internal(e.to_string())),
-        };
-
-        // Amount validation now happens inside the process_swap_inputs and check_outputs_allow_multiple_units functions
-
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
         Ok(Response::new(SwapResponse {
@@ -352,13 +345,6 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut conn = match self.pg_pool.acquire().await {
-            Ok(conn) => conn,
-            Err(e) => return Err(Status::internal(e.to_string())),
-        };
-
-        // Amount validation now happens inside the check_outputs_allow_multiple_units function
-
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
 
         Ok(Response::new(MintResponse {
@@ -408,12 +394,6 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut conn = match self.pg_pool.acquire().await {
-            Ok(conn) => conn,
-            Err(e) => return Err(Status::internal(e.to_string())),
-        };
-
-        // Amount validation now happens inside the process_melt_inputs function
 
         let response = self
             .inner_melt(method, unit, melt_payment_request, &inputs)
