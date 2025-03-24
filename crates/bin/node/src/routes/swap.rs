@@ -48,7 +48,8 @@ impl From<Error> for Status {
                 | OutputsError::InactiveKeyset(_)
                 | OutputsError::MultipleUnits
                 | OutputsError::TotalAmountTooBig
-                | OutputsError::AlreadySigned => Status::invalid_argument(error.to_string()),
+                | OutputsError::AlreadySigned
+                | OutputsError::AmountExceedsMaxOrder(_, _, _) => Status::invalid_argument(error.to_string()),
                 OutputsError::Db(sqlx::Error::RowNotFound) => Status::not_found(error.to_string()),
                 OutputsError::Db(_) | OutputsError::KeysetCache(_) => {
                     Status::internal(error.to_string())

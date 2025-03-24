@@ -6,7 +6,7 @@ use thiserror::Error;
 use tonic::Status;
 
 use db_node::InsertSpentProofsQueryBuilder;
-use nuts::{Amount, nut00::Proof, nut01::PublicKey};
+use nuts::{Amount, nut00::Proof, nut01::PublicKey, nut02::KeysetId};
 use signer::VerifyProofsRequest;
 use sqlx::PgConnection;
 
@@ -37,6 +37,8 @@ pub enum Error {
     Invalid,
     #[error("Proof already used")]
     Used,
+    #[error("amount exceeds max order for keyset {0}: amount {1} exceeds max value {2}")]
+    AmountExceedsMaxOrder(KeysetId, Amount, u64),
 }
 
 impl From<Error> for Status {
@@ -48,7 +50,8 @@ impl From<Error> for Status {
             | Error::TotalAmountTooBig
             | Error::TotalFeeTooBig
             | Error::Invalid
-            | Error::Used => Status::invalid_argument(value.to_string()),
+            | Error::Used
+            | Error::AmountExceedsMaxOrder(_, _, _) => Status::invalid_argument(value.to_string()),
             Error::Db(sqlx::Error::RowNotFound) => Status::not_found(value.to_string()),
             Error::Db(_) | Error::KeysetCache(_) => Status::internal(value.to_string()),
             Error::Signer(status) => status,
@@ -80,6 +83,22 @@ pub async fn process_melt_inputs<'a>(
             .get_keyset_info(conn, proof.keyset_id)
             .await
             .map_err(Error::KeysetCache)?;
+
+        // Validate amount doesn't exceed max_order
+        let max_order = keyset_info.2;
+        let max_value = if max_order >= 64 {
+            u64::MAX
+        } else {
+            (1u64 << max_order) - 1
+        };
+        
+        if u64::from(proof.amount) > max_value {
+            return Err(Error::AmountExceedsMaxOrder(
+                proof.keyset_id,
+                proof.amount,
+                max_value
+            ));
+        }
 
         // Check all units are the same
         let unit = keyset_info.1;
@@ -137,6 +156,23 @@ pub async fn process_swap_inputs<'a>(
         let keyset_info = keyset_cache.get_keyset_info(conn, proof.keyset_id).await?;
 
         let keyset_unit = keyset_info.1;
+    
+        // Validate amount doesn't exceed max_order
+        let max_order = keyset_info.2;
+        let max_value = if max_order >= 64 {
+            u64::MAX
+        } else {
+            (1u64 << max_order) - 1
+        };
+        
+        if u64::from(proof.amount) > max_value {
+            return Err(Error::AmountExceedsMaxOrder(
+                proof.keyset_id,
+                proof.amount,
+                max_value
+            ));
+        }
+        
         match amounts_per_unit.iter_mut().find(|(u, _)| *u == keyset_unit) {
             Some((_, a)) => {
                 *a = a

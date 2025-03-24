@@ -78,7 +78,7 @@ impl GrpcState {
 
             insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
             self.keyset_cache
-                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit))
+                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit, max_order))
                 .await;
             self.keyset_cache
                 .insert_keys(
@@ -278,49 +278,7 @@ impl Node for GrpcState {
             Err(e) => return Err(Status::internal(e.to_string())),
         };
 
-        for input in &inputs {
-            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &input.keyset_id).await {
-                Ok(info) => info,
-                Err(e) => return Err(Status::internal(e.to_string())),
-            };
-            
-            let max_order_u8 = keyset_info.max_order();
-            let max_value = if max_order_u8 >= 64 {
-                u64::MAX
-            } else {
-                (1u64 << max_order_u8) - 1
-            };
-            
-            if u64::from(input.amount) > max_value {
-                return Err(Status::invalid_argument(format!(
-                    "Input amount {} exceeds max order {} for keyset",
-                    u64::from(input.amount),
-                    max_value
-                )));
-            }
-        }
-
-        for output in &outputs {
-            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &output.keyset_id).await {
-                Ok(info) => info,
-                Err(e) => return Err(Status::internal(e.to_string())),
-            };
-            
-            let max_order_u8 = keyset_info.max_order();
-            let max_value = if max_order_u8 >= 64 {
-                u64::MAX
-            } else {
-                (1u64 << max_order_u8) - 1
-            };
-            
-            if u64::from(output.amount) > max_value {
-                return Err(Status::invalid_argument(format!(
-                    "Output amount {} exceeds max order {} for keyset",
-                    u64::from(output.amount),
-                    max_value
-                )));
-            }
-        }
+        // Amount validation now happens inside the process_swap_inputs and check_outputs_allow_multiple_units functions
 
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
@@ -392,27 +350,7 @@ impl Node for GrpcState {
             Err(e) => return Err(Status::internal(e.to_string())),
         };
 
-        for output in &outputs {
-            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &output.keyset_id).await {
-                Ok(info) => info,
-                Err(e) => return Err(Status::internal(e.to_string())),
-            };
-            
-            let max_order_u8 = keyset_info.max_order();
-            let max_value = if max_order_u8 >= 64 {
-                u64::MAX
-            } else {
-                (1u64 << max_order_u8) - 1
-            };
-            
-            if u64::from(output.amount) > max_value {
-                return Err(Status::invalid_argument(format!(
-                    "Output amount {} exceeds max order {} for keyset",
-                    u64::from(output.amount),
-                    max_value
-                )));
-            }
-        }
+        // Amount validation now happens inside the check_outputs_allow_multiple_units function
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
 
@@ -466,27 +404,7 @@ impl Node for GrpcState {
             Err(e) => return Err(Status::internal(e.to_string())),
         };
 
-        for input in &inputs {
-            let keyset_info = match db_node::keyset::get_keyset::<String>(&mut conn, &input.keyset_id).await {
-                Ok(info) => info,
-                Err(e) => return Err(Status::internal(e.to_string())),
-            };
-            
-            let max_order_u8 = keyset_info.max_order();
-            let max_value = if max_order_u8 >= 64 {
-                u64::MAX
-            } else {
-                (1u64 << max_order_u8) - 1
-            };
-            
-            if u64::from(input.amount) > max_value {
-                return Err(Status::invalid_argument(format!(
-                    "Input amount {} exceeds max order {} for keyset",
-                    u64::from(input.amount),
-                    max_value
-                )));
-            }
-        }
+        // Amount validation now happens inside the process_melt_inputs function
 
         let response = self
             .inner_melt(method, unit, melt_payment_request, &inputs)
