@@ -9,6 +9,8 @@ use tonic_types::{ErrorDetails, FieldViolation, StatusExt};
 
 #[derive(Debug)]
 pub enum Error<'a> {
+    AmountGreaterThanMax(usize, Amount, Amount),
+    AmountNotPowerOfTwo(usize, Amount),
     UnknownUnit(&'a str),
     MaxOrderTooBig(u32),
     CouldNotSignMessage(usize, PublicKey, dhke::Error),
@@ -23,6 +25,24 @@ pub enum Error<'a> {
 impl<'a> From<Error<'a>> for Status {
     fn from(err: Error<'a>) -> Self {
         match err {
+            Error::AmountGreaterThanMax(idx, amount, max_order) => Status::with_error_details(
+                Code::InvalidArgument,
+                "amount is greater than max order",
+                ErrorDetails::with_bad_request(vec![FieldViolation::new(
+                    format!("messages[{idx}].amount"),
+                    format!(
+                        "the provided amount {amount} is greater than the max order: {max_order}"
+                    ),
+                )]),
+            ),
+            Error::AmountNotPowerOfTwo(idx, amount) => Status::with_error_details(
+                Code::InvalidArgument,
+                "amount is not a power of two",
+                ErrorDetails::with_bad_request(vec![FieldViolation::new(
+                    format!("messages[{idx}].amount"),
+                    format!("the provided amount {amount} is not a power of two"),
+                )]),
+            ),
             Error::CouldNotSignMessage(idx, message, error) => Status::with_error_details(
                 Code::InvalidArgument,
                 "failed to sign message",

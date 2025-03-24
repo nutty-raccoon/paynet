@@ -38,6 +38,9 @@ impl signer::Signer for SignerState {
         declare_keyset_request: Request<DeclareKeysetRequest>,
     ) -> Result<Response<DeclareKeysetResponse>, Status> {
         let declare_keyset_request = declare_keyset_request.get_ref();
+        if declare_keyset_request.max_order > 64 {
+            return Err(Error::MaxOrderTooBig(declare_keyset_request.max_order))?;
+        }
 
         let unit = starknet_types::Unit::from_str(&declare_keyset_request.unit)
             .map_err(|_| Error::UnknownUnit(&declare_keyset_request.unit))?;
@@ -84,10 +87,28 @@ impl signer::Signer for SignerState {
         let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
         for (idx, blinded_message) in blinded_messages.into_iter().enumerate() {
+            let amount = Amount::from(blinded_message.amount);
+            if !blinded_message.amount.is_power_of_two() {
+                return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
+            }
             let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id).map_err(|e| {
                 Error::BadKeysetId(MESSAGES_FIELD, idx, &blinded_message.keyset_id, e)
             })?;
-            let amount = Amount::from(blinded_message.amount);
+            let keyset = keyset_cache_read_lock
+                .get(&keyset_id)
+                .ok_or(Error::KeysetNotFound(MESSAGES_FIELD, idx, keyset_id))?;
+            let max_order: u64 = keyset
+                .last_key_value()
+                .map(|(&k, _)| k)
+                .unwrap_or_default()
+                .into();
+            if u64::from(amount) > max_order {
+                return Err(Error::AmountGreaterThanMax(
+                    idx,
+                    amount,
+                    Amount::from(max_order),
+                ))?;
+            }
 
             let key_pair = {
                 let keyset = keyset_cache_read_lock
@@ -123,19 +144,36 @@ impl signer::Signer for SignerState {
             let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
                 .map_err(|e| Error::BadKeysetId(PROOFS_FIELD, idx, &proof.keyset_id, e))?;
             let amount = Amount::from(proof.amount);
-
-            let secret_key = {
+            if !proof.amount.is_power_of_two() {
+                return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
+            }
+            let (secret_key, max_order) = {
                 let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
                 let keyset = keyset_cache_read_lock
                     .get(&keyset_id)
                     .ok_or(Error::KeysetNotFound(PROOFS_FIELD, idx, keyset_id))?;
-                keyset
+                let max_order: u64 = keyset
+                    .last_key_value()
+                    .map(|(&k, _)| k)
+                    .unwrap_or_default()
+                    .into();
+
+                let keyset = keyset
                     .get(&amount)
                     .ok_or(Error::AmountNotFound(PROOFS_FIELD, idx, keyset_id, amount))?
                     .secret_key
-                    .clone()
+                    .clone();
+                (keyset, max_order)
             };
+
+            if u64::from(amount) > max_order {
+                return Err(Error::AmountGreaterThanMax(
+                    idx,
+                    amount,
+                    Amount::from(max_order),
+                ))?;
+            }
 
             let c = PublicKey::from_slice(&proof.unblind_signature)
                 .map_err(|e| Error::InvalidSignature(idx, e))?;

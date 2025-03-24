@@ -131,7 +131,7 @@ async fn amount() -> Result<()> {
 
     assert_matches!(
         res,
-        Err(s) if s.code() == Code::NotFound && s.message() == "amount not found"
+        Err(s) if s.code() == Code::InvalidArgument && s.message() == "amount is not a power of two"
     );
 
     Ok(())

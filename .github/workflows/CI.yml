@@ -2,59 +2,91 @@ name: Rust CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
-  ROOT_KEY: "tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
-  SOCKET_PORT: "10000"
+  ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+  SOCKET_PORT: 10001
+  GRPC_IP: "[::0]"
+  GRPC_PORT: 20001
+  SIGNER_URL: https://localhost:10001
+  PG_URL: postgres://postgres:password@localhost:5432/node
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: node
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install Protoc
-      uses: arduino/setup-protoc@v3
-      with:
-        version: "28.x"
-    
-    - name: Set up Rust cache
-      uses: Swatinem/rust-cache@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
 
-    - name: Build
-      run: |
-       cargo build -p starknet-payment-indexer --all-targets --all-features
-       cargo build -p db-node --all-targets --all-features
-       cargo build -p nuts --all-targets --all-features
-       cargo build -p starknet-types --all-targets --all-features
-       cargo build -p node --all-targets --all-features
-       cargo build -p starknet-payment-indexer-bin --all-targets --all-features
-       cargo build -p signer --all-targets --all-features
-       cargo build -p cli-wallet --all-targets --all-features
-       cargo build -p wallet --all-targets --all-features
-      
-    - name: Run unit tests
-      run: |
-       cargo test -p starknet-payment-indexer --all-targets --all-features
-       cargo test -p db-node --all-targets --all-features
-       cargo test -p nuts --all-targets --all-features
-       cargo test -p starknet-types --all-targets --all-features
-       cargo test -p node --all-targets --all-features
-       cargo test -p starknet-payment-indexer-bin --all-targets --all-features
-       cargo test -p signer --all-targets --all-features
-       cargo test -p cli-wallet --all-targets --all-features
-       cargo test -p wallet --all-targets --all-features
+      - name: Set up Rust cache
+        uses: Swatinem/rust-cache@v2
 
-    - name: Run signer integration tests
-      run: |
-        cargo run --release --bin signer &
-        SIGNER_RUN_PID=$!
-        while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
-        cargo test -p signer-tests
-        kill $SIGNER_RUN_PID
-        
+      - name: Build
+        run: |
+          cargo build -p starknet-payment-indexer --all-targets --all-features
+          cargo build -p db-node --all-targets --all-features
+          cargo build -p nuts --all-targets --all-features
+          cargo build -p starknet-types --all-targets --all-features
+          cargo build -p node --all-targets --all-features
+          cargo build -p starknet-payment-indexer-bin --all-targets --all-features
+          cargo build -p signer --all-targets --all-features
+          cargo build -p cli-wallet --all-targets --all-features
+          cargo build -p wallet --all-targets --all-features
 
+      - name: Run unit tests
+        run: |
+          cargo test -p starknet-payment-indexer --all-targets --all-features
+          cargo test -p db-node --all-targets --all-features
+          cargo test -p nuts --all-targets --all-features
+          cargo test -p starknet-types --all-targets --all-features
+          cargo test -p node --all-targets --all-features
+          cargo test -p starknet-payment-indexer-bin --all-targets --all-features
+          cargo test -p signer --all-targets --all-features
+          cargo test -p cli-wallet --all-targets --all-features
+          cargo test -p wallet --all-targets --all-features
+
+      - name: Run signer integration tests
+        run: |
+          cargo run --release --bin signer &
+          SIGNER_RUN_PID=$!
+          while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
+          cargo test -p signer-tests
+          kill $SIGNER_RUN_PID
+
+      - name: Run node integration tests (with signer)
+        run: |
+          cargo run --release --bin signer &
+          SIGNER_RUN_PID=$!
+          while ! echo exit | nc localhost $SOCKET_PORT; do sleep 1; done
+          cargo run -p node --no-default-features --release --bin node -- --config ./crates/bin/node/config/local.toml &
+          NODE_RUN_PID=$!
+          while ! echo exit | nc localhost $GRPC_PORT; do sleep 1; done
+          cargo test -p node-tests
+          kill $SIGNER_RUN_PID
+          kill $NODE_RUN_PID
+
+ 

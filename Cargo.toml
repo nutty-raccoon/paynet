@@ -1,7 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/bin/node", "crates/bin/indexer", "crates/bin/signer",
+  "crates/bin/node",
+  "crates/bin/indexer",
+  "crates/bin/signer",
   "crates/starknet-payment-indexer",
   "crates/db-node",
   "crates/nuts",
@@ -9,9 +11,12 @@ members = [
   "crates/wallet",
   "crates/bin/cli-wallet",
   "crates/tests/signer-tests",
+  "crates/tests/node-tests",
 ]
 default-members = [
-  "crates/bin/node", "crates/bin/indexer", "crates/bin/signer",
+  "crates/bin/node",
+  "crates/bin/indexer",
+  "crates/bin/signer",
   "crates/starknet-payment-indexer",
   "crates/db-node",
   "crates/nuts",
@@ -55,8 +60,8 @@ rand = "0.8.5"
 starknet-core = "0.12.1"
 futures = "0.3.31"
 anyhow = "1.0.95"
-apibara-core = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b"}
-apibara-sdk = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b"}
+apibara-core = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
+apibara-sdk = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
 rusqlite = "0.32.0"
 primitive-types = "0.13.1"
 rayon = "1.10.0"
@@ -73,14 +78,8 @@ assert_matches = "1.5.0"
 # Local crates
 nuts = { path = "crates/nuts" }
 starknet-types = { path = "crates/starknet" }
-db-node  = { path = "crates/db-node" }
+db-node = { path = "crates/db-node" }
 starknet-payment-indexer = { path = "crates/starknet-payment-indexer" }
 signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
 wallet = { path = "crates/wallet" }
-
-
-
-
-
-
