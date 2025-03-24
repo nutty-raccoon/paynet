@@ -41,15 +41,15 @@ impl CachedKeysetInfo {
             max_order,
         }
     }
-    
+
     pub fn active(&self) -> bool {
         self.active
     }
-    
+
     pub fn unit(&self) -> Unit {
         self.unit
     }
-    
+
     pub fn max_order(&self) -> u32 {
         self.max_order
     }
@@ -158,7 +158,7 @@ impl KeysetCache {
             unit: db_content.unit(),
             max_order: db_content.max_order().into(),
         };
-        
+
         {
             let mut cache_write_lock = self.infos.write().await;
             cache_write_lock.insert(keyset_id, info.clone());

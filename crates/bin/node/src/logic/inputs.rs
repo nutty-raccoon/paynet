@@ -37,7 +37,7 @@ pub enum Error {
     Invalid,
     #[error("Proof already used")]
     Used,
-    #[error("amount exceeds max order for keyset {0}: amount {1} exceeds max value {2}")]
+    #[error("amount {1} exceeds max order {2} of keyset {0}")]
     AmountExceedsMaxOrder(KeysetId, Amount, u64),
 }
 
@@ -152,7 +152,7 @@ pub async fn process_swap_inputs<'a>(
         let keyset_info = keyset_cache.get_keyset_info(conn, proof.keyset_id).await?;
 
         let keyset_unit = keyset_info.unit();
-        
+
         // Validate amount doesn't exceed max_order
         let max_order = keyset_info.max_order();
         let max_value = (1u64 << max_order) - 1;
