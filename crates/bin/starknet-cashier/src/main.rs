@@ -1,4 +1,3 @@
-mod chain_constants;
 mod env_vars;
 mod grpc;
 

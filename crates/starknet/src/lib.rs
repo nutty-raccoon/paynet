@@ -9,6 +9,9 @@ mod unit;
 pub use unit::{Unit, UnitFromStrError};
 mod method;
 pub use method::{Method, MethodFromStrError};
+mod chain_id;
+pub mod constants;
+pub use chain_id::ChainId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -209,10 +212,10 @@ mod tests {
     }
 }
 
-pub fn felt_to_short_string(felt: Felt) -> Result<String, std::string::FromUtf8Error> {
+pub fn felt_to_short_string(felt: Felt) -> String {
     let bytes = felt.to_bytes_be();
 
-    String::from_utf8(bytes.to_vec())
+    unsafe { String::from_utf8_unchecked(bytes.to_vec()) }
 }
 
 /// Possible errors for encoding a Cairo short string.

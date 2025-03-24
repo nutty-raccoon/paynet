@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::errors::{InitializationError, ServiceError};
+use crate::errors::ServiceError;
 use futures::TryStreamExt;
 use nuts::Amount;
 use nuts::nut04::MintQuoteState;
@@ -9,32 +9,12 @@ use starknet_payment_indexer::{ApibaraIndexerService, Message, PaymentEvent};
 use starknet_types::{StarknetU256, Unit::Strk};
 use starknet_types_core::felt::Felt;
 use std::str::FromStr;
-use tracing::info;
 
-pub async fn init_indexer_task(
-    apibara_token: String,
-    strk_token_address: Felt,
-    recipient_address: Felt,
-) -> Result<ApibaraIndexerService, InitializationError> {
-    let conn = rusqlite::Connection::open_in_memory().map_err(InitializationError::OpenSqlite)?;
-
-    let service = starknet_payment_indexer::ApibaraIndexerService::init(
-        conn,
-        apibara_token,
-        vec![(recipient_address, strk_token_address)],
-    )
-    .await
-    .map_err(InitializationError::InitIndexer)?;
-
-    Ok(service)
-}
-
+// TODO: create a struct, impl Future on it
 pub async fn listen_to_indexer(
     mut db_conn: PoolConnection<Postgres>,
     mut indexer_service: ApibaraIndexerService,
 ) -> Result<(), crate::errors::Error> {
-    info!("Listening indexer events");
-
     while let Some(event) = indexer_service
         .try_next()
         .await

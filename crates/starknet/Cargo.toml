@@ -12,5 +12,9 @@ num-traits = { workspace = true }
 num-bigint = { workspace = true }
 num-derive = { workspace = true }
 primitive-types = { workspace = true }
+phf = { workspace = true, features = ["macros"] }
+
+#local deps
+starknet = { workspace = true }
 
 

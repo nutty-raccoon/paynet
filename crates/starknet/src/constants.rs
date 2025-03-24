@@ -1,5 +1,5 @@
 use phf::phf_map;
-use starknet::core::types::Felt;
+use starknet_types_core::felt::Felt;
 
 type AssetsMap = phf::Map<&'static str, Felt>;
 

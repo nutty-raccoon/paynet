@@ -5,6 +5,7 @@ package starknet_cashier;
 
 service StarknetCashier {
     rpc Withdraw (WithdrawRequest) returns (WithdrawResponse);
+    rpc Config (ConfigRequest) returns (ConfigResponse);
 }
 
 message WithdrawRequest {
@@ -16,4 +17,10 @@ message WithdrawRequest {
 
 message WithdrawResponse { 
   bytes tx_hash = 1;
+}
+
+message ConfigRequest {}
+
+message ConfigResponse {
+  string chain_id = 1;
 }

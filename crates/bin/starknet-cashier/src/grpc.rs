@@ -3,14 +3,14 @@ use starknet::core::types::{Call, Felt};
 use starknet::providers::Provider;
 use starknet::providers::jsonrpc::{HttpTransport, JsonRpcClient};
 use starknet::signers::{LocalWallet, SigningKey};
-use starknet_cashier::{WithdrawRequest, WithdrawResponse};
-use starknet_types::Asset;
+use starknet_cashier::{ConfigRequest, ConfigResponse, WithdrawRequest, WithdrawResponse};
+use starknet_types::{Asset, felt_to_short_string};
 use std::str::FromStr;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
-use crate::chain_constants::ONCHAIN_CONSTANTS;
 use crate::env_vars::read_env_variables;
+use starknet_types::constants::ONCHAIN_CONSTANTS;
 
 const PAY_INVOICE_SELECTOR: Felt =
     Felt::from_hex_unchecked("0x000d5c0f26335ab142eb700850eded4619418b0f6e98c5b92a6347b68d2f2a0c");
@@ -81,6 +81,16 @@ impl StarknetCashierState {
 
 #[tonic::async_trait]
 impl starknet_cashier::StarknetCashier for StarknetCashierState {
+    async fn config(
+        &self,
+        _withdraw_request: Request<ConfigRequest>,
+    ) -> Result<Response<ConfigResponse>, Status> {
+        let chain_id = self.account.chain_id();
+        let chain_id = felt_to_short_string(chain_id);
+
+        Ok(Response::new(ConfigResponse { chain_id }))
+    }
+
     async fn withdraw(
         &self,
         withdraw_request: Request<WithdrawRequest>,

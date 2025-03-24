@@ -1,4 +1,3 @@
-use crate::Amount;
 use crate::errors::Error;
 use crate::keyset_cache::CachedKeysetInfo;
 use db_node::keyset::deactivate_keysets;
@@ -8,7 +7,7 @@ use node::{KeysetRotationService, RotateKeysetsRequest, RotateKeysetsResponse};
 use std::str::FromStr;
 use tonic::{Request, Response, Status};
 
-use nuts::{nut01::PublicKey, nut02::KeysetId};
+use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
 use starknet_types::Unit;
 
 use crate::grpc_service;
@@ -51,7 +50,7 @@ impl KeysetRotationService for GrpcState {
             let new_keyset_id = KeysetId::from_bytes(&response.keyset_id)
                 .map_err(|e| Status::internal(e.to_string()))?;
 
-            insert_keysets_query_builder.add_row(new_keyset_id, &unit, max_order, index);
+            insert_keysets_query_builder.add_row(new_keyset_id, unit, max_order, index);
 
             self.keyset_cache
                 .insert_info(new_keyset_id, CachedKeysetInfo::new(true, unit, max_order))
@@ -63,7 +62,7 @@ impl KeysetRotationService for GrpcState {
                 .map(|k| -> Result<(Amount, PublicKey), Error> {
                     Ok((
                         Amount::from(k.amount),
-                        PublicKey::from_str(&k.pubkey).map_err(|e| Error::Nut01(e))?,
+                        PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
                     ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
