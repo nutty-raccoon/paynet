@@ -32,7 +32,7 @@ export PG_URL="postgres://postgres:password@localhost:5432/node" // set your pg 
 export SIGNER_URL="http://localhost:10000"
 
 # Required to run the signer server
-export SOCKET_PORT=10000
+export GRPC_PORT=10000
 export ROOT_KEY="tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH"
 ```
 

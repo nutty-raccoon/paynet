@@ -9,7 +9,7 @@ pub(super) fn nuts_settings() -> NutsSettings<Method, Unit> {
         nut04: nuts::nut04::Settings {
             methods: vec![MintMethodSettings {
                 method: Method::Starknet,
-                unit: Unit::Strk,
+                unit: Unit::MilliStrk,
                 min_amount: Some(Amount::ONE),
                 max_amount: None,
                 description: true,
@@ -19,7 +19,7 @@ pub(super) fn nuts_settings() -> NutsSettings<Method, Unit> {
         nut05: nuts::nut05::Settings {
             methods: vec![MeltMethodSettings {
                 method: Method::Starknet,
-                unit: Unit::Strk,
+                unit: Unit::MilliStrk,
                 min_amount: Some(Amount::ONE),
                 max_amount: None,
             }],

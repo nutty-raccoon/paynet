@@ -14,7 +14,7 @@ num-derive = { workspace = true }
 primitive-types = { workspace = true }
 phf = { workspace = true, features = ["macros"] }
 
-#local deps
+# Local deps
 starknet = { workspace = true }
 
 

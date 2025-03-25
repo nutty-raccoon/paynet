@@ -15,8 +15,8 @@ RUN cargo build --release -p signer
 
 FROM debian:bookworm-slim
 
-COPY --from=builder ./target/release/signer ./
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
+COPY --from=builder ./target/release/signer ./
 
 ENV RUST_LOG=info
 

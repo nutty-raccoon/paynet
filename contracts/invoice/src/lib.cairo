@@ -66,7 +66,7 @@ pub mod InvoicePayment {
 
             assert!(erc20_dispatcher.transfer_from(payer, payee, amount));
 
-            self.emit(Remittance { payee, asset, invoice_id, amount, payer });
+            self.emit(Remittance { payee, asset, invoice_id, payer, amount });
         }
     }
 }

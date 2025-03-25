@@ -47,10 +47,16 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Connected to signer server.");
 
     #[cfg(feature = "starknet")]
-    let starknet_cashier =
-        connect_to_starknet_cashier(env_variables.cashier_url, starknet_config.chain_id.clone())
-            .await?;
-    info!("Connected to starknet cashier server.");
+    let starknet_cashier = {
+        let starknet_cashier = connect_to_starknet_cashier(
+            env_variables.cashier_url,
+            starknet_config.chain_id.clone(),
+        )
+        .await?;
+        info!("Connected to starknet cashier server.");
+
+        starknet_cashier
+    };
 
     // Launch indexer task
     #[cfg(feature = "starknet")]

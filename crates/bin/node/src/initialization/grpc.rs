@@ -46,7 +46,9 @@ pub async fn launch_tonic_server_task(
 
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
 
-    grpc_state.init_first_keysets(&[Unit::Strk], 0, 32).await?;
+    grpc_state
+        .init_first_keysets(&[Unit::MilliStrk], 0, 32)
+        .await?;
     let tonic_future = tonic::transport::Server::builder()
         .add_service(KeysetRotationServiceServer::new(grpc_state.clone()))
         .add_service(NodeServer::new(grpc_state))

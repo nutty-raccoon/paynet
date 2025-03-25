@@ -50,7 +50,6 @@ jobs:
           cargo build -p nuts --all-targets --all-features
           cargo build -p starknet-types --all-targets --all-features
           cargo build -p node --all-targets --all-features
-          cargo build -p starknet-payment-indexer-bin --all-targets --all-features
           cargo build -p signer --all-targets --all-features
           cargo build -p cli-wallet --all-targets --all-features
           cargo build -p wallet --all-targets --all-features
@@ -62,7 +61,6 @@ jobs:
           cargo test -p nuts --all-targets --all-features
           cargo test -p starknet-types --all-targets --all-features
           cargo test -p node --all-targets --all-features
-          cargo test -p starknet-payment-indexer-bin --all-targets --all-features
           cargo test -p signer --all-targets --all-features
           cargo test -p cli-wallet --all-targets --all-features
           cargo test -p wallet --all-targets --all-features

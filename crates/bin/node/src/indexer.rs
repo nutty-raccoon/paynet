@@ -6,7 +6,7 @@ use nuts::nut04::MintQuoteState;
 use sqlx::pool::PoolConnection;
 use sqlx::{PgConnection, Postgres};
 use starknet_payment_indexer::{ApibaraIndexerService, Message, PaymentEvent};
-use starknet_types::{StarknetU256, Unit::Strk};
+use starknet_types::{StarknetU256, Unit::MilliStrk};
 use starknet_types_core::felt::Felt;
 use std::str::FromStr;
 
@@ -77,7 +77,7 @@ async fn process_payment_event(
 
         let current_paid_starknet_u256: StarknetU256 = current_paid.into();
 
-        let current_paid_amount = match Strk.convert_u256_into_amount(current_paid_starknet_u256) {
+        let current_paid_amount = match MilliStrk.convert_u256_into_amount(current_paid_starknet_u256) {
             Ok((amount, _remainder)) => amount,
             Err(e) => return Err(Error::Starknet(e)),
         };

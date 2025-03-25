@@ -1,11 +1,20 @@
+use std::str::FromStr;
+
 use crate::CairoShortStringToFeltError;
 
+// Constants representing predefined Starknet networks
+// These network identifiers are used by the Starknet protocol
 const SN_MAINNET: &str = "SN_MAINNET";
 const SN_SEPOLIA: &str = "SN_SEPOLIA";
 const SN_DEVNET: &str = "SN_DEVNET";
 
-/// The chain where the represented assets live
-#[derive(Debug, Clone)]
+/// Represents a Starknet network identifier
+///
+/// This enum allows for interoperability with Starknet's chain identification system,
+/// supporting both standard networks and custom deployments.
+/// Chain IDs in Starknet are represented as Cairo short strings to maintain
+/// compatibility with on-chain contracts.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChainId {
     /// Starknet mainnet
     Mainnet,
@@ -20,6 +29,7 @@ pub enum ChainId {
 }
 
 impl ChainId {
+    /// Creates a custom ChainId with validation
     pub fn new_custom(s: String) -> Result<Self, CairoShortStringToFeltError> {
         if !s.is_ascii() {
             return Err(CairoShortStringToFeltError::NonAsciiCharacter);
@@ -54,14 +64,26 @@ impl AsRef<str> for ChainId {
     }
 }
 
+impl FromStr for ChainId {
+    type Err = CairoShortStringToFeltError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            SN_MAINNET => Ok(ChainId::Mainnet),
+            SN_SEPOLIA => Ok(ChainId::Sepolia),
+            SN_DEVNET => Ok(ChainId::Devnet),
+            s => ChainId::new_custom(s.to_string()),
+        }
+    }
+}
+
 impl serde::Serialize for ChainId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let as_string = self.to_string();
-
-        serializer.serialize_str(&as_string)
+        let as_string = self.as_ref();
+        serializer.serialize_str(as_string)
     }
 }
 
@@ -71,16 +93,11 @@ impl<'de> serde::Deserialize<'de> for ChainId {
         D: serde::Deserializer<'de>,
     {
         let short_string = <String>::deserialize(deserializer)?;
-        match short_string.as_str() {
-            SN_MAINNET => Ok(ChainId::Mainnet),
-            SN_SEPOLIA => Ok(ChainId::Sepolia),
-            SN_DEVNET => Ok(ChainId::Devnet),
-            s => ChainId::new_custom(s.to_string()).map_err(|_| {
-                serde::de::Error::invalid_value(
-                    serde::de::Unexpected::Str(s),
-                    &"a valid cairo short string",
-                )
-            }),
-        }
+        ChainId::from_str(&short_string).map_err(|_| {
+            serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(&short_string),
+                &"a valid cairo short string",
+            )
+        })
     }
 }
