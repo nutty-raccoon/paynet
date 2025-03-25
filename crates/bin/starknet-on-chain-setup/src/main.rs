@@ -1,20 +1,19 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Error, anyhow};
 use clap::{Parser, ValueHint};
+use log::{debug, info};
 use starknet::{
-    accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
+    accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
     contract::ContractFactory,
-    core::{
-        chain_id,
-        types::{Felt, contract::SierraClass},
+    core::types::{
+        BlockId, BlockTag, Felt, StarknetError, TransactionExecutionStatus, TransactionStatus,
+        contract::SierraClass,
     },
-    providers::{JsonRpcClient, jsonrpc::HttpTransport},
+    providers::{JsonRpcClient, Provider, ProviderError, jsonrpc::HttpTransport},
     signers::{LocalWallet, SigningKey},
 };
 use url::Url;
-
-const BLAST_SEPOLIA_RPC_URL: &str = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -24,8 +23,10 @@ enum Args {
 
 #[derive(Parser, Debug)]
 struct DeclareCommand {
+    #[arg(short('i'), long)]
+    chain_id: String,
     #[arg(short, long)]
-    network: String,
+    url: String,
     #[arg(short, long, value_hint(ValueHint::FilePath))]
     sierra_json: PathBuf,
     #[arg(short, long)]
@@ -44,18 +45,13 @@ fn init_account(
     )?));
     let address = Felt::from_hex(&cmd.account_address)?;
 
-    let url = match cmd.network.as_str() {
-        "sepolia" => BLAST_SEPOLIA_RPC_URL,
-        "local" => "http://127.0.0.1:5050",
-        _ => return Err(anyhow!("unknown network {}", cmd.network)),
-    };
-    let provider = JsonRpcClient::new(HttpTransport::new(Url::parse(url)?));
+    let provider = JsonRpcClient::new(HttpTransport::new(Url::parse(&cmd.url)?));
 
     let account = SingleOwnerAccount::new(
         provider,
         signer,
         address,
-        chain_id::SEPOLIA,
+        Felt::from_bytes_be_slice(cmd.chain_id.as_bytes()),
         ExecutionEncoding::New,
     );
 
@@ -71,6 +67,8 @@ fn init_account(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    env_logger::init();
+
     let args = Args::parse();
 
     match args {
@@ -87,27 +85,59 @@ async fn declare(cmd: DeclareCommand) -> Result<(), Error> {
         serde_json::from_reader(std::fs::File::open(&cmd.sierra_json)?)?;
 
     let flattened_class = contract_artifact.flatten()?;
+    let class_hash = flattened_class.class_hash();
 
     let account = init_account(&cmd)?;
-    let declare_result = account
-        .declare_v3(Arc::new(flattened_class), compiled_class_hash)
-        .send()
-        .await?;
-    println!(
-        "Declare transaction hash: {:#064x}",
-        declare_result.transaction_hash
-    );
-    println!("Class hash: {:#064x}", declare_result.class_hash);
 
-    let contract_factory = ContractFactory::new(declare_result.class_hash, account);
+    if let Err(ProviderError::StarknetError(StarknetError::ClassHashNotFound)) = account
+        .provider()
+        .get_class(BlockId::Tag(BlockTag::Latest), class_hash)
+        .await
+    {
+        let declare_result = account
+            .declare_v3(Arc::new(flattened_class), compiled_class_hash)
+            .send()
+            .await?;
+        info!("declare tx hash: {:#064x}", declare_result.transaction_hash);
+        watch_tx(account.provider(), declare_result.transaction_hash).await?;
+        let current_block = account.provider().block_number().await?;
+        while account.provider().block_number().await? == current_block {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        info!("declared class hash: {:#064x}", declare_result.class_hash);
+    } else {
+        debug!("class already declared");
+    };
+
+    let contract_factory = ContractFactory::new(class_hash, account);
     let deploy_tx = contract_factory.deploy_v3(vec![], Felt::ZERO, false);
     let contract_address = deploy_tx.deployed_address();
     let deploy_result = deploy_tx.send().await?;
-    println!(
-        "Deploy transaction hash: {:#064x}",
-        deploy_result.transaction_hash
-    );
-    println!("Contract address: {:#064x}", contract_address);
+    info!("deploy tx hash: {:#064x}", deploy_result.transaction_hash);
+    info!("deployed contract address: {:#064x}", contract_address);
 
     Ok(())
+}
+
+pub async fn watch_tx<P>(provider: P, transaction_hash: Felt) -> Result<(), anyhow::Error>
+where
+    P: Provider,
+{
+    loop {
+        match provider.get_transaction_status(transaction_hash).await {
+            Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded)) => {
+                return Ok(());
+            }
+            Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted)) => {
+                return Err(anyhow!("tx reverted"));
+            }
+            Ok(TransactionStatus::Received) => {}
+            Ok(TransactionStatus::Rejected) => return Err(anyhow!("tx rejected")),
+            Err(ProviderError::StarknetError(StarknetError::TransactionHashNotFound)) => {}
+            Err(err) => return Err(err.into()),
+            Ok(TransactionStatus::AcceptedOnL1(_)) => unreachable!(),
+        }
+
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
 }

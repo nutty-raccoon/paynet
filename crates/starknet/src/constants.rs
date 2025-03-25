@@ -29,7 +29,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
     },
     "SN_DEVNET" =>  OnChainConstants {
         apibara: ApibaraConstants { data_stream_uri: None, starting_block: 0 },
-        invoice_payment_contract_address: Felt::from_hex_unchecked("0x0796ac33f38f759375f1392dd9299d7ce12f4f7194d7ce6aaebbd033eb48302c"),
+        invoice_payment_contract_address: Felt::from_hex_unchecked("0x074e3cbebe007eb4732706bec58067da01d16c0d252d763843c76612c69a4e9a"),
         assets_contract_address: &SEPOLIA_ASSETS_ADDRESSES,
     },
 };

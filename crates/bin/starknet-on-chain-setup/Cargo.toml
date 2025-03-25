@@ -10,3 +10,5 @@ anyhow = { workspace = true }
 url = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
