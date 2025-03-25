@@ -109,7 +109,7 @@ pub async fn check_outputs_allow_multiple_units(
 
         // Validate amount doesn't exceed max_order
         let max_order = keyset_info.max_order();
-        let max_value = (1u64 << max_order) - 1;
+        let max_value = 1u64 << (max_order - 1);
 
         if u64::from(blind_message.amount) > max_value {
             return Err(Error::AmountExceedsMaxOrder(
