@@ -1,12 +1,11 @@
 use super::Error;
-use tracing::error;
 
 pub fn read_env_variables() -> Result<EnvVariables, Error> {
     // Only if we are in debug mode, we allow loading env variable from a .env file
     #[cfg(debug_assertions)]
     {
         let _ = dotenvy::from_filename("node.env")
-            .inspect_err(|e| error!("dotenvy initialization failed: {e}"));
+            .inspect_err(|e| tracing::error!("dotenvy initialization failed: {e}"));
     }
 
     #[cfg(feature = "starknet")]

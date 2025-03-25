@@ -25,7 +25,7 @@ pub async fn connect_to_starknet_cashier(
         .await
         .map_err(Error::GetConfig)?
         .into_inner();
-    if chain_id.as_ref() != &config.chain_id {
+    if chain_id.as_ref() != config.chain_id {
         Err(Error::DifferentChainId(chain_id, config.chain_id))?;
     }
 

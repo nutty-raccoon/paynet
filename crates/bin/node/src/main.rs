@@ -1,8 +1,8 @@
 use clap::Parser;
 use errors::Error;
 use initialization::{
-    ProgramArguments, connect_to_db_and_run_migrations, connect_to_signer,
-    connect_to_starknet_cashier, launch_indexer_task, launch_tonic_server_task, read_env_variables,
+    ProgramArguments, connect_to_db_and_run_migrations, connect_to_signer, launch_indexer_task,
+    launch_tonic_server_task, read_env_variables,
 };
 use node::KeysetRotationServiceServer;
 use starknet_types::Unit;
@@ -30,6 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
     info!("Initializing node...");
+    #[cfg(feature = "starknet")]
     let args = ProgramArguments::parse();
     #[cfg(feature = "starknet")]
     let starknet_config = args.read_starknet_config()?;
@@ -48,7 +49,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     #[cfg(feature = "starknet")]
     let starknet_cashier = {
-        let starknet_cashier = connect_to_starknet_cashier(
+        let starknet_cashier = initialization::connect_to_starknet_cashier(
             env_variables.cashier_url,
             starknet_config.chain_id.clone(),
         )

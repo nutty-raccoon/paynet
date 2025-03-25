@@ -4,7 +4,7 @@ mod grpc;
 use grpc::StarknetCashierState;
 use starknet_cashier::StarknetCashierServer;
 
-use tracing::{error, info};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(debug_assertions)]
     {
         let _ = dotenvy::from_filename("starknet-cashier.env")
-            .inspect_err(|e| error!("dotenvy initialization failed: {e}"));
+            .inspect_err(|e| tracing::error!("dotenvy initialization failed: {e}"));
     }
 
     let socket_addr = {

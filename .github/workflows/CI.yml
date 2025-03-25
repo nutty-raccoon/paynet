@@ -11,7 +11,9 @@ env:
   ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
   SIGNER_GRPC_PORT: 10001
   NODE_GRPC_PORT: 20001
+  # For node
   PG_URL: postgres://postgres:password@localhost:5432/node
+  SIGNER_URL: http://localhost:10001
 
 jobs:
   build:
@@ -45,43 +47,49 @@ jobs:
 
       - name: Build
         run: |
+          # Bins
+          cargo build -p node --all-targets --all-features
+          cargo build -p signer --all-targets --all-features
+          cargo build -p cli-wallet --all-targets --all-features
+          cargo build -p starknet-cashier --all-targets --all-features
+          cargo build -p starknet-on-chain-setup --all-targets --all-features
+          # Libs
           cargo build -p starknet-payment-indexer --all-targets --all-features
           cargo build -p db-node --all-targets --all-features
           cargo build -p nuts --all-targets --all-features
           cargo build -p starknet-types --all-targets --all-features
-          cargo build -p node --all-targets --all-features
-          cargo build -p signer --all-targets --all-features
-          cargo build -p cli-wallet --all-targets --all-features
           cargo build -p wallet --all-targets --all-features
 
       - name: Run unit tests
         run: |
+          cargo test -p node --all-targets --all-features
+          cargo test -p signer --all-targets --all-features
+          cargo test -p cli-wallet --all-targets --all-features
+          cargo test -p starknet-cashier --all-targets --all-features
+          cargo test -p starknet-on-chain-setup --all-targets --all-features
           cargo test -p starknet-payment-indexer --all-targets --all-features
           cargo test -p db-node --all-targets --all-features
           cargo test -p nuts --all-targets --all-features
           cargo test -p starknet-types --all-targets --all-features
-          cargo test -p node --all-targets --all-features
-          cargo test -p signer --all-targets --all-features
-          cargo test -p cli-wallet --all-targets --all-features
           cargo test -p wallet --all-targets --all-features
 
       - name: Run signer integration tests
         run: |
-          cargo run --release --bin signer &
+          GRPC_PORT=$SIGNER_GRPC_PORT cargo run --release --bin signer &
           SIGNER_RUN_PID=$!
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
-          cargo test -p signer-tests
+          GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
           kill $SIGNER_RUN_PID
 
       - name: Run node integration tests (with signer)
         run: |
-          cargo run --release --bin signer &
+          GRPC_PORT=$SIGNER_GRPC_PORT cargo run --release --bin signer &
           SIGNER_RUN_PID=$!
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
-          cargo run -p node --no-default-features --release --bin node -- --config ./crates/bin/node/config/local.toml &
+          GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --no-default-features --release --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
           while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
-          cargo test -p node-tests
+          GRPC_PORT=$NODE_GRPC_PORT cargo test -p node-tests
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID
 

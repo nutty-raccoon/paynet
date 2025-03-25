@@ -15,7 +15,7 @@ use state::{SharedKeySetCache, SharedRootKey};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
-use tracing::{error, info};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 mod server_errors;
@@ -212,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
     #[cfg(debug_assertions)]
     {
         let _ = dotenvy::from_filename("signer.env")
-            .inspect_err(|e| error!("dotenvy initialization failed: {e}"));
+            .inspect_err(|e| tracing::error!("dotenvy initialization failed: {e}"));
     }
 
     let socket_addr = {
