@@ -1,6 +1,6 @@
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
-use crate::types::ProofState;
+use crate::types::{Amount, ProofState, PublicKey, Secret};
 
 pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE TABLE IF NOT EXISTS proof (
@@ -18,7 +18,7 @@ pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE INDEX proof_state ON proof(state); 
     "#;
 
-pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32) -> Result<u64> {
+pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32) -> Result<Amount> {
     let mut stmt = conn.prepare(
         r#"SELECT COALESCE(
                 (SELECT SUM(amount) FROM proof WHERE node_id=?1 AND state=?2),
@@ -26,7 +26,7 @@ pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32)
               );"#,
     )?;
     let sum = stmt.query_row(params![node_id, ProofState::Unspent], |r| {
-        r.get::<_, u64>(0)
+        r.get::<_, Amount>(0)
     })?;
 
     Ok(sum)
@@ -38,8 +38,8 @@ pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32)
 #[allow(clippy::type_complexity)]
 pub fn get_proof_and_set_state_pending(
     conn: &Connection,
-    y: [u8; 33],
-) -> Result<Option<([u8; 8], [u8; 33], String)>> {
+    y: PublicKey,
+) -> Result<Option<([u8; 8], PublicKey, Secret)>> {
     let n_rows = conn.execute(
         "UPDATE proof SET state = ?2 WHERE y = ?1 AND state == ?3 ;",
         (y, ProofState::Pending, ProofState::Unspent),
@@ -53,8 +53,8 @@ pub fn get_proof_and_set_state_pending(
         stmt.query_row([y], |r| {
             Ok((
                 r.get::<_, [u8; 8]>(0)?,
-                r.get::<_, [u8; 33]>(1)?,
-                r.get::<_, String>(2)?,
+                r.get::<_, PublicKey>(1)?,
+                r.get::<_, Secret>(2)?,
             ))
         })
         .optional()?
@@ -63,14 +63,15 @@ pub fn get_proof_and_set_state_pending(
     Ok(values)
 }
 
-pub fn set_proof_to_state(conn: &Connection, y: [u8; 33], state: ProofState) -> Result<()> {
+pub fn set_proof_to_state(conn: &Connection, y: PublicKey, state: ProofState) -> Result<()> {
     let _ = conn.execute("UPDATE proof SET state = ?2 WHERE y = ?1", (y, state));
 
     Ok(())
 }
+
 pub fn set_proofs_to_state<'a>(
     conn: &Connection,
-    ys: impl Iterator<Item = &'a [u8; 33]>,
+    ys: impl Iterator<Item = &'a PublicKey>,
     state: ProofState,
 ) -> Result<()> {
     let mut stmt = conn.prepare("UPDATE proof SET state = ?2 WHERE y = ?1")?;
@@ -88,8 +89,8 @@ pub fn set_proofs_to_state<'a>(
 #[allow(clippy::type_complexity)]
 pub fn get_proofs_by_ids(
     conn: &Connection,
-    proof_ids: &[[u8; 33]],
-) -> Result<Vec<(u64, [u8; 8], [u8; 33], String)>> {
+    proof_ids: &[PublicKey],
+) -> Result<Vec<(Amount, [u8; 8], PublicKey, Secret)>> {
     let mut stmt = conn
         .prepare("SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y = ?1")?;
 
@@ -97,10 +98,10 @@ pub fn get_proofs_by_ids(
     for id in proof_ids {
         let proof = stmt.query_row([id], |r| {
             Ok((
-                r.get::<_, u64>(0)?,
+                r.get::<_, Amount>(0)?,
                 r.get::<_, [u8; 8]>(1)?,
-                r.get::<_, [u8; 33]>(2)?,
-                r.get::<_, String>(3)?,
+                r.get::<_, PublicKey>(2)?,
+                r.get::<_, Secret>(3)?,
             ))
         })?;
         proofs.push(proof);

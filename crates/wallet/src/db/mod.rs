@@ -1,11 +1,12 @@
 use node::CREATE_TABLE_NODE;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
-use crate::types::NodeUrl;
+use crate::types::{Amount, MeltResponseState, MintQuoteState, NodeUrl};
 
 pub mod balance;
 pub mod node;
 pub mod proof;
+pub mod types;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
@@ -65,7 +66,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
 pub fn store_mint_quote(
     conn: &Connection,
     method: String,
-    amount: u64,
+    amount: Amount,
     unit: String,
     response: &::node::MintQuoteResponse,
 ) -> Result<()> {
@@ -84,14 +85,19 @@ pub fn store_mint_quote(
             amount,
             unit,
             &response.request,
-            response.state,
+            MintQuoteState::Pending,
             response.expiry,
         ),
     )?;
 
     Ok(())
 }
-pub fn set_mint_quote_state(conn: &Connection, quote_id: String, state: i32) -> Result<()> {
+
+pub fn set_mint_quote_state(
+    conn: &Connection,
+    quote_id: String,
+    state: MintQuoteState,
+) -> Result<()> {
     const SET_MINT_QUOTE_STATE: &str = r#"
         UPDATE mint_quote
         SET state = ?2
@@ -169,7 +175,7 @@ pub fn fetch_one_active_keyset_id_for_node_and_unit(
 pub fn insert_keyset_keys<'a>(
     conn: &Connection,
     keyset_id: [u8; 8],
-    keys: impl Iterator<Item = (u64, &'a str)>,
+    keys: impl Iterator<Item = (Amount, &'a str)>,
 ) -> Result<()> {
     const INSET_NEW_KEY: &str = r#"
         INSERT INTO key (keyset_id, amount, pubkey) VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING;
@@ -186,9 +192,7 @@ pub fn insert_keyset_keys<'a>(
 pub fn get_node_url(conn: &Connection, node_id: u32) -> Result<Option<NodeUrl>> {
     let mut stmt = conn.prepare("SELECT url FROM node WHERE id = ?1 LIMIT 1")?;
     let opt_url = stmt
-        .query_row([node_id], |r| {
-            r.get::<_, String>(0).map(NodeUrl::new_unchecked)
-        })
+        .query_row([node_id], |r| r.get::<_, NodeUrl>(0))
         .optional()?;
 
     Ok(opt_url)
@@ -214,10 +218,10 @@ pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -
         INSERT_MELT_RESPONSE,
         [
             &response.quote,
-            &response.amount.to_string(),
-            &response.fee.to_string(),
-            &response.state.to_string(),
-            &response.expiry.to_string(),
+            &response.amount,
+            &response.fee,
+            &MeltResponseState::Pending,
+            &response.expiry,
         ],
     )?;
 

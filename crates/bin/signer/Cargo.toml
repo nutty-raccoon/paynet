@@ -26,4 +26,3 @@ server = []
 
 [build-dependencies]
 tonic-build = "*"
-
