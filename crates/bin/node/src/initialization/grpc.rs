@@ -1,6 +1,5 @@
 use node::KeysetRotationServiceServer;
 use std::net::SocketAddr;
-use tonic_health::{pb::health_server::Health, server::HealthReporter};
 
 use futures::TryFutureExt;
 use node::NodeServer;
@@ -20,14 +19,7 @@ pub async fn launch_tonic_server_task(
     signer_client: SignerClient<Channel>,
     #[cfg(feature = "starknet")] starknet_cashier: StarknetCashierClient<Channel>,
     port: u16,
-) -> Result<
-    (
-        SocketAddr,
-        impl Future<Output = Result<(), crate::Error>>,
-        HealthReporter,
-    ),
-    crate::Error,
-> {
+) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), crate::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();
     let grpc_state = GrpcState::new(
         pg_pool,
@@ -45,6 +37,10 @@ pub async fn launch_tonic_server_task(
         .map_err(|e| crate::Error::Init(Error::InvalidGrpcAddress(e)))?;
 
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter.set_serving::<NodeServer<GrpcState>>().await;
+    health_reporter
+        .set_serving::<KeysetRotationServiceServer<GrpcState>>()
+        .await;
 
     grpc_state
         .init_first_keysets(&[Unit::MilliStrk], 0, 32)
@@ -56,15 +52,5 @@ pub async fn launch_tonic_server_task(
         .serve(address)
         .map_err(|e| crate::Error::Service(ServiceError::TonicTransport(e)));
 
-    Ok((address, tonic_future, health_reporter))
-}
-
-pub async fn set_serving(health_reporter: HealthReporter) -> Result<(), crate::Error> {
-    health_reporter
-        .set_serving::<HealthServer<impl Health>>()
-        .await;
-    health_reporter.set_serving::<NodeServer<GrpcState>>().await;
-    health_reporter
-        .set_serving::<KeysetRotationServiceServer<GrpcState>>()
-        .await;
+    Ok((address, tonic_future))
 }

@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let state = StarknetCashierState::new().await?;
 
     let cashier_server_service = StarknetCashierServer::new(state);
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<StarknetCashierServer<StarknetCashierState>>()
         .await;

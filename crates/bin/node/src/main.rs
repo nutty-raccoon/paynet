@@ -4,10 +4,8 @@ use initialization::{
     ProgramArguments, connect_to_db_and_run_migrations, connect_to_signer, launch_indexer_task,
     launch_tonic_server_task, read_env_variables,
 };
-use node::KeysetRotationServiceServer;
 use starknet_types::Unit;
 use tokio::try_join;
-use tonic_health::pb::health_server::HealthServer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -70,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     // Launch tonic server task
-    let (address, grpc_future, health_reporter) = launch_tonic_server_task(
+    let (address, grpc_future) = launch_tonic_server_task(
         pg_pool.clone(),
         signer_client,
         #[cfg(feature = "starknet")]
@@ -85,10 +83,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Run them forever
     #[cfg(feature = "starknet")]
-    let ((), ()) = try_join!(grpc_future, indexer_future, set_serving(health_reporter))?;
+    let ((), ()) = try_join!(grpc_future, indexer_future)?;
     // or
     #[cfg(not(feature = "starknet"))]
-    let ((),) = try_join!(tonic_future, set_serving(health_reporter))?;
+    let ((),) = try_join!(tonic_future)?;
 
     Ok(())
 }
