@@ -6,7 +6,6 @@ use node::NodeServer;
 use nuts::QuoteTTLConfig;
 use signer::SignerClient;
 use sqlx::Postgres;
-use starknet_cashier::StarknetCashierClient;
 use starknet_types::Unit;
 use tonic::transport::Channel;
 
@@ -17,7 +16,7 @@ use super::Error;
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
     signer_client: SignerClient<Channel>,
-    #[cfg(feature = "starknet")] starknet_cashier: StarknetCashierClient<Channel>,
+    #[cfg(feature = "starknet")] starknet_cashier: starknet_cashier::StarknetCashierClient<Channel>,
     port: u16,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), crate::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();

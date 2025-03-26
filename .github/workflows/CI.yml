@@ -45,6 +45,10 @@ jobs:
       - name: Set up Rust cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Cargo check
+        run: |
+          cargo check
+
       - name: Build
         run: |
           # Bins

@@ -1,8 +1,7 @@
-use clap::Parser;
 use errors::Error;
 use initialization::{
-    ProgramArguments, connect_to_db_and_run_migrations, connect_to_signer, launch_indexer_task,
-    launch_tonic_server_task, read_env_variables,
+    connect_to_db_and_run_migrations, connect_to_signer, launch_tonic_server_task,
+    read_env_variables,
 };
 use starknet_types::Unit;
 use tokio::try_join;
@@ -29,12 +28,11 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
     info!("Initializing node...");
     #[cfg(feature = "starknet")]
-    let args = ProgramArguments::parse();
+    let args = <initialization::ProgramArguments as clap::Parser>::parse();
     #[cfg(feature = "starknet")]
     let starknet_config = args.read_starknet_config()?;
 
     // Read args and env
-    #[cfg(feature = "starknet")]
     let env_variables = read_env_variables()?;
 
     // Connect to db
@@ -60,8 +58,12 @@ async fn main() -> Result<(), anyhow::Error> {
     // Launch indexer task
     #[cfg(feature = "starknet")]
     let indexer_future = {
-        let indexer_future =
-            launch_indexer_task(&pg_pool, env_variables.apibara_token, &starknet_config).await?;
+        let indexer_future = initialization::launch_indexer_task(
+            &pg_pool,
+            env_variables.apibara_token,
+            &starknet_config,
+        )
+        .await?;
         info!("Listening to starknet indexer.");
 
         indexer_future
@@ -86,7 +88,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let ((), ()) = try_join!(grpc_future, indexer_future)?;
     // or
     #[cfg(not(feature = "starknet"))]
-    let ((),) = try_join!(tonic_future)?;
+    let ((),) = try_join!(grpc_future)?;
 
     Ok(())
 }

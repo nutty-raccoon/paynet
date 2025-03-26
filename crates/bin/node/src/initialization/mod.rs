@@ -1,6 +1,7 @@
 use starknet_types::ChainId;
 
 mod commands;
+#[cfg(feature = "starknet")]
 pub use commands::ProgramArguments;
 #[cfg(feature = "starknet")]
 pub use commands::StarknetConfig;
@@ -17,7 +18,9 @@ mod starknet_cashier_client;
 pub use starknet_cashier_client::connect_to_starknet_cashier;
 mod grpc;
 pub use grpc::launch_tonic_server_task;
+#[cfg(feature = "starknet")]
 mod indexer;
+#[cfg(feature = "starknet")]
 pub use indexer::launch_indexer_task;
 
 #[derive(Debug, thiserror::Error)]
@@ -50,6 +53,7 @@ pub enum Error {
     UnknownChainId(ChainId),
     #[error("failed to connect to signer")]
     SignerConnection(tonic::transport::Error),
+    #[cfg(feature = "starknet")]
     #[error(transparent)]
     Cashier(#[from] starknet_cashier_client::Error),
 }

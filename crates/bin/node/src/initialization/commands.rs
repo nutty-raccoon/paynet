@@ -1,4 +1,3 @@
-use super::Error;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -15,11 +14,11 @@ pub struct ProgramArguments {
 
 #[cfg(feature = "starknet")]
 impl ProgramArguments {
-    pub fn read_starknet_config(&self) -> Result<StarknetConfig, Error> {
+    pub fn read_starknet_config(&self) -> Result<StarknetConfig, super::Error> {
         let file_content =
-            std::fs::read_to_string(&self.config).map_err(Error::CannotReadConfig)?;
+            std::fs::read_to_string(&self.config).map_err(super::Error::CannotReadConfig)?;
 
-        let config: StarknetConfig = toml::from_str(&file_content).map_err(Error::Toml)?;
+        let config: StarknetConfig = toml::from_str(&file_content).map_err(super::Error::Toml)?;
 
         Ok(config)
     }
