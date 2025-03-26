@@ -227,7 +227,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let svc = SignerServer::new(signer_logic);
 
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<SignerServer<SignerState>>()
         .await;
