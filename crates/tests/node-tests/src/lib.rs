@@ -9,8 +9,7 @@ use tonic::transport::Channel;
 
 async fn get_grpc_channel() -> Result<Channel> {
     let grpc_port = std::env::var("GRPC_PORT")?;
-    let grpc_ip = std::env::var("GRPC_IP")?;
-    let endpoint = format!("http://{}:{}", grpc_ip, grpc_port);
+    let endpoint = format!("http://[::0]:{}", grpc_port);
 
     let timeout = Instant::now() + Duration::from_secs(10);
 
