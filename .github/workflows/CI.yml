@@ -51,54 +51,29 @@ jobs:
         run: |
           cargo check
 
-      - name: Build
+      - name: Cargo build
         run: |
-          # Bins
-          cargo build -p node --all-targets --all-features
-          cargo build -p signer --all-targets --all-features
-          cargo build -p cli-wallet --all-targets --all-features
-          cargo build -p starknet-cashier --all-targets --all-features
-          cargo build -p starknet-on-chain-setup --all-targets --all-features
-          # Libs
-          cargo build -p starknet-payment-indexer --all-targets --all-features
-          cargo build -p db-node --all-targets --all-features
-          cargo build -p nuts --all-targets --all-features
-          cargo build -p starknet-types --all-targets --all-features
-          cargo build -p wallet --all-targets --all-features
+          cargo build
 
       - name: Run unit tests
         run: |
-          cargo test -p node --all-targets --all-features
-          cargo test -p signer --all-targets --all-features
-          cargo test -p cli-wallet --all-targets --all-features
-          cargo test -p starknet-cashier --all-targets --all-features
-          cargo test -p starknet-on-chain-setup --all-targets --all-features
-          cargo test -p starknet-payment-indexer --all-targets --all-features
-          cargo test -p db-node --all-targets --all-features
-          cargo test -p nuts --all-targets --all-features
-          cargo test -p starknet-types --all-targets --all-features
-          cargo test -p wallet --all-targets --all-features
+          cargo test
 
       - name: Run signer integration tests
         run: |
+          # Signer build, run and test
           cargo build -p signer --bin signer
           GRPC_PORT=$SIGNER_GRPC_PORT cargo run -p signer --bin signer &
           SIGNER_RUN_PID=$!
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
-          kill $SIGNER_RUN_PID
-
-      - name: Run node integration tests (with signer)
-        run: |
-          cargo build -p signer --bin signer
-          GRPC_PORT=$SIGNER_GRPC_PORT cargo run -p signer --bin signer &
-          SIGNER_RUN_PID=$!
-          while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
-          cargo build -p node --no-default-features --bin node -- --config ./crates/bin/node/config/local.toml &
+          # Node build, run and test
+          cargo build -p node --no-default-features --bin node
           GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --no-default-features --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
           while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$NODE_GRPC_PORT cargo test -p node-tests
+          # Cleanup
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID
 
