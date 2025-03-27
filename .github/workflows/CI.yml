@@ -21,10 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            **
-            !rust-toolchain.toml
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
       - uses: dtolnay/rust-toolchain@1.85.1
         with:
           components: rustfmt, clippy
@@ -58,13 +56,9 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            **
-            !rust-toolchain.toml
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
       - uses: dtolnay/rust-toolchain@1.85.0
-        with:
-          components: ""
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-cache-${{ hashFiles('**/Cargo.lock') }}"
