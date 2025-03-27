@@ -21,7 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          sparse-checkout: |
+            **
+            !rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.85.1
         with:
           components: rustfmt, clippy
       - uses: arduino/setup-protoc@v3
@@ -54,6 +58,10 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            **
+            !rust-toolchain.toml
       - uses: dtolnay/rust-toolchain@1.85.0
         with:
           components: ""
