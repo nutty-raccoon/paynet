@@ -132,3 +132,26 @@ impl Unit {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_u256_into_amount() {
+        let unit = Unit::MilliStrk;
+        let amount = StarknetU256::from(U256::from(5000u64)); // Example input value
+        let conversion_rate = U256::from(MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE);
+
+        let result = unit.convert_u256_into_amount(amount);
+
+        assert!(result.is_ok());
+        let (converted_amount, remainder) = result.unwrap();
+
+        let expected_quotient = U256::from(5000u64) / conversion_rate;
+        let expected_remainder = U256::from(5000u64) % conversion_rate;
+
+        assert_eq!(u64::from(converted_amount), expected_quotient.as_u64());
+        assert_eq!(U256::from(remainder), expected_remainder);
+    }
+}
