@@ -16,15 +16,34 @@ env:
   SIGNER_URL: http://localhost:10001
 
 jobs:
-  build:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          components: rustfmt, clippy
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+  test:
+    name: Test
+    runs-on: ubuntu-latest
     services:
       db:
         image: postgres:15
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
+          POSTGRES_PASSWORD: 'password'
           POSTGRES_DB: node
         ports:
           - 5432:5432
@@ -33,42 +52,33 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          components: ""
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-cache-${{ hashFiles('**/Cargo.lock') }}"
           cache-on-failure: true
-          # Only save on main branch to avoid polluting the cache with PR-specific artifacts
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
-
-      - name: Cargo check
-        run: |
-          cargo check
-
-      - name: Cargo build
-        run: |
-          cargo build
-
       - name: Run unit tests
+        run: cargo test --workspace --lib --bins
+      - name: Build services for integration tests
         run: |
-          cargo test
-
-      - name: Run signer integration tests
-        run: |
-          # Signer build, run and test
           cargo build -p signer --bin signer
+          cargo build -p node --no-default-features --bin node
+      - name: Run integration tests
+        timeout-minutes: 1
+        run: |
+          # Signer
           GRPC_PORT=$SIGNER_GRPC_PORT cargo run -p signer --bin signer &
           SIGNER_RUN_PID=$!
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
-          # Node build, run and test
-          cargo build -p node --no-default-features --bin node
+          # Node
           GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --no-default-features --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
           while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
@@ -76,5 +86,3 @@ jobs:
           # Cleanup
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID
-
- 

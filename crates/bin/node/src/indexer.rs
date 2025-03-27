@@ -77,10 +77,11 @@ async fn process_payment_event(
 
         let current_paid_starknet_u256: StarknetU256 = current_paid.into();
 
-        let current_paid_amount = match MilliStrk.convert_u256_into_amount(current_paid_starknet_u256) {
-            Ok((amount, _remainder)) => amount,
-            Err(e) => return Err(Error::Starknet(e)),
-        };
+        let current_paid_amount =
+            match MilliStrk.convert_u256_into_amount(current_paid_starknet_u256) {
+                Ok((amount, _remainder)) => amount,
+                Err(e) => return Err(Error::Starknet(e)),
+            };
 
         if current_paid_amount >= Amount::from(quote_expected_amount) {
             db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;

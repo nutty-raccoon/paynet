@@ -148,10 +148,13 @@ async fn main() -> Result<()> {
             }
             None => {
                 let nodes_with_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
-                for (node_id, url, balances) in nodes_with_balances {
-                    println!("Balance for node {} ({}):", node_id, url);
-                    for (unit, amount) in balances {
-                        println!("  {} {}", amount, unit);
+                for node_balances in nodes_with_balances {
+                    println!(
+                        "Balance for node {} ({}):",
+                        node_balances.node_id, node_balances.url
+                    );
+                    for balance in node_balances.balances {
+                        println!("  {} {}", balance.amount, balance.unit);
                     }
                 }
             }
