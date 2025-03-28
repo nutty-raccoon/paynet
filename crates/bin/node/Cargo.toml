@@ -40,9 +40,8 @@ starknet-cashier = { workspace = true, optional = true }
 dashmap = { workspace = true }
 
 [features]
-default = ["starknet"]
-starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier"]
 default = ["indexer"]
+starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier"]
 indexer = ["dep:starknet-payment-indexer"]
 
 
