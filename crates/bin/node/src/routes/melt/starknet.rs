@@ -1,137 +1,74 @@
+use bitcoin_hashes::Sha256;
 use nuts::{
-    Amount,
     nut00::Proof,
     nut05::{MeltMethodSettings, MeltQuoteResponse, MeltQuoteState},
 };
-use sqlx::{PgConnection, PgPool};
+use sqlx::PgConnection;
 use starknet_types::{MeltPaymentRequest, Unit};
 use uuid::Uuid;
 
-use crate::{
-    app_state::SignerClient, keyset_cache::KeysetCache, logic::process_melt_inputs,
-    methods::Method, utils::unix_time,
-};
+use crate::{grpc_service::GrpcState, methods::Method};
 
-use super::errors::Error;
+use super::{errors::Error, validate_and_register_quote};
 
-pub async fn validate_and_register_quote(
-    conn: &mut PgConnection,
-    signer: SignerClient,
-    keyset_cache: KeysetCache,
-    settings: MeltMethodSettings<Method, Unit>,
-    mint_ttl: u64,
-    melt_payment_request: MeltPaymentRequest,
-    inputs: &[Proof],
-) -> Result<(Uuid, Amount, Amount, u64), Error> {
-    if !settings.unit.is_asset_supported(melt_payment_request.asset) {
-        return Err(Error::InvalidAssetForUnit(
-            melt_payment_request.asset,
-            settings.unit,
-        ));
-    }
+impl GrpcState {
+    pub async fn starknet_melt(
+        &self,
+        settings: MeltMethodSettings<Method, Unit>,
+        raw_melt_payment_request: String,
+        inputs: &[Proof],
+    ) -> Result<MeltQuoteResponse<Uuid>, Error> {
+        let mut conn = self.pg_pool.acquire().await?;
 
-    let mut tx = db_node::start_db_tx_from_conn(conn)
-        .await
-        .map_err(Error::TxBegin)?;
-
-    let (total_amount, insert_spent_proof_query) =
-        process_melt_inputs(&mut tx, signer, keyset_cache, inputs).await?;
-
-    if let Some(min_amount) = settings.min_amount {
-        if min_amount > total_amount {
-            Err(Error::AmountTooLow(total_amount, min_amount))?;
+        let melt_payment_request: MeltPaymentRequest =
+            serde_json::from_str(&raw_melt_payment_request)
+                .map_err(Error::InvalidPaymentRequest)?;
+        if !settings.unit.is_asset_supported(melt_payment_request.asset) {
+            return Err(Error::InvalidAssetForUnit(
+                melt_payment_request.asset,
+                settings.unit,
+            ));
         }
+
+        let (quote_id, quote_hash, total_amount, fee, expiry) = validate_and_register_quote(
+            &mut conn,
+            self.signer.clone(),
+            self.keyset_cache.clone(),
+            settings,
+            self.quote_ttl.melt_ttl(),
+            raw_melt_payment_request,
+            inputs,
+        )
+        .await?;
+
+        #[cfg(not(feature = "starknet"))]
+        let state = proceed_to_payment(&mut conn, quote_id, quote_hash).await?;
+        #[cfg(feature = "starknet")]
+        let state = proceed_to_payment(
+            &mut conn,
+            quote_id,
+            quote_hash,
+            melt_payment_request,
+            total_amount,
+            self.starknet_cashier.clone(),
+        )
+        .await?;
+
+        Ok(MeltQuoteResponse {
+            quote: quote_id,
+            amount: total_amount,
+            fee,
+            state,
+            expiry,
+        })
     }
-    if let Some(max_amount) = settings.max_amount {
-        if max_amount < total_amount {
-            Err(Error::AmountTooHigh(max_amount, total_amount))?;
-        }
-    }
-
-    let expiry = unix_time() + mint_ttl;
-    let quote = Uuid::new_v4();
-    // Arbitrary for now, but will be enough to pay tx fee on starknet
-    let fee = Amount::ONE;
-
-    db_node::melt_quote::insert_new(
-        &mut tx,
-        quote,
-        settings.unit,
-        total_amount,
-        fee,
-        &serde_json::to_string(&melt_payment_request)
-            .expect("it has been deserialized it should be serializable"),
-        expiry,
-    )
-    .await?;
-    insert_spent_proof_query.execute(&mut tx).await?;
-    tx.commit().await?;
-
-    Ok((quote, total_amount, fee, expiry))
 }
 
-// pub async fn handle_unpaid_quote(
-//     conn: &mut PgConnection,
-//     signer: SharedSignerClient,
-//     keyset_cache: KeysetCache,
-//     quote_id: Uuid,
-//     inputs: &[Proof],
-// ) -> Result<(), Error> {
-//     let mut tx = db_node::start_db_tx_from_conn(conn)
-//         .await
-//         .map_err(Error::TxBegin)?;
-
-//     // let (quote_unit, expected_amount, fee_reserve, mut state, expiry) =
-//     //     db_node::melt_quote::get_data::<Unit>(&mut tx, quote_id).await?;
-
-//     let (total_amount, insert_spent_proofs_query_builder) =
-//         process_melt_inputs(&mut tx, signer, keyset_cache, &inputs).await?;
-
-//     // All verifications done, melt the tokens, and update state
-//     insert_spent_proofs_query_builder.execute(&mut tx).await?;
-//     db_node::melt_quote::set_state(&mut tx, quote_id, MeltQuoteState::Pending).await?;
-//     tx.commit().await?;
-
-//     Ok(())
-// }
-
-pub async fn starknet_melt(
-    pool: PgPool,
-    signer: SignerClient,
-    keyset_cache: KeysetCache,
-    settings: MeltMethodSettings<Method, Unit>,
-    melt_ttl: u64,
-    melt_payment_request: MeltPaymentRequest,
-    inputs: &[Proof],
-) -> Result<MeltQuoteResponse<Uuid>, Error> {
-    let mut conn = pool.acquire().await?;
-
-    let (quote_id, total_amount, fee, expiry) = validate_and_register_quote(
-        &mut conn,
-        signer,
-        keyset_cache.clone(),
-        settings,
-        melt_ttl,
-        melt_payment_request,
-        inputs,
-    )
-    .await?;
-
-    let state = proceed_to_payment(&mut conn, quote_id).await?;
-
-    Ok(MeltQuoteResponse {
-        quote: quote_id,
-        amount: total_amount,
-        fee,
-        state,
-        expiry,
-    })
-}
-
-#[cfg(not(feature = "indexer"))]
+#[cfg(not(feature = "starknet"))]
 async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,
+    _quote_hash: Sha256,
 ) -> Result<MeltQuoteState, Error> {
     let new_state = MeltQuoteState::Paid;
 
@@ -139,13 +76,36 @@ async fn proceed_to_payment(
     Ok(new_state)
 }
 
-#[cfg(feature = "indexer")]
+#[cfg(feature = "starknet")]
 async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,
+    quote_hash: Sha256,
+    melt_payment_request: MeltPaymentRequest,
+    amount: nuts::Amount,
+    mut starknet_cashier: crate::app_state::StarknetCashierClient,
 ) -> Result<MeltQuoteState, Error> {
-    // TODO: actually proceed to payment
+    use starknet_cashier::WithdrawRequest;
+    use tonic::Request;
 
+    starknet_cashier
+        .withdraw(Request::new(WithdrawRequest {
+            amount: u64::from(amount)
+                .to_be_bytes()
+                .into_iter()
+                .skip_while(|&b| b == 0)
+                .collect(),
+            asset: melt_payment_request.asset.to_string(),
+            invoice_id: quote_hash.to_byte_array().to_vec(),
+            payee: melt_payment_request
+                .recipient
+                .to_bytes_be()
+                .into_iter()
+                .skip_while(|&b| b == 0)
+                .collect(),
+        }))
+        .await
+        .map_err(Error::StarknetCashier)?;
     let new_state = MeltQuoteState::Pending;
 
     db_node::melt_quote::set_state(conn, quote_id, new_state).await?;

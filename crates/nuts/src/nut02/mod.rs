@@ -343,7 +343,7 @@ mod test {
 
     fn generate_random_id() -> KeysetId {
         let mut rand_bytes = vec![0u8; 8];
-        rand::thread_rng().fill_bytes(&mut rand_bytes[1..]);
+        rand::rng().fill_bytes(&mut rand_bytes[1..]);
         KeysetId::from_bytes(&rand_bytes).unwrap_or_else(|e| {
             panic!(
                 "Failed to create KeysetId from {}: {e}",

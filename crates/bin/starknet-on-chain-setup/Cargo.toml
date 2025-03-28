@@ -1,0 +1,14 @@
+[package]
+name = "starknet-on-chain-setup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+starknet = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+anyhow = { workspace = true }
+url = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }

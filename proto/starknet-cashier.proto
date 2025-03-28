@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package starknet_cashier;
+
+
+service StarknetCashier {
+    rpc Withdraw (WithdrawRequest) returns (WithdrawResponse);
+    rpc Config (ConfigRequest) returns (ConfigResponse);
+}
+
+message WithdrawRequest {
+   bytes invoice_id = 1;  // hash of the melt_quote_id
+   string asset = 2;       // eg. `strk`
+   bytes amount = 3;      // Vec<u8>, bigendian repr of the u256 starknet amount
+   bytes payee = 4;       // starknet address as bytes
+} 
+
+message WithdrawResponse { 
+  bytes tx_hash = 1;
+}
+
+message ConfigRequest {}
+
+message ConfigResponse {
+  string chain_id = 1;
+}

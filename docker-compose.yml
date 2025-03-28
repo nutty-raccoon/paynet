@@ -15,13 +15,74 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       start_period: 1s
+      interval: 3s
+      retries: 3
+
+  starknet-devnet:
+    image: "shardlabs/starknet-devnet-rs"
+    environment:
+      - SEED=0
+      - BLOCK_GENERATION_ON=5
+      - CHAIN_ID=SN_DEVNET
+    ports:
+      - "5050:5050"
+    restart: always
+    healthcheck:
+      # Doing http calls without having to install curl or wget
+      # https://github.com/dart-lang/dart-docker/issues/58#issuecomment-1410663799
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/localhost/5050;echo -e "GET /is_alive HTTP/1.1\r\nHost: localhost:5050\r\nConnection: close\r\n\r\n" >&3; grep "200 OK" <&3']
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  dna:
+    image: quay.io/apibara/starknet:1.6.2
+    command:
+      - start
+      - --rpc=http://starknet-devnet:5050/rpc
+      - --name=devnet
+      - --head-refresh-interval-ms=1000
+      - --wait-for-rpc
+      - --address=0.0.0.0:7171
+    environment:
+      - XDG_DATA_HOME=/data
+    volumes:
+      - dna:/data
+    ports:
+      - 7171:7171
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+
+  starknet-setup:
+    image: "setup-starknet"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/setup-starknet.Dockerfile
+    command:
+      - "--chain-id=SN_DEVNET"
+      - "--url=http://starknet-devnet:5050"
+      - "--private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+      - "--account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+    # This is a one shot service
+    restart: "no"
+    stdin_open: false
+    tty: false
+    deploy:
+      restart_policy:
+        condition: none
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+      dna:
+        condition: service_started
 
   signer:
     image: "signer"
     restart: always
     environment:
       - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
-      - SOCKET_PORT=10001
+      - GRPC_PORT=10001
     ports:
       - "10001:10001"
     build:
@@ -30,6 +91,31 @@ services:
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
       start_period: 1s
+      interval: 3s
+      retries: 3
+
+  starknet-cashier:
+    image: "starknet-cashier"
+    restart: always
+    environment:
+      - STARKNET_RPC_URL=http://starknet-devnet:5050 
+      - GRPC_PORT=10002
+      # Predeployed account for seed 0
+      - SIGNER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da
+      - ACCOUNT_ADDRESS=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 
+    ports:
+      - "10002:10002"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/starknet-cashier.Dockerfile
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10002"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
 
   node:
     image: "node"
@@ -37,8 +123,13 @@ services:
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
-      - GRPC_IP=[::0]
+      - CASHIER_URL=http://starknet-cashier:10002
+      - DNA_URI=http://dna:7171
       - GRPC_PORT=20001
+    # lower precedence that `environment`
+    # use it to set your secret APIBARA_TOKEN
+    env_file:
+      - node.env
     ports:
       - "20001:20001"
     build:
@@ -49,10 +140,17 @@ services:
         condition: service_healthy
       signer:
         condition: service_healthy
+      starknet-cashier:
+        condition: service_healthy
+      dna:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "20001"]
-      start_period: 3s
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:20001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
 
 volumes:
+  dna:
   database_data:
     driver: local

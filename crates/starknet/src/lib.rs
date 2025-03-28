@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use num_bigint::BigUint;
 use nuts::Amount;
 use serde::{Deserialize, Serialize};
@@ -7,6 +9,9 @@ mod unit;
 pub use unit::{Unit, UnitFromStrError};
 mod method;
 pub use method::{Method, MethodFromStrError};
+mod chain_id;
+pub mod constants;
+pub use chain_id::ChainId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -16,9 +21,6 @@ pub enum Error {
     StarknetAmountTooHigh(Unit, StarknetU256),
 }
 
-pub const STRK_TOKEN_ADDRESS: Felt =
-    Felt::from_hex_unchecked("0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d");
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Asset {
@@ -27,19 +29,30 @@ pub enum Asset {
 
 impl core::fmt::Display for Asset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Asset::Strk => "strk",
-            }
-        )
+        write!(f, "{}", self.as_ref())
     }
 }
 
-impl Asset {
-    pub fn address(&self) -> Felt {
-        STRK_TOKEN_ADDRESS
+impl AsRef<str> for Asset {
+    fn as_ref(&self) -> &str {
+        match self {
+            Asset::Strk => "strk",
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("invalid asset")]
+pub struct AssetFromStrError;
+
+impl FromStr for Asset {
+    type Err = AssetFromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "strk" => Ok(Asset::Strk),
+            _ => Err(AssetFromStrError),
+        }
     }
 }
 
@@ -47,7 +60,6 @@ impl Asset {
 pub struct MeltPaymentRequest {
     pub recipient: Felt,
     pub asset: Asset,
-    pub amount: StarknetU256,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +97,14 @@ impl StarknetU256 {
             low: Felt::from(low),
             high: Felt::from(high),
         }
+    }
+
+    pub fn to_bytes_be(&self) -> [u8; 32] {
+        let mut ret = self.low.to_bytes_be();
+
+        ret[0..16].copy_from_slice(&self.high.to_bytes_be()[16..32]);
+
+        ret
     }
 }
 
@@ -192,10 +212,14 @@ mod tests {
     }
 }
 
-pub fn felt_to_short_string(felt: Felt) -> Result<String, std::string::FromUtf8Error> {
+pub fn felt_to_short_string(felt: Felt) -> String {
     let bytes = felt.to_bytes_be();
+    let first_char_idx = match bytes.iter().position(|&b| b != 0) {
+        Some(idx) => idx,
+        None => return String::new(),
+    };
 
-    String::from_utf8(bytes.to_vec())
+    unsafe { String::from_utf8_unchecked(bytes[first_char_idx..].to_vec()) }
 }
 
 /// Possible errors for encoding a Cairo short string.

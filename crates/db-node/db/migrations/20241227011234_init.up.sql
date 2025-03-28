@@ -42,7 +42,7 @@ CREATE TYPE mint_quote_state AS ENUM ('UNPAID', 'PAID', 'ISSUED');
 
 CREATE TABLE IF NOT EXISTS mint_quote (
     id UUID PRIMARY KEY,
-    invoice_id TEXT NOT NULL UNIQUE,
+    invoice_id BYTEA CHECK (length(invoice_id) = 32) NOT NULL UNIQUE, 
     unit TEXT NOT NULL,
     amount INT8 NOT NULL,
     request TEXT NOT NULL,
@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS mint_quote (
     state mint_quote_state NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS mint_quote_invoice_id ON mint_quote(invoice_id);
 CREATE INDEX IF NOT EXISTS mint_quote_unit ON mint_quote(unit);
 CREATE INDEX IF NOT EXISTS mint_quote_state ON mint_quote(state);
 CREATE INDEX IF NOT EXISTS mint_quote_expiry ON mint_quote(expiry);
@@ -60,6 +61,7 @@ CREATE TYPE melt_quote_state AS ENUM ('UNPAID', 'PENDING', 'PAID');
 
 CREATE TABLE IF NOT EXISTS melt_quote (
     id UUID PRIMARY KEY,
+    invoice_id BYTEA CHECK (length(invoice_id) = 32) NOT NULL, 
     unit TEXT NOT NULL,
     amount INT8 NOT NULL,
     fee INT8 NOT NULL,
@@ -68,6 +70,7 @@ CREATE TABLE IF NOT EXISTS melt_quote (
     state melt_quote_state NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS melt_quote_invoice_id ON melt_quote(invoice_id);
 CREATE INDEX IF NOT EXISTS melt_quote_unit ON melt_quote(unit);
 CREATE INDEX IF NOT EXISTS melt_quote_state ON melt_quote(state);
 CREATE INDEX IF NOT EXISTS melt_quote_expiry ON melt_quote(expiry);
@@ -80,7 +83,7 @@ CREATE TABLE IF NOT EXISTS payment_event (
     event_index BIGINT NOT NULL,
     payee TEXT NOT NULL,
     asset TEXT NOT NULL,
-    invoice_id TEXT NOT NULL REFERENCES mint_quote(invoice_id),
+    invoice_id BYTEA NOT NULL REFERENCES mint_quote(invoice_id),
     payer TEXT NOT NULL,
     amount_low TEXT NOT NULL,
     amount_high TEXT NOT NULL,

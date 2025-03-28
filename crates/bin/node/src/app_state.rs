@@ -9,6 +9,8 @@ use crate::methods::Method;
 
 pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
 pub type SignerClient = signer::SignerClient<Channel>;
+#[cfg(feature = "starknet")]
+pub type StarknetCashierClient = starknet_cashier::StarknetCashierClient<Channel>;
 
 /// Quote Time To Live config
 ///
