@@ -115,7 +115,7 @@ impl ToSql for NodeUrl {
 
 impl FromSql for NodeUrl {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        String::column_result(value).map(|s| NodeUrl::new_unchecked(s))
+        String::column_result(value).map(NodeUrl::new_unchecked)
     }
 }
 

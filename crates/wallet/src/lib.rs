@@ -295,9 +295,8 @@ pub fn construct_proofs_from_blind_signatures(
     let mut new_tokens = Vec::new();
 
     for (blinded_message, secret, r, amount) in iterator {
-        let pubkey = get_pubkey_stmt.query_row(params![keyset_id, u64::from(amount)], |row| {
-            row.get::<_, String>(0)
-        })?;
+        let pubkey =
+            get_pubkey_stmt.query_row(params![keyset_id, amount], |row| row.get::<_, String>(0))?;
         let mint_pubkey = PublicKey::from_str(&pubkey)?;
         let unblinded_signature: PublicKey = unblind_message(&blinded_message, &r, &mint_pubkey)?;
 
@@ -307,7 +306,7 @@ pub fn construct_proofs_from_blind_signatures(
             &y.to_bytes(),
             node_id,
             keyset_id,
-            u64::from(amount),
+            amount,
             secret.to_string(),
             &unblinded_signature.to_bytes(),
             ProofState::Unspent,
@@ -576,7 +575,7 @@ pub async fn register_node(
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
     let mut node_client = NodeClient::connect(&node_url).await?;
 
-    let node_id = db::node::insert(db_conn, &node_url.to_string())?;
+    let node_id = db::node::insert(db_conn, node_url)?;
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
 
     Ok((node_client, node_id))
