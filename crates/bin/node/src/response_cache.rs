@@ -13,8 +13,10 @@ pub trait ResponseCache<K, V> {
     fn insert(&self, key: K, value: V) -> Result<(), errors::Error>;
     fn remove(&self, key: &K) -> bool;
 
-    // For cleanup/shutdown
-    fn clear(&self);
+    // For persistence when shutting down
+    fn persist(&self) -> Result<(), errors::Error> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -47,16 +49,7 @@ where
 {
     fn get(&self, key: &K) -> Option<V> {
         let entry = self.store.get(key)?;
-        let (value, created_at) = &*entry;
-
-        if let Some(ttl) = self.ttl {
-            if created_at.elapsed() > ttl {
-                drop(entry);
-                self.store.remove(key);
-                return None;
-            }
-        }
-
+        let (value, _created_at) = &*entry;
         Some(value.clone())
     }
 
@@ -67,10 +60,6 @@ where
 
     fn remove(&self, key: &K) -> bool {
         self.store.remove(key).is_some()
-    }
-
-    fn clear(&self) {
-        self.store.clear();
     }
 }
 
