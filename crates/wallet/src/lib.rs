@@ -329,7 +329,7 @@ pub async fn fetch_inputs_from_db_or_node(
     let total_amount_available =
         db::proof::compute_total_amount_of_available_proofs(db_conn, node_id)?;
 
-    if total_amount_available < target_amount {
+    if u64::from(total_amount_available) < target_amount {
         return Ok(None);
     }
 
@@ -337,7 +337,7 @@ pub async fn fetch_inputs_from_db_or_node(
         "SELECT y, amount FROM proof WHERE node_id = ?1 AND state = ?2 ORDER BY amount DESC;",
     )?;
     let proofs_res_iterator = stmt.query_map(params![node_id, ProofState::Unspent], |r| {
-        Ok((r.get::<_, [u8; 33]>(0)?, r.get::<_, u64>(1)?))
+        Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
     })?;
 
     let mut proofs_ids = Vec::new();
@@ -345,16 +345,16 @@ pub async fn fetch_inputs_from_db_or_node(
     let mut remaining_amount = target_amount;
     for proof_res in proofs_res_iterator {
         let (y, proof_amount) = proof_res?;
-        match remaining_amount.cmp(&proof_amount) {
-            std::cmp::Ordering::Less => proofs_not_used.push((y, proof_amount)),
+        match remaining_amount.cmp(&u64::from(proof_amount)) {
+            std::cmp::Ordering::Less => proofs_not_used.push((y, u64::from(proof_amount))),
             std::cmp::Ordering::Equal => {
                 proofs_ids.push(y);
-                remaining_amount -= proof_amount;
+                remaining_amount -= u64::from(proof_amount);
                 break;
             }
             std::cmp::Ordering::Greater => {
                 proofs_ids.push(y);
-                remaining_amount -= proof_amount;
+                remaining_amount -= u64::from(proof_amount);
             }
         }
     }
@@ -393,11 +393,11 @@ pub async fn fetch_inputs_from_db_or_node(
             match remaining_amount.cmp(&token_amount) {
                 std::cmp::Ordering::Less => {}
                 std::cmp::Ordering::Greater => {
-                    proofs_ids.push(token.0.to_bytes());
+                    proofs_ids.push(token.0);
                     remaining_amount -= token_amount;
                 }
                 std::cmp::Ordering::Equal => {
-                    proofs_ids.push(token.0.to_bytes());
+                    proofs_ids.push(token.0);
                     break;
                 }
             }
@@ -409,10 +409,10 @@ pub async fn fetch_inputs_from_db_or_node(
         .map(
             |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof> {
                 Ok(nut00::Proof {
-                    amount: amount.into(),
+                    amount,
                     keyset_id: KeysetId::from_bytes(&keyset_id)?,
-                    secret: Secret::new(secret)?,
-                    c: PublicKey::from_slice(&unblinded_signature)?,
+                    secret,
+                    c: unblinded_signature,
                 })
             },
         )
@@ -429,7 +429,7 @@ pub async fn swap_to_have_target_amount(
     node_id: u32,
     unit: &str,
     target_amount: u64,
-    proof_to_swap: &([u8; 33], u64),
+    proof_to_swap: &(PublicKey, u64),
 ) -> Result<(KeysetId, Vec<PreMint>, node::SwapResponse)> {
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
@@ -445,8 +445,8 @@ pub async fn swap_to_have_target_amount(
     let inputs = vec![node::Proof {
         amount: proof_to_swap.1,
         keyset_id: input_unblind_signature.0.to_vec(),
-        secret: input_unblind_signature.2.clone(),
-        unblind_signature: input_unblind_signature.1.to_vec(),
+        secret: input_unblind_signature.2.to_string(),
+        unblind_signature: input_unblind_signature.1.to_bytes().to_vec(),
     }];
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
@@ -490,15 +490,15 @@ pub async fn receive_wad(
 
     for proof in proofs.iter() {
         let y = hash_to_curve(proof.secret.as_ref())?;
-        ys.push(y.to_bytes());
+        ys.push(y);
 
         insert_proof_stmt.execute(params![
-            &y.to_bytes(),
+            y,
             node_id,
             proof.keyset_id.to_bytes(),
-            u64::from(proof.amount),
-            proof.secret.to_string(),
-            proof.c.to_bytes(),
+            proof.amount,
+            proof.secret,
+            proof.c,
             ProofState::Pending
         ])?;
 
@@ -576,7 +576,7 @@ pub async fn register_node(
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
     let mut node_client = NodeClient::connect(&node_url).await?;
 
-    let node_id = db::node::insert(db_conn, &node_url)?;
+    let node_id = db::node::insert(db_conn, &node_url.to_string())?;
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
 
     Ok((node_client, node_id))

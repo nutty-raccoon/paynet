@@ -6,6 +6,10 @@
 use core::fmt;
 use core::str::FromStr;
 
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::ParseError;
@@ -100,6 +104,18 @@ impl AsRef<str> for NodeUrl {
 impl From<&NodeUrl> for tonic::transport::Endpoint {
     fn from(value: &NodeUrl) -> Self {
         value.0.parse().unwrap()
+    }
+}
+
+impl ToSql for NodeUrl {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>> {
+        Ok(self.as_ref().into())
+    }
+}
+
+impl FromSql for NodeUrl {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        String::column_result(value).map(|s| NodeUrl::new_unchecked(s))
     }
 }
 

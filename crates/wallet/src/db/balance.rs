@@ -1,5 +1,6 @@
-use crate::types::{Amount, ProofState};
-use rusqlite::{Connection, Result};
+use crate::types::ProofState;
+use nuts::Amount;
+use rusqlite::{Connection, Result, params};
 
 pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, Amount)>> {
     let mut stmt = conn.prepare(
@@ -13,7 +14,7 @@ pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, Amou
            HAVING total_amount > 0"#,
     )?;
 
-    stmt.query_map([ProofState::Unspent, node_id], |row| {
+    stmt.query_map(params![ProofState::Unspent, node_id], |row| {
         Ok((row.get(0)?, row.get(1)?))
     })?
     .collect()
@@ -31,7 +32,7 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<(i64, String, Vec<(Str
     "#;
 
     let mut stmt = conn.prepare(sql)?;
-    let rows = stmt.query_map([ProofState::Unspent], |row| {
+    let rows = stmt.query_map(params![ProofState::Unspent], |row| {
         Ok((
             row.get(0)?, // node_id
             row.get(1)?, // url

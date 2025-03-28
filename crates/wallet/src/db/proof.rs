@@ -1,6 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
-use crate::types::{Amount, ProofState, PublicKey, Secret};
+use crate::types::ProofState;
+use nuts::{Amount, nut00::secret::Secret, nut01::PublicKey};
 
 pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE TABLE IF NOT EXISTS proof (

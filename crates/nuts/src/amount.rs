@@ -7,6 +7,10 @@ use std::fmt;
 use std::str::FromStr;
 
 use num_traits::{CheckedAdd, CheckedSub, One, Zero};
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
@@ -305,6 +309,18 @@ pub enum SplitTarget {
     Value(Amount),
     /// Specific amounts to split into **MUST** equal amount being split
     Values(Vec<Amount>),
+}
+
+impl ToSql for Amount {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>> {
+        Ok(self.into_i64_repr().into())
+    }
+}
+
+impl FromSql for Amount {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        u64::column_result(value).map(Amount::from)
+    }
 }
 
 #[cfg(test)]

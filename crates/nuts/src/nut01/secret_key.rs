@@ -2,17 +2,20 @@ use core::fmt;
 use core::ops::Deref;
 use core::str::FromStr;
 
+use super::Error;
+use super::public_key::PublicKey;
+use crate::SECP256K1;
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::secp256k1;
 use bitcoin::secp256k1::rand::rngs::OsRng;
 use bitcoin::secp256k1::schnorr::Signature;
 use bitcoin::secp256k1::{Keypair, Message, Scalar};
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
 use serde::{Deserialize, Deserializer, Serialize};
-
-use super::Error;
-use super::public_key::PublicKey;
-use crate::SECP256K1;
 
 /// SecretKey
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,5 +139,19 @@ impl Drop for SecretKey {
     fn drop(&mut self) {
         self.inner.non_secure_erase();
         tracing::trace!("Secret Key dropped.");
+    }
+}
+
+impl ToSql for SecretKey {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(ToSqlOutput::from(self.to_secret_hex()))
+    }
+}
+
+impl FromSql for SecretKey {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        value
+            .as_str()
+            .and_then(|s| Self::from_hex(s).map_err(|e| FromSqlError::Other(Box::new(e))))
     }
 }
