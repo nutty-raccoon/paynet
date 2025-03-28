@@ -18,6 +18,7 @@ mod keyset_cache;
 mod keyset_rotation;
 mod logic;
 mod methods;
+mod response_cache;
 mod routes;
 mod utils;
 
