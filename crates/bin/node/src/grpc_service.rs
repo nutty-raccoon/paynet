@@ -3,12 +3,20 @@ use crate::{
     keyset_cache::CachedKeysetInfo,
     liquidity_sources::LiquiditySources,
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
+    utils::{hash_mint_quote_request, hash_mint_request},
+};
+
+use std::{
+    fmt::Display,
+    hash::{DefaultHasher, Hash, Hasher},
+    str::FromStr,
+    sync::Arc,
 };
 use node::{
-    BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
-    GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest,
-    MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
-    SwapRequest, SwapResponse,
+    AckRequest, AckResponse, BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest,
+    GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse,
+    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
+    QuoteStateRequest, SwapRequest, SwapResponse,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -25,6 +33,7 @@ use std::{fmt::Display, str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
+use tower::ready_cache::cache;
 use uuid::Uuid;
 
 use crate::{
@@ -325,7 +334,35 @@ impl Node for GrpcState {
         let amount = Amount::from(mint_quote_request.amount);
         let unit = Unit::from_str(&mint_quote_request.unit).map_err(ParseGrpcError::Unit)?;
 
+        let request_hash = hash_mint_quote_request(mint_quote_request.clone());
+        let cache_key = format!("{:?}{}", method, request_hash);
+        let use_cache = self
+            .should_cache_endpoint(HttpMethod::Post, Path::Mint(method.clone()))
+            .await;
+        if use_cache {
+            // Try to get from cache first
+            if let Some(cached_response) = self.response_cache.clone().get(&cache_key) {
+                if let CachedResponse::MintQuote(mint_quote_response) = cached_response {
+                    return Ok(Response::new(mint_quote_response));
+                }
+            }
+        }
+
         let response = self.inner_mint_quote(method, amount, unit).await?;
+        if use_cache {
+            self.response_cache
+                .clone()
+                .insert(
+                    cache_key,
+                    CachedResponse::MintQuote(MintQuoteResponse {
+                        quote: response.quote.to_string(),
+                        request: response.request.clone(),
+                        state: node::MintQuoteState::from(response.state).into(),
+                        expiry: response.expiry,
+                    }),
+                )
+                .map_err(|e| Status::internal(e.to_string()))?;
+        }
 
         Ok(Response::new(MintQuoteResponse {
             quote: response.quote.to_string(),
@@ -346,6 +383,8 @@ impl Node for GrpcState {
                 "Too many outputs: maximum allowed is 64",
             ));
         }
+
+        let mint_request_hash = hash_mint_request(mint_request.clone());
 
         if mint_request.outputs.is_empty() {
             return Err(Status::invalid_argument("Outputs cannot be empty"));
@@ -381,6 +420,20 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let cache_key = format!("{:?}{}", method, mint_request_hash);
+        let use_cache = self
+            .should_cache_endpoint(HttpMethod::Post, Path::Mint(method.clone()))
+            .await;
+
+        if use_cache {
+            // Try to get from cache first
+            if let Some(cached_response) = self.response_cache.clone().get(&cache_key) {
+                if let CachedResponse::Mint(mint_response) = cached_response {
+                    return Ok(Response::new(mint_response));
+                }
+            }
+        }
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
         let signatures = promises
@@ -440,10 +493,39 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let cache_key = format!("{:?}{}", method, melt_request.request);
+        let use_cache = self
+            .should_cache_endpoint(HttpMethod::Post, Path::Melt(method.clone()))
+            .await;
+        if use_cache {
+            // Try to get from cache first
+            if let Some(cached_response) = self.response_cache.clone().get(&cache_key) {
+                if let CachedResponse::Melt(melt_response) = cached_response {
+                    return Ok(Response::new(melt_response));
+                }
+            }
+        }
 
         let response = self
             .inner_melt(method, unit, melt_request.request, &inputs)
             .await?;
+
+        // Store in cache if needed
+        if use_cache {
+            self.response_cache
+                .clone()
+                .insert(
+                    cache_key,
+                    CachedResponse::Melt(MeltResponse {
+                        quote: response.quote.to_string(),
+                        amount: response.amount.into(),
+                        fee: response.fee.into(),
+                        state: node::MeltState::from(response.state).into(),
+                        expiry: response.expiry,
+                    }),
+                )
+                .map_err(|e| Status::internal(e.to_string()))?;
+        }
 
         Ok(Response::new(MeltResponse {
             quote: response.quote.to_string(),
@@ -540,5 +622,24 @@ impl Node for GrpcState {
         Ok(Response::new(NodeInfoResponse {
             info: node_info_str,
         }))
+    }
+
+    /// acknowledge is for the client to say he successfully stored the quote_id
+
+    async fn ack(&self, ack_request: Request<AckRequest>) -> Result<Response<AckResponse>, Status> {
+        let method = ack_request.get_ref().method.clone();
+        let request_hash = ack_request.get_ref().request_hash.clone();
+
+        let cache_key = format!("{:?}{}", method, request_hash);
+
+        // check if the request is already in the cache, if so, remove it
+        let exist = self.response_cache.get(&cache_key.clone());
+        if exist.is_some() {
+            self.response_cache.remove(&cache_key);
+            return Ok(Response::new(AckResponse {
+                status: "ACK".to_string(),
+            }));
+        }
+        Err(Status::not_found("Request is not found in the cache"))
     }
 }
