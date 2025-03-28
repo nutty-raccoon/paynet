@@ -1,17 +1,18 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
-use nuts::{dhke, nut00::CashuError, nut02};
+use nuts::{dhke, nut00::CashuError, nut01, nut02};
 use thiserror::Error;
-
-use crate::commands::ConfigError;
+use tonic::Status;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    Init(#[from] InitializationError),
+    Init(#[from] crate::initialization::Error),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Dhke(#[from] dhke::Error),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
     #[error(transparent)]
     Nut02(#[from] nut02::Error),
     #[error(transparent)]
@@ -43,42 +44,16 @@ impl From<Error> for CashuError {
     }
 }
 
+impl From<Error> for Status {
+    fn from(value: Error) -> Self {
+        Status::invalid_argument(value.to_string())
+    }
+}
+
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         (StatusCode::BAD_REQUEST, Json(CashuError::from(self))).into_response()
     }
-}
-
-#[derive(Debug, Error)]
-pub enum InitializationError {
-    #[error("Failed to read the config file: {0}")]
-    CannotReadConfig(#[source] std::io::Error),
-    #[error("Failed to deserialize the config file as toml: {0}")]
-    Toml(#[source] toml::de::Error),
-    #[error("Failed to connect to database: {0}")]
-    DbConnect(#[source] sqlx::Error),
-    #[error("Failed to run the database migration: {0}")]
-    DbMigrate(#[source] sqlx::migrate::MigrateError),
-    #[cfg(debug_assertions)]
-    #[error("Failed to load .env file: {0}")]
-    Dotenvy(#[source] dotenvy::Error),
-    #[error("Failed to read variable from environment: {0}")]
-    Env(#[source] std::env::VarError),
-    #[error(transparent)]
-    ParseInt(#[from] std::num::ParseIntError),
-    #[error(transparent)]
-    Config(#[from] ConfigError),
-    #[cfg(feature = "indexer")]
-    #[error("Failed init apibara indexer: {0}")]
-    InitIndexer(#[source] starknet_payment_indexer::Error),
-    #[error("Failed bind tcp listener: {0}")]
-    BindTcp(#[source] std::io::Error),
-    #[error("Failed to open the SqLite db: {0}")]
-    OpenSqlite(#[source] rusqlite::Error),
-    #[error("Failed parse the Grpc address")]
-    InvalidGrpcAddress,
-    #[error("failed to connect to signer")]
-    SignerConnection(tonic::transport::Error),
 }
 
 #[derive(Debug, Error)]

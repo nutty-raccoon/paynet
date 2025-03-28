@@ -1,3 +1,8 @@
+//! Unit handling for Starknet tokens
+//!
+//! This module provides a type-safe representation of protocol's units and their conversion
+//! to blockchain-native values.
+
 use std::str::FromStr;
 
 use nuts::Amount;
@@ -6,29 +11,40 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Asset, Error, StarknetU256};
 
+/// Represents units supported by the node for user-facing operations
+///
+/// Units provide a domain-specific abstraction layer over raw blockchain assets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Unit {
-    Strk,
+    MilliStrk,
 }
 
+/// Maps a unit to its corresponding blockchain asset
+///
+/// This enables the application to maintain separate concepts for
+/// user-facing units and blockchain assets while providing a clear
+/// relationship between them.
 impl Unit {
     pub fn asset(&self) -> Asset {
         match self {
-            Unit::Strk => Asset::Strk,
+            Unit::MilliStrk => Asset::Strk,
         }
     }
 }
 
-// Used for derivation path
+/// Used in the derivation path when createing keysets
+///
+/// This guarantee that different units don't share the same signing keys
 impl From<Unit> for u32 {
     fn from(value: Unit) -> Self {
         match value {
-            Unit::Strk => 0,
+            Unit::MilliStrk => 0,
         }
     }
 }
 
+/// Error returned when parsing an unknown unit string
 #[derive(Debug, thiserror::Error)]
 #[error("invalid value for enum `Unit`")]
 pub struct UnitFromStrError;
@@ -38,7 +54,7 @@ impl FromStr for Unit {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let unit = match s {
-            "strk" => Self::Strk,
+            "strk" => Self::MilliStrk,
             _ => return Err(UnitFromStrError),
         };
 
@@ -50,35 +66,52 @@ impl std::fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(
             match self {
-                Unit::Strk => "strk",
+                Unit::MilliStrk => "strk",
             },
             f,
         )
     }
 }
 
+// Implementing nuts::traits::Unit enables this type to work with the rest of the protocol code.
+// Required because we will be supporting different sets of Units in the future.
+// Most likely, one by network we abstract.
 impl nuts::traits::Unit for Unit {}
 
-// e-3 strk
-const STRK_UNIT_TO_ASSET_CONVERSION_RATE: u64 = 1_000_000_000_000_000;
+// Conversion factor between an `Unit::Strk` `Amount` and its blockchain-native representation.
+// The starknet STRK token has a precision of 18. Meaning that 1 STRK = 10^18 wei.
+// Because this protocol focus on real life payment, we represent user-facing amounts in milli-STRK (e-3 STRK),
+// which is $0,0001786 at the time or writing those lines. I don't think we will ever need a smaller denomination.
+// We could even arguee it's too small, but we really hope the token price will pump in the future.
+//
+// Therefore we need 10^15 as the conversion factor (10^18 / 10^3)
+const MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE: u64 = 1_000_000_000_000_000;
 
 impl Unit {
+    /// Converts an amount of unit to its blockchain-native representation
     pub fn convert_amount_into_u256(&self, amount: Amount) -> StarknetU256 {
         match self {
-            Unit::Strk => StarknetU256::from(
-                U256::from(u64::from(amount)) * U256::from(STRK_UNIT_TO_ASSET_CONVERSION_RATE),
+            // TODO: probably possible to optimize this operation
+            Unit::MilliStrk => StarknetU256::from(
+                U256::from(u64::from(amount))
+                    * U256::from(MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE),
             ),
         }
     }
 
+    /// Converts a blockchain-native amount to a its `Amount` value
+    ///
+    /// Returns both the converted amount and any remainder that couldn't be represented
+    /// in the user-friendly unit. This precision handling is critical for accurate accounting.
     pub fn convert_u256_into_amount(
         &self,
         amount: StarknetU256,
     ) -> Result<(Amount, StarknetU256), Error> {
+        // TODO: add some unit tests for this impl
         match self {
-            Unit::Strk => {
+            Unit::MilliStrk => {
                 let (quotient, rem) = primitive_types::U256::from(&amount)
-                    .div_mod(U256::from(STRK_UNIT_TO_ASSET_CONVERSION_RATE));
+                    .div_mod(U256::from(MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE));
                 Ok((
                     Amount::from(
                         u64::try_from(quotient)
@@ -90,9 +123,12 @@ impl Unit {
         }
     }
 
+    /// Verifies that an asset is compatible with this unit
+    ///
+    /// This check helps to catch accidental mismatches between units and assets early.
     pub fn is_asset_supported(&self, asset: Asset) -> bool {
         match (self, asset) {
-            (Unit::Strk, Asset::Strk) => true,
+            (Unit::MilliStrk, Asset::Strk) => true,
         }
     }
 }

@@ -4,7 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
+use nuts::{
+    Amount,
+    nut01::{self, PublicKey},
+    nut02::KeysetId,
+};
 use sqlx::PgConnection;
 use starknet_types::Unit;
 use thiserror::Error;
@@ -18,17 +22,36 @@ pub enum Error {
     UnknownKeysetId(KeysetId, #[source] db_node::Error),
     #[error(transparent)]
     SignerClient(#[from] tonic::Status),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
 }
 
 #[derive(Debug, Clone)]
 pub struct CachedKeysetInfo {
     active: bool,
     unit: Unit,
+    max_order: u32,
 }
 
 impl CachedKeysetInfo {
-    pub fn new(active: bool, unit: Unit) -> Self {
-        Self { active, unit }
+    pub fn new(active: bool, unit: Unit, max_order: u32) -> Self {
+        Self {
+            active,
+            unit,
+            max_order,
+        }
+    }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
+    pub fn unit(&self) -> Unit {
+        self.unit
+    }
+
+    pub fn max_order(&self) -> u32 {
+        self.max_order
     }
 }
 
@@ -45,10 +68,22 @@ impl KeysetCache {
         write_lock.insert(keyset_id, info);
     }
 
-    pub async fn insert_keys(&self, keyset_id: KeysetId, keys: BTreeMap<Amount, PublicKey>) {
+    pub async fn insert_keys<I>(&self, keyset_id: KeysetId, keys: I)
+    where
+        I: IntoIterator<Item = (Amount, PublicKey)>,
+    {
         let mut write_lock = self.keys.write().await;
+        write_lock.insert(keyset_id, keys.into_iter().collect());
+    }
 
-        write_lock.insert(keyset_id, keys);
+    pub async fn disable_keys(&self, keyset_ids: &[KeysetId]) {
+        let mut write_lock = self.infos.write().await;
+
+        for keyset_id in keyset_ids {
+            if let Some(info) = write_lock.get_mut(keyset_id) {
+                info.active = false;
+            }
+        }
     }
 
     pub async fn get_keyset_keys(
@@ -82,13 +117,13 @@ impl KeysetCache {
         let keys = signer_keyset_info
             .keys
             .into_iter()
-            .map(|k| {
-                (
+            .map(|k| -> Result<(Amount, PublicKey), Error> {
+                Ok((
                     Amount::from(k.amount),
-                    PublicKey::from_str(&k.pubkey).unwrap(),
-                )
+                    PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
+                ))
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
 
         // Save the infos in the cache
         {
@@ -103,12 +138,12 @@ impl KeysetCache {
         &self,
         conn: &mut PgConnection,
         keyset_id: KeysetId,
-    ) -> Result<(bool, Unit), Error> {
+    ) -> Result<CachedKeysetInfo, Error> {
         // happy path: the infos are already in the cache
         {
             let cache_read_lock = self.infos.read().await;
             if let Some(info) = cache_read_lock.get(&keyset_id) {
-                return Ok((info.active, info.unit));
+                return Ok(info.clone());
             }
         }
 
@@ -118,17 +153,17 @@ impl KeysetCache {
             .map_err(|e| Error::UnknownKeysetId(keyset_id, e))?;
 
         // Save the infos in the cache
+        let info = CachedKeysetInfo {
+            active: db_content.active(),
+            unit: db_content.unit(),
+            max_order: db_content.max_order().into(),
+        };
+
         {
             let mut cache_write_lock = self.infos.write().await;
-            cache_write_lock.insert(
-                keyset_id,
-                CachedKeysetInfo {
-                    active: db_content.active(),
-                    unit: db_content.unit(),
-                },
-            );
+            cache_write_lock.insert(keyset_id, info.clone());
         }
 
-        Ok((db_content.active(), db_content.unit()))
+        Ok(info)
     }
 }

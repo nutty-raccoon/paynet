@@ -98,7 +98,7 @@ impl<'a> From<Error<'a>> for Status {
                     format!(
                         "{} is not part of the units currently supported: [{}]",
                         unit,
-                        Unit::Strk
+                        Unit::MilliStrk
                     ),
                 )]),
             ),

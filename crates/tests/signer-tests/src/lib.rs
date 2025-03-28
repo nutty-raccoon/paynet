@@ -6,7 +6,7 @@ use tonic_health::pb::health_client::HealthClient;
 use tonic::transport::Channel;
 
 fn ensure_env_variables() -> Result<()> {
-    if env::var("SOCKET_PORT").is_ok() && env::var("ROOT_KEY").is_ok() {
+    if env::var("GRPC_PORT").is_ok() && env::var("ROOT_KEY").is_ok() {
         return Ok(());
     }
 
@@ -22,7 +22,7 @@ fn ensure_env_variables() -> Result<()> {
 
 async fn get_signer_channel() -> Result<Channel> {
     ensure_env_variables()?;
-    let signer_port = std::env::var("SOCKET_PORT")?;
+    let signer_port = std::env::var("GRPC_PORT")?;
 
     let address = format!("https://localhost:{}", signer_port);
 

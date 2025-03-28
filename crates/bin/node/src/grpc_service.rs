@@ -11,6 +11,7 @@ use node::{
     MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
     SwapRequest, SwapResponse,
 };
+
 use nuts::{
     Amount, QuoteTTLConfig,
     nut00::{BlindedMessage, Proof, secret::Secret},
@@ -21,7 +22,7 @@ use nuts::{
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
-use starknet_types::{MeltPaymentRequest, Unit};
+use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
@@ -33,13 +34,15 @@ use crate::{
     methods::Method,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GrpcState {
     pub pg_pool: PgPool,
     pub signer: SignerClient,
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
+    #[cfg(feature = "starknet")]
+    pub starknet_cashier: crate::app_state::StarknetCashierClient,
     // TODO: add a cache for the mint_quote and melt routes
     pub response_cache: Arc<InMemResponseCache<String, CachedResponse>>,
 }
@@ -50,6 +53,7 @@ impl GrpcState {
         signer_client: signer::SignerClient<Channel>,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
+        #[cfg(feature = "starknet")] starknet_cashier: crate::app_state::StarknetCashierClient,
     ) -> Self {
         Self {
             pg_pool,
@@ -57,6 +61,8 @@ impl GrpcState {
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
+            #[cfg(feature = "starknet")]
+            starknet_cashier,
             response_cache: Arc::new(InMemResponseCache::new(None)),
         }
     }
@@ -98,22 +104,22 @@ impl GrpcState {
 
             insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
             self.keyset_cache
-                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit))
+                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit, max_order))
                 .await;
+
+            let keys = response
+                .keys
+                .into_iter()
+                .map(|k| -> Result<(Amount, PublicKey), Error> {
+                    Ok((
+                        Amount::from(k.amount),
+                        PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
             self.keyset_cache
-                .insert_keys(
-                    keyset_id,
-                    response
-                        .keys
-                        .into_iter()
-                        .map(|k| {
-                            (
-                                Amount::from(k.amount),
-                                PublicKey::from_str(&k.pubkey).unwrap(),
-                            )
-                        })
-                        .collect(),
-                )
+                .insert_keys(keyset_id, keys.into_iter())
                 .await;
         }
 
@@ -136,8 +142,6 @@ enum ParseGrpcError {
     Method(crate::methods::FromStrError),
     #[error(transparent)]
     Uuid(uuid::Error),
-    #[error(transparent)]
-    MeltPayment(serde_json::Error),
     #[error(transparent)]
     Secret(nuts::nut00::secret::Error),
 }
@@ -251,6 +255,24 @@ impl Node for GrpcState {
     ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
+        if swap_request.inputs.len() > 64 {
+            return Err(Status::invalid_argument(
+                "Too many inputs: maximum allowed is 64",
+            ));
+        }
+        if swap_request.outputs.len() > 64 {
+            return Err(Status::invalid_argument(
+                "Too many outputs: maximum allowed is 64",
+            ));
+        }
+
+        if swap_request.inputs.is_empty() {
+            return Err(Status::invalid_argument("Inputs cannot be empty"));
+        }
+        if swap_request.outputs.is_empty() {
+            return Err(Status::invalid_argument("Outputs cannot be empty"));
+        }
+
         let inputs = swap_request
             .inputs
             .into_iter()
@@ -320,6 +342,16 @@ impl Node for GrpcState {
     ) -> Result<Response<MintResponse>, Status> {
         let mint_request = mint_request.into_inner();
 
+        if mint_request.outputs.len() > 64 {
+            return Err(Status::invalid_argument(
+                "Too many outputs: maximum allowed is 64",
+            ));
+        }
+
+        if mint_request.outputs.is_empty() {
+            return Err(Status::invalid_argument("Outputs cannot be empty"));
+        }
+
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
 
         let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
@@ -383,10 +415,18 @@ impl Node for GrpcState {
     ) -> Result<Response<MeltResponse>, Status> {
         let melt_request = melt_request.into_inner();
 
+        if melt_request.inputs.len() > 64 {
+            return Err(Status::invalid_argument(
+                "Too many inputs: maximum allowed is 64",
+            ));
+        }
+
+        if melt_request.inputs.is_empty() {
+            return Err(Status::invalid_argument("Inputs cannot be empty"));
+        }
+
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
         let unit = Unit::from_str(&melt_request.unit).map_err(ParseGrpcError::Unit)?;
-        let melt_payment_request: MeltPaymentRequest =
-            serde_json::from_str(&melt_request.request).map_err(ParseGrpcError::MeltPayment)?;
         let inputs = melt_request
             .inputs
             .into_iter()
@@ -403,7 +443,7 @@ impl Node for GrpcState {
             .collect::<Result<Vec<_>, _>>()?;
 
         let response = self
-            .inner_melt(method, unit, melt_payment_request, &inputs)
+            .inner_melt(method, unit, melt_request.request, &inputs)
             .await?;
 
         Ok(Response::new(MeltResponse {
@@ -473,7 +513,7 @@ impl Node for GrpcState {
             .root_pubkey;
         let node_info = NodeInfo {
             name: Some("Paynet Test Node".to_string()),
-            pubkey: Some(PublicKey::from_str(&pub_key).unwrap()),
+            pubkey: Some(PublicKey::from_str(&pub_key).map_err(Error::Nut01)?),
             version: Some(NodeVersion {
                 name: "some_name".to_string(),
                 version: "0.0.0".to_string(),

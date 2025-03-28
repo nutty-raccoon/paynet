@@ -1,0 +1,21 @@
+[package]
+name = "node-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+signer = { workspace = true }
+tonic = { workspace = true }
+tonic-health = { workspace = true }
+nuts = { workspace = true }
+node = { workspace = true }
+
+[[test]]
+name = "keyset_rotation"
+path = "keyset_rotation.rs"
+
+[[test]]
+name = "health_check"
+path = "health_check.rs"

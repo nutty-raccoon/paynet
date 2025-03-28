@@ -62,7 +62,7 @@ fn it_works() {
     let erc20_abi = setup_erc20(OWNER());
     let invoice_payment_abi = setup_invoice_payment();
 
-    let id_hash = snforge_std::generate_random_felt();
+    let id_hash: u256 = snforge_std::generate_random_felt().into();
 
     let mut spy = snforge_std::spy_events();
 
@@ -109,10 +109,11 @@ fn it_works() {
                     invoice_payment_abi.contract_address,
                     invoice_payment::InvoicePayment::Event::Remittance(
                         invoice_payment::InvoicePayment::Remittance {
-                            id_hash: id_hash,
-                            token: erc20_abi.contract_address,
+                            payee: RECIPIENT(),
+                            asset: erc20_abi.contract_address,
+                            invoice_id: id_hash,
                             amount: AMOUNT,
-                            recipient: RECIPIENT(),
+                            payer: SENDER(),
                         },
                     ),
                 ),

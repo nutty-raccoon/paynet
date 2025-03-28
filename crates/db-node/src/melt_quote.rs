@@ -8,9 +8,12 @@ use uuid::Uuid;
 
 use crate::Error;
 
+// TODO: use a struct and ToSql trait instead
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_new<U: Unit>(
     conn: &mut PgConnection,
     quote_id: Uuid,
+    quote_hash: &[u8; 32],
     unit: U,
     amount: Amount,
     fee: Amount,
@@ -24,8 +27,9 @@ pub async fn insert_new<U: Unit>(
         OffsetDateTime::from_unix_timestamp(expiry).map_err(|_| Error::RuntimeToDbConversion)?;
 
     sqlx::query!(
-        r#"INSERT INTO melt_quote (id, unit, amount, fee, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
+        r#"INSERT INTO melt_quote (id, invoice_id, unit, amount, fee, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, $7, 'UNPAID')"#,
         quote_id,
+        quote_hash,
         &unit.to_string(),
         amount.into_i64_repr(),
         fee.into_i64_repr(),
