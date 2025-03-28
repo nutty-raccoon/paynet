@@ -1,10 +1,21 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
     traits::Unit,
 };
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Unknown state")]
+    UnknownState,
+}
 
 #[derive(
     Debug, Clone, Copy, Hash, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize,
@@ -36,6 +47,23 @@ impl core::fmt::Display for MintQuoteState {
                 MintQuoteState::Issued => "ISSUED",
             }
         )
+    }
+}
+
+impl ToSql for MintQuoteState {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(ToSqlOutput::from(self.to_string()))
+    }
+}
+
+impl FromSql for MintQuoteState {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        value.as_str().and_then(|s| match s {
+            "UNPAID" => Ok(MintQuoteState::Unpaid),
+            "PAID" => Ok(MintQuoteState::Paid),
+            "ISSUED" => Ok(MintQuoteState::Issued),
+            _ => Err(FromSqlError::Other(Box::new(Error::UnknownState))),
+        })
     }
 }
 

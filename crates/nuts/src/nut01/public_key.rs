@@ -2,14 +2,17 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
+use crate::SECP256K1;
 use bitcoin::XOnlyPublicKey;
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::secp256k1::Message;
 use bitcoin::secp256k1::{self, schnorr::Signature};
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
 use serde::{Deserialize, Deserializer, Serialize};
-
-use crate::SECP256K1;
 
 use super::Error;
 
@@ -126,6 +129,20 @@ impl<'de> Deserialize<'de> for PublicKey {
     {
         let public_key: String = String::deserialize(deserializer)?;
         Self::from_hex(public_key).map_err(serde::de::Error::custom)
+    }
+}
+
+impl ToSql for PublicKey {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(ToSqlOutput::from(self.to_hex()))
+    }
+}
+
+impl FromSql for PublicKey {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        value
+            .as_str()
+            .and_then(|s| Self::from_hex(s).map_err(|e| FromSqlError::Other(Box::new(e))))
     }
 }
 
