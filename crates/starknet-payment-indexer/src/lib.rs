@@ -3,7 +3,8 @@ use std::task::Poll;
 
 use apibara_core::node::v1alpha2::DataFinality;
 use apibara_core::starknet::v1alpha2::{Block, FieldElement, Filter, HeaderFilter};
-use apibara_sdk::{ClientBuilder, Configuration, DataMessage, Uri};
+pub use apibara_sdk::Uri;
+use apibara_sdk::{ClientBuilder, Configuration, DataMessage, InvalidUri};
 use futures::StreamExt;
 use rusqlite::Connection;
 use starknet_core::types::Felt;
@@ -21,10 +22,12 @@ const REMITTANCE_EVENT_KEY: &str =
 pub enum Error {
     #[error("Invalid value for field element: {0}")]
     InvalidFieldElement(String),
-    #[error("DNA client error")]
-    ApibaraClient,
+    #[error("DNA client error: {0}")]
+    ApibaraClient(Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error(transparent)]
     Db(#[from] rusqlite::Error),
+    #[error(transparent)]
+    ParseURI(#[from] InvalidUri),
 }
 
 pub struct ApibaraIndexerService {
@@ -38,12 +41,14 @@ impl ApibaraIndexerService {
     pub async fn init(
         mut db_conn: Connection,
         apibara_bearer_token: String,
+        uri: Uri,
+        starting_block: u64,
         target_asset_and_recipient_pairs: Vec<(Felt, Felt)>,
     ) -> Result<Self, Error> {
         db::create_tables(&mut db_conn)?;
 
         let config = Configuration::<Filter>::default()
-            .with_starting_block(458_645)
+            .with_starting_block(starting_block)
             .with_finality(DataFinality::DataStatusAccepted)
             .with_filter(|mut filter| {
                 let invoice_payment_contract_address =
@@ -70,15 +75,14 @@ impl ApibaraIndexerService {
                 filter
             });
 
-        let uri = Uri::from_static("https://sepolia.starknet.a5a.ch");
         let stream = ClientBuilder::default()
             .with_bearer_token(Some(apibara_bearer_token))
             .connect(uri)
             .await
-            .map_err(|_| Error::ApibaraClient)?
+            .map_err(|e| Error::ApibaraClient(Box::new(e.into_error())))?
             .start_stream_immutable::<Filter, Block>(config)
             .await
-            .map_err(|_| Error::ApibaraClient)?;
+            .map_err(|e| Error::ApibaraClient(Box::new(e.into_error())))?;
 
         Ok(Self { stream, db_conn })
     }
@@ -99,7 +103,7 @@ pub struct PaymentEvent {
     pub tx_hash: Felt,
     pub event_idx: u64,
     pub asset: Felt,
-    pub invoice_id: u128,
+    pub invoice_id: StarknetU256,
     pub amount: StarknetU256,
 }
 
@@ -162,11 +166,18 @@ impl futures::Stream for ApibaraIndexerService {
                                     tx_hash: Felt::from_hex_unchecked(&tx_hash),
                                     event_idx: payment_event.index,
                                     asset: Felt::from_hex_unchecked(&payment_event.asset),
-                                    invoice_id: u128::from_str_radix(
-                                        &payment_event.invoice_id[2..],
-                                        16,
-                                    )
-                                    .unwrap(),
+                                    invoice_id: StarknetU256::from_parts(
+                                        u128::from_str_radix(
+                                            &payment_event.invoice_id_low[2..],
+                                            16,
+                                        )
+                                        .unwrap(),
+                                        u128::from_str_radix(
+                                            &payment_event.invoice_id_high[2..],
+                                            16,
+                                        )
+                                        .unwrap(),
+                                    ),
                                     amount: StarknetU256::from_parts(
                                         u128::from_str_radix(&payment_event.amount_low[2..], 16)
                                             .unwrap(),

@@ -158,10 +158,13 @@ async fn main() -> Result<()> {
             }
             None => {
                 let nodes_with_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
-                for (node_id, url, balances) in nodes_with_balances {
-                    println!("Balance for node {} ({}):", node_id, url);
-                    for (unit, amount) in balances {
-                        println!("  {} {}", amount, unit);
+                for node_balances in nodes_with_balances {
+                    println!(
+                        "Balance for node {} ({}):",
+                        node_balances.node_id, node_balances.url
+                    );
+                    for balance in node_balances.balances {
+                        println!("  {} {}", balance.amount, balance.unit);
                     }
                 }
             }
@@ -250,10 +253,6 @@ async fn main() -> Result<()> {
                     request: serde_json::to_string(&starknet_types::MeltPaymentRequest {
                         recipient: Felt::from_hex_unchecked("0x123"),
                         asset: starknet_types::Asset::Strk,
-                        amount: starknet_types::StarknetU256 {
-                            high: Felt::ZERO,
-                            low: Felt::from_hex_unchecked("0x123"),
-                        },
                     })?,
                     inputs: wallet::convert_inputs(&inputs),
                 })

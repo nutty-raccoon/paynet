@@ -30,11 +30,28 @@ pub enum Error {
 pub struct CachedKeysetInfo {
     active: bool,
     unit: Unit,
+    max_order: u32,
 }
 
 impl CachedKeysetInfo {
-    pub fn new(active: bool, unit: Unit) -> Self {
-        Self { active, unit }
+    pub fn new(active: bool, unit: Unit, max_order: u32) -> Self {
+        Self {
+            active,
+            unit,
+            max_order,
+        }
+    }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
+    pub fn unit(&self) -> Unit {
+        self.unit
+    }
+
+    pub fn max_order(&self) -> u32 {
+        self.max_order
     }
 }
 
@@ -121,12 +138,12 @@ impl KeysetCache {
         &self,
         conn: &mut PgConnection,
         keyset_id: KeysetId,
-    ) -> Result<(bool, Unit), Error> {
+    ) -> Result<CachedKeysetInfo, Error> {
         // happy path: the infos are already in the cache
         {
             let cache_read_lock = self.infos.read().await;
             if let Some(info) = cache_read_lock.get(&keyset_id) {
-                return Ok((info.active, info.unit));
+                return Ok(info.clone());
             }
         }
 
@@ -136,17 +153,17 @@ impl KeysetCache {
             .map_err(|e| Error::UnknownKeysetId(keyset_id, e))?;
 
         // Save the infos in the cache
+        let info = CachedKeysetInfo {
+            active: db_content.active(),
+            unit: db_content.unit(),
+            max_order: db_content.max_order().into(),
+        };
+
         {
             let mut cache_write_lock = self.infos.write().await;
-            cache_write_lock.insert(
-                keyset_id,
-                CachedKeysetInfo {
-                    active: db_content.active(),
-                    unit: db_content.unit(),
-                },
-            );
+            cache_write_lock.insert(keyset_id, info.clone());
         }
 
-        Ok((db_content.active(), db_content.unit()))
+        Ok(info)
     }
 }

@@ -39,7 +39,7 @@ $ docker build --tag signer --file dockerfiles/signer.Dockerfile .
 $ docker run \
   -p 10000:10000 \
   --rm \
-  -e SOCKET_PORT="10000" \
+  -e GRPC_PORT="10000" \
   -e ROOT_KEY="tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH" \
   --name signer-server \
   -d signer-server
@@ -61,5 +61,5 @@ This time the environment variables are set in the `docker-compose.yml` file at 
 $ cargo test -p signer-tests
 ```
 
-The tests will read the `SOCKET_PORT` environment variable to contact the signer at `https://localhost:$SOCKET_PORT`.
+The tests will read the `GRPC_PORT` environment variable to contact the signer at `https://localhost:$GRPC_PORT`.
 It should be defined accordingly with the port exposed by your running instance of the signer service.

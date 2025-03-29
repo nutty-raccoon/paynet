@@ -15,12 +15,14 @@ use state::{SharedKeySetCache, SharedRootKey};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 mod server_errors;
 mod state;
 
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
-const SOCKET_PORT_ENV_VAR: &str = "SOCKET_PORT";
+const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
 
 const PROOFS_FIELD: &str = "proofs";
 const MESSAGES_FIELD: &str = "messages";
@@ -202,15 +204,20 @@ impl signer::Signer for SignerState {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+    info!("Initializing signer...");
+
     #[cfg(debug_assertions)]
     {
         let _ = dotenvy::from_filename("signer.env")
-            .inspect_err(|e| println!("dotenvy initialization failed: {e}"));
+            .inspect_err(|e| tracing::error!("dotenvy initialization failed: {e}"));
     }
 
     let socket_addr = {
         let socket_port_env_var: String =
-            std::env::var(SOCKET_PORT_ENV_VAR).expect("env var `SOCKET_PORT` should be set");
+            std::env::var(GRPC_PORT_ENV_VAR).expect("env var `GRPC_PORT` should be set");
         format!("[::0]:{}", socket_port_env_var).parse()?
     };
     let root_private_key = {
@@ -225,17 +232,17 @@ async fn main() -> Result<(), anyhow::Error> {
         keyset_cache: SharedKeySetCache(Arc::new(RwLock::new(HashMap::new()))),
     };
 
-    let svc = SignerServer::new(signer_logic);
+    let signer_server_service = SignerServer::new(signer_logic);
 
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<SignerServer<SignerState>>()
         .await;
 
-    println!("listening to new request on {}", socket_addr);
+    info!("listening to new request on {}", socket_addr);
 
     tonic::transport::Server::builder()
-        .add_service(svc)
+        .add_service(signer_server_service)
         .add_service(health_service)
         .serve(socket_addr)
         .await?;

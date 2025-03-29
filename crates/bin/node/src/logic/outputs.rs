@@ -30,6 +30,8 @@ pub enum Error {
     TotalAmountTooBig,
     #[error("blind message is already signed")]
     AlreadySigned,
+    #[error("amount exceeds max order for keyset {0}: amount {1} exceeds max value {2}")]
+    AmountExceedsMaxOrder(KeysetId, Amount, u64),
     #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
@@ -58,11 +60,11 @@ pub async fn check_outputs_allow_single_unit(
             .await?;
 
         // We only sign with active keysets
-        if !keyset_info.0 {
+        if !keyset_info.active() {
             return Err(Error::InactiveKeyset(blind_message.keyset_id));
         }
 
-        match (unit, keyset_info.1) {
+        match (unit, keyset_info.unit()) {
             (None, u) => unit = Some(u),
             (Some(unit), u) if u != unit => return Err(Error::MultipleUnits),
             _ => {}
@@ -101,12 +103,24 @@ pub async fn check_outputs_allow_multiple_units(
             .await?;
 
         // We only sign with active keysets
-        if !keyset_info.0 {
+        if !keyset_info.active() {
             return Err(Error::InactiveKeyset(blind_message.keyset_id));
         }
 
+        // Validate amount doesn't exceed max_order
+        let max_order = keyset_info.max_order();
+        let max_value = 1u64 << (max_order - 1);
+
+        if u64::from(blind_message.amount) > max_value {
+            return Err(Error::AmountExceedsMaxOrder(
+                blind_message.keyset_id,
+                blind_message.amount,
+                max_value,
+            ));
+        }
+
         // Incement total amount
-        let keyset_unit = keyset_info.1;
+        let keyset_unit = keyset_info.unit();
         match total_amounts.iter_mut().find(|(u, _)| *u == keyset_unit) {
             Some((_, a)) => {
                 *a = a
