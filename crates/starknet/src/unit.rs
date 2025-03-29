@@ -136,22 +136,44 @@ impl Unit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::vec;
 
-    #[test]
-    fn test_convert_u256_into_amount() {
+    fn test_convert_u256_into_amount_helper(amount: u64) {
         let unit = Unit::MilliStrk;
-        let amount = StarknetU256::from(U256::from(5000u64)); // Example input value
+        let amount_u256 = StarknetU256::from(U256::from(amount));
         let conversion_rate = U256::from(MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE);
 
-        let result = unit.convert_u256_into_amount(amount);
+        let result_a = unit.convert_u256_into_amount(amount_u256);
+        let (converted_amount, remainder) = result_a.unwrap();
 
-        assert!(result.is_ok());
-        let (converted_amount, remainder) = result.unwrap();
-
-        let expected_quotient = U256::from(5000u64) / conversion_rate;
-        let expected_remainder = U256::from(5000u64) % conversion_rate;
+        let expected_quotient = U256::from(amount) / conversion_rate;
+        let expected_remainder = U256::from(amount) % conversion_rate;
 
         assert_eq!(u64::from(converted_amount), expected_quotient.as_u64());
         assert_eq!(U256::from(remainder), expected_remainder);
+
+        let result_b = unit.convert_amount_into_u256(converted_amount);
+        assert_eq!(
+            U256::from(result_b) + expected_remainder,
+            U256::from(amount)
+        );
+    }
+
+    #[test]
+    fn test_convert_u256_into_amount() {
+        let values = vec![
+            0,
+            5000,
+            U256::MAX.low_u64(),
+            u128::MAX as u64,
+            (u128::MAX as u64).wrapping_add(1),
+            1e18 as u64,
+            1e17 as u64,
+            1e16 as u64,
+        ];
+
+        for value in values {
+            test_convert_u256_into_amount_helper(value);
+        }
     }
 }
