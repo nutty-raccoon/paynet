@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: ["main"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
@@ -21,7 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.85.1
         with:
           components: rustfmt, clippy
       - uses: arduino/setup-protoc@v3
@@ -54,9 +60,9 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
-        with:
-          components: ""
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.85.1
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-cache-${{ hashFiles('**/Cargo.lock') }}"
