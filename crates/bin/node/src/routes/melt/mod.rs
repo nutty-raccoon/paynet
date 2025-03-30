@@ -3,6 +3,7 @@ mod starknet;
 use nuts::Amount;
 use nuts::nut05::MeltQuoteResponse;
 use nuts::{nut00::Proof, nut05::MeltMethodSettings};
+use serde_json::Value;
 use sqlx::PgConnection;
 use starknet_types::Unit;
 use uuid::Uuid;
@@ -88,8 +89,9 @@ async fn validate_and_register_quote(
         settings.unit,
         total_amount,
         fee,
-        &serde_json::to_string(&melt_payment_request)
-            .expect("it has been deserialized it should be serializable"),
+        // &serde_json::to_string(&melt_payment_request)
+        // .expect("it has been deserialized it should be serializable"),
+        &melt_payment_request,
         expiry,
     )
     .await?;

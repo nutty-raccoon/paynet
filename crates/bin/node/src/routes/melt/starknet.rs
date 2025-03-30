@@ -23,6 +23,26 @@ impl GrpcState {
         let melt_payment_request: MeltPaymentRequest =
             serde_json::from_str(&raw_melt_payment_request)
                 .map_err(Error::InvalidPaymentRequest)?;
+
+        if melt_payment_request.recipient == starknet_types_core::felt::Felt::ZERO {
+            return Err(Error::InvalidPaymentRequest(serde_json::Error::custom(
+                "Recipient address cannot be zero",
+            )));
+        }
+
+        if melt_payment_request.recipient.to_bytes_be()[0] != 0 {
+            return Err(Error::InvalidPaymentRequest(serde_json::Error::custom(
+                "Recipient address is too large",
+            )));
+        }
+
+        let hex = melt_payment_request.recipient.to_hex_string();
+        if hex.is_empty() {
+            return Err(Error::InvalidPaymentRequest(serde_json::Error::custom(
+                "Recipient address is not properly formatted",
+            )));
+        }
+
         if !settings.unit.is_asset_supported(melt_payment_request.asset) {
             return Err(Error::InvalidAssetForUnit(
                 melt_payment_request.asset,
