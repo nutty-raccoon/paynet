@@ -13,10 +13,7 @@ pub trait ResponseCache<K, V> {
     fn insert(&self, key: K, value: V) -> Result<(), errors::Error>;
     fn remove(&self, key: &K) -> bool;
 
-    // For persistence when shutting down
-    fn persist(&self) -> Result<(), errors::Error> {
-        Ok(())
-    }
+    // TODO: persistent after shutting down
 }
 
 #[derive(Debug)]
