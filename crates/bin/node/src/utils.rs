@@ -1,9 +1,6 @@
-use crate::response_cache::{CachedResponse, ResponseCache};
-use axum::http::Response;
 use node::{MintQuoteRequest, MintRequest};
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
