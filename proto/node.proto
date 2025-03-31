@@ -23,7 +23,7 @@ service Node {
   
   // TODO: add Acknowledgment route
   // for the client to say he successfully stored the quote_id
-  rpc Ack (AckRequest) returns (AckResponse);
+  rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
 }
 
 message GetNodeInfoRequest {} 
@@ -132,11 +132,9 @@ message SwapResponse {
   repeated bdhke.BlindSignature signatures = 1;
 }
 
-message AckRequest {
+message AcknowledgeRequest {
   string method = 1;
   string request_hash = 2;
 }
 
-message AckResponse {
-  string status = 1;
-}
+message AcknowledgeResponse {}
