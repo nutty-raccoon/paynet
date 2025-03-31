@@ -1,15 +1,17 @@
-use crate::{app_state::starknet::StarknetConfig, grpc_service::GrpcState};
+use crate::grpc_service::GrpcState;
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},
 };
 use sqlx::PgPool;
-use starknet_types::{Invoice, StarknetU256, constants::ON_CHAIN_CONSTANTS};
 use thiserror::Error;
 use tonic::Status;
 use uuid::Uuid;
 
 use crate::{Unit, methods::Method, utils::unix_time};
+
+#[cfg(feature = "starknet")]
+mod starknet;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -84,7 +86,7 @@ impl GrpcState {
         }
 
         let response = match method {
-            Method::Starknet => new_starknet_mint_quote(
+            Method::Starknet => create_new_starknet_mint_quote(
                 &self.pg_pool,
                 #[cfg(feature = "starknet")]
                 self.starknet_config.clone(),
@@ -100,9 +102,9 @@ impl GrpcState {
 }
 
 /// Initialize a new Starknet mint quote
-async fn new_starknet_mint_quote(
+async fn create_new_starknet_mint_quote(
     pool: &PgPool,
-    starknet_config: StarknetConfig,
+    #[cfg(feature = "starknet")] starknet_config: crate::app_state::starknet::StarknetConfig,
     amount: Amount,
     unit: Unit,
     mint_ttl: u64,
@@ -111,25 +113,10 @@ async fn new_starknet_mint_quote(
     let quote = Uuid::new_v4();
     let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
 
-    let request = {
-        let asset = unit.asset();
-        let amount = unit.convert_amount_into_u256(amount);
-        let on_chain_constants = ON_CHAIN_CONSTANTS
-            .get(starknet_config.chain_id.as_str())
-            .unwrap();
-
-        serde_json::to_string(&Invoice {
-            id: StarknetU256::from_bytes(quote_hash.as_byte_array()),
-            payment_contract_address: on_chain_constants.invoice_payment_contract_address,
-            amount,
-            token_contract_address: *on_chain_constants
-                .assets_contract_address
-                .get(asset.as_ref())
-                .unwrap(),
-            payee: starknet_config.our_account_address,
-        })
-        .map_err(Error::SerQuoteRequest)?
-    };
+    #[cfg(feature = "starknet")]
+    let request = starknet::create_starknet_request(quote_hash, unit, amount, starknet_config)?;
+    #[cfg(not(feature = "starknet"))]
+    let request = "".to_string();
 
     let mut conn = pool.acquire().await?;
     db_node::mint_quote::insert_new(

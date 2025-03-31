@@ -34,6 +34,7 @@ sqlx = { workspace = true, features = ["postgres", "uuid"] }
 rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
 bitcoin_hashes = { workspace = true }
+async-trait = { workspace = true }
 
 starknet-payment-indexer = { workspace = true, optional = true }
 starknet-cashier = { workspace = true, optional = true }

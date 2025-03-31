@@ -1,4 +1,4 @@
-use crate::{Error, app_state, keyset_cache::CachedKeysetInfo};
+use crate::{Error, keyset_cache::CachedKeysetInfo};
 use std::{str::FromStr, sync::Arc};
 
 use node::{
@@ -37,7 +37,7 @@ pub struct GrpcState {
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     #[cfg(feature = "starknet")]
-    pub starknet_config: app_state::starknet::StarknetConfig,
+    pub starknet_config: crate::app_state::starknet::StarknetConfig,
     // TODO: add a cache for the mint_quote and melt routes
 }
 

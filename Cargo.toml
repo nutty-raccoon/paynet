@@ -80,6 +80,7 @@ rustainers = "0.15.1"
 assert_matches = "1.5.0"
 starknet = "0.13.0"
 phf = { version = "0.11.3"}
+async-trait = "0.1.88"
 
 # Local crates
 nuts = { path = "crates/nuts" }
