@@ -201,7 +201,7 @@ pub struct NutsSettings<M: Method, U> {
     pub nut05: nut05::Settings<M, U>,
     #[cfg(feature = "nut19")]
     #[serde(rename = "19")]
-    pub nut19: nut19::Settings<M>,
+    pub nut19: nut19::Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -209,7 +209,7 @@ pub struct NutsSettingsBuilder<M: Method, U> {
     nut04: Option<nut04::Settings<M, U>>,
     nut05: Option<nut05::Settings<M, U>>,
     #[cfg(feature = "nut19")]
-    nut19: Option<nut19::Settings<M>>,
+    nut19: Option<nut19::Settings>,
 }
 
 impl<M: Method, U> Default for NutsSettingsBuilder<M, U> {

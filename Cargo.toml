@@ -91,8 +91,6 @@ dashmap = "6.1.0"
 
 # Local crates
 # Clients
-dashmap = "6.1.0"
-
 signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
 starknet-cashier = { path = "crates/bin/starknet-cashier" }
