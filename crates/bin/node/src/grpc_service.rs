@@ -5,7 +5,6 @@ use crate::{
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
     utils::{hash_mint_quote_request, hash_mint_request},
 };
-
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
