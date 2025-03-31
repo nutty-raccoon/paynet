@@ -52,7 +52,7 @@ async fn validate_and_register_quote(
     conn: &mut PgConnection,
     signer: SignerClient,
     keyset_cache: KeysetCache,
-    settings: MeltMethodSettings<Method, Unit>,
+    settings: &MeltMethodSettings<Method, Unit>,
     mint_ttl: u64,
     melt_payment_request: String,
     inputs: &[Proof],

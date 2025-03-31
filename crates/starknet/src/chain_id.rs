@@ -40,6 +40,15 @@ impl ChainId {
 
         Ok(Self::Custom(s))
     }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            ChainId::Mainnet => SN_MAINNET,
+            ChainId::Sepolia => SN_SEPOLIA,
+            ChainId::Devnet => SN_DEVNET,
+            ChainId::Custom(s) => s,
+        }
+    }
 }
 
 impl std::fmt::Display for ChainId {
@@ -49,17 +58,6 @@ impl std::fmt::Display for ChainId {
             ChainId::Sepolia => std::fmt::Display::fmt(SN_SEPOLIA, f),
             ChainId::Devnet => std::fmt::Display::fmt(SN_DEVNET, f),
             ChainId::Custom(chain_id) => std::fmt::Display::fmt(&chain_id, f),
-        }
-    }
-}
-
-impl AsRef<str> for ChainId {
-    fn as_ref(&self) -> &str {
-        match self {
-            ChainId::Mainnet => SN_MAINNET,
-            ChainId::Sepolia => SN_SEPOLIA,
-            ChainId::Devnet => SN_DEVNET,
-            ChainId::Custom(s) => s,
         }
     }
 }
@@ -82,8 +80,7 @@ impl serde::Serialize for ChainId {
     where
         S: serde::Serializer,
     {
-        let as_string = self.as_ref();
-        serializer.serialize_str(as_string)
+        serializer.serialize_str(self.as_str())
     }
 }
 

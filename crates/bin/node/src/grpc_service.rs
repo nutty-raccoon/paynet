@@ -1,4 +1,4 @@
-use crate::{Error, keyset_cache::CachedKeysetInfo};
+use crate::{Error, app_state, keyset_cache::CachedKeysetInfo};
 use std::{str::FromStr, sync::Arc};
 
 use node::{
@@ -37,7 +37,7 @@ pub struct GrpcState {
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     #[cfg(feature = "starknet")]
-    pub starknet_cashier: crate::app_state::StarknetCashierClient,
+    pub starknet_config: app_state::starknet::StarknetConfig,
     // TODO: add a cache for the mint_quote and melt routes
 }
 
@@ -47,7 +47,7 @@ impl GrpcState {
         signer_client: signer::SignerClient<Channel>,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
-        #[cfg(feature = "starknet")] starknet_cashier: crate::app_state::StarknetCashierClient,
+        #[cfg(feature = "starknet")] starknet: crate::app_state::starknet::StarknetConfig,
     ) -> Self {
         Self {
             pg_pool,
@@ -56,7 +56,7 @@ impl GrpcState {
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
             #[cfg(feature = "starknet")]
-            starknet_cashier,
+            starknet_config: starknet,
         }
     }
 
@@ -405,6 +405,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
+            transfer_id: response.transfer_id,
         }))
     }
 
@@ -446,6 +447,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
+            transfer_id: response.transfer_id,
         }))
     }
 

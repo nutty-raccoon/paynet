@@ -6,7 +6,7 @@ use starknet_payment_indexer::{ApibaraIndexerService, Uri};
 use starknet_types::{Asset, ChainId};
 use starknet_types_core::felt::Felt;
 
-use super::{Error, StarknetConfig};
+use super::{Error, commands::StarknetUserConfig};
 
 async fn init_indexer_task(
     apibara_token: String,
@@ -16,7 +16,7 @@ async fn init_indexer_task(
     let conn = rusqlite::Connection::open_in_memory().map_err(Error::OpenSqlite)?;
 
     let on_chain_constants = starknet_types::constants::ON_CHAIN_CONSTANTS
-        .get(chain_id.as_ref())
+        .get(chain_id.as_str())
         .ok_or(Error::UnknownChainId(chain_id))?;
     let strk_token_address = on_chain_constants
         .assets_contract_address
@@ -46,12 +46,12 @@ async fn init_indexer_task(
 pub async fn launch_indexer_task(
     pg_pool: &Pool<Postgres>,
     apibara_token: String,
-    config: &StarknetConfig,
+    config: StarknetUserConfig,
 ) -> Result<impl Future<Output = Result<(), crate::Error>>, crate::Error> {
     let indexer_service = init_indexer_task(
         apibara_token,
         config.chain_id.clone(),
-        config.recipient_address,
+        config.our_account_address,
     )
     .await?;
     let db_conn = pg_pool.acquire().await?;

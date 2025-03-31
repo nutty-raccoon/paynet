@@ -40,6 +40,7 @@ impl signer::Signer for SignerState {
         declare_keyset_request: Request<DeclareKeysetRequest>,
     ) -> Result<Response<DeclareKeysetResponse>, Status> {
         let declare_keyset_request = declare_keyset_request.get_ref();
+
         if declare_keyset_request.max_order > 64 {
             return Err(Error::MaxOrderTooBig(declare_keyset_request.max_order))?;
         }

@@ -11,6 +11,7 @@ thiserror = { workspace = true }
 rusqlite = { workspace = true }
 starknet-types = { workspace = true }
 anyhow = { workspace = true }
+tracing = { workspace = true }
 
 apibara-core = { workspace = true }
 apibara-sdk = { workspace = true }

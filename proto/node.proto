@@ -112,6 +112,7 @@ message MeltResponse {
   uint64 fee = 3;
   MeltState state = 4;
   uint64 expiry = 5;
+  bytes transfer_id = 6;
 }
 
 enum MeltState {

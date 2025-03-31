@@ -45,7 +45,7 @@ pub async fn build_response_from_db(
     quote_id: Uuid,
 ) -> Result<MeltQuoteResponse<Uuid>, Error> {
     let record = sqlx::query!(
-        r#"SELECT amount, fee, state as "state: MeltQuoteState", expiry FROM melt_quote where id = $1"#,
+        r#"SELECT amount, fee, state as "state: MeltQuoteState", expiry, transfer_id as "transfer_id!" FROM melt_quote where id = $1"#,
         quote_id
     )
     .fetch_one(conn)
@@ -65,6 +65,7 @@ pub async fn build_response_from_db(
         fee,
         state: record.state,
         expiry,
+        transfer_id: record.transfer_id,
     })
 }
 
@@ -106,7 +107,7 @@ pub async fn set_state(
     conn: &mut PgConnection,
     quote_id: Uuid,
     state: MeltQuoteState,
-) -> Result<(), Error> {
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
             UPDATE melt_quote
@@ -115,6 +116,26 @@ pub async fn set_state(
         "#,
         quote_id,
         state as MeltQuoteState,
+    )
+    .execute(conn)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn register_transfer_id(
+    conn: &mut PgConnection,
+    quote_id: Uuid,
+    transfer_id: &[u8],
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+            UPDATE melt_quote
+            SET transfer_id = $2
+            WHERE id = $1
+        "#,
+        quote_id,
+        transfer_id,
     )
     .execute(conn)
     .await?;

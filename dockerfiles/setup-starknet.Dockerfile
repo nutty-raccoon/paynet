@@ -33,7 +33,7 @@ COPY --from=rust-builder /rust/target/release/starknet-on-chain-setup /rust/
 WORKDIR /
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'export RUST_LOG=info' >> /entrypoint.sh && \
-    echo 'exec "/rust/starknet-on-chain-setup" "declare" "$@" \
+    echo 'exec "/rust/starknet-on-chain-setup" "$@"  "declare" \
     "--sierra-json=/contract/invoice_payment_InvoicePayment.contract_class.json" \
     "--compiled-class-hash=$(cat /contract/compiled_class_hash.txt)"' \
     >> /entrypoint.sh && chmod +x /entrypoint.sh

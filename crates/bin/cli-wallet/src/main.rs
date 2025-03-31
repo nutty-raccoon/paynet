@@ -66,6 +66,8 @@ enum Commands {
         /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
+        #[arg(long, short)]
+        to: String,
     },
     /// Send tokens
     Send {
@@ -222,11 +224,11 @@ async fn main() -> Result<()> {
             amount,
             unit,
             node_id,
+            to,
         } => {
             let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
 
-            println!("Melting {} tokens from {}", amount, unit);
-            // Add melt logic here
+            println!("Melting {} {} tokens", amount, unit);
 
             let tx = db_conn.transaction()?;
             let tokens =
@@ -238,10 +240,10 @@ async fn main() -> Result<()> {
 
             let resp = node_client
                 .melt(node::MeltRequest {
-                    method: "starknet".to_string(),
+                    method: STARKNET_METHOD.to_string(),
                     unit,
                     request: serde_json::to_string(&starknet_types::MeltPaymentRequest {
-                        recipient: Felt::from_hex_unchecked("0x123"),
+                        payee: Felt::from_hex(&to)?,
                         asset: starknet_types::Asset::Strk,
                     })?,
                     inputs: wallet::convert_inputs(&inputs),
@@ -250,6 +252,8 @@ async fn main() -> Result<()> {
                 .into_inner();
 
             wallet::db::register_melt_quote(&db_conn, &resp)?;
+            let tx_hash = Felt::from_bytes_be_slice(&resp.transfer_id);
+            println!("Melt done. Withdrawal settled with tx: {:x}", tx_hash);
         }
         Commands::Send {
             amount,

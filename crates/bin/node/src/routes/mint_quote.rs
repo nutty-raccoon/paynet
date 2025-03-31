@@ -1,11 +1,10 @@
-use crate::grpc_service::GrpcState;
+use crate::{app_state::starknet::StarknetConfig, grpc_service::GrpcState};
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},
 };
 use sqlx::PgPool;
-use starknet_types::{MintPaymentRequest, PayInvoiceCalldata};
-use starknet_types_core::felt::Felt;
+use starknet_types::{Invoice, StarknetU256, constants::ON_CHAIN_CONSTANTS};
 use thiserror::Error;
 use tonic::Status;
 use uuid::Uuid;
@@ -85,9 +84,14 @@ impl GrpcState {
         }
 
         let response = match method {
-            Method::Starknet => {
-                new_starknet_mint_quote(&self.pg_pool, amount, unit, self.quote_ttl.mint_ttl())
-            }
+            Method::Starknet => new_starknet_mint_quote(
+                &self.pg_pool,
+                #[cfg(feature = "starknet")]
+                self.starknet_config.clone(),
+                amount,
+                unit,
+                self.quote_ttl.mint_ttl(),
+            ),
         }
         .await?;
 
@@ -98,6 +102,7 @@ impl GrpcState {
 /// Initialize a new Starknet mint quote
 async fn new_starknet_mint_quote(
     pool: &PgPool,
+    starknet_config: StarknetConfig,
     amount: Amount,
     unit: Unit,
     mint_ttl: u64,
@@ -109,19 +114,19 @@ async fn new_starknet_mint_quote(
     let request = {
         let asset = unit.asset();
         let amount = unit.convert_amount_into_u256(amount);
+        let on_chain_constants = ON_CHAIN_CONSTANTS
+            .get(starknet_config.chain_id.as_str())
+            .unwrap();
 
-        serde_json::to_string(&MintPaymentRequest {
-            contract_address: Felt::from_hex_unchecked(
-                "0x03a94f47433e77630f288054330fb41377ffcc49dacf56568eeba84b017aa633",
-            ),
-            selector: Felt::from_hex_unchecked(
-                "0x027a12f554d018764f982295090da45b4ff0734785be0982b62c329b9ac38033",
-            ),
-            calldata: PayInvoiceCalldata {
-                invoice_id: quote.as_u128(),
-                asset,
-                amount,
-            },
+        serde_json::to_string(&Invoice {
+            id: StarknetU256::from_bytes(quote_hash.as_byte_array()),
+            payment_contract_address: on_chain_constants.invoice_payment_contract_address,
+            amount,
+            token_contract_address: *on_chain_constants
+                .assets_contract_address
+                .get(asset.as_ref())
+                .unwrap(),
+            payee: starknet_config.our_account_address,
         })
         .map_err(Error::SerQuoteRequest)?
     };

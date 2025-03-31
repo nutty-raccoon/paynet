@@ -61,7 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let indexer_future = initialization::launch_indexer_task(
             &pg_pool,
             env_variables.apibara_token,
-            &starknet_config,
+            starknet_config.clone(),
         )
         .await?;
         info!("Listening to starknet indexer.");
@@ -74,7 +74,11 @@ async fn main() -> Result<(), anyhow::Error> {
         pg_pool.clone(),
         signer_client,
         #[cfg(feature = "starknet")]
-        starknet_cashier,
+        app_state::starknet::StarknetConfig {
+            cashier: starknet_cashier,
+            our_account_address: starknet_config.our_account_address,
+            chain_id: starknet_config.chain_id,
+        },
         env_variables.grpc_port,
     )
     .await?;

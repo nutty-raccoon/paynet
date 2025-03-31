@@ -34,25 +34,28 @@ impl GrpcState {
             &mut conn,
             self.signer.clone(),
             self.keyset_cache.clone(),
-            settings,
+            &settings,
             self.quote_ttl.melt_ttl(),
             raw_melt_payment_request,
             inputs,
         )
         .await?;
 
+        let amount_to_pay = settings.unit.convert_amount_into_u256(total_amount);
+
         #[cfg(not(feature = "starknet"))]
-        let state = proceed_to_payment(&mut conn, quote_id, quote_hash).await?;
+        let (state, tx_hash) = proceed_to_payment(&mut conn, quote_id, quote_hash).await?;
         #[cfg(feature = "starknet")]
-        let state = proceed_to_payment(
+        let (state, tx_hash) = proceed_to_payment(
             &mut conn,
             quote_id,
             quote_hash,
             melt_payment_request,
-            total_amount,
-            self.starknet_cashier.clone(),
+            amount_to_pay,
+            self.starknet_config.cashier.clone(),
         )
         .await?;
+        db_node::melt_quote::register_transfer_id(&mut conn, quote_id, &tx_hash).await?;
 
         Ok(MeltQuoteResponse {
             quote: quote_id,
@@ -60,6 +63,7 @@ impl GrpcState {
             fee,
             state,
             expiry,
+            transfer_id: tx_hash,
         })
     }
 }
@@ -69,11 +73,11 @@ async fn proceed_to_payment(
     conn: &mut PgConnection,
     quote_id: Uuid,
     _quote_hash: Sha256,
-) -> Result<MeltQuoteState, Error> {
+) -> Result<(MeltQuoteState, Vec<u8>), Error> {
     let new_state = MeltQuoteState::Paid;
 
     db_node::melt_quote::set_state(conn, quote_id, new_state).await?;
-    Ok(new_state)
+    Ok(new_state, b"cafebabe")
 }
 
 #[cfg(feature = "starknet")]
@@ -82,32 +86,29 @@ async fn proceed_to_payment(
     quote_id: Uuid,
     quote_hash: Sha256,
     melt_payment_request: MeltPaymentRequest,
-    amount: nuts::Amount,
-    mut starknet_cashier: crate::app_state::StarknetCashierClient,
-) -> Result<MeltQuoteState, Error> {
+    amount: starknet_types::StarknetU256,
+    mut starknet_cashier: crate::app_state::starknet::StarknetCashierClient,
+) -> Result<(MeltQuoteState, Vec<u8>), Error> {
     use starknet_cashier::WithdrawRequest;
     use tonic::Request;
 
-    starknet_cashier
+    let tx_hash = starknet_cashier
         .withdraw(Request::new(WithdrawRequest {
-            amount: u64::from(amount)
-                .to_be_bytes()
-                .into_iter()
-                .skip_while(|&b| b == 0)
-                .collect(),
-            asset: melt_payment_request.asset.to_string(),
             invoice_id: quote_hash.to_byte_array().to_vec(),
-            payee: melt_payment_request
-                .recipient
+            asset: melt_payment_request.asset.to_string(),
+            amount: amount
                 .to_bytes_be()
                 .into_iter()
                 .skip_while(|&b| b == 0)
                 .collect(),
+            payee: melt_payment_request.payee.to_bytes_be().to_vec(),
         }))
         .await
-        .map_err(Error::StarknetCashier)?;
+        .map_err(Error::StarknetCashier)?
+        .into_inner()
+        .tx_hash;
     let new_state = MeltQuoteState::Pending;
 
     db_node::melt_quote::set_state(conn, quote_id, new_state).await?;
-    Ok(new_state)
+    Ok((new_state, tx_hash))
 }

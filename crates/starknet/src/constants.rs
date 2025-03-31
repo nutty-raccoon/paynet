@@ -18,7 +18,7 @@ type AssetsMap = phf::Map<&'static str, Felt>;
 /// These addresses are network-specific and have been verified to be the official
 /// token contracts.
 static SEPOLIA_ASSETS_ADDRESSES: AssetsMap = phf_map! {
-    "strk" => Felt::from_hex_unchecked("0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"),
+    "strk" => Felt::from_hex_unchecked("0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"),
     "eth" => Felt::from_hex_unchecked("0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7"),
 };
 

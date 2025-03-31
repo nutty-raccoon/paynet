@@ -13,45 +13,66 @@ use starknet::{
     providers::{JsonRpcClient, Provider, ProviderError, jsonrpc::HttpTransport},
     signers::{LocalWallet, SigningKey},
 };
+use starknet_types::{Invoice, transactions::sign_and_send_payment_transactions};
 use url::Url;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-enum Args {
+enum Commands {
     Declare(DeclareCommand),
+    PayInvoice(PayInvoiceCommand),
+}
+
+#[derive(Parser, Debug)]
+struct AccountArgs {
+    #[arg(long)]
+    url: String,
+    #[arg(long)]
+    chain_id: String,
+    #[arg(long)]
+    private_key: String,
+    #[arg(long)]
+    account_address: String,
 }
 
 #[derive(Parser, Debug)]
 struct DeclareCommand {
-    #[arg(short('i'), long)]
-    chain_id: String,
-    #[arg(short, long)]
-    url: String,
-    #[arg(short, long, value_hint(ValueHint::FilePath))]
+    #[arg(long, value_hint(ValueHint::FilePath))]
     sierra_json: PathBuf,
-    #[arg(short, long)]
+    #[arg(long)]
     compiled_class_hash: String,
-    #[arg(short, long)]
-    private_key: String,
-    #[arg(short, long)]
-    account_address: String,
+}
+
+#[derive(Parser, Debug)]
+struct PayInvoiceCommand {
+    #[arg(long)]
+    invoice_json_string: String,
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(flatten)]
+    account: AccountArgs,
+    #[command(subcommand)]
+    command: Commands,
 }
 
 fn init_account(
-    cmd: &DeclareCommand,
+    account_args: AccountArgs,
 ) -> Result<SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>, Error> {
     let signer = LocalWallet::from(SigningKey::from_secret_scalar(Felt::from_hex(
-        &cmd.private_key,
+        &account_args.private_key,
     )?));
-    let address = Felt::from_hex(&cmd.account_address)?;
+    let address = Felt::from_hex(&account_args.account_address)?;
 
-    let provider = JsonRpcClient::new(HttpTransport::new(Url::parse(&cmd.url)?));
+    let provider = JsonRpcClient::new(HttpTransport::new(Url::parse(&account_args.url)?));
 
     let account = SingleOwnerAccount::new(
         provider,
         signer,
         address,
-        Felt::from_bytes_be_slice(cmd.chain_id.as_bytes()),
+        Felt::from_bytes_be_slice(account_args.chain_id.as_bytes()),
         ExecutionEncoding::New,
     );
 
@@ -69,16 +90,44 @@ fn init_account(
 async fn main() -> Result<(), Error> {
     env_logger::init();
 
-    let args = Args::parse();
+    let cli = Cli::parse();
+    let account = init_account(cli.account)?;
 
-    match args {
-        Args::Declare(declare_command) => declare(declare_command).await?,
+    match cli.command {
+        Commands::Declare(declare_command) => declare(&account, declare_command).await?,
+        Commands::PayInvoice(pay_invoice_command) => pay(&account, pay_invoice_command).await?,
     }
 
     Ok(())
 }
 
-async fn declare(cmd: DeclareCommand) -> Result<(), Error> {
+async fn pay(
+    account: &SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    cmd: PayInvoiceCommand,
+) -> Result<(), Error> {
+    let invoice: Invoice = serde_json::from_str(&cmd.invoice_json_string)?;
+
+    let tx_hash = sign_and_send_payment_transactions(
+        &account,
+        invoice.id,
+        invoice.payment_contract_address,
+        invoice.token_contract_address,
+        invoice.amount,
+        invoice.payee,
+    )
+    .await?;
+    info!("payment tx sent: {:#064x}", tx_hash);
+
+    watch_tx(account.provider(), tx_hash).await?;
+    info!("payment tx succeeded");
+
+    Ok(())
+}
+
+async fn declare(
+    account: &SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    cmd: DeclareCommand,
+) -> Result<(), Error> {
     let compiled_class_hash = Felt::from_hex(&cmd.compiled_class_hash)?;
 
     let contract_artifact: SierraClass =
@@ -86,8 +135,6 @@ async fn declare(cmd: DeclareCommand) -> Result<(), Error> {
 
     let flattened_class = contract_artifact.flatten()?;
     let class_hash = flattened_class.class_hash();
-
-    let account = init_account(&cmd)?;
 
     if let Err(ProviderError::StarknetError(StarknetError::ClassHashNotFound)) = account
         .provider()
