@@ -6,8 +6,6 @@ use crate::{
 };
 
 use std::{
-    fmt::Display,
-    hash::{DefaultHasher, Hash, Hasher},
     str::FromStr,
     sync::Arc,
 };
@@ -25,7 +23,6 @@ use nuts::{
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
-    nut19::{HttpMethod, Path},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
@@ -33,7 +30,6 @@ use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
-use tower::ready_cache::cache;
 use uuid::Uuid;
 
 use crate::{
