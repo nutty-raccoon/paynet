@@ -35,72 +35,80 @@ impl Amount {
     pub const ONE: Amount = Amount(1);
 
     /// Split into parts that are powers of two
-    pub fn split(&self) -> Vec<Self> {
+    ///
+    /// Returned values are guaranteed to be sorted in ascending order
+    pub fn split(&self) -> impl Iterator<Item = Self> {
         let sats = self.0;
-        (0_u64..64)
-            .rev()
-            .filter_map(|bit| {
-                let part = 1 << bit;
-                ((sats & part) == part).then_some(Self::from(part))
-            })
-            .collect()
+        (0_u64..64).filter_map(move |bit| {
+            let part = 1 << bit;
+            ((sats & part) == part).then_some(Self::from(part))
+        })
     }
 
     /// Split into parts that are powers of two by target
     pub fn split_targeted(&self, target: &SplitTarget) -> Result<Vec<Self>, Error> {
-        let mut parts = match target {
-            SplitTarget::None => self.split(),
-            SplitTarget::Value(amount) => {
-                if self.le(amount) {
-                    return Ok(self.split());
+        let parts = match target {
+            SplitTarget::None => return Ok(self.split().collect()),
+            SplitTarget::Value(target_amount) => {
+                if self.le(target_amount) {
+                    // return Err(Error::SplitValuesGreater);
+                    return Ok(self.split().collect());
                 }
 
-                let mut parts_total = Amount::ZERO;
                 let mut parts = Vec::new();
 
                 // The powers of two that are need to create target value
-                let parts_of_value = amount.split();
+                let mut parts_of_value = target_amount.split();
+                // The remainder after we got our target values
+                let remainder = *self - *target_amount;
+                let mut parts_of_remainder = remainder.split();
 
-                while parts_total.lt(self) {
-                    for part in parts_of_value.iter().copied() {
-                        if (part + parts_total).le(self) {
-                            parts.push(part);
-                        } else {
-                            let amount_left = *self - parts_total;
-                            parts.extend(amount_left.split());
-                        }
+                let mut val = parts_of_value.next();
+                let mut rem = parts_of_remainder.next();
 
-                        parts_total = Amount::try_sum(parts.clone().iter().copied())?;
-
-                        if parts_total.eq(self) {
+                loop {
+                    match (val, rem) {
+                        (None, Some(r)) => {
+                            parts.push(r);
+                            parts.extend(parts_of_remainder);
                             break;
                         }
+                        (Some(v), None) => {
+                            parts.push(v);
+                            parts.extend(parts_of_value);
+                            break;
+                        }
+                        (Some(v), Some(r)) => parts.push(if v <= r {
+                            val = parts_of_value.next();
+                            v
+                        } else {
+                            rem = parts_of_remainder.next();
+                            r
+                        }),
+                        (None, None) => unreachable!(),
                     }
                 }
 
                 parts
             }
             SplitTarget::Values(values) => {
-                let values_total: Amount = Amount::try_sum(values.clone().into_iter())?;
-
-                match self.cmp(&values_total) {
-                    Ordering::Equal => values.clone(),
-                    Ordering::Less => {
+                let mut total_values = Amount::ZERO;
+                let mut splited_values = Vec::new();
+                for value in values {
+                    total_values += *value;
+                    if total_values > *self {
                         return Err(Error::SplitValuesGreater);
                     }
-                    Ordering::Greater => {
-                        let extra = *self - values_total;
-                        let mut extra_amount = extra.split();
-                        let mut values = values.clone();
-
-                        values.append(&mut extra_amount);
-                        values
-                    }
+                    splited_values.extend(value.split());
                 }
+                let remainder = *self - total_values;
+                splited_values.extend(remainder.split());
+                splited_values.sort();
+
+                splited_values
             }
         };
 
-        parts.sort();
         Ok(parts)
     }
 
@@ -307,6 +315,15 @@ pub enum SplitTarget {
     Values(Vec<Amount>),
 }
 
+#[derive(Debug, Clone)]
+pub enum LoserTournamentNode {
+    Leaf(Option<usize>),
+    Node {
+        loser_value: Option<Amount>,
+        value_origin: usize,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     /// Msats in sat
@@ -339,16 +356,19 @@ mod tests {
 
     #[test]
     fn test_split_amount() {
-        assert_eq!(Amount(1).split(), vec![Amount(1)]);
-        assert_eq!(Amount(2).split(), vec![Amount(2)]);
-        assert_eq!(Amount(3).split(), vec![Amount(2), Amount(1)]);
-        let amounts: Vec<Amount> = [8, 2, 1].iter().map(|a| Amount(*a)).collect();
-        assert_eq!(Amount(11).split(), amounts);
-        let amounts: Vec<Amount> = [128, 64, 32, 16, 8, 4, 2, 1]
+        assert_eq!(Amount(1).split().collect::<Vec<_>>(), vec![Amount(1)]);
+        assert_eq!(Amount(2).split().collect::<Vec<_>>(), vec![Amount(2)]);
+        assert_eq!(
+            Amount(3).split().collect::<Vec<_>>(),
+            vec![Amount(1), Amount(2)]
+        );
+        let amounts: Vec<Amount> = [1, 2, 8].iter().map(|a| Amount(*a)).collect();
+        assert_eq!(Amount(11).split().collect::<Vec<_>>(), amounts);
+        let amounts: Vec<Amount> = [1, 2, 4, 8, 16, 32, 64, 128]
             .iter()
             .map(|a| Amount(*a))
             .collect();
-        assert_eq!(Amount(255).split(), amounts);
+        assert_eq!(Amount(255).split().collect::<Vec<_>>(), amounts);
     }
 
     #[test]
@@ -368,14 +388,11 @@ mod tests {
         assert_eq!(
             vec![
                 Amount(2),
-                Amount(2),
-                Amount(2),
-                Amount(16),
-                Amount(16),
+                Amount(4),
                 Amount(16),
                 Amount(32),
                 Amount(32),
-                Amount(32)
+                Amount(64),
             ],
             split
         );
