@@ -253,7 +253,7 @@ async fn main() -> Result<()> {
 
             wallet::db::register_melt_quote(&db_conn, &resp)?;
             let tx_hash = Felt::from_bytes_be_slice(&resp.transfer_id);
-            println!("Melt done. Withdrawal settled with tx: {:x}", tx_hash);
+            println!("Melt done. Withdrawal settled with tx: {:#x}", tx_hash);
         }
         Commands::Send {
             amount,

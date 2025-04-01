@@ -36,12 +36,14 @@ starknet-types-core = { workspace = true }
 bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 
+liquidity-source = { workspace = true }
+
 starknet-payment-indexer = { workspace = true, optional = true }
 starknet-cashier = { workspace = true, optional = true }
 
 [features]
 default = ["starknet"]
-starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier"]
+starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier", "liquidity-source/starknet"]
 
 [build-dependencies]
 tonic-build = "0.13.0"

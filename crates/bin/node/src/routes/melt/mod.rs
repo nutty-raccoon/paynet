@@ -1,58 +1,28 @@
 mod errors;
-#[cfg(not(feature = "starknet"))]
-mod mock;
-#[cfg(feature = "starknet")]
-mod starknet;
 
-use bitcoin_hashes::Sha256;
+use liquidity_source::{MeltBackend, PaymentAmount, PaymentRequest};
 use nuts::Amount;
-use nuts::nut05::{MeltQuoteResponse, MeltQuoteState};
+use nuts::nut05::MeltQuoteResponse;
 use nuts::{nut00::Proof, nut05::MeltMethodSettings};
 use sqlx::PgConnection;
-use starknet_types::{Asset, Unit};
+use starknet_types::Unit;
 use uuid::Uuid;
 
 use crate::logic::process_melt_inputs;
 use crate::utils::unix_time;
 use crate::{grpc_service::GrpcState, methods::Method};
 
-pub trait PaymentRequest {
-    fn asset(&self) -> Asset;
-}
-
-#[async_trait::async_trait]
-pub trait MeltBackend {
-    type PaymentRequest: std::fmt::Debug
-        + serde::Serialize
-        + for<'de> serde::Deserialize<'de>
-        + PaymentRequest
-        + Send;
-
-    fn deserialize_payment_request(
-        &self,
-        raw_json_string: &str,
-    ) -> Result<Self::PaymentRequest, Error>;
-
-    async fn proceed_to_payment(
-        &mut self,
-        quote_hash: Sha256,
-        payment_request: Self::PaymentRequest,
-        unit: Unit,
-        amount: Amount,
-    ) -> Result<(MeltQuoteState, Vec<u8>), Error>;
-}
-
 use errors::Error;
 
 impl GrpcState {
-    fn get_backend(&self, method: Method) -> Result<impl MeltBackend, Error> {
+    fn get_backend<'a, 'b: 'a>(&'a self, method: Method) -> Result<impl MeltBackend + 'b, Error> {
         match method {
             Method::Starknet => {
                 #[cfg(not(feature = "starknet"))]
-                return Ok(mock::MockMeltBackend);
+                return Ok(liquidity_source::mock::MockMeltBackend);
 
                 #[cfg(feature = "starknet")]
-                return Ok(starknet::StarknetMeltBackend(
+                return Ok(liquidity_source::starknet::StarknetMeltBackend(
                     self.starknet_config.cashier.clone(),
                 ));
             }
@@ -81,7 +51,9 @@ impl GrpcState {
         };
 
         let mut backend = self.get_backend(method)?;
-        let payment_request = backend.deserialize_payment_request(&melt_payment_request)?;
+        let payment_request = backend
+            .deserialize_payment_request(&melt_payment_request)
+            .map_err(|e| Error::LiquiditySource(e.into()))?;
         let asset = payment_request.asset();
         if !settings.unit.is_asset_supported(asset) {
             return Err(Error::InvalidAssetForUnit(asset, settings.unit));
@@ -93,8 +65,13 @@ impl GrpcState {
             .validate_and_register_quote(&mut conn, &settings, melt_payment_request, inputs)
             .await?;
         let (state, transfer_id) = backend
-            .proceed_to_payment(quote_hash, payment_request, settings.unit, total_amount)
-            .await?;
+            .proceed_to_payment(
+                quote_hash,
+                payment_request,
+                PaymentAmount::convert_from(settings.unit, total_amount),
+            )
+            .await
+            .map_err(|e| Error::LiquiditySource(e.into()))?;
         // TODO: merge those in a signle call
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;
         db_node::melt_quote::register_transfer_id(&mut conn, quote_id, &transfer_id).await?;

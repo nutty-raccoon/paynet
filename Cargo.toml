@@ -11,8 +11,9 @@ members = [
   "crates/nuts",
   "crates/starknet",
   "crates/wallet",
+  "crates/liquidity-source",
   "crates/tests/signer-tests",
-  "crates/tests/node-tests",
+  "crates/tests/node-tests", "crates/liquidity-source",
 ]
 default-members = [
   "crates/bin/node",
@@ -25,6 +26,7 @@ default-members = [
   "crates/nuts",
   "crates/starknet",
   "crates/wallet",
+  "crates/liquidity-source",
 ]
 
 
@@ -91,3 +93,4 @@ signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
 starknet-cashier = { path = "crates/bin/starknet-cashier" }
 wallet = { path = "crates/wallet" }
+liquidity-source = { path = "crates/liquidity-source" }

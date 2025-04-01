@@ -1,10 +1,18 @@
 use bitcoin_hashes::Sha256;
-use nuts::{Amount, nut05::MeltQuoteState};
+use nuts::nut05::MeltQuoteState;
 use starknet_cashier::{StarknetCashierClient, WithdrawRequest};
-use starknet_types::{Asset, MeltPaymentRequest, Unit};
+use starknet_types::{Asset, MeltPaymentRequest, StarknetU256, Unit};
 use tonic::{Request, transport::Channel};
 
-use super::{MeltBackend, PaymentRequest, errors::Error};
+use super::{MeltBackend, PaymentAmount, PaymentRequest};
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("invalid payment request json string: {0}")]
+    InvalidPaymentRequest(#[from] serde_json::Error),
+    #[error("failed to trigger withdraw from starknet cashier: {0}")]
+    StarknetCashier(#[source] tonic::Status),
+}
 
 impl PaymentRequest for MeltPaymentRequest {
     fn asset(&self) -> Asset {
@@ -12,11 +20,19 @@ impl PaymentRequest for MeltPaymentRequest {
     }
 }
 
+impl PaymentAmount for StarknetU256 {
+    fn convert_from(unit: Unit, amount: nuts::Amount) -> Self {
+        unit.convert_amount_into_u256(amount)
+    }
+}
+
 pub struct StarknetMeltBackend(pub StarknetCashierClient<Channel>);
 
 #[async_trait::async_trait]
 impl MeltBackend for StarknetMeltBackend {
+    type Error = Error;
     type PaymentRequest = MeltPaymentRequest;
+    type PaymentAmount = StarknetU256;
 
     fn deserialize_payment_request(
         &self,
@@ -31,17 +47,14 @@ impl MeltBackend for StarknetMeltBackend {
         &mut self,
         quote_hash: Sha256,
         melt_payment_request: MeltPaymentRequest,
-        unit: Unit,
-        amount: Amount,
+        amount: Self::PaymentAmount,
     ) -> Result<(MeltQuoteState, Vec<u8>), Error> {
-        let amount_to_pay = unit.convert_amount_into_u256(amount);
-
         let tx_hash = self
             .0
             .withdraw(Request::new(WithdrawRequest {
                 invoice_id: quote_hash.to_byte_array().to_vec(),
                 asset: melt_payment_request.asset.to_string(),
-                amount: amount_to_pay
+                amount: amount
                     .to_bytes_be()
                     .into_iter()
                     .skip_while(|&b| b == 0)

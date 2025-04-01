@@ -21,6 +21,7 @@ use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -83,6 +84,7 @@ impl GrpcState {
             let keyset_id = KeysetId::from_bytes(&response.keyset_id)?;
 
             insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
+
             self.keyset_cache
                 .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit, max_order))
                 .await;
@@ -234,6 +236,8 @@ impl Node for GrpcState {
         swap_request: Request<SwapRequest>,
     ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
+
+        info!("swap req: {:#?}", swap_request.inputs);
 
         if swap_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
