@@ -1,6 +1,11 @@
-//! CDK Amount
+//! # Amount
 //!
-//! Is any unit and will be treated as the unit of the wallet
+//! The `Amount` type serves several purposes:
+//!
+//! - Provides type safety when handling quantity values
+//! - Checks for arithmetic overflows in all operations
+//! - Supports decomposition into power-of-two values
+//! - Controls serialization format
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -14,7 +19,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     /// Split Values must be less then or equal to amount
-    #[error("Split Values must be less then or equal to amount")]
+    #[error("Split Values must be less than or equal to amount")]
     SplitValuesGreater,
     /// Amount overflow
     #[error("Amount Overflow")]
@@ -24,7 +29,10 @@ pub enum Error {
     CannotConvertUnits,
 }
 
-/// Amount can be any unit
+/// A typed wrapper around u64 for safely handling monetary values.
+///
+/// All arithmetic operations include overflow checks to prevent silent
+/// data corruption when dealing with monetary values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Amount(u64);
@@ -50,8 +58,10 @@ impl Amount {
         let parts = match target {
             SplitTarget::None => return Ok(self.split().collect()),
             SplitTarget::Value(target_amount) => {
-                if self.le(target_amount) {
-                    // return Err(Error::SplitValuesGreater);
+                if self < target_amount {
+                    return Err(Error::SplitValuesGreater);
+                }
+                if self == target_amount {
                     return Ok(self.split().collect());
                 }
 
@@ -198,6 +208,12 @@ impl From<Amount> for u64 {
     }
 }
 
+impl From<&Amount> for u64 {
+    fn from(value: &Amount) -> Self {
+        value.0
+    }
+}
+
 impl std::ops::Add for Amount {
     type Output = Amount;
 
@@ -216,13 +232,13 @@ impl std::ops::Sub for Amount {
     type Output = Amount;
 
     fn sub(self, rhs: Amount) -> Self::Output {
-        Amount(self.0 - rhs.0)
+        Amount(self.0.checked_sub(rhs.0).expect("Substraction error"))
     }
 }
 
 impl std::ops::SubAssign for Amount {
-    fn sub_assign(&mut self, other: Self) {
-        self.0 -= other.0;
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 = self.0.checked_sub(rhs.0).expect("Substraction error");
     }
 }
 
@@ -230,7 +246,7 @@ impl std::ops::Mul for Amount {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
-        Amount(self.0 * other.0)
+        Amount(self.0.checked_mul(other.0).expect("Multiplication error"))
     }
 }
 
@@ -238,6 +254,9 @@ impl std::ops::Div for Amount {
     type Output = Self;
 
     fn div(self, other: Self) -> Self::Output {
+        if other.0 == 0 {
+            panic!("Division by zero");
+        }
         Amount(self.0 / other.0)
     }
 }
