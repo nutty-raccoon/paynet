@@ -336,7 +336,7 @@ impl Node for GrpcState {
         let amount = Amount::from(mint_quote_request.amount);
         let unit = Unit::from_str(&mint_quote_request.unit).map_err(ParseGrpcError::Unit)?;
 
-        let request_hash = hash_mint_quote_request(mint_quote_request.clone());
+        let request_hash = hash_mint_quote_request(&mint_quote_request);
 
         // Try to get from cache first
         let cache_key = (Path::Mint(method), request_hash);
@@ -375,7 +375,7 @@ impl Node for GrpcState {
             ));
         }
 
-        let mint_request_hash = hash_mint_request(mint_request.clone());
+        let mint_request_hash = hash_mint_request(&mint_request);
 
         if mint_request.outputs.is_empty() {
             return Err(Status::invalid_argument("Outputs cannot be empty"));
@@ -459,7 +459,7 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let cache_key = (Path::Melt(method), hash_melt_request(melt_request.clone()));
+        let cache_key = (Path::Melt(method), hash_melt_request(&melt_request));
 
         // Try to get from cache first
         if let Ok(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
