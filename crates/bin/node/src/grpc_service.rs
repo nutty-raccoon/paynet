@@ -5,7 +5,7 @@ use crate::{
     utils::{hash_melt_request, hash_mint_quote_request, hash_mint_request},
 };
 
-use std::{hash::Hash, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
@@ -28,7 +28,6 @@ use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
-use tower::ready_cache::cache;
 use uuid::Uuid;
 
 use crate::{

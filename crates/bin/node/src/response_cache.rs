@@ -64,6 +64,5 @@ where
 pub enum CachedResponse {
     Mint(MintResponse),
     Melt(MeltResponse),
-    Swap(SwapResponse),
     MintQuote(MintQuoteResponse),
 }
