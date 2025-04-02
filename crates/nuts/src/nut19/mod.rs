@@ -13,8 +13,6 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     /// Number of seconds the responses are cached for
     pub ttl: Option<u64>,
-    // Cached endpoints
-    // pub cached_endpoints: Vec<CachedEndpoint<M>>,
 }
 
 /// List of the methods and paths for which caching is enabled
@@ -67,6 +65,8 @@ impl<M: Display> Display for Path<M> {
         })
     }
 }
+
+pub type CacheResponseKey<M> = (Path<M>, String);
 
 #[derive(Debug, thiserror::Error)]
 pub enum PathFromStrError {

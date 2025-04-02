@@ -3,7 +3,7 @@ use crate::{
     keyset_cache::CachedKeysetInfo,
     liquidity_sources::LiquiditySources,
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
-    utils::{hash_mint_quote_request, hash_mint_request},
+    utils::{hash_melt_request, hash_mint_quote_request, hash_mint_request},
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
@@ -17,6 +17,7 @@ use nuts::{
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
+    nut19::{CacheResponseKey, Path},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
@@ -42,7 +43,7 @@ pub struct GrpcState {
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     pub liquidity_sources: LiquiditySources,
     // TODO: add a cache for the mint_quote and melt routes
-    pub response_cache: Arc<InMemResponseCache<String, CachedResponse>>,
+    pub response_cache: Arc<InMemResponseCache<(Path<Method>, String), CachedResponse>>,
 }
 
 impl GrpcState {
@@ -115,18 +116,24 @@ impl GrpcState {
         Ok(())
     }
 
-    pub fn get_cached_response(&self, cache_key: &str) -> Result<CachedResponse, String> {
-        if let Some(cached_response) = self.response_cache.clone().get(&cache_key.to_string()) {
+    pub fn get_cached_response(
+        &self,
+        cache_key: &CacheResponseKey<Method>,
+    ) -> Result<CachedResponse, String> {
+        if let Some(cached_response) = self.response_cache.get(&cache_key) {
             return Ok(cached_response);
         }
 
-        Err(format!("No cached response found for key: {}", cache_key))
+        Err(format!("No cached response found for key: {:?}", cache_key))
     }
 
-    pub fn cache_response(&self, cache_key: &str, response: CachedResponse) -> Result<(), Status> {
+    pub fn cache_response(
+        &self,
+        cache_key: (Path<Method>, String),
+        response: CachedResponse,
+    ) -> Result<(), Status> {
         self.response_cache
-            .clone()
-            .insert(cache_key.to_string(), response)
+            .insert(cache_key, response)
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(())
@@ -330,9 +337,9 @@ impl Node for GrpcState {
         let unit = Unit::from_str(&mint_quote_request.unit).map_err(ParseGrpcError::Unit)?;
 
         let request_hash = hash_mint_quote_request(mint_quote_request.clone());
-        let cache_key = format!("{:?}{}", method, request_hash);
 
         // Try to get from cache first
+        let cache_key = (Path::Mint(method), request_hash);
         if let Ok(CachedResponse::MintQuote(mint_quote_response)) =
             self.get_cached_response(&cache_key)
         {
@@ -349,7 +356,7 @@ impl Node for GrpcState {
         };
 
         self.cache_response(
-            &cache_key,
+            cache_key,
             CachedResponse::MintQuote(mint_quote_response.clone()),
         )?;
 
@@ -392,7 +399,7 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let cache_key = format!("{:?}{}", method, mint_request_hash);
+        let cache_key = (Path::Mint(method), mint_request_hash);
 
         // Try to get from cache first
         if let Ok(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
@@ -414,7 +421,7 @@ impl Node for GrpcState {
         };
 
         // Store in cache
-        self.cache_response(&cache_key, CachedResponse::Mint(mint_response.clone()))?;
+        self.cache_response(cache_key, CachedResponse::Mint(mint_response.clone()))?;
 
         Ok(Response::new(mint_response))
     }
@@ -438,6 +445,7 @@ impl Node for GrpcState {
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
         let unit = Unit::from_str(&melt_request.unit).map_err(ParseGrpcError::Unit)?;
         let inputs = melt_request
+            .clone()
             .inputs
             .into_iter()
             .map(|p| -> Result<Proof, ParseGrpcError> {
@@ -451,7 +459,7 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let cache_key = format!("{:?}{}", method, melt_request.request);
+        let cache_key = (Path::Melt(method), hash_melt_request(melt_request.clone()));
 
         // Try to get from cache first
         if let Ok(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
@@ -472,7 +480,7 @@ impl Node for GrpcState {
         };
 
         // Store in cache
-        self.cache_response(&cache_key, CachedResponse::Melt(melt_response.clone()))?;
+        self.cache_response(cache_key, CachedResponse::Melt(melt_response.clone()))?;
 
         Ok(Response::new(melt_response))
     }
@@ -569,17 +577,19 @@ impl Node for GrpcState {
         &self,
         ack_request: Request<AcknowledgeRequest>,
     ) -> Result<Response<AcknowledgeResponse>, Status> {
-        let method = ack_request.get_ref().method.clone();
+        let path_str: String = ack_request.get_ref().path.clone();
+        let path: Path<Method> =
+            Path::from_str(&path_str).map_err(|_| Status::invalid_argument("Invalid path"))?;
         let request_hash = ack_request.get_ref().request_hash.clone();
 
-        let cache_key = format!("{:?}{}", method, request_hash);
+        let cache_key = (path, request_hash);
 
         // check if the request is already in the cache, if so, remove it
-        let exist = self.response_cache.get(&cache_key.clone());
+        let exist = self.response_cache.get(&cache_key);
         if exist.is_some() {
             self.response_cache.remove(&cache_key);
-            return Ok(Response::new(AcknowledgeResponse {}));
         }
-        Err(Status::not_found("Request is not found in the cache"))
+
+        Ok(Response::new(AcknowledgeResponse {}))
     }
 }

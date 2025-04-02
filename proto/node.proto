@@ -133,7 +133,7 @@ message SwapResponse {
 }
 
 message AcknowledgeRequest {
-  string method = 1;
+  string path = 1;
   string request_hash = 2;
 }
 
