@@ -16,6 +16,7 @@ pub trait ResponseCache<K, V> {
     // TODO: persistent after shutting down
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct InMemResponseCache<K, V>
 where
