@@ -120,7 +120,7 @@ impl GrpcState {
         &self,
         cache_key: &CacheResponseKey<Method>,
     ) -> Result<CachedResponse, String> {
-        if let Some(cached_response) = self.response_cache.get(&cache_key) {
+        if let Some(cached_response) = self.response_cache.get(cache_key) {
             return Ok(cached_response);
         }
 
