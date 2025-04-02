@@ -11,11 +11,11 @@ pub struct ProgramArguments {
 
 #[cfg(feature = "starknet")]
 impl ProgramArguments {
-    pub fn read_starknet_config(&self) -> Result<StarknetUserConfig, super::Error> {
+    pub fn read_starknet_config(&self) -> Result<StarknetCliConfig, super::Error> {
         let file_content =
             std::fs::read_to_string(&self.config).map_err(super::Error::CannotReadConfig)?;
 
-        let config: StarknetUserConfig =
+        let config: StarknetCliConfig =
             toml::from_str(&file_content).map_err(super::Error::Toml)?;
 
         Ok(config)
@@ -24,7 +24,7 @@ impl ProgramArguments {
 
 #[cfg(feature = "starknet")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct StarknetUserConfig {
+pub struct StarknetCliConfig {
     /// The chain we are using as backend
     pub chain_id: starknet_types::ChainId,
     /// The address of the on-chain account managing deposited assets

@@ -1,12 +1,12 @@
 use std::env;
 
 use crate::indexer;
-use sqlx::{Pool, Postgres};
+use sqlx::{Postgres, pool::PoolConnection};
 use starknet_payment_indexer::{ApibaraIndexerService, Uri};
 use starknet_types::{Asset, ChainId};
 use starknet_types_core::felt::Felt;
 
-use super::{Error, commands::StarknetUserConfig};
+use super::{Error, commands::StarknetCliConfig};
 
 async fn init_indexer_task(
     apibara_token: String,
@@ -20,7 +20,7 @@ async fn init_indexer_task(
         .ok_or(Error::UnknownChainId(chain_id))?;
     let strk_token_address = on_chain_constants
         .assets_contract_address
-        .get(Asset::Strk.as_ref())
+        .get(Asset::Strk.as_str())
         .expect("asset 'strk' should be part of the constants");
 
     let uri = match on_chain_constants.apibara.data_stream_uri {
@@ -44,9 +44,9 @@ async fn init_indexer_task(
 }
 
 pub async fn launch_indexer_task(
-    pg_pool: &Pool<Postgres>,
+    db_conn: PoolConnection<Postgres>,
     apibara_token: String,
-    config: StarknetUserConfig,
+    config: StarknetCliConfig,
 ) -> Result<impl Future<Output = Result<(), crate::Error>>, crate::Error> {
     let indexer_service = init_indexer_task(
         apibara_token,
@@ -54,7 +54,6 @@ pub async fn launch_indexer_task(
         config.our_account_address,
     )
     .await?;
-    let db_conn = pg_pool.acquire().await?;
     let indexer_future = indexer::listen_to_indexer(db_conn, indexer_service);
 
     Ok(indexer_future)

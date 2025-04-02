@@ -86,7 +86,7 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
             .ok_or_else(|| Status::internal("invalid chain id"))?;
         let asset_contract_address = on_chain_constants
             .assets_contract_address
-            .get(asset.as_ref())
+            .get(asset.as_str())
             .ok_or_else(|| Status::invalid_argument("bad assset"))?;
 
         let payee_address = Felt::from_bytes_be_slice(&request.payee);

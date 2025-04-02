@@ -21,7 +21,6 @@ use starknet_types::Unit;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
-use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -112,6 +111,7 @@ impl GrpcState {
     }
 }
 
+#[cfg_attr(not(any(feature = "mock", feature = "starknet")), allow(dead_code))]
 #[derive(Debug, Error)]
 enum ParseGrpcError {
     #[error(transparent)]
@@ -237,8 +237,6 @@ impl Node for GrpcState {
     ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
-        info!("swap req: {:#?}", swap_request.inputs);
-
         if swap_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many inputs: maximum allowed is 64",
@@ -299,6 +297,7 @@ impl Node for GrpcState {
         }))
     }
 
+    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint_quote(
         &self,
         mint_quote_request: Request<MintQuoteRequest>,
@@ -320,6 +319,17 @@ impl Node for GrpcState {
         }))
     }
 
+    #[cfg(not(any(feature = "mock", feature = "starknet")))]
+    async fn mint_quote(
+        &self,
+        mint_quote_request: Request<MintQuoteRequest>,
+    ) -> Result<Response<MintQuoteResponse>, Status> {
+        Err(Status::unimplemented(
+            "the node was compiled without any liquidity layer enabled",
+        ))
+    }
+
+    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
@@ -366,6 +376,17 @@ impl Node for GrpcState {
         }))
     }
 
+    #[cfg(not(any(feature = "mock", feature = "starknet")))]
+    async fn mint(
+        &self,
+        mint_request: Request<MintRequest>,
+    ) -> Result<Response<MintResponse>, Status> {
+        Err(Status::unimplemented(
+            "the node was compiled without any liquidity layer enabled",
+        ))
+    }
+
+    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn melt(
         &self,
         melt_request: Request<MeltRequest>,
@@ -413,6 +434,17 @@ impl Node for GrpcState {
         }))
     }
 
+    #[cfg(not(any(feature = "mock", feature = "starknet")))]
+    async fn melt(
+        &self,
+        melt_request: Request<MeltRequest>,
+    ) -> Result<Response<MeltResponse>, Status> {
+        Err(Status::unimplemented(
+            "the node was compiled without any liquidity layer enabled",
+        ))
+    }
+
+    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint_quote_state(
         &self,
         mint_quote_state_request: Request<QuoteStateRequest>,
@@ -433,6 +465,17 @@ impl Node for GrpcState {
         }))
     }
 
+    #[cfg(not(any(feature = "mock", feature = "starknet")))]
+    async fn mint_quote_state(
+        &self,
+        mint_quote_state_request: Request<QuoteStateRequest>,
+    ) -> Result<Response<MintQuoteResponse>, Status> {
+        Err(Status::unimplemented(
+            "the node was compiled without any liquidity layer enabled",
+        ))
+    }
+
+    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn melt_quote_state(
         &self,
         melt_quote_state_request: Request<QuoteStateRequest>,
@@ -453,6 +496,16 @@ impl Node for GrpcState {
             expiry: response.expiry,
             transfer_id: response.transfer_id,
         }))
+    }
+
+    #[cfg(not(any(feature = "mock", feature = "starknet")))]
+    async fn melt_quote_state(
+        &self,
+        melt_quote_state_request: Request<QuoteStateRequest>,
+    ) -> Result<Response<MeltResponse>, Status> {
+        Err(Status::unimplemented(
+            "the node was compiled without any liquidity layer enabled",
+        ))
     }
 
     async fn get_node_info(

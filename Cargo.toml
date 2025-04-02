@@ -13,7 +13,7 @@ members = [
   "crates/wallet",
   "crates/liquidity-source",
   "crates/tests/signer-tests",
-  "crates/tests/node-tests", "crates/liquidity-source",
+  "crates/tests/node-tests",
 ]
 default-members = [
   "crates/bin/node",

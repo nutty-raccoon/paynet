@@ -43,16 +43,11 @@ impl From<QuoteTTLConfig> for QuoteTTLConfigState {
 
 #[cfg(feature = "starknet")]
 pub mod starknet {
-    use super::Channel;
-    use starknet_types::ChainId;
-    use starknet_types_core::felt::Felt;
-
-    pub type StarknetCashierClient = starknet_cashier::StarknetCashierClient<Channel>;
+    use liquidity_source::starknet::{StarknetDepositer, StarknetWithdrawer};
 
     #[derive(Debug, Clone)]
     pub struct StarknetConfig {
-        pub cashier: StarknetCashierClient,
-        pub our_account_address: Felt,
-        pub chain_id: ChainId,
+        pub withdrawer: StarknetWithdrawer,
+        pub depositer: StarknetDepositer,
     }
 }

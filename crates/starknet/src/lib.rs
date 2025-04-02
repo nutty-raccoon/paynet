@@ -31,12 +31,12 @@ pub enum Asset {
 
 impl core::fmt::Display for Asset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_ref())
+        write!(f, "{}", self.as_str())
     }
 }
 
-impl AsRef<str> for Asset {
-    fn as_ref(&self) -> &str {
+impl Asset {
+    pub fn as_str(&self) -> &str {
         match self {
             Asset::Strk => "strk",
         }

@@ -1,17 +1,16 @@
 use crate::grpc_service::GrpcState;
+use liquidity_source::DepositInterface;
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},
 };
-use sqlx::PgPool;
+use sqlx::PgConnection;
+use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
 use uuid::Uuid;
 
-use crate::{Unit, methods::Method, utils::unix_time};
-
-#[cfg(feature = "starknet")]
-mod starknet;
+use crate::{methods::Method, utils::unix_time};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -35,6 +34,8 @@ pub enum Error {
     AmountTooLow(Amount, Amount),
     #[error("Amount must bellow {0}, got {1}")]
     AmountTooHigh(Amount, Amount),
+    #[error("failed to interact with liquidity source: {0}")]
+    LiquiditySource(#[source] anyhow::Error),
 }
 
 impl From<Error> for Status {
@@ -48,7 +49,8 @@ impl From<Error> for Status {
             Error::MintDisabled => Status::failed_precondition(value.to_string()),
             Error::UnitNotSupported(_, _)
             | Error::AmountTooLow(_, _)
-            | Error::AmountTooHigh(_, _) => Status::invalid_argument(value.to_string()),
+            | Error::AmountTooHigh(_, _)
+            | Error::LiquiditySource(_) => Status::invalid_argument(value.to_string()),
         }
     }
 }
@@ -85,11 +87,16 @@ impl GrpcState {
             }
         }
 
+        #[cfg(feature = "mock")]
+        let depositer = liquidity_source::mock::MockDepositer;
+        #[cfg(all(not(feature = "mock"), feature = "starknet"))]
+        let depositer = self.starknet_config.depositer.clone();
+
+        let mut conn = self.pg_pool.acquire().await?;
         let response = match method {
             Method::Starknet => create_new_starknet_mint_quote(
-                &self.pg_pool,
-                #[cfg(feature = "starknet")]
-                self.starknet_config.clone(),
+                &mut conn,
+                depositer,
                 amount,
                 unit,
                 self.quote_ttl.mint_ttl(),
@@ -103,8 +110,8 @@ impl GrpcState {
 
 /// Initialize a new Starknet mint quote
 async fn create_new_starknet_mint_quote(
-    pool: &PgPool,
-    #[cfg(feature = "starknet")] starknet_config: crate::app_state::starknet::StarknetConfig,
+    conn: &mut PgConnection,
+    depositer: impl DepositInterface,
     amount: Amount,
     unit: Unit,
     mint_ttl: u64,
@@ -113,14 +120,12 @@ async fn create_new_starknet_mint_quote(
     let quote = Uuid::new_v4();
     let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
 
-    #[cfg(feature = "starknet")]
-    let request = starknet::create_starknet_request(quote_hash, unit, amount, starknet_config)?;
-    #[cfg(not(feature = "starknet"))]
-    let request = "".to_string();
+    let request = depositer
+        .generate_deposit_payload(quote_hash, unit, amount)
+        .map_err(|e| Error::LiquiditySource(e.into()))?;
 
-    let mut conn = pool.acquire().await?;
     db_node::mint_quote::insert_new(
-        &mut conn,
+        conn,
         quote,
         quote_hash.as_byte_array(),
         unit,
@@ -133,17 +138,17 @@ async fn create_new_starknet_mint_quote(
 
     let state = {
         // If running with no backend, we immediatly set the state to paid
-        #[cfg(not(feature = "starknet"))]
+        #[cfg(feature = "mock")]
         {
             use futures::TryFutureExt;
 
             let new_state = MintQuoteState::Paid;
-            db_node::mint_quote::set_state(&mut conn, quote, new_state)
+            db_node::mint_quote::set_state(conn, quote, new_state)
                 .map_err(Error::Sqlx)
                 .await?;
             new_state
         }
-        #[cfg(feature = "starknet")]
+        #[cfg(all(not(feature = "mock"), feature = "starknet"))]
         MintQuoteState::Unpaid
     };
 

@@ -1,15 +1,18 @@
+mod outputs;
+
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
     nut04::MintQuoteState,
 };
+use outputs::check_outputs_allow_single_unit;
 use thiserror::Error;
 use tonic::Status;
 use uuid::Uuid;
 
 use crate::{
     grpc_service::GrpcState,
-    logic::{OutputsError, check_outputs_allow_single_unit, process_outputs},
+    logic::{OutputsError, process_outputs},
     methods::Method,
     utils::unix_time,
 };

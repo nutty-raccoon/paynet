@@ -2,30 +2,40 @@ use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
 use starknet_types::{Asset, StarknetU256};
 
-use super::{MeltBackend, PaymentRequest};
+use crate::DepositInterface;
+
+use super::{WithdrawInterface, WithdrawRequest};
 
 #[derive(Debug, thiserror::Error)]
 #[error("mock liquidity source error")]
 pub struct Error;
 
-pub struct MockMeltBackend;
+#[derive(Debug, Clone)]
+pub struct MockWithdrawer;
 
-impl PaymentRequest for () {
+impl WithdrawRequest for () {
     fn asset(&self) -> starknet_types::Asset {
         Asset::Strk
     }
 }
 
+#[cfg(not(feature = "starknet"))]
+impl crate::WithdrawAmount for StarknetU256 {
+    fn convert_from(unit: starknet_types::Unit, amount: nuts::Amount) -> Self {
+        unit.convert_amount_into_u256(amount)
+    }
+}
+
 #[async_trait::async_trait]
-impl MeltBackend for MockMeltBackend {
+impl WithdrawInterface for MockWithdrawer {
     type Error = Error;
-    type PaymentRequest = ();
-    type PaymentAmount = StarknetU256;
+    type Request = ();
+    type Amount = StarknetU256;
 
     fn deserialize_payment_request(
         &self,
         _raw_json_string: &str,
-    ) -> Result<Self::PaymentRequest, Self::Error> {
+    ) -> Result<Self::Request, Self::Error> {
         Ok(())
     }
 
@@ -33,8 +43,24 @@ impl MeltBackend for MockMeltBackend {
         &mut self,
         _quote_hash: Sha256,
         _melt_payment_request: (),
-        _amount: Self::PaymentAmount,
+        _amount: Self::Amount,
     ) -> Result<(MeltQuoteState, Vec<u8>), Self::Error> {
         Ok((MeltQuoteState::Paid, "caffebabe".as_bytes().to_vec()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MockDepositer;
+
+impl DepositInterface for MockDepositer {
+    type Error = Error;
+
+    fn generate_deposit_payload(
+        &self,
+        _quote_hash: Sha256,
+        _unit: starknet_types::Unit,
+        _amount: nuts::Amount,
+    ) -> Result<String, Self::Error> {
+        Ok("".to_string())
     }
 }

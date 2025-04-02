@@ -12,16 +12,13 @@ const PAY_INVOICE_SELECTOR: Felt =
 const APPROVE_SELECTOR: Felt =
     Felt::from_hex_unchecked("0x0219209e083275171774dab1df80982e9df2096516f06319c5c6d71ae0a8480c");
 
-pub async fn sign_and_send_payment_transactions<
-    A: Account + ConnectedAccount + Sync + std::fmt::Debug,
->(
-    account: &A,
-    invoice_id: StarknetU256,
-    invoice_payment_contract_address: Felt,
+pub fn generate_payment_transaction_calls(
     token_contract_address: Felt,
+    invoice_payment_contract_address: Felt,
     amount: StarknetU256,
+    invoice_id: StarknetU256,
     payee: Felt,
-) -> Result<Felt, AccountError<A::SignError>> {
+) -> [Call; 2] {
     // First approve our invoice contract to spend the account funds
     let approve_call = Call {
         to: token_contract_address,
@@ -42,9 +39,29 @@ pub async fn sign_and_send_payment_transactions<
         ],
     };
 
+    [approve_call, transfer_call]
+}
+
+pub async fn sign_and_send_payment_transactions<
+    A: Account + ConnectedAccount + Sync + std::fmt::Debug,
+>(
+    account: &A,
+    invoice_id: StarknetU256,
+    invoice_payment_contract_address: Felt,
+    token_contract_address: Felt,
+    amount: StarknetU256,
+    payee: Felt,
+) -> Result<Felt, AccountError<A::SignError>> {
+    let calls = generate_payment_transaction_calls(
+        token_contract_address,
+        invoice_payment_contract_address,
+        amount,
+        invoice_id,
+        payee,
+    );
     // Execute the transaction
     let tx_result = account
-        .execute_v3(vec![approve_call, transfer_call])
+        .execute_v3(calls.to_vec())
         .send()
         .await
         .inspect_err(|e| error!("send payment tx failed: {:?}", e))?;

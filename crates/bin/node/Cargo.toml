@@ -42,8 +42,9 @@ starknet-payment-indexer = { workspace = true, optional = true }
 starknet-cashier = { workspace = true, optional = true }
 
 [features]
-default = ["starknet"]
+default = []
 starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier", "liquidity-source/starknet"]
+mock = ["liquidity-source/mock"]
 
 [build-dependencies]
 tonic-build = "0.13.0"

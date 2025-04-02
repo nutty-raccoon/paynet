@@ -1,6 +1,8 @@
 mod errors;
+mod inputs;
 
-use liquidity_source::{MeltBackend, PaymentAmount, PaymentRequest};
+use inputs::process_melt_inputs;
+use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use nuts::Amount;
 use nuts::nut05::MeltQuoteResponse;
 use nuts::{nut00::Proof, nut05::MeltMethodSettings};
@@ -8,23 +10,29 @@ use sqlx::PgConnection;
 use starknet_types::Unit;
 use uuid::Uuid;
 
-use crate::logic::process_melt_inputs;
 use crate::utils::unix_time;
 use crate::{grpc_service::GrpcState, methods::Method};
 
 use errors::Error;
 
 impl GrpcState {
-    fn get_backend<'a, 'b: 'a>(&'a self, method: Method) -> Result<impl MeltBackend + 'b, Error> {
+    #[allow(unused_variables)]
+    #[cfg(feature = "mock")]
+    fn get_backend<'a, 'b: 'a>(
+        &'a self,
+        method: Method,
+    ) -> Result<impl WithdrawInterface + 'b, Error> {
+        return Ok(liquidity_source::mock::MockWithdrawer);
+    }
+
+    #[cfg(all(not(feature = "mock"), feature = "starknet"))]
+    fn get_backend<'a, 'b: 'a>(
+        &'a self,
+        method: Method,
+    ) -> Result<impl WithdrawInterface + 'b, Error> {
         match method {
             Method::Starknet => {
-                #[cfg(not(feature = "starknet"))]
-                return Ok(liquidity_source::mock::MockMeltBackend);
-
-                #[cfg(feature = "starknet")]
-                return Ok(liquidity_source::starknet::StarknetMeltBackend(
-                    self.starknet_config.cashier.clone(),
-                ));
+                return Ok(self.starknet_config.withdrawer.clone());
             }
         }
     }
@@ -68,7 +76,7 @@ impl GrpcState {
             .proceed_to_payment(
                 quote_hash,
                 payment_request,
-                PaymentAmount::convert_from(settings.unit, total_amount),
+                WithdrawAmount::convert_from(settings.unit, total_amount),
             )
             .await
             .map_err(|e| Error::LiquiditySource(e.into()))?;
