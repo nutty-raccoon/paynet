@@ -5,7 +5,7 @@ use std::{
 
 use crate::errors;
 use dashmap::DashMap;
-use node::{MeltResponse, MintQuoteResponse, MintResponse, SwapResponse};
+use node::{MeltResponse, MintQuoteResponse, MintResponse};
 
 pub trait ResponseCache<K, V> {
     // Basic operations
@@ -64,6 +64,5 @@ where
 pub enum CachedResponse {
     Mint(MintResponse),
     Melt(MeltResponse),
-    Swap(SwapResponse),
     MintQuote(MintQuoteResponse),
 }
