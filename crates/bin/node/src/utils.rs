@@ -14,7 +14,7 @@ pub fn unix_time() -> u64 {
 
 /// Hash MintRequest to a string
 /// This is used to create a unique identifier for the request
-pub fn hash_mint_request(request: MintRequest) -> String {
+pub fn hash_mint_request(request: &MintRequest) -> String {
     let mut hasher = DefaultHasher::new();
 
     for output in &request.outputs {
@@ -28,7 +28,7 @@ pub fn hash_mint_request(request: MintRequest) -> String {
 
 /// Hash MintQuoteRequest to a string
 /// This is used to create a unique identifier for the request
-pub fn hash_mint_quote_request(request: MintQuoteRequest) -> String {
+pub fn hash_mint_quote_request(request: &MintQuoteRequest) -> String {
     let mut hasher = DefaultHasher::new();
 
     request.method.hash(&mut hasher);
@@ -41,7 +41,7 @@ pub fn hash_mint_quote_request(request: MintQuoteRequest) -> String {
 
 /// Hash MeltRequest to a string
 /// This is used to create a unique identifier for the request
-pub fn hash_melt_request(request: MeltRequest) -> String {
+pub fn hash_melt_request(request: &MeltRequest) -> String {
     let mut hasher = DefaultHasher::new();
 
     request.method.hash(&mut hasher);

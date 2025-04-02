@@ -5,7 +5,7 @@ use std::{
 
 use crate::errors;
 use dashmap::DashMap;
-use node::{MeltResponse, MintQuoteResponse, MintResponse, SwapResponse};
+use node::{MeltResponse, MintQuoteResponse, MintResponse};
 
 pub trait ResponseCache<K, V> {
     // Basic operations
@@ -16,6 +16,7 @@ pub trait ResponseCache<K, V> {
     // TODO: persistent after shutting down
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct InMemResponseCache<K, V>
 where
