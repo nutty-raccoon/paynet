@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Error, anyhow};
 use clap::{Parser, ValueHint};
-use log::{debug, info};
+use log::{debug, error, info};
 use starknet::{
     accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
     contract::ContractFactory,
@@ -13,7 +13,7 @@ use starknet::{
     providers::{JsonRpcClient, Provider, ProviderError, jsonrpc::HttpTransport},
     signers::{LocalWallet, SigningKey},
 };
-use starknet_types::{Invoice, transactions::sign_and_send_payment_transactions};
+use starknet_types::Call;
 use url::Url;
 
 #[derive(Parser, Debug)]
@@ -105,17 +105,15 @@ async fn pay(
     account: &SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     cmd: PayInvoiceCommand,
 ) -> Result<(), Error> {
-    let invoice: Invoice = serde_json::from_str(&cmd.invoice_json_string)?;
+    let calls: [Call; 2] = serde_json::from_str(&cmd.invoice_json_string)?;
 
-    let tx_hash = sign_and_send_payment_transactions(
-        &account,
-        invoice.id,
-        invoice.payment_contract_address,
-        invoice.token_contract_address,
-        invoice.amount,
-        invoice.payee,
-    )
-    .await?;
+    let tx_hash = account
+        .execute_v3(calls.into_iter().map(Into::into).collect())
+        .send()
+        .await
+        .inspect_err(|e| error!("send payment tx failed: {:?}", e))?
+        .transaction_hash;
+
     info!("payment tx sent: {:#064x}", tx_hash);
 
     watch_tx(account.provider(), tx_hash).await?;

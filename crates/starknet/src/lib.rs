@@ -64,15 +64,6 @@ pub struct MeltPaymentRequest {
     pub asset: Asset,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Invoice {
-    pub id: StarknetU256,
-    pub payment_contract_address: Felt,
-    pub amount: StarknetU256,
-    pub token_contract_address: Felt,
-    pub payee: Felt,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StarknetU256 {
     pub low: Felt,
@@ -289,4 +280,34 @@ pub fn felt_from_short_string(s: &str) -> Result<Felt, CairoShortStringToFeltErr
 
     // The conversion will never fail
     Ok(Felt::from_bytes_be(&buffer))
+}
+
+// TODO: remove and use starknet-core struct when https://github.com/xJonathanLEI/starknet-rs/pull/713 is merged
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct Call {
+    /// Address of the contract being invoked.
+    pub to: Felt,
+    /// Entrypoint selector of the function being invoked.
+    pub selector: Felt,
+    /// List of calldata to be sent for the call.
+    pub calldata: Vec<Felt>,
+}
+
+impl From<starknet::core::types::Call> for Call {
+    fn from(value: starknet::core::types::Call) -> Self {
+        Self {
+            to: value.to,
+            selector: value.selector,
+            calldata: value.calldata,
+        }
+    }
+}
+impl From<Call> for starknet::core::types::Call {
+    fn from(value: Call) -> Self {
+        Self {
+            to: value.to,
+            selector: value.selector,
+            calldata: value.calldata,
+        }
+    }
 }

@@ -2,7 +2,7 @@ use bitcoin_hashes::Sha256;
 use nuts::Amount;
 use serde::{Deserialize, Serialize};
 use starknet_types::{
-    Asset, ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS,
+    Asset, Call, ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS,
     transactions::generate_payment_transaction_calls,
 };
 use starknet_types_core::felt::Felt;
@@ -57,28 +57,10 @@ impl DepositInterface for StarknetDepositer {
             StarknetU256::from_bytes(quote_hash.as_byte_array()),
             self.our_account_address,
         );
-        let calls: Vec<Call> = calls
-            .into_iter()
-            .map(|c| Call {
-                to: c.to,
-                selector: c.selector,
-                calldata: c.calldata,
-            })
-            .collect();
+        let calls: Vec<Call> = calls.into_iter().map(Into::into).collect();
 
         let calls_json_string = serde_json::to_string(&calls)?;
 
         Ok(calls_json_string)
     }
-}
-
-// TODO: remove and use starknet-core struct when https://github.com/xJonathanLEI/starknet-rs/pull/713 is merged
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct Call {
-    /// Address of the contract being invoked.
-    pub to: Felt,
-    /// Entrypoint selector of the function being invoked.
-    pub selector: Felt,
-    /// List of calldata to be sent for the call.
-    pub calldata: Vec<Felt>,
 }

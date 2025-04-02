@@ -70,6 +70,7 @@ jobs:
       - uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
+
       - name: Run unit tests
         run: |
           cargo test -p node --no-default-features
@@ -87,6 +88,7 @@ jobs:
           cargo test -p wallet --no-default-features
           cargo test -p liquidity-source --no-default-features
           cargo test -p liquidity-source --features=mock,starknet
+
       - name: Build services for integration tests
         run: |
           cargo build -p signer --bin signer
