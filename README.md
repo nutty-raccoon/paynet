@@ -14,6 +14,10 @@ Some people are not, this product is not for them, no hard feelings.
 
 Leveraging trust, we can build a solution that abstract any asset on any chain into a convenient, off-chain and privacy preserving mean of payment for everyday transactions. 
 
+## Roadmap
+
+Read our [Roadmap](./ROADMAP.md) for the next 6 months.
+
 ## Codebase
 
 This mono-repository contains the whole stack allowing us to provide such a solution, form node to wallet, from smart-contracts to indexer.
