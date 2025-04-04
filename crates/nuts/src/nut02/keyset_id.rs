@@ -4,6 +4,7 @@ use core::fmt;
 use std::str::FromStr;
 
 use crate::nut01::PublicKey;
+#[cfg(feature = "rusqlite")]
 use rusqlite::{
     Result,
     types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
@@ -180,16 +181,18 @@ impl From<KeysetId> for i64 {
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl ToSql for KeysetId {
     fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
-        Ok(ToSqlOutput::from(self.to_string()))
+        Ok(ToSqlOutput::from(self.to_bytes().to_vec()))
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl FromSql for KeysetId {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
         value
-            .as_str()
-            .and_then(|s| Self::from_str(s).map_err(|e| FromSqlError::Other(Box::new(e))))
+            .as_blob()
+            .and_then(|b| Self::from_bytes(b).map_err(|e| FromSqlError::Other(Box::new(e))))
     }
 }

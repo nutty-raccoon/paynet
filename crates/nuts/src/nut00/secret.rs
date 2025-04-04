@@ -4,10 +4,13 @@ use std::fmt;
 use std::str::FromStr;
 
 use bitcoin::secp256k1::rand::{self, RngCore};
+
+#[cfg(feature = "rusqlite")]
 use rusqlite::{
     Result,
     types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
 };
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -149,17 +152,18 @@ impl AsRef<str> for Secret {
     }
 }
 
-// Secret implementation
+#[cfg(feature = "rusqlite")]
 impl ToSql for Secret {
     fn to_sql(&self) -> Result<ToSqlOutput<'_>> {
         Ok(self.to_string().into())
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl FromSql for Secret {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
         String::column_result(value)
-            .and_then(|s| Secret::new(&s).map_err(|_| FromSqlError::InvalidType))
+            .and_then(|s| Secret::new(&s).map_err(|e| FromSqlError::Other(Box::new(e))))
     }
 }
 

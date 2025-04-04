@@ -8,10 +8,13 @@ use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::secp256k1::Message;
 use bitcoin::secp256k1::{self, schnorr::Signature};
+
+#[cfg(feature = "rusqlite")]
 use rusqlite::{
     Result,
     types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
 };
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 use super::Error;
@@ -132,17 +135,19 @@ impl<'de> Deserialize<'de> for PublicKey {
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl ToSql for PublicKey {
     fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
-        Ok(ToSqlOutput::from(self.to_hex()))
+        Ok(ToSqlOutput::from(self.to_bytes().to_vec()))
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl FromSql for PublicKey {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
         value
-            .as_str()
-            .and_then(|s| Self::from_hex(s).map_err(|e| FromSqlError::Other(Box::new(e))))
+            .as_blob()
+            .and_then(|b| Self::from_slice(b).map_err(|e| FromSqlError::Other(Box::new(e))))
     }
 }
 

@@ -1,6 +1,7 @@
 //! NUT-05: Melting Tokens
 
 use crate::{Amount, nut00::Proofs, traits::Unit};
+#[cfg(feature = "rusqlite")]
 use rusqlite::{
     Result,
     types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
@@ -52,18 +53,24 @@ impl core::fmt::Display for MeltQuoteState {
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl ToSql for MeltQuoteState {
     fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
-        Ok(ToSqlOutput::from(self.to_string()))
+        Ok(ToSqlOutput::from(match self {
+            MeltQuoteState::Unpaid => 1,
+            MeltQuoteState::Pending => 2,
+            MeltQuoteState::Paid => 3,
+        }))
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl FromSql for MeltQuoteState {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        value.as_str().and_then(|s| match s {
-            "UNPAID" => Ok(MeltQuoteState::Unpaid),
-            "PENDING" => Ok(MeltQuoteState::Pending),
-            "PAID" => Ok(MeltQuoteState::Paid),
+        value.as_i64().and_then(|i| match i {
+            1 => Ok(MeltQuoteState::Unpaid),
+            2 => Ok(MeltQuoteState::Pending),
+            3 => Ok(MeltQuoteState::Paid),
             _ => Err(FromSqlError::Other(Box::new(Error::UnknownState))),
         })
     }

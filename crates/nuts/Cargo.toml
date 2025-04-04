@@ -15,7 +15,7 @@ num-bigint = { workspace = true }
 once_cell = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
-rusqlite = { workspace = true }
+rusqlite = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
 
 starknet-types-core = { workspace = true, optional = true }
@@ -27,4 +27,5 @@ rand = { workspace = true }
 default = []
 starknet = ["dep:starknet-types-core"]
 sqlx = ["dep:sqlx"]
+rusqlite = ["dep:rusqlite"]
 nut19 = []

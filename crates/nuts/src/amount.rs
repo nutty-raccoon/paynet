@@ -7,6 +7,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use num_traits::{CheckedAdd, CheckedSub, One, Zero};
+#[cfg(feature = "rusqlite")]
 use rusqlite::{
     Result,
     types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
@@ -311,12 +312,14 @@ pub enum SplitTarget {
     Values(Vec<Amount>),
 }
 
+#[cfg(feature = "rusqlite")]
 impl ToSql for Amount {
     fn to_sql(&self) -> Result<ToSqlOutput<'_>> {
-        Ok(self.into_i64_repr().into())
+        self.0.to_sql()
     }
 }
 
+#[cfg(feature = "rusqlite")]
 impl FromSql for Amount {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
         u64::column_result(value).map(Amount::from)
