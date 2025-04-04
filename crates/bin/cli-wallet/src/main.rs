@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand, ValueHint};
 use node::{MintQuoteState, NodeClient};
+use nuts::Amount;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
@@ -173,7 +174,7 @@ async fn main() -> Result<()> {
                 &tx,
                 &mut node_client,
                 STARKNET_METHOD.to_string(),
-                amount,
+                Amount::from(amount),
                 unit.clone(),
             )
             .await?;
@@ -210,7 +211,7 @@ async fn main() -> Result<()> {
                 mint_quote_response.quote,
                 node_id,
                 &unit,
-                amount,
+                Amount::from(amount),
             )
             .await?;
             tx.commit()?;
@@ -229,9 +230,14 @@ async fn main() -> Result<()> {
             // Add melt logic here
 
             let tx = db_conn.transaction()?;
-            let tokens =
-                wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
-                    .await?;
+            let tokens = wallet::fetch_inputs_from_db_or_node(
+                &tx,
+                &mut node_client,
+                node_id,
+                Amount::from(amount),
+                &unit,
+            )
+            .await?;
             tx.commit()?;
 
             let inputs = tokens.ok_or(anyhow!("not enough funds"))?;
@@ -275,9 +281,14 @@ async fn main() -> Result<()> {
             println!("Sending {} {} using node {}", amount, unit, &node_url);
 
             let tx = db_conn.transaction()?;
-            let opt_proofs =
-                wallet::fetch_inputs_from_db_or_node(&tx, &mut node_client, node_id, amount, &unit)
-                    .await?;
+            let opt_proofs = wallet::fetch_inputs_from_db_or_node(
+                &tx,
+                &mut node_client,
+                node_id,
+                Amount::from(amount),
+                &unit,
+            )
+            .await?;
 
             let wad = opt_proofs
                 .map(|proofs| Wad { node_url, proofs })

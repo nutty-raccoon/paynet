@@ -12,7 +12,7 @@ use node::{
     GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest,
     MintResponse, NodeClient, QuoteStateRequest,
 };
-use num_traits::CheckedAdd;
+use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut00::{self, BlindedMessage, Proof};
@@ -64,20 +64,20 @@ pub async fn create_mint_quote(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
-    amount: u64,
+    amount: Amount,
     unit: String,
 ) -> Result<MintQuoteResponse> {
     let response = node_client
         .mint_quote(MintQuoteRequest {
             method: method.clone(),
-            amount,
+            amount: amount.into(),
             unit: unit.clone(),
             description: None,
         })
         .await?
         .into_inner();
 
-    db::store_mint_quote(db_conn, method, amount, unit, &response)?;
+    db::store_mint_quote(db_conn, method, amount.into(), unit, &response)?;
 
     Ok(response)
 }
@@ -220,11 +220,11 @@ pub async fn mint_and_store_new_tokens(
     quote_id: String,
     node_id: u32,
     unit: &str,
-    total_amount: u64,
+    total_amount: Amount,
 ) -> Result<()> {
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
-    let pre_mints = PreMint::generate_for_amount(total_amount.into(), &SplitTarget::None)?;
+    let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
@@ -322,13 +322,13 @@ pub async fn fetch_inputs_from_db_or_node(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    target_amount: u64,
+    target_amount: Amount,
     unit: &str,
 ) -> Result<Option<Vec<nut00::Proof>>> {
     let total_amount_available =
         db::proof::compute_total_amount_of_available_proofs(db_conn, node_id)?;
 
-    if u64::from(total_amount_available) < target_amount {
+    if total_amount_available < target_amount {
         return Ok(None);
     }
 
@@ -344,29 +344,29 @@ pub async fn fetch_inputs_from_db_or_node(
     let mut remaining_amount = target_amount;
     for proof_res in proofs_res_iterator {
         let (y, proof_amount) = proof_res?;
-        match remaining_amount.cmp(&u64::from(proof_amount)) {
-            std::cmp::Ordering::Less => proofs_not_used.push((y, u64::from(proof_amount))),
+        match remaining_amount.cmp(&proof_amount) {
+            std::cmp::Ordering::Less => proofs_not_used.push((y, proof_amount)),
             std::cmp::Ordering::Equal => {
                 proofs_ids.push(y);
-                remaining_amount -= u64::from(proof_amount);
+                remaining_amount -= proof_amount;
                 break;
             }
             std::cmp::Ordering::Greater => {
                 proofs_ids.push(y);
-                remaining_amount -= u64::from(proof_amount);
+                remaining_amount -= proof_amount;
             }
         }
     }
     drop(stmt);
 
-    if remaining_amount != 0 {
+    if !remaining_amount.is_zero() {
         let proof_to_swap = proofs_not_used
             .iter()
             .rev()
             .find(|(_, a)| a > &remaining_amount)
-            // We know that total_amount_available was target_amount
-            // We know it cannot be equal to remaining amout otherwas we would have substracted it
-            // So there must be one greater stored in proof_not_used
+            // We know that total_amount_available was >= target_amount
+            // We know it cannot be equal to remaining amount otherwise we would have subtracted it
+            // So there must be one greater stored in proofs_not_used
             .unwrap();
 
         let (new_tokens_keyset_id, pre_mints, swap_response) = swap_to_have_target_amount(
@@ -388,7 +388,7 @@ pub async fn fetch_inputs_from_db_or_node(
         )?;
 
         for token in new_tokens.into_iter().rev() {
-            let token_amount = u64::from(token.1);
+            let token_amount = token.1;
             match remaining_amount.cmp(&token_amount) {
                 std::cmp::Ordering::Less => {}
                 std::cmp::Ordering::Greater => {
@@ -409,7 +409,7 @@ pub async fn fetch_inputs_from_db_or_node(
             |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof> {
                 Ok(nut00::Proof {
                     amount,
-                    keyset_id: KeysetId::from_bytes(&keyset_id)?,
+                    keyset_id,
                     secret,
                     c: unblinded_signature,
                 })
@@ -427,8 +427,8 @@ pub async fn swap_to_have_target_amount(
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     unit: &str,
-    target_amount: u64,
-    proof_to_swap: &(PublicKey, u64),
+    target_amount: Amount,
+    proof_to_swap: &(PublicKey, Amount),
 ) -> Result<(KeysetId, Vec<PreMint>, node::SwapResponse)> {
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
@@ -436,14 +436,12 @@ pub async fn swap_to_have_target_amount(
         db::proof::get_proof_and_set_state_pending(db_conn, proof_to_swap.0)?
             .ok_or(Error::ProofNotAvailable)?;
 
-    let pre_mints = PreMint::generate_for_amount(
-        Amount::from(proof_to_swap.1),
-        &SplitTarget::Value(target_amount.into()),
-    )?;
+    let pre_mints =
+        PreMint::generate_for_amount(proof_to_swap.1, &SplitTarget::Value(target_amount))?;
 
     let inputs = vec![node::Proof {
-        amount: proof_to_swap.1,
-        keyset_id: input_unblind_signature.0.to_vec(),
+        amount: proof_to_swap.1.into(),
+        keyset_id: input_unblind_signature.0.to_bytes().to_vec(),
         secret: input_unblind_signature.2.to_string(),
         unblind_signature: input_unblind_signature.1.to_bytes().to_vec(),
     }];

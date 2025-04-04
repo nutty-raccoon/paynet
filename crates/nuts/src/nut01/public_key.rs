@@ -173,3 +173,13 @@ mod tests {
             .is_err()))
     }
 }
+
+#[test]
+fn bytes_conversion() {
+    let pk =
+        PublicKey::from_hex("0382d565c5db94d8e9fd269475a1d496b05e0d5658ef70ce792347000e873d0778")
+            .unwrap();
+    let to_bytes = pk.to_bytes();
+    let from_bytes = PublicKey::from_slice(&to_bytes).unwrap();
+    assert_eq!(pk, from_bytes);
+}

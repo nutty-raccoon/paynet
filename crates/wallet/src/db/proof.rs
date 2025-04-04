@@ -1,7 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
 use crate::types::ProofState;
-use nuts::{Amount, nut00::secret::Secret, nut01::PublicKey};
+use nuts::{Amount, nut00::secret::Secret, nut01::PublicKey, nut02::KeysetId};
 
 pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE TABLE IF NOT EXISTS proof (
@@ -40,7 +40,7 @@ pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32)
 pub fn get_proof_and_set_state_pending(
     conn: &Connection,
     y: PublicKey,
-) -> Result<Option<([u8; 8], PublicKey, Secret)>> {
+) -> Result<Option<(KeysetId, PublicKey, Secret)>> {
     let n_rows = conn.execute(
         "UPDATE proof SET state = ?2 WHERE y = ?1 AND state == ?3 ;",
         (y, ProofState::Pending, ProofState::Unspent),
@@ -53,7 +53,7 @@ pub fn get_proof_and_set_state_pending(
 
         stmt.query_row([y], |r| {
             Ok((
-                r.get::<_, [u8; 8]>(0)?,
+                r.get::<_, KeysetId>(0)?,
                 r.get::<_, PublicKey>(1)?,
                 r.get::<_, Secret>(2)?,
             ))
@@ -91,7 +91,7 @@ pub fn set_proofs_to_state<'a>(
 pub fn get_proofs_by_ids(
     conn: &Connection,
     proof_ids: &[PublicKey],
-) -> Result<Vec<(Amount, [u8; 8], PublicKey, Secret)>> {
+) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>> {
     let mut stmt = conn
         .prepare("SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y = ?1")?;
 
@@ -100,7 +100,7 @@ pub fn get_proofs_by_ids(
         let proof = stmt.query_row([id], |r| {
             Ok((
                 r.get::<_, Amount>(0)?,
-                r.get::<_, [u8; 8]>(1)?,
+                r.get::<_, KeysetId>(1)?,
                 r.get::<_, PublicKey>(2)?,
                 r.get::<_, Secret>(3)?,
             ))

@@ -14,6 +14,27 @@ Some people are not, this product is not for them, no hard feelings.
 
 Leveraging trust, we can build a solution that abstract any asset on any chain into a convenient, off-chain and privacy preserving mean of payment for everyday transactions. 
 
+## Roadmap
+
+Read our [Roadmap](./ROADMAP.md) for the next 6 months.
+
+## Partners
+
+<table>
+  <tr>
+    <td width="100" align="center"><img src="./assets/Starknet-logo.svg" height="50" width="auto" style="max-width: 100%;"></td>
+    <td width="800">Blissful recipient of the <a href="https://www.starknet.io/grants/seed-grants/">Starknet Ecosystem Seed Grant</a></td>
+  </tr>
+  <tr>
+    <td width="100" align="center"><img src="./assets/OnlyDust-logo.svg" height="50" width="auto" style="max-width: 100%;"></td>
+    <td width="800">Build with the <a href="https://app.onlydust.com/projects/paynet">OnlyDust community</a>. Pretty sure we have a good issue for you too!</td>
+  </tr>
+  <tr>
+    <td width="100" align="center"><img src="./assets/Gitcoin-logo.svg" height="50" width="auto" style="max-width: 100%;"></td>
+    <td width="800">Proud <a href="https://explorer.gitcoin.co/#/round/42161/865/58">Gitcoin Grantee</a>, thx for all the support 🙏</td>
+  </tr>
+</table>
+
 ## Codebase
 
 This mono-repository contains the whole stack allowing us to provide such a solution, form node to wallet, from smart-contracts to indexer.
@@ -54,3 +75,4 @@ We are also registered on [OnlyDust](https://app.onlydust.com/projects/paynet/ov
 ## Contact
 
 Feel free to DM me on telegram at [@tdelabro](https://t.me/tdelabro).
+
