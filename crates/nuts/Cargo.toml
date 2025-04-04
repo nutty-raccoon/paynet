@@ -15,8 +15,9 @@ num-bigint = { workspace = true }
 once_cell = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
-sqlx = { workspace = true, optional = true }
 
+# Optional
+sqlx = { workspace = true, optional = true }
 starknet-types-core = { workspace = true, optional = true }
 
 [dev-dependencies]

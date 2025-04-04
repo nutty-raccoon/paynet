@@ -84,7 +84,7 @@ jobs:
           cargo test -p db-node --no-default-features
           cargo test -p nuts --no-default-features
           cargo test -p nuts --features=starknet,sqlx,nut19
-          cargo test -p starknet --no-default-features
+          cargo test -p starknet-types --no-default-features
           cargo test -p wallet --no-default-features
           cargo test -p liquidity-source --no-default-features
           cargo test -p liquidity-source --features=mock,starknet

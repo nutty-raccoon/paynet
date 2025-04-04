@@ -1,6 +1,5 @@
 use bitcoin_hashes::Sha256;
 use nuts::Amount;
-use serde::{Deserialize, Serialize};
 use starknet_types::{
     Asset, Call, ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS,
     transactions::generate_payment_transaction_calls,
