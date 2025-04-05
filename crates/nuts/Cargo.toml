@@ -9,7 +9,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 ciborium = { workspace = true }
-bitcoin = { workspace = true, features = ["base64", "rand-std"]}
+bitcoin = { workspace = true, features = ["base64", "rand-std"] }
 num-traits = { workspace = true }
 num-bigint = { workspace = true }
 once_cell = { workspace = true }
@@ -17,6 +17,7 @@ tracing = { workspace = true }
 hex = { workspace = true }
 
 # Optional
+rusqlite = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
 starknet-types-core = { workspace = true, optional = true }
 
@@ -27,4 +28,5 @@ rand = { workspace = true }
 default = []
 starknet = ["dep:starknet-types-core"]
 sqlx = ["dep:sqlx"]
+rusqlite = ["dep:rusqlite"]
 nut19 = []

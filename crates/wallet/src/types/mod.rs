@@ -68,6 +68,7 @@ impl FromSql for ProofState {
             1 => Ok(ProofState::Unspent),
             2 => Ok(ProofState::Pending),
             3 => Ok(ProofState::Spent),
+            4 => Ok(ProofState::Reserved),
             v => Err(FromSqlError::OutOfRange(v.into())),
         })
     }

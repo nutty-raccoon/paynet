@@ -1,6 +1,7 @@
-use rusqlite::{Connection, OptionalExtension, Result, params};
+use rusqlite::{Connection, OptionalExtension, Result, ToSql, params};
 
 use crate::types::ProofState;
+use nuts::{Amount, nut00::secret::Secret, nut01::PublicKey, nut02::KeysetId};
 
 pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE TABLE IF NOT EXISTS proof (
@@ -18,7 +19,7 @@ pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE INDEX proof_state ON proof(state); 
     "#;
 
-pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32) -> Result<u64> {
+pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32) -> Result<Amount> {
     let mut stmt = conn.prepare(
         r#"SELECT COALESCE(
                 (SELECT SUM(amount) FROM proof WHERE node_id=?1 AND state=?2),
@@ -26,7 +27,7 @@ pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32)
               );"#,
     )?;
     let sum = stmt.query_row(params![node_id, ProofState::Unspent], |r| {
-        r.get::<_, u64>(0)
+        r.get::<_, Amount>(0)
     })?;
 
     Ok(sum)
@@ -38,8 +39,8 @@ pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32)
 #[allow(clippy::type_complexity)]
 pub fn get_proof_and_set_state_pending(
     conn: &Connection,
-    y: [u8; 33],
-) -> Result<Option<([u8; 8], [u8; 33], String)>> {
+    y: PublicKey,
+) -> Result<Option<(KeysetId, PublicKey, Secret)>> {
     let n_rows = conn.execute(
         "UPDATE proof SET state = ?2 WHERE y = ?1 AND state == ?3 ;",
         (y, ProofState::Pending, ProofState::Unspent),
@@ -52,9 +53,9 @@ pub fn get_proof_and_set_state_pending(
 
         stmt.query_row([y], |r| {
             Ok((
-                r.get::<_, [u8; 8]>(0)?,
-                r.get::<_, [u8; 33]>(1)?,
-                r.get::<_, String>(2)?,
+                r.get::<_, KeysetId>(0)?,
+                r.get::<_, PublicKey>(1)?,
+                r.get::<_, Secret>(2)?,
             ))
         })
         .optional()?
@@ -63,14 +64,15 @@ pub fn get_proof_and_set_state_pending(
     Ok(values)
 }
 
-pub fn set_proof_to_state(conn: &Connection, y: [u8; 33], state: ProofState) -> Result<()> {
+pub fn set_proof_to_state(conn: &Connection, y: PublicKey, state: ProofState) -> Result<()> {
     let _ = conn.execute("UPDATE proof SET state = ?2 WHERE y = ?1", (y, state));
 
     Ok(())
 }
+
 pub fn set_proofs_to_state<'a>(
     conn: &Connection,
-    ys: impl Iterator<Item = &'a [u8; 33]>,
+    ys: impl Iterator<Item = &'a PublicKey>,
     state: ProofState,
 ) -> Result<()> {
     let mut stmt = conn.prepare("UPDATE proof SET state = ?2 WHERE y = ?1")?;
@@ -85,26 +87,38 @@ pub fn set_proofs_to_state<'a>(
 /// Return the proofs data related to the ids
 ///
 /// Will error if any of those ids doesn't exist
+/// The order of the returned proofs is not guaranteed to match the input `proof_ids`.
 #[allow(clippy::type_complexity)]
 pub fn get_proofs_by_ids(
     conn: &Connection,
-    proof_ids: &[[u8; 33]],
-) -> Result<Vec<(u64, [u8; 8], [u8; 33], String)>> {
-    let mut stmt = conn
-        .prepare("SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y = ?1")?;
-
-    let mut proofs = Vec::with_capacity(proof_ids.len());
-    for id in proof_ids {
-        let proof = stmt.query_row([id], |r| {
-            Ok((
-                r.get::<_, u64>(0)?,
-                r.get::<_, [u8; 8]>(1)?,
-                r.get::<_, [u8; 33]>(2)?,
-                r.get::<_, String>(3)?,
-            ))
-        })?;
-        proofs.push(proof);
+    proof_ids: &[PublicKey],
+) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>> {
+    if proof_ids.is_empty() {
+        return Ok(Vec::new());
     }
+
+    // Dynamically create the placeholders (?, ?, ...)
+    let placeholders = proof_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!(
+        "SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y IN ({})",
+        placeholders
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+
+    // Create a slice of references to ToSql-compatible types
+    let params_slice: Vec<&dyn ToSql> = proof_ids.iter().map(|pk| pk as &dyn ToSql).collect();
+
+    let proofs = stmt
+        .query_map(&params_slice[..], |r| {
+            Ok((
+                r.get::<_, Amount>(0)?,
+                r.get::<_, KeysetId>(1)?,
+                r.get::<_, PublicKey>(2)?,
+                r.get::<_, Secret>(3)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(proofs)
 }

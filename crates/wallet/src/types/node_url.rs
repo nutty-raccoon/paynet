@@ -10,6 +10,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::ParseError;
 
+#[cfg(feature = "rusqlite")]
+use rusqlite::{
+    Result as SqlResult,
+    types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
+
 /// Url Error
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
@@ -100,6 +106,20 @@ impl AsRef<str> for NodeUrl {
 impl From<&NodeUrl> for tonic::transport::Endpoint {
     fn from(value: &NodeUrl) -> Self {
         value.0.parse().unwrap()
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl ToSql for NodeUrl {
+    fn to_sql(&self) -> SqlResult<ToSqlOutput<'_>> {
+        Ok(self.as_ref().into())
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl FromSql for NodeUrl {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        String::column_result(value).map(NodeUrl::new_unchecked)
     }
 }
 

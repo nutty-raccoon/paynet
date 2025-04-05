@@ -3,9 +3,13 @@ use bitcoin::hashes::sha256::Hash as Sha256;
 use core::fmt;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
-
 use crate::nut01::PublicKey;
+#[cfg(feature = "rusqlite")]
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
+use serde::{Deserialize, Serialize};
 
 use super::Error;
 
@@ -174,5 +178,21 @@ impl TryFrom<i64> for KeysetId {
 impl From<KeysetId> for i64 {
     fn from(value: KeysetId) -> Self {
         value.as_i64()
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl ToSql for KeysetId {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(ToSqlOutput::from(self.to_bytes().to_vec()))
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl FromSql for KeysetId {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        value
+            .as_blob()
+            .and_then(|b| Self::from_bytes(b).map_err(|e| FromSqlError::Other(Box::new(e))))
     }
 }

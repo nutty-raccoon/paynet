@@ -2,14 +2,20 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
+use crate::SECP256K1;
 use bitcoin::XOnlyPublicKey;
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::secp256k1::Message;
 use bitcoin::secp256k1::{self, schnorr::Signature};
-use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::SECP256K1;
+#[cfg(feature = "rusqlite")]
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
+
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::Error;
 
@@ -129,6 +135,22 @@ impl<'de> Deserialize<'de> for PublicKey {
     }
 }
 
+#[cfg(feature = "rusqlite")]
+impl ToSql for PublicKey {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(ToSqlOutput::from(self.to_bytes().to_vec()))
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl FromSql for PublicKey {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        value
+            .as_blob()
+            .and_then(|b| Self::from_slice(b).map_err(|e| FromSqlError::Other(Box::new(e))))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +171,16 @@ mod tests {
         // Uncompressed (is valid but is cashu must be compressed?)
         assert!((PublicKey::from_hex("04fd4ce5a16b65576145949e6f99f445f8249fee17c606b688b504a849cdc452de3625246cb2c27dac965cb7200a5986467eee92eb7d496bbf1453b074e223e481")
             .is_err()))
+    }
+
+    #[test]
+    fn test_bytes_conversion() {
+        let pk = PublicKey::from_hex(
+            "0382d565c5db94d8e9fd269475a1d496b05e0d5658ef70ce792347000e873d0778",
+        )
+        .unwrap();
+        let to_bytes = pk.to_bytes();
+        let from_bytes = PublicKey::from_slice(&to_bytes).unwrap();
+        assert_eq!(pk, from_bytes);
     }
 }

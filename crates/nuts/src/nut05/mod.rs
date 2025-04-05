@@ -1,9 +1,13 @@
 //! NUT-05: Melting Tokens
 
+use crate::{Amount, nut00::Proofs, traits::Unit};
+#[cfg(feature = "rusqlite")]
+use rusqlite::{
+    Result,
+    types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef},
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use crate::{Amount, nut00::Proofs, traits::Unit};
 
 /// NUT05 Error
 #[derive(Debug, Error)]
@@ -33,6 +37,43 @@ pub enum MeltQuoteState {
     Pending,
     /// Payment has been done on chain
     Paid,
+}
+
+impl core::fmt::Display for MeltQuoteState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                MeltQuoteState::Unpaid => "UNPAID",
+                MeltQuoteState::Pending => "PENDING",
+                MeltQuoteState::Paid => "PAID",
+            }
+        )
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl ToSql for MeltQuoteState {
+    fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(ToSqlOutput::from(match self {
+            MeltQuoteState::Unpaid => 1,
+            MeltQuoteState::Pending => 2,
+            MeltQuoteState::Paid => 3,
+        }))
+    }
+}
+
+#[cfg(feature = "rusqlite")]
+impl FromSql for MeltQuoteState {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        value.as_i64().and_then(|i| match i {
+            1 => Ok(MeltQuoteState::Unpaid),
+            2 => Ok(MeltQuoteState::Pending),
+            3 => Ok(MeltQuoteState::Paid),
+            _ => Err(FromSqlError::Other(Box::new(Error::UnknownState))),
+        })
+    }
 }
 
 /// Melt quote request [NUT-05]
