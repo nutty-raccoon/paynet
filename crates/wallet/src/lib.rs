@@ -77,7 +77,7 @@ pub async fn create_mint_quote(
         .await?
         .into_inner();
 
-    db::store_mint_quote(db_conn, method, amount.into(), unit, &response)?;
+    db::store_mint_quote(db_conn, method, amount, unit, &response)?;
 
     Ok(response)
 }
@@ -138,7 +138,7 @@ pub async fn refresh_node_keysets(
         futures.push(async move {
             cloned_node_client
                 .keys(node::GetKeysRequest {
-                    keyset_id: Some(new_keyset_id.to_vec()),
+                    keyset_id: Some(new_keyset_id.to_bytes().to_vec()),
                 })
                 .await
         })
@@ -150,9 +150,11 @@ pub async fn refresh_node_keysets(
             Ok(resp) => {
                 let resp = resp.into_inner();
                 let keyset = resp.keysets;
+                let id = KeysetId::from_bytes(&keyset[0].id)
+                    .map_err(|e| Error::Conversion(format!("Invalid keyset ID length: {:?}", e)))?;
                 db::insert_keyset_keys(
                     db_conn,
-                    keyset[0].id.clone().try_into().unwrap(),
+                    id,
                     keyset[0].keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
                 )?;
             }
@@ -171,12 +173,12 @@ pub async fn read_or_import_node_keyset(
     node_id: u32,
     keyset_id: KeysetId,
 ) -> Result<String> {
-    let keyset_id_as_bytes = keyset_id.to_bytes();
-
     // Happy path, it is in DB
-    if let Some(unit) = db::get_keyset_unit(db_conn, keyset_id_as_bytes)? {
+    if let Some(unit) = db::get_keyset_unit(db_conn, keyset_id)? {
         return Ok(unit);
     }
+
+    let keyset_id_as_bytes = keyset_id.to_bytes();
 
     let resp = node_client
         .keys(node::GetKeysRequest {
@@ -188,12 +190,12 @@ pub async fn read_or_import_node_keyset(
 
     let _ = db_conn.execute(
         "INSERT INTO keyset (id, node_id, unit, active) VALUES (?1, ?2, ?3, ?4)",
-        (keyset_id_as_bytes, node_id, &keyset.unit, keyset.active),
+        params![keyset_id_as_bytes, node_id, &keyset.unit, keyset.active],
     )?;
 
     db::insert_keyset_keys(
         db_conn,
-        keyset_id_as_bytes,
+        keyset_id,
         keyset.keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
     )?;
 
@@ -207,8 +209,6 @@ pub fn get_active_keyset_for_unit(
 ) -> Result<KeysetId> {
     let keyset_id = db::fetch_one_active_keyset_id_for_node_and_unit(db_conn, node_id, unit)?
         .ok_or(Error::NoMatchingKeyset)?;
-
-    let keyset_id = KeysetId::from_bytes(&keyset_id)?;
 
     Ok(keyset_id)
 }
@@ -266,18 +266,13 @@ pub fn store_new_tokens(
         .map(|(pm, signature)| (signature, pm.secret, pm.r, pm.amount));
 
     // TODO: make the whole flow only be iterator, without collect
-    construct_proofs_from_blind_signatures(
-        db_conn,
-        node_id,
-        keyset_id.to_bytes(),
-        signature_iterator,
-    )
+    construct_proofs_from_blind_signatures(db_conn, node_id, keyset_id, signature_iterator)
 }
 
 pub fn construct_proofs_from_blind_signatures(
     db_conn: &Connection,
     node_id: u32,
-    keyset_id: [u8; 8],
+    keyset_id: KeysetId,
     iterator: impl IntoIterator<Item = (PublicKey, Secret, SecretKey, Amount)>,
 ) -> Result<Vec<(PublicKey, Amount)>> {
     const GET_PUBKEY: &str = r#"
@@ -303,12 +298,12 @@ pub fn construct_proofs_from_blind_signatures(
         let y = hash_to_curve(secret.as_ref())?;
 
         insert_proof_stmt.execute(params![
-            &y.to_bytes(),
+            &y,
             node_id,
             keyset_id,
             amount,
-            secret.to_string(),
-            &unblinded_signature.to_bytes(),
+            secret,
+            &unblinded_signature,
             ProofState::Unspent,
         ])?;
 
@@ -492,7 +487,7 @@ pub async fn receive_wad(
         insert_proof_stmt.execute(params![
             y,
             node_id,
-            proof.keyset_id.to_bytes(),
+            proof.keyset_id,
             proof.amount,
             proof.secret,
             proof.c,

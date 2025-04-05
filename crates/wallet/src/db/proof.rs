@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension, Result, params};
+use rusqlite::{Connection, OptionalExtension, Result, ToSql, params};
 
 use crate::types::ProofState;
 use nuts::{Amount, nut00::secret::Secret, nut01::PublicKey, nut02::KeysetId};
@@ -87,26 +87,38 @@ pub fn set_proofs_to_state<'a>(
 /// Return the proofs data related to the ids
 ///
 /// Will error if any of those ids doesn't exist
+/// The order of the returned proofs is not guaranteed to match the input `proof_ids`.
 #[allow(clippy::type_complexity)]
 pub fn get_proofs_by_ids(
     conn: &Connection,
     proof_ids: &[PublicKey],
 ) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>> {
-    let mut stmt = conn
-        .prepare("SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y = ?1")?;
+    if proof_ids.is_empty() {
+        return Ok(Vec::new());
+    }
 
-    let mut proofs = Vec::with_capacity(proof_ids.len());
-    for id in proof_ids {
-        let proof = stmt.query_row([id], |r| {
+    // Dynamically create the placeholders (?, ?, ...)
+    let placeholders = proof_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!(
+        "SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y IN ({})",
+        placeholders
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+
+    // Create a slice of references to ToSql-compatible types
+    let params_slice: Vec<&dyn ToSql> = proof_ids.iter().map(|pk| pk as &dyn ToSql).collect();
+
+    let proofs = stmt
+        .query_map(&params_slice[..], |r| {
             Ok((
                 r.get::<_, Amount>(0)?,
                 r.get::<_, KeysetId>(1)?,
                 r.get::<_, PublicKey>(2)?,
                 r.get::<_, Secret>(3)?,
             ))
-        })?;
-        proofs.push(proof);
-    }
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(proofs)
 }

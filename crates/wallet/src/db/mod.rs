@@ -1,4 +1,6 @@
 use node::CREATE_TABLE_NODE;
+use nuts::Amount;
+use nuts::nut02::KeysetId;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
 use crate::types::NodeUrl;
@@ -65,7 +67,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
 pub fn store_mint_quote(
     conn: &Connection,
     method: String,
-    amount: u64,
+    amount: Amount,
     unit: String,
     response: &::node::MintQuoteResponse,
 ) -> Result<()> {
@@ -107,7 +109,7 @@ pub fn upsert_node_keysets(
     conn: &Connection,
     node_id: u32,
     keysets: Vec<::node::Keyset>,
-) -> Result<Vec<[u8; 8]>> {
+) -> Result<Vec<KeysetId>> {
     conn.execute(
         r#"
         CREATE TEMPORARY TABLE IF NOT EXISTS _tmp_inserted (id INTEGER PRIMARY KEY);
@@ -124,14 +126,16 @@ pub fn upsert_node_keysets(
     "#;
 
     for keyset in keysets {
-        let id: [u8; 8] = keyset.id.try_into().map_err(|e: Vec<u8>| {
-            rusqlite::Error::ToSqlConversionFailure(
-                format!("Invalid keyset ID length: {}", e.len()).into(),
+        let id = KeysetId::from_bytes(&keyset.id).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(
+                keyset.id.len(),
+                rusqlite::types::Type::Blob,
+                Box::new(e),
             )
         })?;
         conn.execute(
             UPSERT_NODE_KEYSET,
-            (id, node_id, keyset.unit, keyset.active),
+            params![id, node_id, keyset.unit, keyset.active],
         )?;
     }
 
@@ -141,7 +145,7 @@ pub fn upsert_node_keysets(
 
     let new_keyset_ids = {
         let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
-        stmt.query_map([], |row| row.get(0))?
+        stmt.query_map([], |row| row.get::<_, KeysetId>(0))?
             .collect::<Result<Vec<_>>>()?
     };
 
@@ -154,20 +158,22 @@ pub fn fetch_one_active_keyset_id_for_node_and_unit(
     conn: &Connection,
     node_id: u32,
     unit: &str,
-) -> Result<Option<[u8; 8]>> {
+) -> Result<Option<KeysetId>> {
     const FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT: &str = r#"
         SELECT id FROM keyset WHERE node_id = ? AND active = TRUE AND unit = ? LIMIT 1;
     "#;
 
     let mut stmt = conn.prepare(FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT)?;
-    let mut rows_iter = stmt.query_map(params![node_id, unit], |row| row.get::<_, [u8; 8]>(0))?;
+    let result = stmt
+        .query_row(params![node_id, unit], |row| row.get::<_, KeysetId>(0))
+        .optional()?;
 
-    rows_iter.next().transpose()
+    Ok(result)
 }
 
 pub fn insert_keyset_keys<'a>(
     conn: &Connection,
-    keyset_id: [u8; 8],
+    keyset_id: KeysetId,
     keys: impl Iterator<Item = (u64, &'a str)>,
 ) -> Result<()> {
     const INSET_NEW_KEY: &str = r#"
@@ -185,18 +191,16 @@ pub fn insert_keyset_keys<'a>(
 pub fn get_node_url(conn: &Connection, node_id: u32) -> Result<Option<NodeUrl>> {
     let mut stmt = conn.prepare("SELECT url FROM node WHERE id = ?1 LIMIT 1")?;
     let opt_url = stmt
-        .query_row([node_id], |r| {
-            r.get::<_, String>(0).map(NodeUrl::new_unchecked)
-        })
+        .query_row([node_id], |r| r.get::<_, NodeUrl>(0))
         .optional()?;
 
     Ok(opt_url)
 }
 
-pub fn get_keyset_unit(conn: &Connection, keyset_id: [u8; 8]) -> Result<Option<String>> {
+pub fn get_keyset_unit(conn: &Connection, keyset_id: KeysetId) -> Result<Option<String>> {
     let mut stmt = conn.prepare("SELECT unit FROM keyset WHERE id = ?1 LIMIT 1")?;
     let opt_unit = stmt
-        .query_row([keyset_id], |r| r.get::<_, String>(0))
+        .query_row(params![keyset_id], |r| r.get::<_, String>(0))
         .optional()?;
 
     Ok(opt_unit)
@@ -209,14 +213,23 @@ pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -
             ) VALUES (?1, ?2, ?3, ?4, ?5)
             "#;
 
+    let fee_i16: i16 = response
+        .fee
+        .try_into()
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    let state_i16: i16 = response
+        .state
+        .try_into()
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
     conn.execute(
         INSERT_MELT_RESPONSE,
-        [
+        params![
             &response.quote,
-            &response.amount.to_string(),
-            &response.fee.to_string(),
-            &response.state.to_string(),
-            &response.expiry.to_string(),
+            response.amount,
+            fee_i16,
+            state_i16,
+            response.expiry,
         ],
     )?;
 

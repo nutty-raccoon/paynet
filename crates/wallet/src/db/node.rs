@@ -27,12 +27,7 @@ pub fn insert(conn: &Connection, node_url: NodeUrl) -> Result<u32> {
 pub fn fetch_all(conn: &Connection) -> Result<Vec<(u32, NodeUrl)>> {
     let mut stmt = conn.prepare("SELECT id, url FROM node;")?;
 
-    let rows = stmt.query_map((), |r| {
-        Ok((
-            r.get::<_, u32>(0)?,
-            NodeUrl::new_unchecked(r.get::<_, String>(1)?),
-        ))
-    })?;
+    let rows = stmt.query_map((), |r| Ok((r.get::<_, u32>(0)?, r.get::<_, NodeUrl>(1)?)))?;
 
     rows.collect::<Result<Vec<_>>>()
 }
