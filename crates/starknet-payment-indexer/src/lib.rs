@@ -14,7 +14,7 @@ use thiserror::Error;
 mod db;
 
 const INVOICE_PAYMENT_CONTRACT_ADDRESS: &str =
-    "0x03a94f47433e77630f288054330fb41377ffcc49dacf56568eeba84b017aa633";
+    "0x74e3cbebe007eb4732706bec58067da01d16c0d252d763843c76612c69a4e9a";
 const REMITTANCE_EVENT_KEY: &str =
     "0x027a12f554d018764f982295090da45b4ff0734785be0982b62c329b9ac38033";
 
@@ -43,7 +43,7 @@ impl ApibaraIndexerService {
         apibara_bearer_token: String,
         uri: Uri,
         starting_block: u64,
-        target_asset_and_recipient_pairs: Vec<(Felt, Felt)>,
+        target_asset_and_payee_pairs: Vec<(Felt, Felt)>,
     ) -> Result<Self, Error> {
         db::create_tables(&mut db_conn)?;
 
@@ -55,7 +55,7 @@ impl ApibaraIndexerService {
                     FieldElement::from_hex(INVOICE_PAYMENT_CONTRACT_ADDRESS).unwrap();
                 let remittance_event_key = FieldElement::from_hex(REMITTANCE_EVENT_KEY).unwrap();
 
-                target_asset_and_recipient_pairs
+                target_asset_and_payee_pairs
                     .iter()
                     .for_each(|(recipient, asset)| {
                         filter
@@ -102,8 +102,10 @@ pub struct PaymentEvent {
     pub block_id: String,
     pub tx_hash: Felt,
     pub event_idx: u64,
+    pub payee: Felt,
     pub asset: Felt,
     pub invoice_id: StarknetU256,
+    pub payer: Felt,
     pub amount: StarknetU256,
 }
 
@@ -163,9 +165,11 @@ impl futures::Stream for ApibaraIndexerService {
                                 )?;
                                 payment_events.push(PaymentEvent {
                                     block_id: block_infos.id.clone(),
-                                    tx_hash: Felt::from_hex_unchecked(&tx_hash),
+                                    tx_hash: Felt::from_hex(&tx_hash).unwrap(),
                                     event_idx: payment_event.index,
-                                    asset: Felt::from_hex_unchecked(&payment_event.asset),
+                                    payee: Felt::from_hex(&payment_event.payee).unwrap(),
+                                    payer: Felt::from_hex(&payment_event.payer).unwrap(),
+                                    asset: Felt::from_hex(&payment_event.asset).unwrap(),
                                     invoice_id: StarknetU256::from_parts(
                                         u128::from_str_radix(
                                             &payment_event.invoice_id_low[2..],

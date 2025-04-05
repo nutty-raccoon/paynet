@@ -98,6 +98,8 @@ pub struct MeltQuoteResponse<Q> {
     pub state: MeltQuoteState,
     /// Unix timestamp until the quote is valid
     pub expiry: u64,
+    /// The identifier of the transaction that will send back the funds to the user
+    pub transfer_id: Vec<u8>,
 }
 
 /// Melt Request [NUT-05]

@@ -2,17 +2,17 @@
 
 ## Unbank the masses
 
-While, in theory, blockchain technologies provided us with the tools to achieve financial sovereignty and security, we must recognise that, in practice, not much as changed for the masses.
-Adoption is still minimal and, even among crypto-holders, most keep seing it as "fake internet money", existing in a different world, without any actual impact in their daily life.
+While, in theory, blockchain technologies provide us with the tools to achieve financial sovereignty and security, we must recognize that, in practice, not much has changed for the masses.
+Adoption is still minimal and, even among crypto-holders, most keep seeing it as "fake internet money", existing in a different world, without any actual impact in their daily life.
 
-We want to solve this in a "user first" approach, providing people and business with a convenient way to pay and be paid in a diversity of crypto assets.
-To do so, we are willing accept some trade-off, and to reintroduce one fundamental element in the equation: Trust.
+We want to solve this in a "user first" approach, providing people and businesses with a convenient way to pay and be paid in a diversity of crypto assets.
+To do so, we are willing to accept some trade-off, and to reintroduce one fundamental element in the equation: Trust.
 
 **We believe to be true that <ins>most</ins> people are fine with entrusting <ins>some</ins> amount of money to <ins>some</ins> institution.**
 
 Some people are not, this product is not for them, no hard feelings.
 
-Leveraging trust, we can build a solution that abstract any asset on any chain into a convenient, off-chain and privacy preserving mean of payment for everyday transactions. 
+Leveraging trust, we can build a solution that abstracts any asset on any chain into a convenient, off-chain, and privacy-preserving means of payment for everyday transactions. 
 
 ## Roadmap
 

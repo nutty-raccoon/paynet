@@ -99,7 +99,8 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             event_index INTEGER NOT NULL,
             payee TEXT NOT NULL,
             asset TEXT NOT NULL,
-            invoice_id TEXT NOT NULL,
+            invoice_id_low TEXT NOT NULL,
+            invoice_id_high TEXT NOT NULL,
             payer TEXT NOT NULL,
             amount_low TEXT NOT NULL,
             amount_high TEXT NOT NULL
@@ -129,9 +130,9 @@ pub fn insert_payment_event(
 ) -> Result<()> {
     const INSERT_PAYMENT_EVENT: &str = r#"
         INSERT INTO payment_event
-            (block_id, tx_hash, event_index, payee, asset, invoice_id, payer, amount_low, amount_high)
+            (block_id, tx_hash, event_index, payee, asset, invoice_id_low, invoice_id_high, payer, amount_low, amount_high)
         VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#;
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#;
 
     conn.execute(
         INSERT_PAYMENT_EVENT,

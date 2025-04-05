@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bitcoin_hashes::Sha256;
 use num_bigint::BigUint;
 use nuts::Amount;
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,7 @@ pub use method::{Method, MethodFromStrError};
 mod chain_id;
 pub mod constants;
 pub use chain_id::ChainId;
+pub mod transactions;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -29,12 +31,12 @@ pub enum Asset {
 
 impl core::fmt::Display for Asset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_ref())
+        write!(f, "{}", self.as_str())
     }
 }
 
-impl AsRef<str> for Asset {
-    fn as_ref(&self) -> &str {
+impl Asset {
+    pub fn as_str(&self) -> &str {
         match self {
             Asset::Strk => "strk",
         }
@@ -58,22 +60,8 @@ impl FromStr for Asset {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeltPaymentRequest {
-    pub recipient: Felt,
+    pub payee: Felt,
     pub asset: Asset,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MintPaymentRequest<C> {
-    pub contract_address: Felt,
-    pub selector: Felt,
-    pub calldata: C,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PayInvoiceCalldata {
-    pub invoice_id: u128,
-    pub asset: Asset,
-    pub amount: StarknetU256,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -88,6 +76,10 @@ impl StarknetU256 {
         high: Felt::ZERO,
     };
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Slice too long, max is 32, received {0}")]
+pub struct StarknetU256FromBytesSliceError(usize);
 
 impl StarknetU256 {
     pub fn from_parts<L: Into<u128>, H: Into<u128>>(low: L, high: H) -> Self {
@@ -105,6 +97,46 @@ impl StarknetU256 {
         ret[0..16].copy_from_slice(&self.high.to_bytes_be()[16..32]);
 
         ret
+    }
+
+    pub fn from_bytes(bytes: &[u8; 32]) -> Self {
+        Self {
+            low: Felt::from(u128::from_be_bytes(bytes[16..].try_into().unwrap())),
+            high: Felt::from(u128::from_be_bytes(bytes[..16].try_into().unwrap())),
+        }
+    }
+
+    pub fn from_bytes_slice(bytes: &[u8]) -> Result<Self, StarknetU256FromBytesSliceError> {
+        let (low, high) = match bytes.len() {
+            0 => return Ok(Self::ZERO),
+            16 => (u128::from_be_bytes(bytes.try_into().unwrap()), 0u128),
+            32 => (
+                u128::from_be_bytes(bytes[16..32].try_into().unwrap()),
+                u128::from_be_bytes(bytes[0..16].try_into().unwrap()),
+            ),
+            l if l < 16 => {
+                let mut low = [0u8; 16];
+                low[16 - l..].copy_from_slice(bytes);
+                (u128::from_be_bytes(low), 0u128)
+            }
+            l if l < 32 => {
+                let mut low = [0u8; 16];
+                let mut high = [0u8; 16];
+                low.copy_from_slice(&bytes[l - 16..]);
+                high.copy_from_slice(&bytes[0..l - 16]);
+                (u128::from_be_bytes(low), u128::from_be_bytes(high))
+            }
+            l => return Err(StarknetU256FromBytesSliceError(l)),
+        };
+
+        Ok(Self::from_parts(low, high))
+    }
+}
+
+impl From<Sha256> for StarknetU256 {
+    fn from(value: Sha256) -> Self {
+        let bytes = value.as_byte_array();
+        StarknetU256::from_bytes(bytes)
     }
 }
 
@@ -248,4 +280,34 @@ pub fn felt_from_short_string(s: &str) -> Result<Felt, CairoShortStringToFeltErr
 
     // The conversion will never fail
     Ok(Felt::from_bytes_be(&buffer))
+}
+
+// TODO: remove and use starknet-core struct when https://github.com/xJonathanLEI/starknet-rs/pull/713 is merged
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct Call {
+    /// Address of the contract being invoked.
+    pub to: Felt,
+    /// Entrypoint selector of the function being invoked.
+    pub selector: Felt,
+    /// List of calldata to be sent for the call.
+    pub calldata: Vec<Felt>,
+}
+
+impl From<starknet::core::types::Call> for Call {
+    fn from(value: starknet::core::types::Call) -> Self {
+        Self {
+            to: value.to,
+            selector: value.selector,
+            calldata: value.calldata,
+        }
+    }
+}
+impl From<Call> for starknet::core::types::Call {
+    fn from(value: Call) -> Self {
+        Self {
+            to: value.to,
+            selector: value.selector,
+            calldata: value.calldata,
+        }
+    }
 }

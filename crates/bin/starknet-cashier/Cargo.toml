@@ -20,8 +20,6 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 # Local deps
 starknet-types = { workspace = true }
 
-[features]
-
 [build-dependencies]
 tonic-build = "0.13.0"
 

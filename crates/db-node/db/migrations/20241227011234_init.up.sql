@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS melt_quote (
     fee INT8 NOT NULL,
     request TEXT NOT NULL,
     expiry TIMESTAMPTZ NOT NULL,
-    state melt_quote_state NOT NULL
+    state melt_quote_state NOT NULL,
+    transfer_id BYTEA
 );
 
 CREATE INDEX IF NOT EXISTS melt_quote_invoice_id ON melt_quote(invoice_id);

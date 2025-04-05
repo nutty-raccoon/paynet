@@ -1,16 +1,16 @@
 use crate::grpc_service::GrpcState;
+use liquidity_source::DepositInterface;
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},
 };
-use sqlx::PgPool;
-use starknet_types::{MintPaymentRequest, PayInvoiceCalldata};
-use starknet_types_core::felt::Felt;
+use sqlx::PgConnection;
+use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
 use uuid::Uuid;
 
-use crate::{Unit, methods::Method, utils::unix_time};
+use crate::{methods::Method, utils::unix_time};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -34,6 +34,8 @@ pub enum Error {
     AmountTooLow(Amount, Amount),
     #[error("Amount must bellow {0}, got {1}")]
     AmountTooHigh(Amount, Amount),
+    #[error("failed to interact with liquidity source: {0}")]
+    LiquiditySource(#[source] anyhow::Error),
 }
 
 impl From<Error> for Status {
@@ -47,7 +49,8 @@ impl From<Error> for Status {
             Error::MintDisabled => Status::failed_precondition(value.to_string()),
             Error::UnitNotSupported(_, _)
             | Error::AmountTooLow(_, _)
-            | Error::AmountTooHigh(_, _) => Status::invalid_argument(value.to_string()),
+            | Error::AmountTooHigh(_, _)
+            | Error::LiquiditySource(_) => Status::invalid_argument(value.to_string()),
         }
     }
 }
@@ -84,10 +87,20 @@ impl GrpcState {
             }
         }
 
+        #[cfg(feature = "mock")]
+        let depositer = liquidity_source::mock::MockDepositer;
+        #[cfg(all(not(feature = "mock"), feature = "starknet"))]
+        let depositer = self.starknet_config.depositer.clone();
+
+        let mut conn = self.pg_pool.acquire().await?;
         let response = match method {
-            Method::Starknet => {
-                new_starknet_mint_quote(&self.pg_pool, amount, unit, self.quote_ttl.mint_ttl())
-            }
+            Method::Starknet => create_new_starknet_mint_quote(
+                &mut conn,
+                depositer,
+                amount,
+                unit,
+                self.quote_ttl.mint_ttl(),
+            ),
         }
         .await?;
 
@@ -96,8 +109,9 @@ impl GrpcState {
 }
 
 /// Initialize a new Starknet mint quote
-async fn new_starknet_mint_quote(
-    pool: &PgPool,
+async fn create_new_starknet_mint_quote(
+    conn: &mut PgConnection,
+    depositer: impl DepositInterface,
     amount: Amount,
     unit: Unit,
     mint_ttl: u64,
@@ -106,29 +120,12 @@ async fn new_starknet_mint_quote(
     let quote = Uuid::new_v4();
     let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
 
-    let request = {
-        let asset = unit.asset();
-        let amount = unit.convert_amount_into_u256(amount);
+    let request = depositer
+        .generate_deposit_payload(quote_hash, unit, amount)
+        .map_err(|e| Error::LiquiditySource(e.into()))?;
 
-        serde_json::to_string(&MintPaymentRequest {
-            contract_address: Felt::from_hex_unchecked(
-                "0x03a94f47433e77630f288054330fb41377ffcc49dacf56568eeba84b017aa633",
-            ),
-            selector: Felt::from_hex_unchecked(
-                "0x027a12f554d018764f982295090da45b4ff0734785be0982b62c329b9ac38033",
-            ),
-            calldata: PayInvoiceCalldata {
-                invoice_id: quote.as_u128(),
-                asset,
-                amount,
-            },
-        })
-        .map_err(Error::SerQuoteRequest)?
-    };
-
-    let mut conn = pool.acquire().await?;
     db_node::mint_quote::insert_new(
-        &mut conn,
+        conn,
         quote,
         quote_hash.as_byte_array(),
         unit,
@@ -141,17 +138,17 @@ async fn new_starknet_mint_quote(
 
     let state = {
         // If running with no backend, we immediatly set the state to paid
-        #[cfg(not(feature = "starknet"))]
+        #[cfg(feature = "mock")]
         {
             use futures::TryFutureExt;
 
             let new_state = MintQuoteState::Paid;
-            db_node::mint_quote::set_state(&mut conn, quote, new_state)
+            db_node::mint_quote::set_state(conn, quote, new_state)
                 .map_err(Error::Sqlx)
                 .await?;
             new_state
         }
-        #[cfg(feature = "starknet")]
+        #[cfg(all(not(feature = "mock"), feature = "starknet"))]
         MintQuoteState::Unpaid
     };
 

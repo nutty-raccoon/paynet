@@ -1,15 +1,22 @@
+#[cfg(all(feature = "mock", feature = "starknet"))]
+compile_error!("Only one of the features 'mock' and 'starknet' can be enabled at the same time");
+
 use errors::Error;
 use initialization::{
     connect_to_db_and_run_migrations, connect_to_signer, launch_tonic_server_task,
     read_env_variables,
 };
-use starknet_types::Unit;
-use tokio::try_join;
+use tokio::task::JoinSet;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+#[cfg_attr(not(any(feature = "mock", feature = "starknet")), allow(dead_code))]
 mod app_state;
 mod errors;
+#[cfg_attr(
+    not(any(feature = "mock", feature = "starknet")),
+    allow(dead_code, unused_variables, unused_imports)
+)]
 mod grpc_service;
 #[cfg(feature = "starknet")]
 mod indexer;
@@ -19,6 +26,7 @@ mod keyset_rotation;
 mod logic;
 mod methods;
 mod routes;
+#[cfg(any(feature = "mock", feature = "starknet"))]
 mod utils;
 
 #[tokio::main]
@@ -59,9 +67,9 @@ async fn main() -> Result<(), anyhow::Error> {
     #[cfg(feature = "starknet")]
     let indexer_future = {
         let indexer_future = initialization::launch_indexer_task(
-            &pg_pool,
+            pg_pool.acquire().await?,
             env_variables.apibara_token,
-            &starknet_config,
+            starknet_config.clone(),
         )
         .await?;
         info!("Listening to starknet indexer.");
@@ -74,7 +82,13 @@ async fn main() -> Result<(), anyhow::Error> {
         pg_pool.clone(),
         signer_client,
         #[cfg(feature = "starknet")]
-        starknet_cashier,
+        app_state::starknet::StarknetConfig {
+            withdrawer: liquidity_source::starknet::StarknetWithdrawer::new(starknet_cashier),
+            depositer: liquidity_source::starknet::StarknetDepositer::new(
+                starknet_config.chain_id,
+                starknet_config.our_account_address,
+            ),
+        },
         env_variables.grpc_port,
     )
     .await?;
@@ -83,12 +97,13 @@ async fn main() -> Result<(), anyhow::Error> {
     // We are done initializing
     info!("Initialized!");
 
-    // Run them forever
+    let mut set = JoinSet::new();
+    set.spawn(grpc_future);
     #[cfg(feature = "starknet")]
-    let ((), ()) = try_join!(grpc_future, indexer_future)?;
-    // or
-    #[cfg(not(feature = "starknet"))]
-    let ((),) = try_join!(grpc_future)?;
+    set.spawn(indexer_future);
+
+    // Run them forever
+    let _ = set.join_all().await;
 
     Ok(())
 }

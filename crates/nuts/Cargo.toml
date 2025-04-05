@@ -15,9 +15,10 @@ num-bigint = { workspace = true }
 once_cell = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
+
+# Optional
 rusqlite = { workspace = true, optional = true }
 sqlx = { workspace = true, optional = true }
-
 starknet-types-core = { workspace = true, optional = true }
 
 [dev-dependencies]

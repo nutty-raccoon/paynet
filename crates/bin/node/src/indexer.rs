@@ -47,6 +47,8 @@ async fn process_payment_event(
         )
         .await?
         {
+            // TODO: also check if it exists in the metl quote table.
+            // If so, set the quote state to paid
             None => continue,
             Some(mint_quote_id) => mint_quote_id,
         };

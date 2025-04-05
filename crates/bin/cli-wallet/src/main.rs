@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use clap::{Parser, Subcommand, ValueHint};
+use clap::{Args, Parser, Subcommand, ValueHint};
 use node::{MintQuoteState, NodeClient};
 use nuts::Amount;
 use rusqlite::Connection;
@@ -24,12 +24,20 @@ struct Cli {
 #[derive(Subcommand)]
 enum NodeCommands {
     /// Register a new node
+    #[command(
+        about = "Register a new node",
+        long_about = "Register a new node. Each one is given an unique incremental integer value as id."
+    )]
     Add {
         /// Url of the node
         #[arg(long, short)]
         node_url: String,
     },
     /// List all know nodes
+    #[command(
+        about = "List all the registered nodes",
+        long_about = "List all the registered nodes. Display their id and url."
+    )]
     #[clap(name = "ls")]
     List {},
 }
@@ -39,12 +47,20 @@ enum Commands {
     #[command(subcommand)]
     Node(NodeCommands),
     /// Show balance
+    #[command(
+        about = "Display your balances accross all nodes",
+        long_about = "Display your balances accross all nodes. For each node, show the total available amount for each unit."
+    )]
     Balance {
         /// If specified, only show balance for this node
         #[arg(long, short)]
         node_id: Option<u32>,
     },
     /// Mint new tokens
+    #[command(
+        about = "Mint some tokens",
+        long_about = "Mint some tokens. Will require you to send some assets to the node."
+    )]
     Mint {
         /// Amount requested
         #[arg(long, short)]
@@ -57,6 +73,10 @@ enum Commands {
         node_id: u32,
     },
     /// Melt existing tokens
+    #[command(
+        about = "Melt some tokens",
+        long_about = "Melt some tokens. Send them to the node and receive the original asset back"
+    )]
     Melt {
         /// Amount to melt
         #[arg(long, short)]
@@ -67,8 +87,14 @@ enum Commands {
         /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
+        #[arg(long, short)]
+        to: String,
     },
     /// Send tokens
+    #[command(
+        about = "Send some tokens",
+        long_about = "Send some tokens. Store them in a wad, ready to be shared"
+    )]
     Send {
         /// Amount to send
         #[arg(long, short)]
@@ -85,12 +111,22 @@ enum Commands {
         output: Option<PathBuf>,
     },
     /// Receive a wad of proofs
-    Receive {
-        /// Json string of the wad
-        #[arg(long, short)]
-        wad_as_json: String,
-    },
+    #[command(
+        about = "Receive a wad of tokens",
+        long_about = "Receive a wad of tokens. Store them on them wallet for later use"
+    )]
+    Receive(ReceiveWadArgs),
 }
+
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+struct ReceiveWadArgs {
+    #[arg(long = "string", short = 's', value_name = "JSON STRING")]
+    opt_wad_json_string: Option<String>,
+    #[arg(long = "file", short = 'f', value_name = "PATH", value_hint = ValueHint::FilePath)]
+    opt_wad_json_file_path: Option<String>,
+}
+
 const STARKNET_METHOD: &str = "starknet";
 
 #[tokio::main]
@@ -223,11 +259,11 @@ async fn main() -> Result<()> {
             amount,
             unit,
             node_id,
+            to,
         } => {
             let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
 
-            println!("Melting {} tokens from {}", amount, unit);
-            // Add melt logic here
+            println!("Melting {} {} tokens", amount, unit);
 
             let tx = db_conn.transaction()?;
             let tokens = wallet::fetch_inputs_from_db_or_node(
@@ -244,10 +280,10 @@ async fn main() -> Result<()> {
 
             let resp = node_client
                 .melt(node::MeltRequest {
-                    method: "starknet".to_string(),
+                    method: STARKNET_METHOD.to_string(),
                     unit,
                     request: serde_json::to_string(&starknet_types::MeltPaymentRequest {
-                        recipient: Felt::from_hex_unchecked("0x123"),
+                        payee: Felt::from_hex(&to)?,
                         asset: starknet_types::Asset::Strk,
                     })?,
                     inputs: wallet::convert_inputs(&inputs),
@@ -256,6 +292,8 @@ async fn main() -> Result<()> {
                 .into_inner();
 
             wallet::db::register_melt_quote(&db_conn, &resp)?;
+            let tx_hash = Felt::from_bytes_be_slice(&resp.transfer_id);
+            println!("Melt done. Withdrawal settled with tx: {:#x}", tx_hash);
         }
         Commands::Send {
             amount,
@@ -310,8 +348,18 @@ async fn main() -> Result<()> {
             }
             tx.commit()?;
         }
-        Commands::Receive { wad_as_json } => {
-            let wad: Wad = serde_json::from_str(&wad_as_json)?;
+        Commands::Receive(ReceiveWadArgs {
+            opt_wad_json_string,
+            opt_wad_json_file_path,
+        }) => {
+            let wad_json_string = if let Some(json_string) = opt_wad_json_string {
+                json_string
+            } else if let Some(file_path) = opt_wad_json_file_path {
+                fs::read_to_string(file_path)?
+            } else {
+                unreachable!("cli rules guarantee one and only one will be set")
+            };
+            let wad: Wad = serde_json::from_str(&wad_json_string)?;
 
             let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);

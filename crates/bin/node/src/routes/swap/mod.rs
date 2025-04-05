@@ -1,3 +1,6 @@
+mod inputs;
+
+use inputs::process_swap_inputs;
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage, Proof},
@@ -8,10 +11,7 @@ use tonic::Status;
 
 use crate::{
     grpc_service::GrpcState,
-    logic::{
-        InputsError, OutputsError, check_outputs_allow_multiple_units, process_outputs,
-        process_swap_inputs,
-    },
+    logic::{InputsError, OutputsError, check_outputs_allow_multiple_units, process_outputs},
 };
 
 #[derive(Debug, Error)]

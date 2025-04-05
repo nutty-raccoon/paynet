@@ -30,9 +30,10 @@ pub enum Error {
     AmountTooHigh(Amount, Amount),
     #[error(transparent)]
     InvalidPaymentRequest(serde_json::Error),
-    #[cfg(feature = "starknet")]
-    #[error("failed to trigger withdraw from starknet cashier: {0}")]
-    StarknetCashier(#[source] tonic::Status),
+    #[error("failed to interact with liquidity source: {0}")]
+    LiquiditySource(#[source] anyhow::Error),
+    #[error("method '{0}' not supported, try compiling with the appropriate feature.")]
+    MethodNotSupported(Method),
 }
 
 impl From<Error> for Status {
@@ -46,12 +47,12 @@ impl From<Error> for Status {
             | Error::AmountTooLow(_, _)
             | Error::AmountTooHigh(_, _)
             | Error::TotalAmountTooBig
+            | Error::MethodNotSupported(_)
             | Error::InvalidPaymentRequest(_) => Status::invalid_argument(value.to_string()),
             Error::Inputs(error) => error.into(),
             Error::Db(error) => Status::internal(error.to_string()),
             Error::MeltDisabled => Status::failed_precondition(value.to_string()),
-            #[cfg(feature = "starknet")]
-            Error::StarknetCashier(_) => Status::internal(value.to_string()),
+            Error::LiquiditySource(_) => Status::internal(value.to_string()),
         }
     }
 }

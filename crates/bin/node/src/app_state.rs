@@ -9,8 +9,6 @@ use crate::methods::Method;
 
 pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
 pub type SignerClient = signer::SignerClient<Channel>;
-#[cfg(feature = "starknet")]
-pub type StarknetCashierClient = starknet_cashier::StarknetCashierClient<Channel>;
 
 /// Quote Time To Live config
 ///
@@ -40,5 +38,16 @@ impl From<QuoteTTLConfig> for QuoteTTLConfigState {
             mint_ttl: value.mint_ttl.into(),
             melt_ttl: value.melt_ttl.into(),
         }
+    }
+}
+
+#[cfg(feature = "starknet")]
+pub mod starknet {
+    use liquidity_source::starknet::{StarknetDepositer, StarknetWithdrawer};
+
+    #[derive(Debug, Clone)]
+    pub struct StarknetConfig {
+        pub withdrawer: StarknetWithdrawer,
+        pub depositer: StarknetDepositer,
     }
 }

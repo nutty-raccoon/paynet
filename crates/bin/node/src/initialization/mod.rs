@@ -3,8 +3,6 @@ use starknet_types::ChainId;
 mod commands;
 #[cfg(feature = "starknet")]
 pub use commands::ProgramArguments;
-#[cfg(feature = "starknet")]
-pub use commands::StarknetConfig;
 mod env_variables;
 pub use env_variables::read_env_variables;
 mod db;

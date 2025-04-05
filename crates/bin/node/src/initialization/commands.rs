@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use serde::{Deserialize, Serialize};
-use starknet_types::ChainId;
-use starknet_types_core::felt::Felt;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -14,20 +11,22 @@ pub struct ProgramArguments {
 
 #[cfg(feature = "starknet")]
 impl ProgramArguments {
-    pub fn read_starknet_config(&self) -> Result<StarknetConfig, super::Error> {
+    pub fn read_starknet_config(&self) -> Result<StarknetCliConfig, super::Error> {
         let file_content =
             std::fs::read_to_string(&self.config).map_err(super::Error::CannotReadConfig)?;
 
-        let config: StarknetConfig = toml::from_str(&file_content).map_err(super::Error::Toml)?;
+        let config: StarknetCliConfig =
+            toml::from_str(&file_content).map_err(super::Error::Toml)?;
 
         Ok(config)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StarknetConfig {
+#[cfg(feature = "starknet")]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StarknetCliConfig {
     /// The chain we are using as backend
-    pub chain_id: ChainId,
+    pub chain_id: starknet_types::ChainId,
     /// The address of the on-chain account managing deposited assets
-    pub recipient_address: Felt,
+    pub our_account_address: starknet_types_core::felt::Felt,
 }
