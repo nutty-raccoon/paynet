@@ -1,3 +1,4 @@
-- When writing documentation, always focus on the WHY rather than the WHAT. Rust code is often self explanatory, so the doc should add value and not be simply descriptive.
-- When writing documentation, adopt a detached, descriptive, cold and technical tone.
-- When writing rust documentation for function, never add doctest or examples
+# Documentation Guidelines
+- Focus on WHY, not WHAT (code is self-explanatory)
+- Use a direct, detached, cold, technical tone
+- Omit rust doctests
