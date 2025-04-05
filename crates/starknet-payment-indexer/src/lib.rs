@@ -43,7 +43,7 @@ impl ApibaraIndexerService {
         apibara_bearer_token: String,
         uri: Uri,
         starting_block: u64,
-        target_asset_and_recipient_pairs: Vec<(Felt, Felt)>,
+        target_asset_and_payee_pairs: Vec<(Felt, Felt)>,
     ) -> Result<Self, Error> {
         db::create_tables(&mut db_conn)?;
 
@@ -55,7 +55,7 @@ impl ApibaraIndexerService {
                     FieldElement::from_hex(INVOICE_PAYMENT_CONTRACT_ADDRESS).unwrap();
                 let remittance_event_key = FieldElement::from_hex(REMITTANCE_EVENT_KEY).unwrap();
 
-                target_asset_and_recipient_pairs
+                target_asset_and_payee_pairs
                     .iter()
                     .for_each(|(recipient, asset)| {
                         filter

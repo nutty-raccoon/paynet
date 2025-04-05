@@ -122,7 +122,7 @@ enum Commands {
 struct ReceiveWadArgs {
     #[arg(long = "string", short = 's', value_name = "JSON STRING")]
     opt_wad_json_string: Option<String>,
-    #[arg(long = "file", short = 'f', value_name = "PATH")]
+    #[arg(long = "file", short = 'f', value_name = "PATH", value_hint = ValueHint::FilePath)]
     opt_wad_json_file_path: Option<String>,
 }
 

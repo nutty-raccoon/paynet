@@ -83,9 +83,6 @@ async fn main() -> Result<(), anyhow::Error> {
         signer_client,
         #[cfg(feature = "starknet")]
         app_state::starknet::StarknetConfig {
-            // cashier: starknet_cashier,
-            // our_account_address: starknet_config.our_account_address,
-            // chain_id: starknet_config.chain_id,
             withdrawer: liquidity_source::starknet::StarknetWithdrawer::new(starknet_cashier),
             depositer: liquidity_source::starknet::StarknetDepositer::new(
                 starknet_config.chain_id,

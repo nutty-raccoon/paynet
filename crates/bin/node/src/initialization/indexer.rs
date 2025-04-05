@@ -11,7 +11,7 @@ use super::{Error, commands::StarknetCliConfig};
 async fn init_indexer_task(
     apibara_token: String,
     chain_id: ChainId,
-    recipient_address: Felt,
+    payee_address: Felt,
 ) -> Result<ApibaraIndexerService, Error> {
     let conn = rusqlite::Connection::open_in_memory().map_err(Error::OpenSqlite)?;
 
@@ -35,7 +35,7 @@ async fn init_indexer_task(
         apibara_token,
         uri,
         on_chain_constants.apibara.starting_block,
-        vec![(recipient_address, *strk_token_address)],
+        vec![(payee_address, *strk_token_address)],
     )
     .await
     .map_err(Error::InitIndexer)?;
