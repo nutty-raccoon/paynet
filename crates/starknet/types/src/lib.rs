@@ -7,12 +7,12 @@ mod u256;
 pub use u256::*;
 mod unit;
 pub use unit::{Unit, UnitFromStrError};
-mod method;
-pub use method::{Method, MethodFromStrError};
 mod chain_id;
 pub mod constants;
 pub use chain_id::ChainId;
 pub mod transactions;
+
+pub const STARKNET_STR: &str = "starknet";
 
 #[derive(Debug, thiserror::Error)]
 #[error("starknet u256 amount of {1} is to big to be converted into protocol Amount of Unit {0}")]

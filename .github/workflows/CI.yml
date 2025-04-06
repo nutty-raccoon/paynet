@@ -73,7 +73,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          cargo test -p node
+          cargo test -p node --no-default-features --features=mock
           cargo test -p node --no-default-features --features=starknet
           cargo test -p signer --no-default-features
           cargo test -p cli-wallet --no-default-features
@@ -102,7 +102,7 @@ jobs:
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
           # Node
-          GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --bin node -- --config ./crates/bin/node/config/local.toml &
+          GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --no-default-features --features=mock --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
           while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$NODE_GRPC_PORT cargo test -p node-tests

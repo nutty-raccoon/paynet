@@ -14,11 +14,11 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Failed to compute y by running hash_on_curve")]
+    #[error("failed to compute y by running hash_on_curve")]
     HashOnCurve,
-    #[error("Duplicate input")]
+    #[error("duplicate input")]
     DuplicateInput,
-    #[error("Melt only support inputs of the same unit")]
+    #[error("melt only support inputs of the same unit")]
     MultipleUnits,
     #[error("the sum off all the inputs' amount must fit in a u64")]
     TotalAmountTooBig,
@@ -30,9 +30,9 @@ pub enum Error {
     KeysetCache(#[from] keyset_cache::Error),
     #[error(transparent)]
     Signer(#[from] tonic::Status),
-    #[error("Invalid Proof")]
+    #[error("invalid Proof")]
     Invalid,
-    #[error("Proof already used")]
+    #[error("proof already used")]
     Used,
     #[error("amount {1} exceeds max order {2} of keyset {0}")]
     AmountExceedsMaxOrder(KeysetId, Amount, u64),

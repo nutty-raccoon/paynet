@@ -2,6 +2,8 @@
 compile_error!("Only one of the features 'mock' and 'starknet' can be enabled at the same time");
 #[cfg(not(any(feature = "mock", feature = "starknet")))]
 const NO_LIQUIDITY_SOURCE_ERROR: &str = "the node cannot be compiled without any liquidity source";
+#[cfg(not(any(feature = "mock", feature = "starknet")))]
+compile_error!("At least one liquidity feature should be provided during compilation");
 
 use errors::Error;
 use initialization::{
@@ -21,7 +23,6 @@ mod grpc_service;
 mod initialization;
 mod keyset_cache;
 mod keyset_rotation;
-#[cfg(any(feature = "mock", feature = "starknet"))]
 mod liquidity_sources;
 mod logic;
 mod methods;

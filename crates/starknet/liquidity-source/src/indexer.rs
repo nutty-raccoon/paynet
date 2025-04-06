@@ -1,10 +1,13 @@
+use crate::StarknetCliConfig;
 use futures::TryStreamExt;
 use nuts::Amount;
 use nuts::nut04::MintQuoteState;
 use sqlx::{PgConnection, Postgres, pool::PoolConnection};
 use starknet_payment_indexer::{ApibaraIndexerService, Message, PaymentEvent, Uri};
+use starknet_types::{Asset, ChainId};
 use starknet_types::{StarknetU256, Unit::MilliStrk};
 use starknet_types_core::felt::Felt;
+use std::env;
 use std::str::FromStr;
 use tokio::select;
 
@@ -30,14 +33,7 @@ pub enum Error {
     AmountPaidOverflow,
     #[error(transparent)]
     StarknetU256ToAmount(#[from] starknet_types::StarknetU256ToAmountError),
-    #[error("the sender side of the indexer kill signal channle has been drop")]
-    KillSignalChannelDropped,
 }
-
-use std::env;
-
-use crate::StarknetCliConfig;
-use starknet_types::{Asset, ChainId};
 
 async fn init_indexer_task(
     apibara_token: String,

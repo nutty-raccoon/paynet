@@ -16,9 +16,9 @@ pub enum Error {
     Db(#[from] db_node::Error),
     #[error("failed to serialize the request content")]
     MeltDisabled,
-    #[error("Unsupported unit `{0}` for method `{1}`")]
+    #[error("unsupported unit `{0}` for method `{1}`")]
     UnitNotSupported(Unit, Method),
-    #[error("Unsupported asset `{0}` for unit `{1}`")]
+    #[error("unsupported asset `{0}` for unit `{1}`")]
     InvalidAssetForUnit(Asset, Unit),
     #[error("the sum off all the inputs' amount must fit in a u64")]
     TotalAmountTooBig,

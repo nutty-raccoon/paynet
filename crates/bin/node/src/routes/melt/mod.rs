@@ -37,13 +37,13 @@ impl GrpcState {
                 .ok_or(Error::UnitNotSupported(unit, method))?
         };
 
-        let backend = self
+        let mut withdrawer = self
             .liquidity_sources
             .get_liquidity_source(method)
-            .ok_or(Error::MethodNotSupported(method))?;
+            .ok_or(Error::MethodNotSupported(method))?
+            .withdrawer();
 
-        let payment_request = backend
-            .withdrawer()
+        let payment_request = withdrawer
             .deserialize_payment_request(&melt_payment_request)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
         let asset = payment_request.asset();
@@ -56,8 +56,7 @@ impl GrpcState {
         let (quote_id, quote_hash, total_amount, fee, expiry) = self
             .validate_and_register_quote(&mut conn, &settings, melt_payment_request, inputs)
             .await?;
-        let (state, transfer_id) = backend
-            .withdrawer()
+        let (state, transfer_id) = withdrawer
             .proceed_to_payment(
                 quote_hash,
                 payment_request,
