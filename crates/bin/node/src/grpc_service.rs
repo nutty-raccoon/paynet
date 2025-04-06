@@ -1,4 +1,4 @@
-use crate::{Error, keyset_cache::CachedKeysetInfo};
+use crate::{Error, keyset_cache::CachedKeysetInfo, liquidity_sources::LiquiditySources};
 use std::{str::FromStr, sync::Arc};
 
 use node::{
@@ -36,8 +36,7 @@ pub struct GrpcState {
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
-    #[cfg(any(feature = "mock", feature = "starknet"))]
-    pub liquidity_sources: crate::liquidity_sources::LiquiditySources,
+    pub liquidity_sources: LiquiditySources,
     // TODO: add a cache for the mint_quote and melt routes
 }
 
@@ -47,8 +46,7 @@ impl GrpcState {
         signer_client: signer::SignerClient<Channel>,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
-        #[cfg(any(feature = "mock", feature = "starknet"))]
-        liquidity_sources: crate::liquidity_sources::LiquiditySources,
+        liquidity_sources: LiquiditySources,
     ) -> Self {
         Self {
             pg_pool,
@@ -56,7 +54,6 @@ impl GrpcState {
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
-            #[cfg(any(feature = "mock", feature = "starknet"))]
             liquidity_sources,
         }
     }
@@ -113,7 +110,6 @@ impl GrpcState {
     }
 }
 
-#[cfg_attr(not(any(feature = "mock", feature = "starknet")), allow(dead_code))]
 #[derive(Debug, Error)]
 enum ParseGrpcError {
     #[error(transparent)]
@@ -299,7 +295,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint_quote(
         &self,
         mint_quote_request: Request<MintQuoteRequest>,
@@ -321,15 +316,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn mint_quote(
-        &self,
-        mint_quote_request: Request<MintQuoteRequest>,
-    ) -> Result<Response<MintQuoteResponse>, Status> {
-        Err(Status::unimplemented(crate::NO_LIQUIDITY_SOURCE_ERROR))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
@@ -376,15 +362,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn mint(
-        &self,
-        mint_request: Request<MintRequest>,
-    ) -> Result<Response<MintResponse>, Status> {
-        Err(Status::unimplemented(crate::NO_LIQUIDITY_SOURCE_ERROR))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn melt(
         &self,
         melt_request: Request<MeltRequest>,
@@ -432,15 +409,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn melt(
-        &self,
-        melt_request: Request<MeltRequest>,
-    ) -> Result<Response<MeltResponse>, Status> {
-        Err(Status::unimplemented(crate::NO_LIQUIDITY_SOURCE_ERROR))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint_quote_state(
         &self,
         mint_quote_state_request: Request<QuoteStateRequest>,
@@ -461,15 +429,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn mint_quote_state(
-        &self,
-        mint_quote_state_request: Request<QuoteStateRequest>,
-    ) -> Result<Response<MintQuoteResponse>, Status> {
-        Err(Status::unimplemented(crate::NO_LIQUIDITY_SOURCE_ERROR))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn melt_quote_state(
         &self,
         melt_quote_state_request: Request<QuoteStateRequest>,
@@ -490,14 +449,6 @@ impl Node for GrpcState {
             expiry: response.expiry,
             transfer_id: response.transfer_id,
         }))
-    }
-
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn melt_quote_state(
-        &self,
-        melt_quote_state_request: Request<QuoteStateRequest>,
-    ) -> Result<Response<MeltResponse>, Status> {
-        Err(Status::unimplemented(crate::NO_LIQUIDITY_SOURCE_ERROR))
     }
 
     async fn get_node_info(

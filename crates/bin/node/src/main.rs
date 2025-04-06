@@ -1,8 +1,6 @@
 #[cfg(all(feature = "mock", feature = "starknet"))]
 compile_error!("Only one of the features 'mock' and 'starknet' can be enabled at the same time");
 #[cfg(not(any(feature = "mock", feature = "starknet")))]
-const NO_LIQUIDITY_SOURCE_ERROR: &str = "the node cannot be compiled without any liquidity source";
-#[cfg(not(any(feature = "mock", feature = "starknet")))]
 compile_error!("At least one liquidity feature should be provided during compilation");
 
 use errors::Error;
@@ -15,10 +13,6 @@ use tracing_subscriber::EnvFilter;
 
 mod app_state;
 mod errors;
-#[cfg_attr(
-    not(any(feature = "mock", feature = "starknet")),
-    allow(dead_code, unused_variables, unused_imports)
-)]
 mod grpc_service;
 mod initialization;
 mod keyset_cache;
@@ -48,7 +42,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let signer_client = connect_to_signer(env_variables.signer_url).await?;
     info!("Connected to signer server.");
 
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     let liquidity_sources =
         liquidity_sources::LiquiditySources::init(pg_pool.clone(), args).await?;
 
@@ -56,7 +49,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let (address, grpc_future) = launch_tonic_server_task(
         pg_pool.clone(),
         signer_client,
-        #[cfg(any(feature = "mock", feature = "starknet"))]
         liquidity_sources,
         env_variables.grpc_port,
     )

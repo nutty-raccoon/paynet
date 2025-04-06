@@ -33,7 +33,6 @@ impl LiquiditySources {
 
     pub fn get_liquidity_source(&self, method: Method) -> Option<impl LiquiditySource> {
         match method {
-            #[cfg(any(feature = "mock", feature = "starknet"))]
             Method::Starknet => self.starknet(),
         }
     }
