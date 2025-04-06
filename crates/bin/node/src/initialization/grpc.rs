@@ -9,7 +9,7 @@ use sqlx::Postgres;
 use starknet_types::Unit;
 use tonic::transport::Channel;
 
-use crate::{errors::ServiceError, grpc_service::GrpcState};
+use crate::grpc_service::GrpcState;
 
 use super::Error;
 
@@ -50,7 +50,7 @@ pub async fn launch_tonic_server_task(
         .add_service(NodeServer::new(grpc_state))
         .add_service(health_service)
         .serve(address)
-        .map_err(|e| crate::Error::Service(ServiceError::TonicTransport(e)));
+        .map_err(crate::Error::Tonic);
 
     Ok((address, tonic_future))
 }

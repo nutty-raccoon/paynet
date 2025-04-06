@@ -1,6 +1,4 @@
-// Traits
 mod deposit;
-
 pub use deposit::DepositInterface;
 mod withdraw;
 pub use withdraw::{WithdrawAmount, WithdrawInterface, WithdrawRequest};

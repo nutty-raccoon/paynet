@@ -78,7 +78,8 @@ impl GrpcState {
                         index,
                         max_order,
                     })
-                    .await?
+                    .await
+                    .map_err(Error::Signer)?
             };
             let response = response.into_inner();
             let keyset_id = KeysetId::from_bytes(&response.keyset_id)?;
@@ -516,7 +517,9 @@ impl Node for GrpcState {
             .root_pubkey;
         let node_info = NodeInfo {
             name: Some("Paynet Test Node".to_string()),
-            pubkey: Some(PublicKey::from_str(&pub_key).map_err(Error::Nut01)?),
+            pubkey: Some(
+                PublicKey::from_str(&pub_key).map_err(|e| Status::internal(e.to_string()))?,
+            ),
             version: Some(NodeVersion {
                 name: "some_name".to_string(),
                 version: "0.0.0".to_string(),
