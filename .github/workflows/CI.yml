@@ -92,7 +92,7 @@ jobs:
       - name: Build services for integration tests
         run: |
           cargo build -p signer --bin signer
-          cargo build -p node --features=mock --bin node
+          cargo build -p node --no-default-features --features=mock --bin node
       - name: Run integration tests
         timeout-minutes: 1
         run: |
