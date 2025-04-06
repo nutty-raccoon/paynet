@@ -7,15 +7,18 @@ edition = "2024"
 tokio = { workspace = true }
 tonic = { workspace = true }
 serde_json = { workspace = true }
-wallet = { workspace = true }
 node = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 url = { workspace = true }
-nuts = { workspace = true }
 anyhow = { workspace = true }
 rusqlite = { workspace = true }
 dirs = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-starknet-types = { workspace = true }
 starknet-types-core = { workspace = true }
+
+# Local
+starknet-types = { workspace = true }
+starknet-liquidity-source = { workspace = true }
+nuts = { workspace = true }
+wallet = { workspace = true }

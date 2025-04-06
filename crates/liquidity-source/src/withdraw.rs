@@ -11,7 +11,7 @@ pub trait WithdrawAmount {
 }
 
 #[async_trait::async_trait]
-pub trait WithdrawInterface {
+pub trait WithdrawInterface: Send {
     type Error: std::error::Error + Send + Sync + 'static;
     type Request: std::fmt::Debug
         + serde::Serialize

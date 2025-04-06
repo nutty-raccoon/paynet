@@ -16,7 +16,8 @@ use super::Error;
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
     signer_client: SignerClient<Channel>,
-    #[cfg(feature = "starknet")] starknet_config: crate::app_state::starknet::StarknetConfig,
+    #[cfg(any(feature = "mock", feature = "starknet"))]
+    liquidity_sources: crate::liquidity_sources::LiquiditySources,
     port: u16,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), crate::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();
@@ -28,8 +29,8 @@ pub async fn launch_tonic_server_task(
             mint_ttl: 3600,
             melt_ttl: 3600,
         },
-        #[cfg(feature = "starknet")]
-        starknet_config,
+        #[cfg(any(feature = "mock", feature = "starknet"))]
+        liquidity_sources,
     );
     let address = format!("[::0]:{}", port)
         .parse()

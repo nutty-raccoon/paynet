@@ -12,10 +12,10 @@ pub enum Error {
     DifferentChainId(ChainId, String),
 }
 
-pub async fn connect_to_starknet_cashier(
+pub async fn connect(
     cashier_url: String,
-    chain_id: ChainId,
-) -> Result<StarknetCashierClient<Channel>, super::Error> {
+    chain_id: &ChainId,
+) -> Result<StarknetCashierClient<Channel>, Error> {
     let mut starknet_cashier = starknet_cashier::StarknetCashierClient::connect(cashier_url)
         .await
         .map_err(Error::Connection)?;
@@ -26,7 +26,7 @@ pub async fn connect_to_starknet_cashier(
         .map_err(Error::GetConfig)?
         .into_inner();
     if chain_id.as_str() != config.chain_id {
-        Err(Error::DifferentChainId(chain_id, config.chain_id))?;
+        Err(Error::DifferentChainId(chain_id.clone(), config.chain_id))?;
     }
 
     Ok(starknet_cashier)

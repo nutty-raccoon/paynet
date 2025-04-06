@@ -9,7 +9,7 @@ use nuts::Amount;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
-use crate::{Asset, Error, StarknetU256};
+use crate::{Asset, StarknetU256, StarknetU256ToAmountError};
 
 /// Represents units supported by the node for user-facing operations
 ///
@@ -106,7 +106,7 @@ impl Unit {
     pub fn convert_u256_into_amount(
         &self,
         amount: StarknetU256,
-    ) -> Result<(Amount, StarknetU256), Error> {
+    ) -> Result<(Amount, StarknetU256), StarknetU256ToAmountError> {
         // TODO: add some unit tests for this impl
         match self {
             Unit::MilliStrk => {
@@ -115,7 +115,7 @@ impl Unit {
                 Ok((
                     Amount::from(
                         u64::try_from(quotient)
-                            .map_err(|_| Error::StarknetAmountTooHigh(*self, amount))?,
+                            .map_err(|_| StarknetU256ToAmountError(*self, amount))?,
                     ),
                     StarknetU256::from(rem),
                 ))

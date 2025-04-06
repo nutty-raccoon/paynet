@@ -2,7 +2,7 @@ use bitcoin_hashes::Sha256;
 use nuts::Amount;
 use starknet_types::Unit;
 
-pub trait DepositInterface {
+pub trait DepositInterface: Send {
     type Error: std::error::Error + Send + Sync + 'static;
 
     fn generate_deposit_payload(

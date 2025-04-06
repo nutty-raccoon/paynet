@@ -20,8 +20,6 @@ pub enum Error {
     #[error(transparent)]
     Sqlx(#[from] sqlx::Error),
     #[error(transparent)]
-    Starknet(#[from] starknet_types::Error),
-    #[error(transparent)]
     Tonic(#[from] tonic::Status),
     #[error(transparent)]
     Service(#[from] ServiceError),

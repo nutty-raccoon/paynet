@@ -4,7 +4,23 @@ use starknet_types::{Asset, StarknetU256};
 
 use crate::DepositInterface;
 
-use super::{WithdrawInterface, WithdrawRequest};
+use super::{LiquiditySource, WithdrawInterface, WithdrawRequest};
+
+#[derive(Debug, Clone)]
+pub struct MockLiquiditySource;
+
+impl LiquiditySource for MockLiquiditySource {
+    type Depositer = MockDepositer;
+    type Withdrawer = MockWithdrawer;
+
+    fn depositer(&self) -> MockDepositer {
+        MockDepositer
+    }
+
+    fn withdrawer(&self) -> MockWithdrawer {
+        MockWithdrawer
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("mock liquidity source error")]
@@ -19,7 +35,6 @@ impl WithdrawRequest for () {
     }
 }
 
-#[cfg(not(feature = "starknet"))]
 impl crate::WithdrawAmount for StarknetU256 {
     fn convert_from(unit: starknet_types::Unit, amount: nuts::Amount) -> Self {
         unit.convert_amount_into_u256(amount)

@@ -1,0 +1,31 @@
+[package]
+name = "starknet-liquidity-source"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = { workspace = true }
+toml = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+bitcoin_hashes = { workspace = true }
+starknet-types-core = { workspace = true }
+sqlx = { workspace = true }
+rusqlite = { workspace = true }
+futures = { workspace = true }
+primitive-types = { workspace = true }
+
+# Local
+db-node = { workspace = true }
+starknet-types = { workspace = true }
+starknet-cashier = { workspace = true }
+starknet-payment-indexer = { workspace = true }
+liquidity-source = { workspace = true }
+nuts = { workspace = true }
+signer = { workspace = true }

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
+    #[cfg(any(feature = "mock", feature = "starknet"))]
     Starknet,
 }
 
@@ -12,7 +13,8 @@ impl Serialize for Method {
     where
         S: serde::Serializer,
     {
-        match self {
+        match *self {
+            #[cfg(any(feature = "mock", feature = "starknet"))]
             Method::Starknet => Serialize::serialize(&starknet_types::Method, serializer),
         }
     }
@@ -23,13 +25,22 @@ impl<'de> Deserialize<'de> for Method {
     where
         D: serde::Deserializer<'de>,
     {
-        <starknet_types::Method as Deserialize>::deserialize(deserializer).map(|_| Method::Starknet)
+        let s = <&str>::deserialize(deserializer)?;
+        match s {
+            #[cfg(any(feature = "mock", feature = "starknet"))]
+            "starknet" => Ok(Method::Starknet),
+            _ => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(s),
+                &"a supported method",
+            )),
+        }
     }
 }
 
 impl core::fmt::Display for Method {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+        match *self {
+            #[cfg(any(feature = "mock", feature = "starknet"))]
             Method::Starknet => core::fmt::Display::fmt(&starknet_types::Method, f),
         }
     }
@@ -43,11 +54,12 @@ impl FromStr for Method {
     type Err = FromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        #[cfg(any(feature = "mock", feature = "starknet"))]
         if <starknet_types::Method as FromStr>::from_str(s).is_ok() {
-            Ok(Self::Starknet)
-        } else {
-            Err(FromStrError)
-        }
+            return Ok(Self::Starknet);
+        };
+
+        Err(FromStrError)
     }
 }
 
