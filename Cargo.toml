@@ -6,12 +6,14 @@ members = [
   "crates/bin/cli-wallet",
   "crates/bin/starknet-cashier",
   "crates/bin/starknet-on-chain-setup",
-  "crates/starknet-payment-indexer",
   "crates/db-node",
   "crates/nuts",
-  "crates/starknet",
   "crates/wallet",
   "crates/liquidity-source",
+  "crates/starknet/payment-indexer",
+  "crates/starknet/liquidity-source",
+  "crates/starknet/types",
+  # Integration tests
   "crates/tests/signer-tests",
   "crates/tests/node-tests",
 ]
@@ -21,12 +23,13 @@ default-members = [
   "crates/bin/cli-wallet",
   "crates/bin/starknet-cashier",
   "crates/bin/starknet-on-chain-setup",
-  "crates/starknet-payment-indexer",
   "crates/db-node",
   "crates/nuts",
-  "crates/starknet",
   "crates/wallet",
   "crates/liquidity-source",
+  "crates/starknet/payment-indexer",
+  "crates/starknet/liquidity-source",
+  "crates/starknet/types",
 ]
 
 
@@ -40,6 +43,7 @@ axum-response-cache = "0.2.0"
 http = "1.3.1"
 tower = "0.5.2"
 tokio = "1.44.1"
+tokio-util = "0.7.14"
 serde_json = "1.0.134"
 serde = { version = "1.0.216", features = ["derive"] }
 thiserror = "2.0.9"
@@ -85,12 +89,16 @@ phf = { version = "0.11.3"}
 async-trait = "0.1.88"
 
 # Local crates
-nuts = { path = "crates/nuts" }
-starknet-types = { path = "crates/starknet" }
-db-node = { path = "crates/db-node" }
-starknet-payment-indexer = { path = "crates/starknet-payment-indexer" }
+# Clients
 signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
 starknet-cashier = { path = "crates/bin/starknet-cashier" }
+# Starknet
+starknet-types = { path = "crates/starknet/types" }
+starknet-payment-indexer = { path = "crates/starknet/payment-indexer" }
+starknet-liquidity-source = { path = "crates/starknet/liquidity-source" }
+# Others
+nuts = { path = "crates/nuts" }
+db-node = { path = "crates/db-node" }
 wallet = { path = "crates/wallet" }
 liquidity-source = { path = "crates/liquidity-source" }

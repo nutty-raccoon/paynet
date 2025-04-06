@@ -65,7 +65,8 @@ impl KeysetRotationService for GrpcState {
                         PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
                     ))
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| Status::internal(e.to_string()))?;
 
             self.keyset_cache
                 .insert_keys(new_keyset_id, keys.into_iter())

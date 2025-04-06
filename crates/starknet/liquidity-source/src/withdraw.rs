@@ -1,10 +1,12 @@
 use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
+use serde::{Deserialize, Serialize};
 use starknet_cashier::{StarknetCashierClient, WithdrawRequest as CashierWithdrawRequest};
-use starknet_types::{Asset, MeltPaymentRequest, StarknetU256, Unit};
+use starknet_types::{Asset, StarknetU256, Unit};
+use starknet_types_core::felt::Felt;
 use tonic::{Request, transport::Channel};
 
-use crate::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
+use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -14,32 +16,42 @@ pub enum Error {
     StarknetCashier(#[source] tonic::Status),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeltPaymentRequest {
+    pub payee: Felt,
+    pub asset: Asset,
+}
+
 impl WithdrawRequest for MeltPaymentRequest {
     fn asset(&self) -> Asset {
         self.asset
     }
 }
 
-impl WithdrawAmount for StarknetU256 {
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct StarknetU256WithdrawAmount(pub StarknetU256);
+
+impl WithdrawAmount for StarknetU256WithdrawAmount {
     fn convert_from(unit: Unit, amount: nuts::Amount) -> Self {
-        unit.convert_amount_into_u256(amount)
+        Self(unit.convert_amount_into_u256(amount))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct StarknetWithdrawer(StarknetCashierClient<Channel>);
+pub struct Withdrawer(pub StarknetCashierClient<Channel>);
 
-impl StarknetWithdrawer {
+impl Withdrawer {
     pub fn new(cashier: StarknetCashierClient<Channel>) -> Self {
         Self(cashier)
     }
 }
 
 #[async_trait::async_trait]
-impl WithdrawInterface for StarknetWithdrawer {
+impl WithdrawInterface for Withdrawer {
     type Error = Error;
     type Request = MeltPaymentRequest;
-    type Amount = StarknetU256;
+    type Amount = StarknetU256WithdrawAmount;
 
     fn deserialize_payment_request(&self, raw_json_string: &str) -> Result<Self::Request, Error> {
         let pr = serde_json::from_str::<Self::Request>(raw_json_string)
@@ -59,6 +71,7 @@ impl WithdrawInterface for StarknetWithdrawer {
                 invoice_id: quote_hash.to_byte_array().to_vec(),
                 asset: melt_payment_request.asset.to_string(),
                 amount: amount
+                    .0
                     .to_bytes_be()
                     .into_iter()
                     .skip_while(|&b| b == 0)

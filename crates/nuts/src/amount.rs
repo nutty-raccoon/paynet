@@ -334,15 +334,6 @@ pub enum SplitTarget {
     Values(Vec<Amount>),
 }
 
-#[derive(Debug, Clone)]
-pub enum LoserTournamentNode {
-    Leaf(Option<usize>),
-    Node {
-        loser_value: Option<Amount>,
-        value_origin: usize,
-    },
-}
-
 #[cfg(test)]
 mod tests {
     /// Msats in sat

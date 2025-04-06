@@ -1,5 +1,5 @@
 use crate::grpc_service::GrpcState;
-use liquidity_source::DepositInterface;
+use liquidity_source::{DepositInterface, LiquiditySource};
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},
@@ -36,6 +36,8 @@ pub enum Error {
     AmountTooHigh(Amount, Amount),
     #[error("failed to interact with liquidity source: {0}")]
     LiquiditySource(#[source] anyhow::Error),
+    #[error("method '{0}' not supported, try compiling with the appropriate feature.")]
+    MethodNotSupported(Method),
 }
 
 impl From<Error> for Status {
@@ -50,6 +52,7 @@ impl From<Error> for Status {
             Error::UnitNotSupported(_, _)
             | Error::AmountTooLow(_, _)
             | Error::AmountTooHigh(_, _)
+            | Error::MethodNotSupported(_)
             | Error::LiquiditySource(_) => Status::invalid_argument(value.to_string()),
         }
     }
@@ -87,16 +90,16 @@ impl GrpcState {
             }
         }
 
-        #[cfg(feature = "mock")]
-        let depositer = liquidity_source::mock::MockDepositer;
-        #[cfg(all(not(feature = "mock"), feature = "starknet"))]
-        let depositer = self.starknet_config.depositer.clone();
+        let liquidity_source = self
+            .liquidity_sources
+            .get_liquidity_source(method)
+            .ok_or(Error::MethodNotSupported(method))?;
 
         let mut conn = self.pg_pool.acquire().await?;
         let response = match method {
             Method::Starknet => create_new_starknet_mint_quote(
                 &mut conn,
-                depositer,
+                liquidity_source.depositer(),
                 amount,
                 unit,
                 self.quote_ttl.mint_ttl(),

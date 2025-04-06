@@ -6,15 +6,15 @@ use starknet_types::{
 };
 use starknet_types_core::felt::Felt;
 
-use crate::DepositInterface;
+use liquidity_source::DepositInterface;
 
 #[derive(Debug, Clone)]
-pub struct StarknetDepositer {
+pub struct Depositer {
     chain_id: ChainId,
     our_account_address: Felt,
 }
 
-impl StarknetDepositer {
+impl Depositer {
     pub fn new(chain_id: ChainId, our_account_address: Felt) -> Self {
         Self {
             chain_id,
@@ -32,7 +32,7 @@ pub enum Error {
 }
 
 #[async_trait::async_trait]
-impl DepositInterface for StarknetDepositer {
+impl DepositInterface for Depositer {
     type Error = Error;
 
     fn generate_deposit_payload(

@@ -40,14 +40,3 @@ impl From<QuoteTTLConfig> for QuoteTTLConfigState {
         }
     }
 }
-
-#[cfg(feature = "starknet")]
-pub mod starknet {
-    use liquidity_source::starknet::{StarknetDepositer, StarknetWithdrawer};
-
-    #[derive(Debug, Clone)]
-    pub struct StarknetConfig {
-        pub withdrawer: StarknetWithdrawer,
-        pub depositer: StarknetDepositer,
-    }
-}

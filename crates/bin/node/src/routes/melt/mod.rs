@@ -2,7 +2,7 @@ mod errors;
 mod inputs;
 
 use inputs::process_melt_inputs;
-use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
+use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use nuts::Amount;
 use nuts::nut05::MeltQuoteResponse;
 use nuts::{nut00::Proof, nut05::MeltMethodSettings};
@@ -16,27 +16,6 @@ use crate::{grpc_service::GrpcState, methods::Method};
 use errors::Error;
 
 impl GrpcState {
-    #[allow(unused_variables)]
-    #[cfg(feature = "mock")]
-    fn get_backend<'a, 'b: 'a>(
-        &'a self,
-        method: Method,
-    ) -> Result<impl WithdrawInterface + 'b, Error> {
-        return Ok(liquidity_source::mock::MockWithdrawer);
-    }
-
-    #[cfg(all(not(feature = "mock"), feature = "starknet"))]
-    fn get_backend<'a, 'b: 'a>(
-        &'a self,
-        method: Method,
-    ) -> Result<impl WithdrawInterface + 'b, Error> {
-        match method {
-            Method::Starknet => {
-                return Ok(self.starknet_config.withdrawer.clone());
-            }
-        }
-    }
-
     pub async fn inner_melt(
         &self,
         method: Method,
@@ -58,8 +37,13 @@ impl GrpcState {
                 .ok_or(Error::UnitNotSupported(unit, method))?
         };
 
-        let mut backend = self.get_backend(method)?;
-        let payment_request = backend
+        let mut withdrawer = self
+            .liquidity_sources
+            .get_liquidity_source(method)
+            .ok_or(Error::MethodNotSupported(method))?
+            .withdrawer();
+
+        let payment_request = withdrawer
             .deserialize_payment_request(&melt_payment_request)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
         let asset = payment_request.asset();
@@ -72,7 +56,7 @@ impl GrpcState {
         let (quote_id, quote_hash, total_amount, fee, expiry) = self
             .validate_and_register_quote(&mut conn, &settings, melt_payment_request, inputs)
             .await?;
-        let (state, transfer_id) = backend
+        let (state, transfer_id) = withdrawer
             .proceed_to_payment(
                 quote_hash,
                 payment_request,
