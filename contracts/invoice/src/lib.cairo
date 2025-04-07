@@ -9,7 +9,7 @@
 //! 3. the node listen to on-chain deposit to its address, and use the `invoice_id` to flag the correct quote as `PAID`
 //! 4. the user call the node's `mint` route with the original UUID and receive the corresponding amount of tokens
 
-use core::starknet::ContractAddress;
+use starknet::ContractAddress;
 
 #[starknet::interface]
 pub trait IInvoicePayment<TContractState> {
@@ -26,7 +26,7 @@ pub trait IInvoicePayment<TContractState> {
 
 #[starknet::contract]
 pub mod InvoicePayment {
-    use core::starknet::{get_caller_address, ContractAddress};
+    use starknet::{get_caller_address, ContractAddress};
     use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
 
     #[storage]
