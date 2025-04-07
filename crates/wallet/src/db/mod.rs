@@ -217,10 +217,6 @@ pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -
         .fee
         .try_into()
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-    let state_i16: i16 = response
-        .state
-        .try_into()
-        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
     conn.execute(
         INSERT_MELT_RESPONSE,
@@ -228,7 +224,7 @@ pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -
             &response.quote,
             response.amount,
             fee_i16,
-            state_i16,
+            response.state,
             response.expiry,
         ],
     )?;
