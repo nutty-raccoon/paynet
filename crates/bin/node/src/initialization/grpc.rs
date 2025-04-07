@@ -9,14 +9,14 @@ use sqlx::Postgres;
 use starknet_types::Unit;
 use tonic::transport::Channel;
 
-use crate::{errors::ServiceError, grpc_service::GrpcState};
+use crate::{grpc_service::GrpcState, liquidity_sources::LiquiditySources};
 
 use super::Error;
 
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
     signer_client: SignerClient<Channel>,
-    #[cfg(feature = "starknet")] starknet_config: crate::app_state::starknet::StarknetConfig,
+    liquidity_sources: LiquiditySources,
     port: u16,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), crate::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();
@@ -28,8 +28,7 @@ pub async fn launch_tonic_server_task(
             mint_ttl: 3600,
             melt_ttl: 3600,
         },
-        #[cfg(feature = "starknet")]
-        starknet_config,
+        liquidity_sources,
     );
     let address = format!("[::0]:{}", port)
         .parse()
@@ -49,7 +48,7 @@ pub async fn launch_tonic_server_task(
         .add_service(NodeServer::new(grpc_state))
         .add_service(health_service)
         .serve(address)
-        .map_err(|e| crate::Error::Service(ServiceError::TonicTransport(e)));
+        .map_err(crate::Error::Tonic);
 
     Ok((address, tonic_future))
 }

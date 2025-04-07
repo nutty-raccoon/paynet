@@ -19,7 +19,7 @@ COPY ./crates/ ./crates/
 COPY ./proto/ ./proto/
 COPY ./.sqlx/ ./.sqlx/
 
-RUN cargo build --release -p node --features=starknet
+RUN cargo build --release -p node --no-default-features --features=starknet
 
 #------------
 

@@ -1,4 +1,4 @@
-use crate::{Error, keyset_cache::CachedKeysetInfo};
+use crate::{Error, keyset_cache::CachedKeysetInfo, liquidity_sources::LiquiditySources};
 use std::{str::FromStr, sync::Arc};
 
 use node::{
@@ -36,8 +36,7 @@ pub struct GrpcState {
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
-    #[cfg(feature = "starknet")]
-    pub starknet_config: crate::app_state::starknet::StarknetConfig,
+    pub liquidity_sources: LiquiditySources,
     // TODO: add a cache for the mint_quote and melt routes
 }
 
@@ -47,7 +46,7 @@ impl GrpcState {
         signer_client: signer::SignerClient<Channel>,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
-        #[cfg(feature = "starknet")] starknet: crate::app_state::starknet::StarknetConfig,
+        liquidity_sources: LiquiditySources,
     ) -> Self {
         Self {
             pg_pool,
@@ -55,8 +54,7 @@ impl GrpcState {
             nuts: Arc::new(RwLock::new(nuts_settings)),
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
-            #[cfg(feature = "starknet")]
-            starknet_config: starknet,
+            liquidity_sources,
         }
     }
 
@@ -77,7 +75,8 @@ impl GrpcState {
                         index,
                         max_order,
                     })
-                    .await?
+                    .await
+                    .map_err(Error::Signer)?
             };
             let response = response.into_inner();
             let keyset_id = KeysetId::from_bytes(&response.keyset_id)?;
@@ -111,7 +110,6 @@ impl GrpcState {
     }
 }
 
-#[cfg_attr(not(any(feature = "mock", feature = "starknet")), allow(dead_code))]
 #[derive(Debug, Error)]
 enum ParseGrpcError {
     #[error(transparent)]
@@ -297,7 +295,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint_quote(
         &self,
         mint_quote_request: Request<MintQuoteRequest>,
@@ -319,17 +316,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn mint_quote(
-        &self,
-        mint_quote_request: Request<MintQuoteRequest>,
-    ) -> Result<Response<MintQuoteResponse>, Status> {
-        Err(Status::unimplemented(
-            "the node was compiled without any liquidity layer enabled",
-        ))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
@@ -376,17 +362,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn mint(
-        &self,
-        mint_request: Request<MintRequest>,
-    ) -> Result<Response<MintResponse>, Status> {
-        Err(Status::unimplemented(
-            "the node was compiled without any liquidity layer enabled",
-        ))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn melt(
         &self,
         melt_request: Request<MeltRequest>,
@@ -434,17 +409,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn melt(
-        &self,
-        melt_request: Request<MeltRequest>,
-    ) -> Result<Response<MeltResponse>, Status> {
-        Err(Status::unimplemented(
-            "the node was compiled without any liquidity layer enabled",
-        ))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn mint_quote_state(
         &self,
         mint_quote_state_request: Request<QuoteStateRequest>,
@@ -465,17 +429,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn mint_quote_state(
-        &self,
-        mint_quote_state_request: Request<QuoteStateRequest>,
-    ) -> Result<Response<MintQuoteResponse>, Status> {
-        Err(Status::unimplemented(
-            "the node was compiled without any liquidity layer enabled",
-        ))
-    }
-
-    #[cfg(any(feature = "mock", feature = "starknet"))]
     async fn melt_quote_state(
         &self,
         melt_quote_state_request: Request<QuoteStateRequest>,
@@ -498,16 +451,6 @@ impl Node for GrpcState {
         }))
     }
 
-    #[cfg(not(any(feature = "mock", feature = "starknet")))]
-    async fn melt_quote_state(
-        &self,
-        melt_quote_state_request: Request<QuoteStateRequest>,
-    ) -> Result<Response<MeltResponse>, Status> {
-        Err(Status::unimplemented(
-            "the node was compiled without any liquidity layer enabled",
-        ))
-    }
-
     async fn get_node_info(
         &self,
         _node_info_request: Request<GetNodeInfoRequest>,
@@ -525,7 +468,9 @@ impl Node for GrpcState {
             .root_pubkey;
         let node_info = NodeInfo {
             name: Some("Paynet Test Node".to_string()),
-            pubkey: Some(PublicKey::from_str(&pub_key).map_err(Error::Nut01)?),
+            pubkey: Some(
+                PublicKey::from_str(&pub_key).map_err(|e| Status::internal(e.to_string()))?,
+            ),
             version: Some(NodeVersion {
                 name: "some_name".to_string(),
                 version: "0.0.0".to_string(),

@@ -282,10 +282,12 @@ async fn main() -> Result<()> {
                 .melt(node::MeltRequest {
                     method: STARKNET_METHOD.to_string(),
                     unit,
-                    request: serde_json::to_string(&starknet_types::MeltPaymentRequest {
-                        payee: Felt::from_hex(&to)?,
-                        asset: starknet_types::Asset::Strk,
-                    })?,
+                    request: serde_json::to_string(
+                        &starknet_liquidity_source::MeltPaymentRequest {
+                            payee: Felt::from_hex(&to)?,
+                            asset: starknet_types::Asset::Strk,
+                        },
+                    )?,
                     inputs: wallet::convert_inputs(&inputs),
                 })
                 .await?
