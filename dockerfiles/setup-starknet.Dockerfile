@@ -1,4 +1,4 @@
-FROM rust:1.85.1 as scarb-builder
+FROM rust:1.86.0 as scarb-builder
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
@@ -14,7 +14,7 @@ RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.co
 
 # ----------------
 
-FROM rust:1.85.1 as rust-builder
+FROM rust:1.86.0 as rust-builder
 
 COPY ./Cargo.toml ./rust/
 COPY ./crates/ ./rust/crates/

@@ -1,4 +1,4 @@
-FROM rust:1.85.1 as builder
+FROM rust:1.86.0 as builder
 
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
