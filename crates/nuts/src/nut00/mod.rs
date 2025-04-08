@@ -1,4 +1,4 @@
-mod errors;
+pub mod errors;
 pub mod secret;
 use errors::Error;
 use num_traits::CheckedAdd;
