@@ -10,6 +10,7 @@
     "frontendDist": "../build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "salto",
@@ -31,5 +32,12 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "sql": {
+      "preload": [
+        "sqlite:/Users/tdelabro/Library/Application Support/salto-wallet.sqlite3"
+      ]
+    }
   }
 }

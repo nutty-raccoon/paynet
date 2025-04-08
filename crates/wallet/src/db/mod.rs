@@ -8,10 +8,7 @@ pub mod balance;
 pub mod node;
 pub mod proof;
 
-pub fn create_tables(conn: &mut Connection) -> Result<()> {
-    let tx = conn.transaction()?;
-
-    const CREATE_TABLE_KEYSET: &str = r#"
+pub const CREATE_TABLE_KEYSET: &str = r#"
         CREATE TABLE IF NOT EXISTS keyset (
             id BLOB(8) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
@@ -23,7 +20,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
         CREATE INDEX keyset_unit ON keyset(unit);
         CREATE INDEX keyset_active ON keyset(active);
     "#;
-    const CREATE_TABLE_KEY: &str = r#"
+pub const CREATE_TABLE_KEY: &str = r#"
         CREATE TABLE IF NOT EXISTS key (
             keyset_id BLOB(8) NOT NULL REFERENCES keyset(id) ON DELETE CASCADE,
             amount INTEGER NOT NULL,
@@ -31,7 +28,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             PRIMARY KEY (keyset_id, amount)
         );
     "#;
-    const CREATE_TABLE_MINT_QUOTE: &str = r#"
+pub const CREATE_TABLE_MINT_QUOTE: &str = r#"
         CREATE TABLE IF NOT EXISTS mint_quote (
             id BLOB(16) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
@@ -42,7 +39,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
             expiry INTEGER NOT NULL
         );"#;
-    const CREATE_TABLE_MELT_RESPONSE: &str = r#"
+pub const CREATE_TABLE_MELT_RESPONSE: &str = r#"
         CREATE TABLE IF NOT EXISTS melt_response (
             id BLOB (16) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
@@ -52,6 +49,9 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             expiry INTEGER NOT NULL
         )
     "#;
+
+pub fn create_tables(conn: &mut Connection) -> Result<()> {
+    let tx = conn.transaction()?;
 
     tx.execute(node::CREATE_TABLE_NODE, ())?;
     tx.execute(CREATE_TABLE_KEYSET, ())?;

@@ -1,6 +1,7 @@
 use crate::types::ProofState;
 use nuts::Amount;
 use rusqlite::{Connection, Result, params};
+use serde::{Deserialize, Serialize};
 
 pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, Amount)>> {
     let mut stmt = conn.prepare(
@@ -20,12 +21,14 @@ pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, Amou
     .collect()
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct NodeBalances {
     pub node_id: i64,
     pub url: String,
     pub balances: Vec<Balance>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Balance {
     pub unit: String,
     pub amount: i64,

@@ -1,9 +1,14 @@
 <script lang="ts">
-  // Props: active tab and callback for when tab is changed
-  export let activeTab: 'pay' | 'balances' = 'pay';
-  export let onTabChange: (tab: 'pay' | 'balances') => void;
-  
-  function handleTabClick(tab: 'pay' | 'balances') {
+  export type Tab = "pay" | "balances";
+
+  interface Props {
+    activeTab: Tab;
+    onTabChange: (tab: Tab) => void;
+  }
+
+  let { activeTab, onTabChange }: Props = $props();
+
+  function handleTabClick(tab: Tab) {
     if (tab !== activeTab) {
       onTabChange(tab);
     }
@@ -11,21 +16,21 @@
 </script>
 
 <nav class="navbar">
-  <div
+  <button
     class="tab-item {activeTab === 'pay' ? 'active' : ''}"
-    on:click={() => handleTabClick('pay')}
+    onclick={() => handleTabClick("pay")}
   >
     <div class="icon">💸</div>
     <span>Pay</span>
-  </div>
-  
-  <div
+  </button>
+
+  <button
     class="tab-item {activeTab === 'balances' ? 'active' : ''}"
-    on:click={() => handleTabClick('balances')}
+    onclick={() => handleTabClick("balances")}
   >
     <div class="icon">💰</div>
     <span>Balances</span>
-  </div>
+  </button>
 </nav>
 
 <style>
@@ -53,6 +58,7 @@
   }
 
   .tab-item.active {
+    /* Text color */
     color: #1e88e5;
   }
 
