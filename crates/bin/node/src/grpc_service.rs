@@ -42,7 +42,6 @@ pub struct GrpcState {
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     pub liquidity_sources: LiquiditySources,
-    // TODO: add a cache for the mint_quote and melt routes
     pub response_cache: Arc<InMemResponseCache<(Path<Method>, String), CachedResponse>>,
 }
 
@@ -119,12 +118,12 @@ impl GrpcState {
     pub fn get_cached_response(
         &self,
         cache_key: &CacheResponseKey<Method>,
-    ) -> Result<CachedResponse, String> {
+    ) -> Option<CachedResponse> {
         if let Some(cached_response) = self.response_cache.get(cache_key) {
-            return Ok(cached_response);
+            return Some(cached_response);
         }
 
-        Err(format!("No cached response found for key: {:?}", cache_key))
+        None
     }
 
     pub fn cache_response(
@@ -340,7 +339,7 @@ impl Node for GrpcState {
 
         // Try to get from cache first
         let cache_key = (Path::Mint(method), request_hash);
-        if let Ok(CachedResponse::MintQuote(mint_quote_response)) =
+        if let Some(CachedResponse::MintQuote(mint_quote_response)) =
             self.get_cached_response(&cache_key)
         {
             return Ok(Response::new(mint_quote_response));
@@ -402,7 +401,7 @@ impl Node for GrpcState {
         let cache_key = (Path::Mint(method), mint_request_hash);
 
         // Try to get from cache first
-        if let Ok(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
+        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
             return Ok(Response::new(mint_response));
         }
 
@@ -462,7 +461,7 @@ impl Node for GrpcState {
         let cache_key = (Path::Melt(method), hash_melt_request(&melt_request));
 
         // Try to get from cache first
-        if let Ok(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
+        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
             return Ok(Response::new(melt_response));
         }
 
