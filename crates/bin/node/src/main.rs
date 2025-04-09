@@ -55,7 +55,16 @@ async fn main() -> Result<(), anyhow::Error> {
     .await?;
 
     info!("Running gRPC server at {}", address);
-    grpc_future.await?;
+    tokio::select! {
+        grpc_res = grpc_future => match grpc_res {
+            Ok(()) => eprintln!("gRPC task should never return"),
+            Err(err) => eprintln!("gRPC task failed: {}", err),
+        },
+        sig = tokio::signal::ctrl_c() => match sig {
+            Ok(()) => info!("gRPC task terminated"),
+            Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
+        }
+    };
 
     Ok(())
 }

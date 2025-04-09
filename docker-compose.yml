@@ -55,10 +55,10 @@ services:
         condition: service_healthy
 
   starknet-setup:
-    image: "setup-starknet"
+    image: "starknet-setup"
     build:
       context: .
-      dockerfile: ./dockerfiles/setup-starknet.Dockerfile
+      dockerfile: ./dockerfiles/starknet-setup.Dockerfile
     command:
       - "--chain-id=SN_DEVNET"
       - "--url=http://starknet-devnet:5050"

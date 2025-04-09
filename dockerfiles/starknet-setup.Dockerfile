@@ -4,12 +4,12 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Set up architecture detection
 WORKDIR /tools
-RUN curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.11.3/scarb-v2.11.3-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/ && \
+RUN curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.9.2/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/ && \
     curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/
 
 COPY ./contracts/ /contracts/
 WORKDIR /contracts/invoice
-RUN /tools/scarb-v2.11.3-$(uname -m)-unknown-linux-gnu/bin/scarb --profile release build
+RUN /tools/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu/bin/scarb --profile release build
 RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt 
 
 # ----------------

@@ -1,5 +1,6 @@
 use crate::StarknetCliConfig;
 use futures::TryStreamExt;
+use log::info;
 use nuts::Amount;
 use nuts::nut04::MintQuoteState;
 use sqlx::{PgConnection, Postgres, pool::PoolConnection};
@@ -106,11 +107,11 @@ pub async fn run_in_ctrl_c_cancellable_task(
     let _indexer_handle = tokio::spawn(async move {
         select! {
             indexer_res = listen_to_indexer(db_conn, indexer_service) => match indexer_res {
-                Ok(()) => {},
+                Ok(()) => eprintln!("indexer task should never return"),
                 Err(err) => eprintln!("indexer task failed: {}", err),
             },
             sig = tokio::signal::ctrl_c() => match sig {
-                Ok(()) => {},
+                Ok(()) => info!("indexer task terminated"),
                 Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
             }
         }
