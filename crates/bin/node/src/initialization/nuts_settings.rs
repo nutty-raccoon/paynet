@@ -1,4 +1,4 @@
-use nuts::{nut04::MintMethodSettings, nut05::MeltMethodSettings, nut06::NutsSettings, Amount};
+use nuts::{Amount, nut04::MintMethodSettings, nut05::MeltMethodSettings, nut06::NutsSettings};
 use starknet_types::Unit;
 
 use crate::methods::Method;

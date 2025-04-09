@@ -3,13 +3,13 @@ use crate::{
     keyset_cache::CachedKeysetInfo,
     liquidity_sources::LiquiditySources,
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
-    utils::{hash_melt_request, hash_mint_quote_request, hash_mint_request},
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
     MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
-    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse,
+    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
+    hash_mint_quote_request, hash_mint_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
