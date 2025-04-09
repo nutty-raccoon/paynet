@@ -19,3 +19,7 @@ path = "keyset_rotation.rs"
 [[test]]
 name = "health_check"
 path = "health_check.rs"
+
+[[test]]
+name = "cache_response"
+path = "cache_response.rs"

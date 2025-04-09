@@ -1,8 +1,9 @@
-use node::{MeltRequest, MintQuoteRequest, MintRequest};
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+use node::{MeltRequest, MintQuoteRequest, MintRequest};
 
 /// Seconds since unix epoch
 pub fn unix_time() -> u64 {
