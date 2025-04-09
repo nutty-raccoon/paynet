@@ -9,8 +9,8 @@ pub const CREATE_TABLE_PROOF: &str = r#"
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             keyset_id BLOB(8) REFERENCES keyset(id) ON DELETE CASCADE,
             amount INTEGER NOT NULL,
-            secret TEXT NOT NULL,
-            unblind_signature BLOB(33) NOT NULL,
+            secret TEXT UNIQUE NOT NULL,
+            unblind_signature BLOB(33) UNIQUE NOT NULL,
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3, 4))
         );
 
@@ -70,16 +70,14 @@ pub fn set_proof_to_state(conn: &Connection, y: PublicKey, state: ProofState) ->
     Ok(())
 }
 
-pub fn set_proofs_to_state<'a>(
-    conn: &Connection,
-    ys: impl Iterator<Item = &'a PublicKey>,
-    state: ProofState,
-) -> Result<()> {
-    let mut stmt = conn.prepare("UPDATE proof SET state = ?2 WHERE y = ?1")?;
-
-    for y in ys {
-        stmt.execute(params![y, state])?;
-    }
+pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofState) -> Result<()> {
+    let placeholders = ys.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!("UPDATE proof SET state = ? WHERE y = in ({})", placeholders);
+    let mut stmt = conn.prepare(&sql)?;
+    let mut params = Vec::with_capacity(ys.len() + 1);
+    params.push(&state as &dyn ToSql);
+    params.extend(ys.iter().map(|pk| pk as &dyn ToSql));
+    stmt.execute(&params[..])?;
 
     Ok(())
 }

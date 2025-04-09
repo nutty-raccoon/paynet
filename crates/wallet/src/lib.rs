@@ -412,7 +412,7 @@ pub async fn fetch_inputs_from_db_or_node(
         )
         .collect::<Result<Vec<_>>>()?;
 
-    db::proof::set_proofs_to_state(db_conn, proofs_ids.iter(), ProofState::Reserved)?;
+    db::proof::set_proofs_to_state(db_conn, &proofs_ids, ProofState::Reserved)?;
 
     Ok(Some(proofs))
 }
@@ -452,7 +452,7 @@ pub async fn swap_to_have_target_amount(
             r.into_inner()
         }
         Err(e) => {
-            // TODO: delete instead ?
+            // TODO: delete instead when invalid input
             db::proof::set_proof_to_state(db_conn, proof_to_swap.0, ProofState::Unspent)?;
             return Err(e.into());
         }
@@ -533,12 +533,12 @@ pub async fn receive_wad(
         .await
     {
         Ok(r) => {
-            db::proof::set_proofs_to_state(db_conn, ys.iter(), ProofState::Spent)?;
+            db::proof::set_proofs_to_state(db_conn, &ys, ProofState::Spent)?;
             r.into_inner()
         }
         Err(e) => {
             // TODO: delete instead?
-            db::proof::set_proofs_to_state(db_conn, ys.iter(), ProofState::Unspent)?;
+            db::proof::set_proofs_to_state(db_conn, &ys, ProofState::Unspent)?;
             return Err(e.into());
         }
     };
