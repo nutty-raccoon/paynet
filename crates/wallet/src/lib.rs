@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::proof::get_max_order_for_keyset;
 
-use errors::{Error, Result};
+use errors::Error;
 use futures::StreamExt;
 use node::{
     AcknowledgeRequest, GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState,
@@ -93,7 +93,7 @@ pub async fn get_mint_quote_state(
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
-) -> Result<Option<MintQuoteState>> {
+) -> Result<Option<MintQuoteState>, Error> {
     let response = node_client
         .mint_quote_state(QuoteStateRequest {
             method,
@@ -128,13 +128,32 @@ pub async fn get_mint_quote_state(
         }
         Err(e) => Err(e)?,
     }
+
+    MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
+}
+
+pub async fn mint(
+    node_client: &mut NodeClient<Channel>,
+    method: String,
+    quote: String,
+    outputs: &[BlindedMessage],
+) -> Result<MintResponse, Error> {
+    let req = MintRequest {
+        method,
+        quote,
+        outputs: convert_outputs(outputs),
+    };
+
+    let resp = node_client.mint(req).await?;
+
+    Ok(resp.into_inner())
 }
 
 pub async fn refresh_node_keysets(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-) -> Result<()> {
+) -> Result<(), Error> {
     let keysets = node_client
         .keysets(GetKeysetsRequest {})
         .await?
@@ -184,7 +203,7 @@ pub async fn read_or_import_node_keyset(
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     keyset_id: KeysetId,
-) -> Result<String> {
+) -> Result<String, Error> {
     // Happy path, it is in DB
     if let Some(unit) = db::get_keyset_unit(db_conn, keyset_id)? {
         return Ok(unit);
@@ -218,7 +237,7 @@ pub fn get_active_keyset_for_unit(
     db_conn: &Connection,
     node_id: u32,
     unit: &str,
-) -> Result<KeysetId> {
+) -> Result<KeysetId, Error> {
     let keyset_id = db::fetch_one_active_keyset_id_for_node_and_unit(db_conn, node_id, unit)?
         .ok_or(Error::NoMatchingKeyset)?;
 
@@ -233,7 +252,7 @@ pub async fn mint_and_store_new_tokens(
     node_id: u32,
     unit: &str,
     total_amount: Amount,
-) -> Result<()> {
+) -> Result<(), Error> {
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
     let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
@@ -268,11 +287,11 @@ pub fn store_new_tokens(
     keyset_id: KeysetId,
     pre_mints: impl Iterator<Item = PreMint>,
     signatures: impl Iterator<Item = node::BlindSignature>,
-) -> Result<Vec<(PublicKey, Amount)>> {
+) -> Result<Vec<(PublicKey, Amount)>, Error> {
     let signatures_iterator = signatures
         .into_iter()
         .map(|bs| PublicKey::from_slice(&bs.blind_signature))
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let signatures_iterator = pre_mints
         .into_iter()
@@ -287,7 +306,7 @@ pub fn store_new_proofs_from_blind_signatures(
     node_id: u32,
     keyset_id: KeysetId,
     signatures_iterator: impl IntoIterator<Item = (PublicKey, Secret, SecretKey, Amount)>,
-) -> Result<Vec<(PublicKey, Amount)>> {
+) -> Result<Vec<(PublicKey, Amount)>, Error> {
     const GET_PUBKEY: &str = r#"
         SELECT pubkey FROM key WHERE keyset_id = ?1 and amount = ?2 LIMIT 1;
     "#;
@@ -334,7 +353,7 @@ pub async fn fetch_inputs_ids_from_db_or_node(
     node_id: u32,
     target_amount: Amount,
     unit: &str,
-) -> Result<Option<Vec<PublicKey>>> {
+) -> Result<Option<Vec<PublicKey>>, Error> {
     let total_amount_available =
         db::proof::compute_total_amount_of_available_proofs(db_conn, node_id)?;
 
@@ -415,7 +434,7 @@ pub async fn load_tokens_from_db(
     let proofs = db::proof::get_proofs_by_ids(db_conn, &proofs_ids)?
         .into_iter()
         .map(
-            |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof> {
+            |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof, Error> {
                 Ok(nut00::Proof {
                     amount,
                     keyset_id,
@@ -424,7 +443,7 @@ pub async fn load_tokens_from_db(
                 })
             },
         )
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, Error>>()?;
 
     db::proof::set_proofs_to_state(db_conn, &proofs_ids, ProofState::Reserved)?;
 
@@ -438,7 +457,7 @@ pub async fn swap_to_have_target_amount(
     unit: &str,
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
-) -> Result<Vec<(PublicKey, Amount)>> {
+) -> Result<Vec<(PublicKey, Amount)>, Error> {
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
     let input_unblind_signature =
@@ -490,7 +509,7 @@ pub async fn receive_wad(
     node_id: u32,
     unit: &str,
     compact_keyset_proofs: &[CompactKeysetProofs],
-) -> Result<Amount> {
+) -> Result<Amount, Error> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
             (y, node_id, keyset_id, amount, secret, unblind_signature, state)
@@ -591,13 +610,16 @@ pub async fn receive_wad(
 pub async fn register_node(
     db_conn: &Connection,
     node_url: NodeUrl,
-) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
-    let mut node_client = connect_to_node(&node_url).await?;
+) -> Result<(NodeClient<tonic::transport::Channel>, u32, bool), Error> {
+    let mut node_client = NodeClient::connect(&node_url).await?;
 
-    let node_id = db::node::insert(db_conn, node_url)?;
+    let n_affected_rows = db::node::insert(db_conn, &node_url)?;
+    let node_id = db::node::get_id_by_url(db_conn, &node_url)?;
+    let is_new = n_affected_rows != 0;
+
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
 
-    Ok((node_client, node_id))
+    Ok((node_client, node_id, is_new))
 }
 
 #[cfg(feature = "tls")]

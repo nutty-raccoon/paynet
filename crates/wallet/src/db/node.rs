@@ -12,12 +12,14 @@ pub const CREATE_TABLE_NODE: &str = r#"
         CREATE INDEX node_url ON node(url); 
     "#;
 
-pub fn insert(conn: &Connection, node_url: NodeUrl) -> Result<u32> {
+pub fn insert(conn: &Connection, node_url: &NodeUrl) -> Result<usize> {
     conn.execute(
         "INSERT INTO node (url) VALUES (?1) ON CONFLICT DO NOTHING;",
-        [&node_url],
-    )?;
+        [node_url],
+    )
+}
 
+pub fn get_id_by_url(conn: &Connection, node_url: &NodeUrl) -> Result<u32> {
     let mut stmt = conn.prepare("SELECT id FROM node WHERE url = ?1;")?;
     let id = stmt.query_row(params![node_url], |r| r.get::<_, u32>(0))?;
 
