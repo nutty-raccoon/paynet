@@ -6,14 +6,10 @@
   import NodesBalancePage from "./components/NodesBalancePage.svelte";
   import { formatBalance } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import { get_nodes_balance } from "../commands";
+  import { getNodesBalance } from "../commands";
 
   // Sample data with multiple nodes to demonstrate the new card design
-  let nodes: Node[] = $state([
-    { url: "http://localhost:20001", balance: 532 },
-    { url: "https://node.example.com:8080", balance: 217.5 },
-    { url: "https://payment-node.network.org", balance: 104.25 },
-  ]);
+  let nodes: Node[] = $state([]);
 
   let activeTab: Tab = $state("pay");
   // Calculate total balance across all nodes
@@ -31,8 +27,12 @@
     }
   });
 
+  const onAddNode = (id: number, url: string) => {
+    nodes.push({ id: id, url: url, balance: 0 });
+  };
+
   onMount(() => {
-    get_nodes_balance();
+    getNodesBalance();
   });
 
   // Clean up when component is destroyed
@@ -52,7 +52,7 @@
     </div>
   {:else if activeTab === "balances"}
     <div class="balances-container">
-      <NodesBalancePage {nodes} />
+      <NodesBalancePage {nodes} {onAddNode} />
     </div>
   {/if}
 </main>

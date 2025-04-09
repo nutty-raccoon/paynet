@@ -1,22 +1,36 @@
 mod errors;
 mod migrations;
 
-use std::sync::Mutex;
+use std::{str::FromStr, sync::Mutex};
 
-use errors::GetNodesBalanceError;
+use errors::{AddNodeError, GetNodesBalanceError, StateMutexPoisonedError};
 use tauri::{Manager, State};
 use tauri_plugin_log::{Target, TargetKind};
-use wallet::db::balance::NodeBalances;
+use wallet::{db::balance::NodeBalances, types::NodeUrl};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn get_nodes_balance(
-    state: State<'_, Mutex<AppState>>,
+    state: State<'_, AppState>,
 ) -> Result<Vec<NodeBalances>, GetNodesBalanceError> {
-    let state = state
-        .lock()
-        .map_err(|_| GetNodesBalanceError::StateMutexPoisoned)?;
-    wallet::db::balance::get_for_all_nodes(&state.db_conn).map_err(GetNodesBalanceError::Rusqlite)
+    {
+        let db_lock = state.db_conn.lock().map_err(|_| StateMutexPoisonedError)?;
+        wallet::db::balance::get_for_all_nodes(&db_lock)
+    }
+    .map_err(GetNodesBalanceError::Rusqlite)
+}
+
+#[tauri::command]
+async fn add_node(
+    state: State<'_, AppState>,
+    node_url: String,
+) -> Result<(u32, bool), AddNodeError> {
+    let node_url = NodeUrl::from_str(&node_url)?;
+    {
+        let db_lock = state.db_conn.lock().map_err(|_| StateMutexPoisonedError)?;
+        let (_client, id, is_new) = wallet::register_node(&db_lock, node_url).await?;
+        Ok((id, is_new))
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -52,12 +66,13 @@ pub fn run() {
             .setup(|app| {
                 let db_conn = rusqlite::Connection::open(db_path)?;
 
-                // wallet::db::create_tables(&mut db_conn).expect("should run the migration successfully");
-                app.manage(Mutex::new(AppState { db_conn }));
+                app.manage(AppState {
+                    db_conn: Mutex::new(db_conn),
+                });
 
                 Ok(())
             })
-            .invoke_handler(tauri::generate_handler![get_nodes_balance])
+            .invoke_handler(tauri::generate_handler![get_nodes_balance, add_node])
     };
 
     app.run(tauri::generate_context!())
@@ -66,5 +81,5 @@ pub fn run() {
 
 #[derive(Debug)]
 struct AppState {
-    db_conn: rusqlite::Connection,
+    db_conn: Mutex<rusqlite::Connection>,
 }
