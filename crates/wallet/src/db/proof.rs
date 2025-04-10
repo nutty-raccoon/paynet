@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension, Result, ToSql, params};
+use rusqlite::{Connection, OptionalExtension, Result, params};
 
 use crate::types::ProofState;
 use nuts::{Amount, nut00::secret::Secret, nut01::PublicKey, nut02::KeysetId};
@@ -71,14 +71,22 @@ pub fn set_proof_to_state(conn: &Connection, y: PublicKey, state: ProofState) ->
 }
 
 pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofState) -> Result<()> {
-    let placeholders = ys.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!("UPDATE proof SET state = ? WHERE y = in ({})", placeholders);
-    let mut stmt = conn.prepare(&sql)?;
-    let mut params = Vec::with_capacity(ys.len() + 1);
-    params.push(&state as &dyn ToSql);
-    params.extend(ys.iter().map(|pk| pk as &dyn ToSql));
-    stmt.execute(&params[..])?;
+    // Build placeholder string like "?,?,?" based on number of items
+    let mut placeholders = "?,".repeat(ys.len() - 1);
+    placeholders.push('?');
 
+    // Prepare the statement with dynamic placeholders
+    let sql = format!("UPDATE proof SET state = ?1 WHERE y IN ({})", placeholders);
+    let mut stmt = conn.prepare(&sql)?;
+
+    // Bind state as first parameter
+    stmt.raw_bind_parameter(1, state)?;
+    // Bind each public key string to its respective placeholder
+    for (i, y) in ys.iter().enumerate() {
+        stmt.raw_bind_parameter(i + 2, y)?;
+    }
+
+    stmt.raw_execute()?;
     Ok(())
 }
 
@@ -96,7 +104,8 @@ pub fn get_proofs_by_ids(
     }
 
     // Dynamically create the placeholders (?, ?, ...)
-    let placeholders = proof_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let mut placeholders = "?,".repeat(proof_ids.len() - 1);
+    placeholders.push('?');
     let sql = format!(
         "SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y IN ({})",
         placeholders
@@ -105,17 +114,22 @@ pub fn get_proofs_by_ids(
     let mut stmt = conn.prepare(&sql)?;
 
     // Create a slice of references to ToSql-compatible types
-    let params_slice: Vec<&dyn ToSql> = proof_ids.iter().map(|pk| pk as &dyn ToSql).collect();
+    for (i, y) in proof_ids.iter().enumerate() {
+        stmt.raw_bind_parameter(i + 1, y)?;
+    }
 
     let proofs = stmt
-        .query_map(&params_slice[..], |r| {
-            Ok((
-                r.get::<_, Amount>(0)?,
-                r.get::<_, KeysetId>(1)?,
-                r.get::<_, PublicKey>(2)?,
-                r.get::<_, Secret>(3)?,
-            ))
-        })?
+        .raw_query()
+        .mapped(|r| -> Result<(Amount, KeysetId, PublicKey, Secret)> {
+            {
+                Ok((
+                    r.get::<_, Amount>(0)?,
+                    r.get::<_, KeysetId>(1)?,
+                    r.get::<_, PublicKey>(2)?,
+                    r.get::<_, Secret>(3)?,
+                ))
+            }
+        })
         .collect::<Result<Vec<_>>>()?;
 
     Ok(proofs)
