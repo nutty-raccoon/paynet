@@ -1,23 +1,28 @@
-use crate::{Error, keyset_cache::CachedKeysetInfo, liquidity_sources::LiquiditySources};
-use std::{str::FromStr, sync::Arc};
-
-use node::{
-    BlindSignature, GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse,
-    GetNodeInfoRequest, Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest,
-    MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
-    SwapRequest, SwapResponse,
+use crate::{
+    Error,
+    keyset_cache::CachedKeysetInfo,
+    liquidity_sources::LiquiditySources,
+    response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
 };
-
+use node::{
+    AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
+    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
+    MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
+    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
+    hash_mint_quote_request, hash_mint_request,
+};
 use nuts::{
     Amount, QuoteTTLConfig,
     nut00::{BlindedMessage, Proof, secret::Secret},
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
+    nut19::{CacheResponseKey, Path},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
 use starknet_types::Unit;
+use std::{str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
@@ -37,7 +42,7 @@ pub struct GrpcState {
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     pub liquidity_sources: LiquiditySources,
-    // TODO: add a cache for the mint_quote and melt routes
+    pub response_cache: Arc<InMemResponseCache<(Path<Method>, String), CachedResponse>>,
 }
 
 impl GrpcState {
@@ -55,6 +60,7 @@ impl GrpcState {
             quote_ttl: Arc::new(quote_ttl.into()),
             signer: signer_client,
             liquidity_sources,
+            response_cache: Arc::new(InMemResponseCache::new(None)),
         }
     }
 
@@ -105,6 +111,29 @@ impl GrpcState {
 
         let mut conn = self.pg_pool.acquire().await?;
         insert_keysets_query_builder.execute(&mut conn).await?;
+
+        Ok(())
+    }
+
+    pub fn get_cached_response(
+        &self,
+        cache_key: &CacheResponseKey<Method>,
+    ) -> Option<CachedResponse> {
+        if let Some(cached_response) = self.response_cache.get(cache_key) {
+            return Some(cached_response);
+        }
+
+        None
+    }
+
+    pub fn cache_response(
+        &self,
+        cache_key: (Path<Method>, String),
+        response: CachedResponse,
+    ) -> Result<(), Status> {
+        self.response_cache
+            .insert(cache_key, response)
+            .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(())
     }
@@ -306,14 +335,31 @@ impl Node for GrpcState {
         let amount = Amount::from(mint_quote_request.amount);
         let unit = Unit::from_str(&mint_quote_request.unit).map_err(ParseGrpcError::Unit)?;
 
+        let request_hash = hash_mint_quote_request(&mint_quote_request);
+
+        // Try to get from cache first
+        let cache_key = (Path::Mint(method), request_hash);
+        if let Some(CachedResponse::MintQuote(mint_quote_response)) =
+            self.get_cached_response(&cache_key)
+        {
+            return Ok(Response::new(mint_quote_response));
+        }
+
         let response = self.inner_mint_quote(method, amount, unit).await?;
 
-        Ok(Response::new(MintQuoteResponse {
+        let mint_quote_response = MintQuoteResponse {
             quote: response.quote.to_string(),
-            request: response.request,
+            request: response.request.clone(),
             state: node::MintQuoteState::from(response.state).into(),
             expiry: response.expiry,
-        }))
+        };
+
+        self.cache_response(
+            cache_key,
+            CachedResponse::MintQuote(mint_quote_response.clone()),
+        )?;
+
+        Ok(Response::new(mint_quote_response))
     }
 
     async fn mint(
@@ -328,12 +374,16 @@ impl Node for GrpcState {
             ));
         }
 
+        let mint_request_hash = hash_mint_request(&mint_request);
+
         if mint_request.outputs.is_empty() {
             return Err(Status::invalid_argument("Outputs cannot be empty"));
         }
 
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
+
         let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
+
         let outputs = mint_request
             .outputs
             .into_iter()
@@ -348,18 +398,31 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let promises = self.inner_mint(method, quote_id, &outputs).await?;
+        let cache_key = (Path::Mint(method), mint_request_hash);
 
-        Ok(Response::new(MintResponse {
-            signatures: promises
-                .iter()
-                .map(|p| BlindSignature {
-                    amount: p.amount.into(),
-                    keyset_id: p.keyset_id.to_bytes().to_vec(),
-                    blind_signature: p.c.to_bytes().to_vec(),
-                })
-                .collect(),
-        }))
+        // Try to get from cache first
+        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(mint_response));
+        }
+
+        let promises = self.inner_mint(method, quote_id, &outputs).await?;
+        let signatures = promises
+            .iter()
+            .map(|p| BlindSignature {
+                amount: p.amount.into(),
+                keyset_id: p.keyset_id.to_bytes().to_vec(),
+                blind_signature: p.c.to_bytes().to_vec(),
+            })
+            .collect::<Vec<_>>();
+
+        let mint_response = MintResponse {
+            signatures: signatures.clone(),
+        };
+
+        // Store in cache
+        self.cache_response(cache_key, CachedResponse::Mint(mint_response.clone()))?;
+
+        Ok(Response::new(mint_response))
     }
 
     async fn melt(
@@ -381,6 +444,7 @@ impl Node for GrpcState {
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
         let unit = Unit::from_str(&melt_request.unit).map_err(ParseGrpcError::Unit)?;
         let inputs = melt_request
+            .clone()
             .inputs
             .into_iter()
             .map(|p| -> Result<Proof, ParseGrpcError> {
@@ -394,19 +458,30 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let cache_key = (Path::Melt(method), hash_melt_request(&melt_request));
+
+        // Try to get from cache first
+        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(melt_response));
+        }
 
         let response = self
             .inner_melt(method, unit, melt_request.request, &inputs)
             .await?;
 
-        Ok(Response::new(MeltResponse {
+        let melt_response = MeltResponse {
             quote: response.quote.to_string(),
             amount: response.amount.into(),
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
             transfer_id: response.transfer_id,
-        }))
+        };
+
+        // Store in cache
+        self.cache_response(cache_key, CachedResponse::Melt(melt_response.clone()))?;
+
+        Ok(Response::new(melt_response))
     }
 
     async fn mint_quote_state(
@@ -494,5 +569,26 @@ impl Node for GrpcState {
         Ok(Response::new(NodeInfoResponse {
             info: node_info_str,
         }))
+    }
+
+    /// acknowledge is for the client to say he successfully stored the quote_id
+    async fn acknowledge(
+        &self,
+        ack_request: Request<AcknowledgeRequest>,
+    ) -> Result<Response<AcknowledgeResponse>, Status> {
+        let path_str: String = ack_request.get_ref().path.clone();
+        let path: Path<Method> =
+            Path::from_str(&path_str).map_err(|_| Status::invalid_argument("Invalid path"))?;
+        let request_hash = ack_request.get_ref().request_hash.clone();
+
+        let cache_key = (path, request_hash);
+
+        // check if the request is already in the cache, if so, remove it
+        let exist = self.response_cache.get(&cache_key);
+        if exist.is_some() {
+            self.response_cache.remove(&cache_key);
+        }
+
+        Ok(Response::new(AcknowledgeResponse {}))
     }
 }

@@ -10,11 +10,9 @@ use serde::{Deserialize, Serialize};
 
 /// Mint settings
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Settings<M: traits::Method> {
+pub struct Settings {
     /// Number of seconds the responses are cached for
     pub ttl: Option<u64>,
-    /// Cached endpoints
-    pub cached_endpoints: Vec<CachedEndpoint<M>>,
 }
 
 /// List of the methods and paths for which caching is enabled
@@ -71,6 +69,8 @@ impl<M: Display> Display for Path<M> {
         )
     }
 }
+
+pub type CacheResponseKey<M> = (Path<M>, String);
 
 #[derive(Debug, thiserror::Error)]
 pub enum PathFromStrError {
