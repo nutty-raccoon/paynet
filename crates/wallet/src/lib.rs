@@ -22,6 +22,8 @@ use nuts::nut01::{PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
 use nuts::nut19::Route;
 use nuts::{Amount, SplitTarget};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, params};
 use tonic::Request;
 use tonic::transport::Channel;
@@ -150,7 +152,7 @@ pub async fn mint(
 }
 
 pub async fn refresh_node_keysets(
-    db_conn: &Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
 ) -> Result<(), Error> {
@@ -160,7 +162,10 @@ pub async fn refresh_node_keysets(
         .into_inner()
         .keysets;
 
-    let new_keyset_ids = crate::db::upsert_node_keysets(db_conn, node_id, keysets)?;
+    let new_keyset_ids = {
+        let db_conn = pool.get()?;
+        crate::db::upsert_node_keysets(&db_conn, node_id, keysets)?
+    };
 
     // Parallelization of the queries
     let mut futures = futures::stream::FuturesUnordered::new();
@@ -175,6 +180,7 @@ pub async fn refresh_node_keysets(
         })
     }
 
+    let db_conn = pool.get()?;
     while let Some(res) = futures.next().await {
         match res {
             // Save the keys in db
@@ -184,7 +190,7 @@ pub async fn refresh_node_keysets(
                 let id = KeysetId::from_bytes(&keyset[0].id)
                     .map_err(|e| Error::Conversion(format!("Invalid keyset ID length: {:?}", e)))?;
                 db::insert_keyset_keys(
-                    db_conn,
+                    &db_conn,
                     id,
                     keyset[0].keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
                 )?;
@@ -608,16 +614,20 @@ pub async fn receive_wad(
 }
 
 pub async fn register_node(
-    db_conn: &Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_url: NodeUrl,
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32, bool), Error> {
     let mut node_client = NodeClient::connect(&node_url).await?;
 
-    let n_affected_rows = db::node::insert(db_conn, &node_url)?;
-    let node_id = db::node::get_id_by_url(db_conn, &node_url)?;
-    let is_new = n_affected_rows != 0;
+    let (node_id, is_new) = {
+        let conn = pool.get()?;
+        let n_affected_rows = db::node::insert(&conn, &node_url)?;
+        let node_id = db::node::get_id_by_url(&conn, &node_url)?;
+        let is_new = n_affected_rows != 0;
+        (node_id, is_new)
+    };
 
-    refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
+    refresh_node_keysets(pool, &mut node_client, node_id).await?;
 
     Ok((node_client, node_id, is_new))
 }
