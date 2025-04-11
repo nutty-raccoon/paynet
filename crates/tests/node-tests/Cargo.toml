@@ -10,7 +10,9 @@ signer = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
 nuts = { workspace = true }
-node = { workspace = true }
+node = { default-features = false, path = "../../bin/node", features = [
+    "mock",
+] }
 
 [[test]]
 name = "keyset_rotation"
