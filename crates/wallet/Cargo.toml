@@ -9,7 +9,6 @@ node = { workspace = true }
 futures = { workspace = true }
 nuts = { workspace = true, features = ["rusqlite"] }
 tonic = { workspace = true }
-rusqlite = { workspace = true }
 log = { workspace = true }
 num-traits = { workspace = true }
 thiserror = { workspace = true }
@@ -22,6 +21,11 @@ itertools = { workspace = true }
 tonic-tls = { workspace = true, default-features=false, features=["openssl"], optional = true  }
 openssl = { workspace = true, optional = true }
 openssl-sys = { workspace = true, optional = true }
+
+# Db
+r2d2_sqlite = { workspace = true }
+r2d2 = { workspace = true }
+rusqlite = { workspace = true }
 
 [features]
 default = []

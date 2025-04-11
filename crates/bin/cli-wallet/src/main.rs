@@ -4,6 +4,7 @@ use itertools::Itertools;
 use node::{MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
 use nuts::Amount;
 use primitive_types::U256;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use starknet_types::{Asset, Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
@@ -194,7 +195,9 @@ async fn main() -> Result<()> {
             .ok_or(anyhow!("invalid db path"))?
     );
 
-    let mut db_conn = rusqlite::Connection::open(db_path)?;
+    let manager = SqliteConnectionManager::file(db_path);
+    let pool = r2d2::Pool::new(manager)?;
+    let mut db_conn = pool.get()?;
 
     wallet::db::create_tables(&mut db_conn)?;
 
@@ -204,7 +207,7 @@ async fn main() -> Result<()> {
 
             let tx = db_conn.transaction()?;
             let (mut _node_client, node_id, _is_new) =
-                wallet::register_node(&tx, node_url.clone()).await?;
+                wallet::register_node(pool.clone(), node_url.clone()).await?;
             tx.commit()?;
             println!(
                 "Successfully registered {} as node with id `{}`",
@@ -528,7 +531,7 @@ async fn main() -> Result<()> {
             let wad = args.read_wad()?;
 
             let (mut node_client, node_id, _is_new) =
-                wallet::register_node(&db_conn, wad.node_url).await?;
+                wallet::register_node(pool.clone(), wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
             if let Some(memo) = wad.memo() {
                 println!("Memo: {}", memo);

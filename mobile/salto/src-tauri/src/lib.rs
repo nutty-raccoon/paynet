@@ -1,9 +1,11 @@
 mod errors;
 mod migrations;
 
-use std::{str::FromStr, sync::Mutex};
+use std::str::FromStr;
 
-use errors::{AddNodeError, GetNodesBalanceError, StateMutexPoisonedError};
+use errors::{AddNodeError, GetNodesBalanceError};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use tauri::{Manager, State};
 use tauri_plugin_log::{Target, TargetKind};
 use wallet::{db::balance::NodeBalances, types::NodeUrl};
@@ -14,7 +16,7 @@ fn get_nodes_balance(
     state: State<'_, AppState>,
 ) -> Result<Vec<NodeBalances>, GetNodesBalanceError> {
     {
-        let db_lock = state.db_conn.lock().map_err(|_| StateMutexPoisonedError)?;
+        let db_lock = state.pool.get()?;
         wallet::db::balance::get_for_all_nodes(&db_lock)
     }
     .map_err(GetNodesBalanceError::Rusqlite)
@@ -27,8 +29,7 @@ async fn add_node(
 ) -> Result<(u32, bool), AddNodeError> {
     let node_url = NodeUrl::from_str(&node_url)?;
     {
-        let db_lock = state.db_conn.lock().map_err(|_| StateMutexPoisonedError)?;
-        let (_client, id, is_new) = wallet::register_node(&db_lock, node_url).await?;
+        let (_client, id, is_new) = wallet::register_node(state.pool.clone(), node_url).await?;
         Ok((id, is_new))
     }
 }
@@ -64,11 +65,10 @@ pub fn run() {
                     .build(),
             )
             .setup(|app| {
-                let db_conn = rusqlite::Connection::open(db_path)?;
+                let manager = SqliteConnectionManager::file(db_path);
+                let pool = r2d2::Pool::new(manager)?;
 
-                app.manage(AppState {
-                    db_conn: Mutex::new(db_conn),
-                });
+                app.manage(AppState { pool });
 
                 Ok(())
             })
@@ -81,5 +81,5 @@ pub fn run() {
 
 #[derive(Debug)]
 struct AppState {
-    db_conn: Mutex<rusqlite::Connection>,
+    pool: Pool<SqliteConnectionManager>,
 }

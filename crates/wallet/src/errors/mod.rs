@@ -38,6 +38,8 @@ pub enum Error {
     Tls(crate::TlsError),
     #[error("keyset unit mismatch, expected {0} got {0}")]
     UnitMissmatch(String, String),
+    #[error("failed to get a connection from the pool: {0}")]
+    R2D2(#[from] r2d2::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

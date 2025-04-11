@@ -11,7 +11,6 @@ node = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 url = { workspace = true }
 anyhow = { workspace = true }
-rusqlite = { workspace = true }
 dirs = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
@@ -19,6 +18,11 @@ starknet-types-core = { workspace = true }
 itertools = { workspace = true }
 uuid = { workspace = true }
 primitive-types = { workspace = true }
+
+# Db
+r2d2_sqlite = { workspace = true }
+r2d2 = { workspace = true }
+rusqlite = { workspace = true }
 
 # Local
 starknet-types = { workspace = true }

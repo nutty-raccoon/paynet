@@ -1,13 +1,9 @@
 #[derive(Debug, thiserror::Error)]
-#[error("the tauri state mutex has been poisoned")]
-pub struct StateMutexPoisonedError;
-
-#[derive(Debug, thiserror::Error)]
 pub enum GetNodesBalanceError {
     #[error(transparent)]
     Rusqlite(#[from] rusqlite::Error),
     #[error(transparent)]
-    StateMutexPoisoned(#[from] StateMutexPoisonedError),
+    R2D2(#[from] r2d2::Error),
 }
 
 impl serde::Serialize for GetNodesBalanceError {
@@ -23,8 +19,6 @@ impl serde::Serialize for GetNodesBalanceError {
 pub enum AddNodeError {
     #[error(transparent)]
     Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
-    StateMutexPoisoned(#[from] StateMutexPoisonedError),
     #[error("invalid node url: {0}")]
     InvalidNodeUrl(#[from] wallet::types::NodeUrlError),
     #[error(transparent)]
