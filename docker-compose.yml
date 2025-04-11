@@ -54,6 +54,23 @@ services:
       starknet-devnet:
         condition: service_healthy
 
+  explorer:
+    image: "explorer"
+    restart: always
+    ports:
+      - "5173:5173"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/explorer.Dockerfile
+    environment:
+      # Use localhost here because it has to be the address from the browser POV, not from the server
+      - VITE_RPC_URL=http://localhost:5050
+      - VITE_IS_EMBEDDED=false
+      - VITE_CHAIN_ID=SN_DEVNET
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+
   starknet-setup:
     image: "starknet-setup"
     build:
