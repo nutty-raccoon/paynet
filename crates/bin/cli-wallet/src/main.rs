@@ -1,12 +1,13 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
+use itertools::Itertools;
 use node::{MintQuoteState, NodeClient};
 use nuts::Amount;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
-use wallet::types::{NodeUrl, Wad};
+use wallet::types::{NodeUrl, CompactWad, CompactKeysetProofs, CompactProof};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -105,8 +106,10 @@ enum Commands {
         /// Id of the node to use
         #[arg(long, short)]
         node_id: u32,
-
-        /// File where to save the JSON token wad        
+        /// Optional memo to add context to the wad
+        #[arg(long, short)]
+        memo: Option<String>,
+        /// File where to save the token wad        
         #[arg(long, short, value_hint(ValueHint::FilePath))]
         output: Option<PathBuf>,
     },
@@ -116,6 +119,12 @@ enum Commands {
         long_about = "Receive a wad of tokens. Store them on them wallet for later use"
     )]
     Receive(ReceiveWadArgs),
+    /// Decode a wad to view its contents
+    #[command(
+        about = "Decode a wad to view its contents",
+        long_about = "Decode a wad to view its contents in a human-readable format"
+    )]
+    DecodeWad(ReceiveWadArgs),
 }
 
 #[derive(Args)]
@@ -301,6 +310,7 @@ async fn main() -> Result<()> {
             amount,
             unit,
             node_id,
+            memo,
             output,
         } => {
             let output: Option<PathBuf> = output
@@ -331,7 +341,26 @@ async fn main() -> Result<()> {
             .await?;
 
             let wad = opt_proofs
-                .map(|proofs| Wad { node_url, proofs })
+                .map(|proofs| {
+                    let compact_proofs = proofs.into_iter()
+                        .group_by(|p| p.keyset_id)
+                        .into_iter()
+                        .map(|(keyset_id, proofs)| CompactKeysetProofs {
+                            keyset_id,
+                            proofs: proofs.map(|p| CompactProof {
+                                amount: p.amount,
+                                secret: p.secret,
+                                c: p.c,
+                            }).collect(),
+                        })
+                        .collect();
+                    CompactWad {
+                        node_url,
+                        unit: unit.clone(),
+                        memo,
+                        proofs: compact_proofs,
+                    }
+                })
                 .ok_or(anyhow!("Not enough funds"))?;
 
             match output {
@@ -340,12 +369,12 @@ async fn main() -> Result<()> {
                         .as_path()
                         .to_str()
                         .ok_or_else(|| anyhow!("invalid db path"))?;
-                    fs::write(&output_path, serde_json::to_string_pretty(&wad)?)
+                    fs::write(&output_path, wad.to_string())
                         .map_err(|e| anyhow!("could not write to file {}: {}", path_str, e))?;
                     println!("Wad saved to {:?}", path_str);
                 }
                 None => {
-                    println!("Wad:\n{}", serde_json::to_string(&wad)?);
+                    println!("Wad:\n{}", wad);
                 }
             }
             tx.commit()?;
@@ -354,27 +383,56 @@ async fn main() -> Result<()> {
             opt_wad_json_string,
             opt_wad_json_file_path,
         }) => {
-            let wad_json_string = if let Some(json_string) = opt_wad_json_string {
+            let wad_string = if let Some(json_string) = opt_wad_json_string {
                 json_string
             } else if let Some(file_path) = opt_wad_json_file_path {
                 fs::read_to_string(file_path)?
             } else {
                 unreachable!("cli rules guarantee one and only one will be set")
             };
-            let wad: Wad = serde_json::from_str(&wad_json_string)?;
+            let wad: CompactWad<String> = wad_string.parse()?;
 
             let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
+            if let Some(memo) = wad.memo() {
+                println!("Memo: {}", memo);
+            }
 
             let tx = db_conn.transaction()?;
             let amounts_received_per_unit =
-                wallet::receive_wad(&tx, &mut node_client, node_id, &wad.proofs).await?;
+                wallet::receive_wad(&tx, &mut node_client, node_id, &wad.proofs()).await?;
             tx.commit()?;
 
             println!("Received:");
             for (unit, amount) in amounts_received_per_unit {
                 println!("{} {}", amount, unit);
             }
+        }
+        Commands::DecodeWad(ReceiveWadArgs {
+            opt_wad_json_string,
+            opt_wad_json_file_path,
+        }) => {
+            let wad_string = if let Some(json_string) = opt_wad_json_string {
+                json_string
+            } else if let Some(file_path) = opt_wad_json_file_path {
+                fs::read_to_string(file_path)?
+            } else {
+                unreachable!("cli rules guarantee one and only one will be set")
+            };
+            let wad: CompactWad<String> = wad_string.parse()?;
+            let regular_wad = Wad {
+                node_url: wad.node_url,
+                proofs: wad.proofs(),
+            };
+
+            println!("Node URL: {}", wad.node_url);
+            println!("Unit: {}", wad.unit());
+            if let Some(memo) = wad.memo() {
+                println!("Memo: {}", memo);
+            }
+            println!("Total Value: {}", wad.value()?);
+            println!("\nDetailed Contents:");
+            println!("{}", serde_json::to_string_pretty(&regular_wad)?);
         }
     }
 

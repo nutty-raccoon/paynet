@@ -1,0 +1,9 @@
+[package]
+name = "wallet-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+nuts = { path = "../../nuts" }
+wallet = { path = "../../wallet" }
