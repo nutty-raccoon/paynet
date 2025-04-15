@@ -222,7 +222,7 @@ async fn main() -> Result<()> {
                 &mut node_client,
                 STARKNET_METHOD.to_string(),
                 Amount::from(amount),
-                unit.clone(),
+                unit,
             )
             .await?;
             tx.commit()?;
