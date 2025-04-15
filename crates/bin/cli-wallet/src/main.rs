@@ -141,6 +141,7 @@ struct ReceiveWadArgs {
 const STARKNET_METHOD: &str = "starknet";
 
 #[tokio::main]
+#[allow(clippy::clone_on_copy)]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -216,13 +217,13 @@ async fn main() -> Result<()> {
             println!("Requesting {} to mint {} {}", &node_url, amount, unit);
 
             let tx = db_conn.transaction()?;
-            // Add mint logic here
+
             let mint_quote_response = wallet::create_mint_quote(
                 &tx,
                 &mut node_client,
                 STARKNET_METHOD.to_string(),
                 Amount::from(amount),
-                unit,
+                unit.clone(),
             )
             .await?;
             tx.commit()?;
