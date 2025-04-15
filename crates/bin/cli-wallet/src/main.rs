@@ -5,7 +5,7 @@ use node::{MintQuoteState, NodeClient};
 use nuts::Amount;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
-use starknet_types::unit::Unit;
+use starknet_types::Unit;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
 use wallet::types::{NodeUrl,Wad};
@@ -342,10 +342,11 @@ async fn main() -> Result<()> {
             )
             .await?;
 
+            let unit = Unit::from_str(&unit)?;
             let wad = opt_proofs
                 .map(|proofs| {
                     let compact_proofs = proofs.into_iter()
-                        .group_by(|p| p.keyset_id)
+                        .chunk_by(|p| p.keyset_id)
                         .into_iter()
                         .map(|(keyset_id, proofs)| CompactKeysetProofs {
                             keyset_id,
@@ -394,7 +395,7 @@ async fn main() -> Result<()> {
             };
             let wad: CompactWad<Unit> = wad_string.parse()?;
 
-            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
+            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url.clone()).await?;
             println!("Receiving tokens on node `{}`", node_id);
             if let Some(memo) = wad.memo() {
                 println!("Memo: {}", memo);
@@ -423,7 +424,7 @@ async fn main() -> Result<()> {
             };
             let wad: CompactWad<Unit> = wad_string.parse()?;
             let regular_wad = Wad {
-                node_url: wad.node_url,
+                node_url: wad.node_url.clone(),
                 proofs: wad.proofs(),
             };
 
