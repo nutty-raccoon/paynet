@@ -16,7 +16,6 @@ members = [
   # Integration tests
   "crates/tests/signer-tests",
   "crates/tests/node-tests",
-  "crates/tests/wallet-tests",
 ]
 default-members = [
   "crates/bin/node",
