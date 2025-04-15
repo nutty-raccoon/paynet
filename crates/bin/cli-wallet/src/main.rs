@@ -5,9 +5,11 @@ use node::{MintQuoteState, NodeClient};
 use nuts::Amount;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
+use starknet_types::unit::Unit;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
-use wallet::types::{NodeUrl, CompactWad, CompactKeysetProofs, CompactProof};
+use wallet::types::{NodeUrl,Wad};
+use wallet::types::compact_wad::{CompactKeysetProofs, CompactWad, CompactProof}; 
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -390,7 +392,7 @@ async fn main() -> Result<()> {
             } else {
                 unreachable!("cli rules guarantee one and only one will be set")
             };
-            let wad: CompactWad<String> = wad_string.parse()?;
+            let wad: CompactWad<Unit> = wad_string.parse()?;
 
             let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
@@ -419,7 +421,7 @@ async fn main() -> Result<()> {
             } else {
                 unreachable!("cli rules guarantee one and only one will be set")
             };
-            let wad: CompactWad<String> = wad_string.parse()?;
+            let wad: CompactWad<Unit> = wad_string.parse()?;
             let regular_wad = Wad {
                 node_url: wad.node_url,
                 proofs: wad.proofs(),
