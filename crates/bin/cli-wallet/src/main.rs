@@ -4,12 +4,12 @@ use itertools::Itertools;
 use node::{MintQuoteState, NodeClient};
 use nuts::Amount;
 use rusqlite::Connection;
-use starknet_types_core::felt::Felt;
 use starknet_types::Unit;
+use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
-use wallet::types::{NodeUrl,Wad};
-use wallet::types::compact_wad::{CompactKeysetProofs, CompactWad, CompactProof}; 
+use wallet::types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
+use wallet::types::{NodeUrl, Wad};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -345,16 +345,19 @@ async fn main() -> Result<()> {
             let unit = Unit::from_str(&unit)?;
             let wad = opt_proofs
                 .map(|proofs| {
-                    let compact_proofs = proofs.into_iter()
+                    let compact_proofs = proofs
+                        .into_iter()
                         .chunk_by(|p| p.keyset_id)
                         .into_iter()
                         .map(|(keyset_id, proofs)| CompactKeysetProofs {
                             keyset_id,
-                            proofs: proofs.map(|p| CompactProof {
-                                amount: p.amount,
-                                secret: p.secret,
-                                c: p.c,
-                            }).collect(),
+                            proofs: proofs
+                                .map(|p| CompactProof {
+                                    amount: p.amount,
+                                    secret: p.secret,
+                                    c: p.c,
+                                })
+                                .collect(),
                         })
                         .collect();
                     CompactWad {
@@ -395,7 +398,8 @@ async fn main() -> Result<()> {
             };
             let wad: CompactWad<Unit> = wad_string.parse()?;
 
-            let (mut node_client, node_id) = wallet::register_node(&db_conn, wad.node_url.clone()).await?;
+            let (mut node_client, node_id) =
+                wallet::register_node(&db_conn, wad.node_url.clone()).await?;
             println!("Receiving tokens on node `{}`", node_id);
             if let Some(memo) = wad.memo() {
                 println!("Memo: {}", memo);
