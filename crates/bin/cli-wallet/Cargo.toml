@@ -16,7 +16,7 @@ dirs = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 starknet-types-core = { workspace = true }
-itertools = "0.12"
+itertools = { workspace = true }
 
 # Local
 starknet-types = { workspace = true }
