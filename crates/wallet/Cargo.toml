@@ -16,3 +16,4 @@ thiserror = { workspace = true }
 url = { workspace = true }
 bitcoin = { workspace = true }
 ciborium = { workspace = true }
+itertools = { workspace = true }
