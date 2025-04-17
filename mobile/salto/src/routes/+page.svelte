@@ -2,21 +2,23 @@
   import NodesBalancePages from "./components/NodesBalancePage.svelte";
   import PayButton from "./components/PayButton.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
-  import { type Node } from "../types";
+  import { type NodeBalances } from "../types";
   import NodesBalancePage from "./components/NodesBalancePage.svelte";
   import { formatBalance } from "../utils";
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
 
   // Sample data with multiple nodes to demonstrate the new card design
-  let nodes: Node[] = $state([]);
+  let nodes: NodeBalances[] = $state([]);
 
   let activeTab: Tab = $state("pay");
   // Calculate total balance across all nodes
   let totalBalance = $derived(
-    nodes.reduce((total, node) => total + node.balance, 0),
+    nodes.reduce((total, node) => total + node.balances[0].amount, 0),
   );
-  let formattedTotalBalance = $derived(formatBalance(totalBalance));
+  let formattedTotalBalance = $derived(
+    formatBalance({ unit: "strk", amount: totalBalance }),
+  );
 
   // Effect to manage scrolling based on active tab
   $effect(() => {
@@ -28,7 +30,7 @@
   });
 
   const onAddNode = (id: number, url: string) => {
-    nodes.push({ id: id, url: url, balance: 0 });
+    nodes.push({ id: id, url: url, balances: [{ unit: "strk", amount: 0 }] });
   };
 
   onMount(() => {

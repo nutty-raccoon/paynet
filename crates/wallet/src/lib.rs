@@ -616,20 +616,18 @@ pub async fn receive_wad(
 pub async fn register_node(
     pool: Pool<SqliteConnectionManager>,
     node_url: NodeUrl,
-) -> Result<(NodeClient<tonic::transport::Channel>, u32, bool), Error> {
+) -> Result<(NodeClient<tonic::transport::Channel>, u32), Error> {
     let mut node_client = NodeClient::connect(&node_url).await?;
 
-    let (node_id, is_new) = {
+    let node_id = {
         let conn = pool.get()?;
-        let n_affected_rows = db::node::insert(&conn, &node_url)?;
-        let node_id = db::node::get_id_by_url(&conn, &node_url)?;
-        let is_new = n_affected_rows != 0;
-        (node_id, is_new)
+        db::node::insert(&conn, &node_url)?;
+        db::node::get_id_by_url(&conn, &node_url)?
     };
 
     refresh_node_keysets(pool, &mut node_client, node_id).await?;
 
-    Ok((node_client, node_id, is_new))
+    Ok((node_client, node_id))
 }
 
 #[cfg(feature = "tls")]

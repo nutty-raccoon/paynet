@@ -22,6 +22,8 @@ pub enum AddNodeError {
     #[error("invalid node url: {0}")]
     InvalidNodeUrl(#[from] wallet::types::NodeUrlError),
     #[error(transparent)]
+    R2D2(#[from] r2d2::Error),
+    #[error(transparent)]
     Wallet(#[from] wallet::errors::Error), // TODO: create more granular errors in wallet
 }
 
