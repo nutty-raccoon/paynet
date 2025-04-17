@@ -206,7 +206,7 @@ async fn main() -> Result<()> {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
 
             let tx = db_conn.transaction()?;
-            let (mut _node_client, node_id, _is_new) =
+            let (mut _node_client, node_id) =
                 wallet::register_node(pool.clone(), node_url.clone()).await?;
             tx.commit()?;
             println!(
@@ -530,7 +530,7 @@ async fn main() -> Result<()> {
             };
             let wad = args.read_wad()?;
 
-            let (mut node_client, node_id, _is_new) =
+            let (mut node_client, node_id) =
                 wallet::register_node(pool.clone(), wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
             if let Some(memo) = wad.memo() {

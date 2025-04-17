@@ -1,9 +1,8 @@
 use crate::types::ProofState;
-use nuts::Amount;
 use rusqlite::{Connection, Result, params};
 use serde::{Deserialize, Serialize};
 
-pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, Amount)>> {
+pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<Balance>> {
     let mut stmt = conn.prepare(
         r#"SELECT CAST(k.unit as TEXT), SUM(p.amount) as total_amount
            FROM node n
@@ -16,7 +15,10 @@ pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<(String, Amou
     )?;
 
     stmt.query_map(params![ProofState::Unspent, node_id], |row| {
-        Ok((row.get(0)?, row.get(1)?))
+        Ok(Balance {
+            unit: row.get(0)?,
+            amount: row.get(1)?,
+        })
     })?
     .collect()
 }

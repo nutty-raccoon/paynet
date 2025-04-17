@@ -1,5 +1,10 @@
-export type Node = {
+export type NodeBalances = {
   id: number;
   url: string;
-  balance: number;
+  balances: Balance[];
 };
+
+export type Balance = {
+  unit: string;
+  amount: number;
+}

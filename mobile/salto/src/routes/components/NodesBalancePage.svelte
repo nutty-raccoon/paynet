@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import { type Node } from "../../types";
+  import { type NodeBalances } from "../../types";
   import { formatBalance } from "../../utils";
   import { onMount, onDestroy } from "svelte";
   import { addNode } from "../../commands";
 
   interface Props {
-    nodes: Node[];
+    nodes: NodeBalances[];
     onAddNode: (id: number, url: string) => void;
   }
 
@@ -38,7 +38,13 @@
       let nodeAddressString = nodeAddress.toString();
       addNode(nodeAddressString).then((nodeId) => {
         if (!!nodeId) {
-          onAddNode(nodeId, nodeAddressString);
+          // Check if node with this ID already exists in the nodes array
+          const nodeAlreadyListed = nodes.some((node) => node.id === nodeId);
+          if (!nodeAlreadyListed) {
+            onAddNode(nodeId, nodeAddressString);
+          } else {
+            console.log(`node with url ${nodeAddress} already declared`);
+          }
         }
       });
     }
@@ -71,7 +77,9 @@
         </div>
         <div class="node-balance-container">
           <span class="node-balance-label">Balance</span>
-          <span class="node-balance">{formatBalance(node.balance)}</span>
+          {#each node.balances as balance}
+            <span class="node-balance">{formatBalance(balance)}</span>
+          {/each}
         </div>
       </div>
     </div>

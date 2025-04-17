@@ -8,30 +8,30 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tauri::{Manager, State};
 use tauri_plugin_log::{Target, TargetKind};
-use wallet::{db::balance::NodeBalances, types::NodeUrl};
+use wallet::{
+    db::balance::{Balance, NodeBalances},
+    types::NodeUrl,
+};
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn get_nodes_balance(
     state: State<'_, AppState>,
 ) -> Result<Vec<NodeBalances>, GetNodesBalanceError> {
-    {
-        let db_lock = state.pool.get()?;
-        wallet::db::balance::get_for_all_nodes(&db_lock)
-    }
-    .map_err(GetNodesBalanceError::Rusqlite)
+    let db_conn = state.pool.get()?;
+    let nodes_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
+    Ok(nodes_balances)
 }
 
 #[tauri::command]
 async fn add_node(
     state: State<'_, AppState>,
     node_url: String,
-) -> Result<(u32, bool), AddNodeError> {
+) -> Result<(u32, Vec<Balance>), AddNodeError> {
     let node_url = NodeUrl::from_str(&node_url)?;
-    {
-        let (_client, id, is_new) = wallet::register_node(state.pool.clone(), node_url).await?;
-        Ok((id, is_new))
-    }
+    let (_client, id) = wallet::register_node(state.pool.clone(), node_url).await?;
+    let db_conn = state.pool.get()?;
+    let balances = wallet::db::balance::get_for_node(&db_conn, id)?;
+    Ok((id, balances))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
