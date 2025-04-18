@@ -26,7 +26,7 @@ clap = { workspace = true, features = ["derive"] }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
 prost = { workspace = true }
-nuts = { workspace = true }
+nuts = { workspace = true, features = ["nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
@@ -36,6 +36,7 @@ starknet-types-core = { workspace = true }
 bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
+dashmap = { workspace = true }
 
 # Optional 
 starknet-payment-indexer = { workspace = true, optional = true }
@@ -46,6 +47,7 @@ starknet-liquidity-source = { workspace = true, optional = true }
 default = ["starknet"]
 mock = ["liquidity-source/mock"]
 starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier", "dep:starknet-liquidity-source"]
+
 
 [build-dependencies]
 tonic-build = "0.13.0"
