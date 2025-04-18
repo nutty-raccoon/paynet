@@ -134,7 +134,7 @@ message SwapResponse {
 
 message AcknowledgeRequest {
   string path = 1;
-  string request_hash = 2;
+  uint64 request_hash = 2;
 }
 
 message AcknowledgeResponse {}

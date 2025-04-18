@@ -1,10 +1,9 @@
 //! NUT-19: Cached Responses
 //!
 //! <https://github.com/cashubtc/nuts/blob/main/19.md>
+//! We implement it slightly different due to our use of gRPC
 
 use std::{fmt::Display, str::FromStr};
-
-use crate::traits;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,62 +14,36 @@ pub struct Settings {
     pub ttl: Option<u64>,
 }
 
-/// List of the methods and paths for which caching is enabled
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CachedEndpoint<M: traits::Method> {
-    /// HTTP Method
-    pub method: HttpMethod,
-    /// Route path
-    pub path: Path<M>,
-}
-
-impl<M: traits::Method> CachedEndpoint<M> {
-    /// Create [`CachedEndpoint`]
-    pub fn new(method: HttpMethod, path: Path<M>) -> Self {
-        Self { method, path }
-    }
-}
-
-/// HTTP method
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum HttpMethod {
-    /// Get
-    Get,
-    /// POST
-    Post,
-}
-
 /// Route path
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Path<M> {
+pub enum Route {
     /// Mint
-    Mint(M),
+    Mint,
     /// Melt
-    Melt(M),
+    Melt,
     /// Swap
     Swap,
 }
 
-pub const V1_MINT: &str = "/v1/mint/";
-pub const V1_SWAP: &str = "/v1/swap";
-pub const V1_MELT: &str = "/v1/melt/";
+pub const MINT: &str = "mint";
+pub const SWAP: &str = "swap";
+pub const MELT: &str = "melt";
 
-impl<M: Display> Display for Path<M> {
+impl Display for Route {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                Path::Mint(m) => format!("{}{}", V1_MINT, m),
-                Path::Melt(m) => format!("{}{}", V1_MELT, m),
-                Path::Swap => V1_SWAP.to_string(),
+                Route::Mint => MINT,
+                Route::Melt => MELT,
+                Route::Swap => SWAP,
             }
         )
     }
 }
 
-pub type CacheResponseKey<M> = (Path<M>, String);
+pub type CacheResponseKey = (Route, u64);
 
 #[derive(Debug, thiserror::Error)]
 pub enum PathFromStrError {
@@ -84,34 +57,20 @@ pub enum PathFromStrError {
     InvalidRoute(String),
 }
 
-impl<M: FromStr> FromStr for Path<M> {
+impl FromStr for Route {
     type Err = PathFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == V1_SWAP {
-            return Ok(Self::Swap);
-        }
-
-        let mut splits = s.split('/');
-        // Because uri is absolute it starts with a '/' making the first element of splis empty
-        let _ = splits.next().ok_or(PathFromStrError::InvalidUri)?;
-        let version = splits.next().ok_or(PathFromStrError::InvalidUri)?;
-        if version != "v1" {
-            return Err(PathFromStrError::InvalidVersion(version.to_string()));
-        }
-        let route = splits.next().ok_or(PathFromStrError::InvalidUri)?;
-        let method = splits.next().ok_or(PathFromStrError::InvalidUri)?;
-        let method =
-            M::from_str(method).map_err(|_| PathFromStrError::InvalidMethod(method.to_string()))?;
-        match route {
-            "mint" => Ok(Self::Mint(method)),
-            "melt" => Ok(Self::Melt(method)),
-            _ => Err(PathFromStrError::InvalidRoute(route.to_string())),
+        match s {
+            MINT => Ok(Self::Mint),
+            SWAP => Ok(Self::Swap),
+            MELT => Ok(Self::Melt),
+            _ => Err(PathFromStrError::InvalidRoute(s.to_string())),
         }
     }
 }
 
-impl<M: Display> Serialize for Path<M> {
+impl Serialize for Route {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -120,7 +79,7 @@ impl<M: Display> Serialize for Path<M> {
     }
 }
 
-impl<'de, M: FromStr> Deserialize<'de> for Path<M> {
+impl<'de> Deserialize<'de> for Route {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,

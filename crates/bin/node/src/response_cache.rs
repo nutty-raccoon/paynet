@@ -5,7 +5,7 @@ use std::{
 
 use crate::errors;
 use dashmap::DashMap;
-use node::{MeltResponse, MintQuoteResponse, MintResponse};
+use node::{MeltResponse, MintResponse, SwapResponse};
 
 /// A trait that defines a cache for storing and retrieving responses.
 pub trait ResponseCache<K, V> {
@@ -73,8 +73,8 @@ where
 pub enum CachedResponse {
     /// A response from a mint operation.
     Mint(MintResponse),
+    /// A response from a swap operation.
+    Swap(SwapResponse),
     /// A response from a melt operation.
     Melt(MeltResponse),
-    /// A response from a mint quote operation.
-    MintQuote(MintQuoteResponse),
 }

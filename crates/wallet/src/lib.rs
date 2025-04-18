@@ -9,8 +9,8 @@ use std::str::FromStr;
 use errors::{Error, Result};
 use futures::StreamExt;
 use node::{
-    GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest,
-    MintResponse, NodeClient, QuoteStateRequest,
+    GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState, NodeClient,
+    QuoteStateRequest,
 };
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{hash_to_curve, unblind_message};
@@ -99,23 +99,6 @@ pub async fn get_mint_quote_state(
     db::set_mint_quote_state(db_conn, response.quote, response.state)?;
 
     MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
-}
-
-pub async fn mint(
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote: String,
-    outputs: &[BlindedMessage],
-) -> Result<MintResponse> {
-    let req = MintRequest {
-        method,
-        quote,
-        outputs: convert_outputs(outputs),
-    };
-
-    let resp = node_client.mint(req).await?;
-
-    Ok(resp.into_inner())
 }
 
 pub async fn refresh_node_keysets(

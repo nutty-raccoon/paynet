@@ -9,7 +9,7 @@ use node::{
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
     MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
     Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
-    hash_mint_quote_request, hash_mint_request,
+    hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -17,7 +17,7 @@ use nuts::{
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
-    nut19::{CacheResponseKey, Path},
+    nut19::{CacheResponseKey, Route},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
@@ -42,7 +42,7 @@ pub struct GrpcState {
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
     pub liquidity_sources: LiquiditySources,
-    pub response_cache: Arc<InMemResponseCache<(Path<Method>, String), CachedResponse>>,
+    pub response_cache: Arc<InMemResponseCache<(Route, u64), CachedResponse>>,
 }
 
 impl GrpcState {
@@ -115,10 +115,7 @@ impl GrpcState {
         Ok(())
     }
 
-    pub fn get_cached_response(
-        &self,
-        cache_key: &CacheResponseKey<Method>,
-    ) -> Option<CachedResponse> {
+    pub fn get_cached_response(&self, cache_key: &CacheResponseKey) -> Option<CachedResponse> {
         if let Some(cached_response) = self.response_cache.get(cache_key) {
             return Some(cached_response);
         }
@@ -128,7 +125,7 @@ impl GrpcState {
 
     pub fn cache_response(
         &self,
-        cache_key: (Path<Method>, String),
+        cache_key: (Route, u64),
         response: CachedResponse,
     ) -> Result<(), Status> {
         self.response_cache
@@ -264,6 +261,12 @@ impl Node for GrpcState {
     ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
+        let cache_key = (Route::Swap, hash_swap_request(&swap_request));
+        // Try to get from cache first
+        if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(swap_response));
+        }
+
         if swap_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many inputs: maximum allowed is 64",
@@ -312,7 +315,7 @@ impl Node for GrpcState {
 
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
-        Ok(Response::new(SwapResponse {
+        let swap_response = SwapResponse {
             signatures: promises
                 .iter()
                 .map(|p| BlindSignature {
@@ -321,7 +324,12 @@ impl Node for GrpcState {
                     blind_signature: p.c.to_bytes().to_vec(),
                 })
                 .collect(),
-        }))
+        };
+
+        // Store in cache
+        self.cache_response(cache_key, CachedResponse::Swap(swap_response.clone()))?;
+
+        Ok(Response::new(swap_response))
     }
 
     async fn mint_quote(
@@ -335,16 +343,6 @@ impl Node for GrpcState {
         let amount = Amount::from(mint_quote_request.amount);
         let unit = Unit::from_str(&mint_quote_request.unit).map_err(ParseGrpcError::Unit)?;
 
-        let request_hash = hash_mint_quote_request(&mint_quote_request);
-
-        // Try to get from cache first
-        let cache_key = (Path::Mint(method), request_hash);
-        if let Some(CachedResponse::MintQuote(mint_quote_response)) =
-            self.get_cached_response(&cache_key)
-        {
-            return Ok(Response::new(mint_quote_response));
-        }
-
         let response = self.inner_mint_quote(method, amount, unit).await?;
 
         let mint_quote_response = MintQuoteResponse {
@@ -353,11 +351,6 @@ impl Node for GrpcState {
             state: node::MintQuoteState::from(response.state).into(),
             expiry: response.expiry,
         };
-
-        self.cache_response(
-            cache_key,
-            CachedResponse::MintQuote(mint_quote_response.clone()),
-        )?;
 
         Ok(Response::new(mint_quote_response))
     }
@@ -368,19 +361,23 @@ impl Node for GrpcState {
     ) -> Result<Response<MintResponse>, Status> {
         let mint_request = mint_request.into_inner();
 
+        let cache_key = (Route::Mint, hash_mint_request(&mint_request));
+        // Try to get from cache first
+        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(mint_response));
+        }
+
         if mint_request.outputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many outputs: maximum allowed is 64",
             ));
         }
 
-        let mint_request_hash = hash_mint_request(&mint_request);
+        let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
 
         if mint_request.outputs.is_empty() {
             return Err(Status::invalid_argument("Outputs cannot be empty"));
         }
-
-        let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
 
         let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
 
@@ -397,13 +394,6 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-
-        let cache_key = (Path::Mint(method), mint_request_hash);
-
-        // Try to get from cache first
-        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(mint_response));
-        }
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
         let signatures = promises
@@ -430,6 +420,13 @@ impl Node for GrpcState {
         melt_request: Request<MeltRequest>,
     ) -> Result<Response<MeltResponse>, Status> {
         let melt_request = melt_request.into_inner();
+
+        let cache_key = (Route::Melt, hash_melt_request(&melt_request));
+
+        // Try to get from cache first
+        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(melt_response));
+        }
 
         if melt_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
@@ -458,12 +455,6 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let cache_key = (Path::Melt(method), hash_melt_request(&melt_request));
-
-        // Try to get from cache first
-        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(melt_response));
-        }
 
         let response = self
             .inner_melt(method, unit, melt_request.request, &inputs)
@@ -577,9 +568,9 @@ impl Node for GrpcState {
         ack_request: Request<AcknowledgeRequest>,
     ) -> Result<Response<AcknowledgeResponse>, Status> {
         let path_str: String = ack_request.get_ref().path.clone();
-        let path: Path<Method> =
-            Path::from_str(&path_str).map_err(|_| Status::invalid_argument("Invalid path"))?;
-        let request_hash = ack_request.get_ref().request_hash.clone();
+        let path: Route =
+            Route::from_str(&path_str).map_err(|_| Status::invalid_argument("Invalid path"))?;
+        let request_hash = ack_request.get_ref().request_hash;
 
         let cache_key = (path, request_hash);
 
