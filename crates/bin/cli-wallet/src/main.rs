@@ -1,12 +1,15 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node::{MintQuoteState, NodeClient};
+use node::{MintQuoteState, NodeClient, hash_melt_request};
 use nuts::Amount;
 use rusqlite::Connection;
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
-use wallet::types::{NodeUrl, Wad};
+use wallet::{
+    acknowledge,
+    types::{NodeUrl, Wad},
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -278,22 +281,27 @@ async fn main() -> Result<()> {
 
             let inputs = tokens.ok_or(anyhow!("not enough funds"))?;
 
-            let resp = node_client
-                .melt(node::MeltRequest {
-                    method: STARKNET_METHOD.to_string(),
-                    unit,
-                    request: serde_json::to_string(
-                        &starknet_liquidity_source::MeltPaymentRequest {
-                            payee: Felt::from_hex(&to)?,
-                            asset: starknet_types::Asset::Strk,
-                        },
-                    )?,
-                    inputs: wallet::convert_inputs(&inputs),
-                })
-                .await?
-                .into_inner();
+            let melt_request = node::MeltRequest {
+                method: STARKNET_METHOD.to_string(),
+                unit,
+                request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                    payee: Felt::from_hex(&to)?,
+                    asset: starknet_types::Asset::Strk,
+                })?,
+                inputs: wallet::convert_inputs(&inputs),
+            };
+            let melt_request_hash = hash_melt_request(&melt_request);
+            let resp = node_client.melt(melt_request).await?.into_inner();
 
             wallet::db::register_melt_quote(&db_conn, &resp)?;
+
+            acknowledge(
+                &mut node_client,
+                nuts::nut19::Route::Melt,
+                melt_request_hash,
+            )
+            .await?;
+
             let tx_hash = Felt::from_bytes_be_slice(&resp.transfer_id);
             println!("Melt done. Withdrawal settled with tx: {:#x}", tx_hash);
         }
