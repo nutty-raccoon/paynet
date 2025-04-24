@@ -120,18 +120,18 @@ enum Commands {
         about = "Receive a wad of tokens",
         long_about = "Receive a wad of tokens. Store them on them wallet for later use"
     )]
-    Receive(ReceiveWadArgs),
+    Receive(WadArgs),
     /// Decode a wad to view its contents
     #[command(
-        about = "Decode a wad to view its contents",
-        long_about = "Decode a wad to view its contents in a human-readable format"
+        about = "Decode a wad to print its contents",
+        long_about = "Decode a wad to print its contents in a friendly format"
     )]
-    DecodeWad(ReceiveWadArgs),
+    DecodeWad(WadArgs),
 }
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
-struct ReceiveWadArgs {
+struct WadArgs {
     #[arg(long = "string", short = 's', value_name = "JSON STRING")]
     opt_wad_json_string: Option<String>,
     #[arg(long = "file", short = 'f', value_name = "PATH", value_hint = ValueHint::FilePath)]
@@ -386,17 +386,15 @@ async fn main() -> Result<()> {
             }
             tx.commit()?;
         }
-        Commands::Receive(ReceiveWadArgs {
+        Commands::Receive(WadArgs {
             opt_wad_json_string,
             opt_wad_json_file_path,
         }) => {
-            let wad_string = if let Some(json_string) = opt_wad_json_string {
-                json_string
-            } else if let Some(file_path) = opt_wad_json_file_path {
-                fs::read_to_string(file_path)?
-            } else {
-                unreachable!("cli rules guarantee one and only one will be set")
+            let args = WadArgs {
+                opt_wad_json_string,
+                opt_wad_json_file_path,
             };
+            let wad_string = get_wad_string_from_args(&args)?;
             let wad: CompactWad<Unit> = wad_string.parse()?;
 
             let (mut node_client, node_id) =
@@ -416,17 +414,15 @@ async fn main() -> Result<()> {
                 println!("{} {}", amount, unit);
             }
         }
-        Commands::DecodeWad(ReceiveWadArgs {
+        Commands::DecodeWad(WadArgs {
             opt_wad_json_string,
             opt_wad_json_file_path,
         }) => {
-            let wad_string = if let Some(json_string) = opt_wad_json_string {
-                json_string
-            } else if let Some(file_path) = opt_wad_json_file_path {
-                fs::read_to_string(file_path)?
-            } else {
-                unreachable!("cli rules guarantee one and only one will be set")
+            let args = WadArgs {
+                opt_wad_json_string,
+                opt_wad_json_file_path,
             };
+            let wad_string = get_wad_string_from_args(&args)?;
             let wad: CompactWad<Unit> = wad_string.parse()?;
             let regular_wad = Wad {
                 node_url: wad.node_url.clone(),
@@ -438,7 +434,7 @@ async fn main() -> Result<()> {
             if let Some(memo) = wad.memo() {
                 println!("Memo: {}", memo);
             }
-            println!("Total Value: {}", wad.value()?);
+            println!("Total Value: {} {}", wad.value()?, wad.unit());
             println!("\nDetailed Contents:");
             println!("{}", serde_json::to_string_pretty(&regular_wad)?);
         }
@@ -455,4 +451,14 @@ pub async fn connect_to_node(
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
     let node_client = NodeClient::connect(&node_url).await?;
     Ok((node_client, node_url))
+}
+
+fn get_wad_string_from_args(args: &WadArgs) -> Result<String> {
+    if let Some(json_string) = &args.opt_wad_json_string {
+        Ok(json_string.clone())
+    } else if let Some(file_path) = &args.opt_wad_json_file_path {
+        fs::read_to_string(file_path).map_err(|e| anyhow!("Failed to read wad file: {}", e))
+    } else {
+        Err(anyhow!("cli rules guarantee one and only one will be set"))
+    }
 }
