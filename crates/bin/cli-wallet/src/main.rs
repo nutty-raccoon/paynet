@@ -8,10 +8,9 @@ use starknet_types::Unit;
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
-use wallet::types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
-use wallet::types::{NodeUrl, Wad};
 use wallet::{
     acknowledge,
+    types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
     types::{NodeUrl, Wad},
 };
 
