@@ -58,8 +58,6 @@ async fn ok() -> Result<()> {
     let res = node_client.keysets(GetKeysetsRequest {}).await?;
     let curr_keysets_response: GetKeysetsResponse = res.into_inner();
 
-    println!("{:?}", curr_keysets_response.keysets);
-
     for keyset in &curr_keysets_response.keysets {
         if !old_keysets.contains_key(&keyset.id) {
             assert!(keyset.active, "New keyset {:?} is not active!", keyset.id);

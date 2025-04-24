@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use node_tests::{init_health_client, init_node_client};
+use node_tests::init_health_client;
 use tonic_health::pb::{HealthCheckRequest, health_check_response::ServingStatus};
 
 #[tokio::test]

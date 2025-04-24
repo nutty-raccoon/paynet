@@ -9,8 +9,8 @@ use std::str::FromStr;
 use errors::{Error, Result};
 use futures::StreamExt;
 use node::{
-    GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest,
-    MintResponse, NodeClient, QuoteStateRequest,
+    AcknowledgeRequest, GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState,
+    NodeClient, QuoteStateRequest, hash_mint_request, hash_swap_request,
 };
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{hash_to_curve, unblind_message};
@@ -18,8 +18,10 @@ use nuts::nut00::secret::Secret;
 use nuts::nut00::{self, BlindedMessage, Proof};
 use nuts::nut01::{PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
+use nuts::nut19::Route;
 use nuts::{Amount, SplitTarget};
 use rusqlite::{Connection, params};
+use tonic::Request;
 use tonic::transport::Channel;
 use types::{NodeUrl, PreMint, ProofState};
 
@@ -99,23 +101,6 @@ pub async fn get_mint_quote_state(
     db::set_mint_quote_state(db_conn, response.quote, response.state)?;
 
     MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
-}
-
-pub async fn mint(
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote: String,
-    outputs: &[BlindedMessage],
-) -> Result<MintResponse> {
-    let req = MintRequest {
-        method,
-        quote,
-        outputs: convert_outputs(outputs),
-    };
-
-    let resp = node_client.mint(req).await?;
-
-    Ok(resp.into_inner())
 }
 
 pub async fn refresh_node_keysets(
@@ -228,14 +213,14 @@ pub async fn mint_and_store_new_tokens(
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
-    let mint_response = node_client
-        .mint(node::MintRequest {
-            method,
-            quote: quote_id,
-            outputs,
-        })
-        .await?
-        .into_inner();
+    let mint_request = node::MintRequest {
+        method,
+        quote: quote_id,
+        outputs,
+    };
+
+    let mint_request_hash = hash_mint_request(&mint_request);
+    let mint_response = node_client.mint(mint_request).await?.into_inner();
 
     let _ = store_new_tokens(
         db_conn,
@@ -244,6 +229,8 @@ pub async fn mint_and_store_new_tokens(
         pre_mints.into_iter(),
         mint_response.signatures.into_iter(),
     );
+
+    acknowledge(node_client, Route::Mint, mint_request_hash).await?;
 
     Ok(())
 }
@@ -364,7 +351,7 @@ pub async fn fetch_inputs_from_db_or_node(
             // So there must be one greater stored in proofs_not_used
             .unwrap();
 
-        let (new_tokens_keyset_id, pre_mints, swap_response) = swap_to_have_target_amount(
+        let new_tokens = swap_to_have_target_amount(
             db_conn,
             node_client,
             node_id,
@@ -373,14 +360,6 @@ pub async fn fetch_inputs_from_db_or_node(
             proof_to_swap,
         )
         .await?;
-
-        let new_tokens = store_new_tokens(
-            db_conn,
-            node_id,
-            new_tokens_keyset_id,
-            pre_mints.into_iter(),
-            swap_response.signatures.into_iter(),
-        )?;
 
         for token in new_tokens.into_iter().rev() {
             let token_amount = token.1;
@@ -424,7 +403,7 @@ pub async fn swap_to_have_target_amount(
     unit: &str,
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
-) -> Result<(KeysetId, Vec<PreMint>, node::SwapResponse)> {
+) -> Result<Vec<(PublicKey, Amount)>> {
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
     let input_unblind_signature =
@@ -443,10 +422,9 @@ pub async fn swap_to_have_target_amount(
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
-    let swap_response = match node_client
-        .swap(node::SwapRequest { inputs, outputs })
-        .await
-    {
+    let swap_request = node::SwapRequest { inputs, outputs };
+    let swap_request_hash = hash_swap_request(&swap_request);
+    let swap_response = match node_client.swap(swap_request).await {
         Ok(r) => {
             db::proof::set_proof_to_state(db_conn, proof_to_swap.0, ProofState::Spent)?;
             r.into_inner()
@@ -458,7 +436,17 @@ pub async fn swap_to_have_target_amount(
         }
     };
 
-    Ok((keyset_id, pre_mints, swap_response))
+    let new_tokens = store_new_tokens(
+        db_conn,
+        node_id,
+        keyset_id,
+        pre_mints.into_iter(),
+        swap_response.signatures.into_iter(),
+    )?;
+
+    acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
+
+    Ok(new_tokens)
 }
 
 pub async fn receive_wad(
@@ -528,10 +516,9 @@ pub async fn receive_wad(
         unit_to_premints.insert(unit, (keyset_id, pre_mints));
     }
 
-    let swap_response = match node_client
-        .swap(node::SwapRequest { inputs, outputs })
-        .await
-    {
+    let swap_request = node::SwapRequest { inputs, outputs };
+    let swap_request_hash = hash_swap_request(&swap_request);
+    let swap_response = match node_client.swap(swap_request).await {
         Ok(r) => {
             db::proof::set_proofs_to_state(db_conn, &ys, ProofState::Spent)?;
             r.into_inner()
@@ -559,6 +546,8 @@ pub async fn receive_wad(
         )?;
     }
 
+    acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
+
     Ok(unit_to_amount)
 }
 
@@ -572,4 +561,19 @@ pub async fn register_node(
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
 
     Ok((node_client, node_id))
+}
+
+pub async fn acknowledge(
+    node_client: &mut NodeClient<Channel>,
+    route: Route,
+    message_hash: u64,
+) -> Result<()> {
+    node_client
+        .acknowledge(Request::new(AcknowledgeRequest {
+            path: route.to_string(),
+            request_hash: message_hash,
+        }))
+        .await?;
+
+    Ok(())
 }

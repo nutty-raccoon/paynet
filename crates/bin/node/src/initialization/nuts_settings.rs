@@ -25,5 +25,6 @@ pub(super) fn nuts_settings() -> NutsSettings<Method, Unit> {
             }],
             disabled: false,
         },
+        nut19: nuts::nut19::Settings { ttl: None },
     }
 }
