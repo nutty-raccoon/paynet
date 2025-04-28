@@ -141,10 +141,24 @@ struct WadArgs {
     opt_wad_json_file_path: Option<String>,
 }
 
+impl WadArgs {
+    fn read_wad(&self) -> Result<CompactWad<Unit>> {
+        let wad_string = if let Some(json_string) = &self.opt_wad_json_string {
+            Ok(json_string.clone())
+        } else if let Some(file_path) = &self.opt_wad_json_file_path {
+            fs::read_to_string(file_path).map_err(|e| anyhow!("Failed to read wad file: {}", e))
+        } else {
+            Err(anyhow!("cli rules guarantee one and only one will be set"))
+        }?;
+        let wad: CompactWad<Unit> = wad_string.parse()?;
+
+        Ok(wad)
+    }
+}
+
 const STARKNET_METHOD: &str = "starknet";
 
 #[tokio::main]
-#[allow(clippy::clone_on_copy)]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -371,7 +385,7 @@ async fn main() -> Result<()> {
                         .collect();
                     CompactWad {
                         node_url,
-                        unit: unit.clone(),
+                        unit,
                         memo,
                         proofs: compact_proofs,
                     }
@@ -402,8 +416,7 @@ async fn main() -> Result<()> {
                 opt_wad_json_string,
                 opt_wad_json_file_path,
             };
-            let wad_string = get_wad_string_from_args(&args)?;
-            let wad: CompactWad<Unit> = wad_string.parse()?;
+            let wad = args.read_wad()?;
 
             let (mut node_client, node_id) =
                 wallet::register_node(&db_conn, wad.node_url.clone()).await?;
@@ -430,8 +443,8 @@ async fn main() -> Result<()> {
                 opt_wad_json_string,
                 opt_wad_json_file_path,
             };
-            let wad_string = get_wad_string_from_args(&args)?;
-            let wad: CompactWad<Unit> = wad_string.parse()?;
+            let wad = args.read_wad()?;
+
             let regular_wad = Wad {
                 node_url: wad.node_url.clone(),
                 proofs: wad.proofs(),
@@ -459,14 +472,4 @@ pub async fn connect_to_node(
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
     let node_client = NodeClient::connect(&node_url).await?;
     Ok((node_client, node_url))
-}
-
-fn get_wad_string_from_args(args: &WadArgs) -> Result<String> {
-    if let Some(json_string) = &args.opt_wad_json_string {
-        Ok(json_string.clone())
-    } else if let Some(file_path) = &args.opt_wad_json_file_path {
-        fs::read_to_string(file_path).map_err(|e| anyhow!("Failed to read wad file: {}", e))
-    } else {
-        Err(anyhow!("cli rules guarantee one and only one will be set"))
-    }
 }
