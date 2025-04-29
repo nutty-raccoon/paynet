@@ -32,7 +32,7 @@ pub async fn get_current_paid(
     invoice_id: &[u8; 32],
 ) -> Result<impl Iterator<Item = (String, String)>, sqlx::Error> {
     let record = sqlx::query!(
-        r#"SELECT  amount_low, amount_high
+        r#"SELECT amount_low, amount_high
         FROM payment_event
         WHERE invoice_id = $1"#,
         invoice_id
