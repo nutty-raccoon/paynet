@@ -75,7 +75,7 @@ impl DepositInterface for MockDepositer {
         _quote_hash: Sha256,
         _unit: starknet_types::Unit,
         _amount: nuts::Amount,
-    ) -> Result<String, Self::Error> {
-        Ok("".to_string())
+    ) -> Result<([u8; 32], String), Self::Error> {
+        Ok(([0; 32], "".to_string()))
     }
 }

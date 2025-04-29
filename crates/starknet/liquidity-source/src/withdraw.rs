@@ -68,7 +68,9 @@ impl WithdrawInterface for Withdrawer {
         let tx_hash = self
             .0
             .withdraw(Request::new(CashierWithdrawRequest {
-                invoice_id: quote_hash.to_byte_array().to_vec(),
+                invoice_id: Felt::from_bytes_be(quote_hash.as_byte_array())
+                    .to_bytes_be()
+                    .to_vec(),
                 asset: melt_payment_request.asset.to_string(),
                 amount: amount
                     .0
