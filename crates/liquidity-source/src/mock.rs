@@ -72,10 +72,10 @@ impl DepositInterface for MockDepositer {
 
     fn generate_deposit_payload(
         &self,
-        _quote_hash: Sha256,
+        quote_hash: Sha256,
         _unit: starknet_types::Unit,
         _amount: nuts::Amount,
     ) -> Result<([u8; 32], String), Self::Error> {
-        Ok(([0; 32], "".to_string()))
+        Ok((quote_hash.to_byte_array(), "".to_string()))
     }
 }
