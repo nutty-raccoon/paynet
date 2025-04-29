@@ -121,3 +121,15 @@ pub fn hash_swap_request(request: &SwapRequest) -> u64 {
 
     hasher.finish()
 }
+
+pub fn hash_restore_request(request: &PostRestoreRequest) -> u64 {
+    let mut hasher = DefaultHasher::new();
+
+    for blinded_message in &request.outputs {
+        blinded_message.amount.hash(&mut hasher);
+        blinded_message.keyset_id.hash(&mut hasher);
+        blinded_message.blinded_secret.hash(&mut hasher);
+    }
+
+    hasher.finish()
+}

@@ -23,11 +23,14 @@ pub enum Route {
     Melt,
     /// Swap
     Swap,
+    /// Restore
+    Restore,
 }
 
 pub const MINT: &str = "mint";
 pub const SWAP: &str = "swap";
 pub const MELT: &str = "melt";
+pub const RESTORE: &str = "restore";
 
 impl Display for Route {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -38,6 +41,7 @@ impl Display for Route {
                 Route::Mint => MINT,
                 Route::Melt => MELT,
                 Route::Swap => SWAP,
+                Route::Restore => RESTORE,
             }
         )
     }

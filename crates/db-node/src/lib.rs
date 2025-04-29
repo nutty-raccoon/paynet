@@ -1,4 +1,10 @@
-use nuts::{Amount, nut01::PublicKey, traits::Unit};
+use nuts::{
+    Amount,
+    nut00::{BlindSignature, BlindedMessage},
+    nut01::PublicKey,
+    nut02::KeysetId,
+    traits::Unit,
+};
 use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
 use thiserror::Error;
 
@@ -134,4 +140,69 @@ pub async fn start_db_tx_from_conn(
 
 pub async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), sqlx::migrate::MigrateError> {
     sqlx::migrate!("./db/migrations/").run(pool).await
+}
+
+// pub async fn get_blind_signature(
+//     conn: &mut PgConnection,
+//     blinded_message: &BlindedMessage,
+// ) -> Result<BlindSignature, Error> {
+//     let amount = blinded_message.amount.into_i64_repr();
+//     let keyset_id = blinded_message.keyset_id.as_i64();
+//     let blinded_secret = blinded_message.blinded_secret.to_bytes();
+//     let (amount, keyset_id, c) = sqlx::query_as(
+//         r#"
+//     SELECT amount, keyset_id, c AS "public_key: Vec<u8>"
+//     FROM blind_signature
+//     WHERE amount = $1 AND keyset_id = $2 AND y = $3
+//     "#,
+//     )
+//     .bind(amount)
+//     .bind(keyset_id)
+//     .bind(blinded_secret)
+//     .fetch_one(conn)
+//     .await?;
+
+//     Ok(BlindSignature {
+//         amount: Amount::from_i64_repr(amount),
+//         keyset_id: KeysetId::from_bytes(keyset_id).map_err(|_| Error::DbToRuntimeConversion)?,
+//         c: PublicKey::from_slice(c).map_err(|_| Error::DbToRuntimeConversion)?,
+//     })
+// }
+
+pub async fn get_blind_signature(
+    conn: &mut PgConnection,
+    blinded_message: &BlindedMessage,
+) -> Result<BlindSignature, Error> {
+    let amount = blinded_message.amount.into_i64_repr();
+    let keyset_id = blinded_message.keyset_id.as_i64();
+    let blinded_secret = blinded_message.blinded_secret.to_bytes();
+
+    // Create a struct to represent the returned data with owned types
+    #[derive(sqlx::FromRow)]
+    struct BlindSignatureRow {
+        amount: i64,
+        keyset_id: Vec<u8>,
+        c: Vec<u8>,
+    }
+
+    // Use the struct with query_as
+    let row: BlindSignatureRow = sqlx::query_as(
+        r#"
+        SELECT amount, keyset_id, c
+        FROM blind_signature
+        WHERE amount = $1 AND keyset_id = $2 AND y = $3
+        "#,
+    )
+    .bind(amount)
+    .bind(keyset_id)
+    .bind(blinded_secret)
+    .fetch_one(conn)
+    .await?;
+
+    Ok(BlindSignature {
+        amount: Amount::from_i64_repr(row.amount),
+        keyset_id: KeysetId::from_bytes(&row.keyset_id)
+            .map_err(|_| Error::DbToRuntimeConversion)?,
+        c: PublicKey::from_slice(&row.c).map_err(|_| Error::DbToRuntimeConversion)?,
+    })
 }

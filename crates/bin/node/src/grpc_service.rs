@@ -8,8 +8,9 @@ use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
     MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
-    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+    Node, NodeInfoResponse, PostRestoreRequest, PostRestoreResponse, QuoteStateRequest,
+    SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_restore_request,
+    hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -581,5 +582,72 @@ impl Node for GrpcState {
         }
 
         Ok(Response::new(AcknowledgeResponse {}))
+    }
+
+    async fn restore(
+        &self,
+        restore_signatures_request: Request<PostRestoreRequest>,
+    ) -> Result<Response<PostRestoreResponse>, Status> {
+        let restore_signatures_request = restore_signatures_request.into_inner();
+        let cache_key = (
+            Route::Restore,
+            hash_restore_request(&restore_signatures_request),
+        );
+
+        // check cache and retrieve response if it is a hit
+        if let Some(CachedResponse::Restore(restore_signatures_response)) =
+            self.get_cached_response(&cache_key)
+        {
+            return Ok(Response::new(restore_signatures_response));
+        }
+
+        let mut conn = self
+            .pg_pool
+            .acquire()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let outputs = restore_signatures_request
+            .outputs
+            .iter()
+            .map(|bm| -> Result<BlindedMessage, ParseGrpcError> {
+                Ok(BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                        .map_err(ParseGrpcError::KeysetId)?,
+                    blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                        .map_err(ParseGrpcError::PublicKey)?,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut blind_signatures = Vec::new();
+
+        for output in outputs {
+            let blind_signature = db_node::get_blind_signature(&mut conn, &output)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            blind_signatures.push(blind_signature);
+        }
+
+        let restore_signatures_response = PostRestoreResponse {
+            signatures: blind_signatures
+                .into_iter()
+                .map(|bs| BlindSignature {
+                    amount: bs.amount.into(),
+                    keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                    blind_signature: bs.c.to_bytes().to_vec(),
+                })
+                .collect(),
+            outputs: restore_signatures_request.outputs,
+        };
+
+        // Cache the response
+        self.cache_response(
+            cache_key,
+            CachedResponse::Restore(restore_signatures_response.clone()),
+        )?;
+
+        Ok(Response::new(restore_signatures_response))
     }
 }

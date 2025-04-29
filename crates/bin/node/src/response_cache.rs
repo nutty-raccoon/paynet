@@ -5,7 +5,7 @@ use std::{
 
 use crate::errors;
 use dashmap::DashMap;
-use node::{MeltResponse, MintResponse, SwapResponse};
+use node::{MeltResponse, MintResponse, PostRestoreResponse, SwapResponse};
 
 /// A trait that defines a cache for storing and retrieving responses.
 pub trait ResponseCache<K, V> {
@@ -77,4 +77,6 @@ pub enum CachedResponse {
     Swap(SwapResponse),
     /// A response from a melt operation.
     Melt(MeltResponse),
+    /// A response from a restore operation.
+    Restore(PostRestoreResponse),
 }
