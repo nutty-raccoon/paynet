@@ -39,8 +39,8 @@ pub enum Error {
     AmountExceedsMaxOrder(KeysetId, Amount, u64),
     #[error("invalid address `{addr}`: {message}")]
     InvalidAddress { addr: String, message: String },
-     #[error("other error: {0}")]
-     Other(String),
+    #[error("other error: {0}")]
+    Other(String),
 }
 
 impl From<Error> for Status {

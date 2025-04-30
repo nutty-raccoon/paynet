@@ -46,7 +46,7 @@ impl From<Error> for tonic::Status {
             Error::InvalidAddress { addr, message } => {
                 tonic::Status::invalid_argument(format!("Invalid address `{addr}`: {message}"))
             }
-            _=> tonic::Status::internal(error.to_string()),
+            _ => tonic::Status::internal(error.to_string()),
         }
     }
 }
