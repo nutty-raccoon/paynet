@@ -1,4 +1,4 @@
-mod melt;
+pub mod melt;
 mod melt_quote_state;
 mod mint;
 mod mint_quote;

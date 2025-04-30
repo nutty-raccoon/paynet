@@ -1,4 +1,4 @@
-mod errors;
+pub mod errors;
 mod inputs;
 
 use inputs::process_melt_inputs;
@@ -74,7 +74,7 @@ impl GrpcState {
             fee,
             state,
             expiry,
-            transfer_id,
+            transfer_id: transfer_id.to_vec(),
         })
     }
 

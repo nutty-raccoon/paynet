@@ -37,6 +37,7 @@ bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
+hex = "0.4"
 
 # Optional 
 starknet-payment-indexer = { workspace = true, optional = true }

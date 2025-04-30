@@ -6,6 +6,7 @@ use tonic::Status;
 use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
 use signer::VerifyProofsRequest;
 use sqlx::PgConnection;
+use crate::routes::melt::errors::Error as MeltError;
 
 use crate::{
     app_state::SignerClient,
@@ -36,6 +37,13 @@ pub enum Error {
     Used,
     #[error("amount {1} exceeds max order {2} of keyset {0}")]
     AmountExceedsMaxOrder(KeysetId, Amount, u64),
+    #[error("invalid address `{addr}`: {message}")]
+    InvalidAddress {
+        addr: String,
+        message: String,
+    },
+    #[error("other error: {0}")]
+    Other(String),
 }
 
 impl From<Error> for Status {
@@ -52,6 +60,19 @@ impl From<Error> for Status {
             Error::Db(sqlx::Error::RowNotFound) => Status::not_found(value.to_string()),
             Error::Db(_) | Error::KeysetCache(_) => Status::internal(value.to_string()),
             Error::Signer(status) => status,
+            Error::InvalidAddress { addr, message } => {
+                Status::invalid_argument(format!("Invalid address `{addr}`: {message}"))
+            }
+            Error::Other(message) => Status::unknown(message),
+        }
+    }
+}
+
+impl From<MeltError> for Error {
+    fn from(error: MeltError) -> Self {
+        match error {
+            MeltError::InvalidAddress { addr, message } => Self::InvalidAddress { addr, message },
+            _ => Self::Other(format!("{:?}", error)),
         }
     }
 }

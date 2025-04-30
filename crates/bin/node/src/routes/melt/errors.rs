@@ -1,11 +1,11 @@
 use nuts::Amount;
 use starknet_types::{Asset, Unit};
-use tonic::Status;
+// use tonic::Status;
 
 use crate::{logic::InputsError, methods::Method};
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum Error{
     #[error("failed to commit db tx: {0}")]
     TxCommit(#[source] sqlx::Error),
     #[error("failed to commit db tx: {0}")]
@@ -34,25 +34,21 @@ pub enum Error {
     LiquiditySource(#[source] anyhow::Error),
     #[error("method '{0}' not supported, try compiling with the appropriate feature.")]
     MethodNotSupported(Method),
+    #[error("invalid address `{addr}`: {message}")]
+    InvalidAddress { addr: String, message: String }, // Added new error variant for invalid address
+    #[error("other error: {0}")]
+    Other(String),
 }
 
-impl From<Error> for Status {
-    fn from(value: Error) -> Self {
-        match value {
-            Error::TxBegin(error) | Error::TxCommit(error) | Error::Sqlx(error) => {
-                Status::internal(error.to_string())
+impl From<Error> for tonic::Status {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::InvalidAddress { addr, message } => {
+                tonic::Status::invalid_argument(format!("Invalid address `{addr}`: {message}"))
             }
-            Error::UnitNotSupported(_, _)
-            | Error::InvalidAssetForUnit(_, _)
-            | Error::AmountTooLow(_, _)
-            | Error::AmountTooHigh(_, _)
-            | Error::TotalAmountTooBig
-            | Error::MethodNotSupported(_)
-            | Error::InvalidPaymentRequest(_) => Status::invalid_argument(value.to_string()),
-            Error::Inputs(error) => error.into(),
-            Error::Db(error) => Status::internal(error.to_string()),
-            Error::MeltDisabled => Status::failed_precondition(value.to_string()),
-            Error::LiquiditySource(_) => Status::internal(value.to_string()),
+            _ => tonic::Status::internal(error.to_string()),
         }
     }
 }
+
+
