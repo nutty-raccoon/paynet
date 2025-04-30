@@ -5,7 +5,7 @@ use starknet_types::{Asset, Unit};
 use crate::{logic::InputsError, methods::Method};
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error{
+pub enum Error {
     #[error("failed to commit db tx: {0}")]
     TxCommit(#[source] sqlx::Error),
     #[error("failed to commit db tx: {0}")]
@@ -46,9 +46,7 @@ impl From<Error> for tonic::Status {
             Error::InvalidAddress { addr, message } => {
                 tonic::Status::invalid_argument(format!("Invalid address `{addr}`: {message}"))
             }
-            _ => tonic::Status::internal(error.to_string()),
+            _=> tonic::Status::internal(error.to_string()),
         }
     }
 }
-
-

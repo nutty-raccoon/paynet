@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use thiserror::Error;
 use tonic::Status;
 
+use crate::routes::melt::errors::Error as MeltError;
 use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
 use signer::VerifyProofsRequest;
 use sqlx::PgConnection;
-use crate::routes::melt::errors::Error as MeltError;
 
 use crate::{
     app_state::SignerClient,
@@ -38,12 +38,9 @@ pub enum Error {
     #[error("amount {1} exceeds max order {2} of keyset {0}")]
     AmountExceedsMaxOrder(KeysetId, Amount, u64),
     #[error("invalid address `{addr}`: {message}")]
-    InvalidAddress {
-        addr: String,
-        message: String,
-    },
-    #[error("other error: {0}")]
-    Other(String),
+    InvalidAddress { addr: String, message: String },
+     #[error("other error: {0}")]
+     Other(String),
 }
 
 impl From<Error> for Status {

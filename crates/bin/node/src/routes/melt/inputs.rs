@@ -2,6 +2,7 @@ use num_traits::CheckedAdd;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
+
 use db_node::InsertSpentProofsQueryBuilder;
 use nuts::{Amount, nut00::Proof};
 use sqlx::PgConnection;
