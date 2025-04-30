@@ -6,8 +6,7 @@ pub struct PaymentEvent {
     pub index: u64,
     pub payee: String,
     pub asset: String,
-    pub invoice_id_low: String,
-    pub invoice_id_high: String,
+    pub invoice_id: String,
     pub payer: String,
     pub amount_low: String,
     pub amount_high: String,
@@ -53,29 +52,24 @@ impl TryFrom<&apibara_core::starknet::v1alpha2::Event> for PaymentEvent {
                 .ok_or(TryPaymentEventFromApibaraEvent::Key(2))?
                 .to_string(),
             #[allow(clippy::get_first)]
-            invoice_id_low: value
+            invoice_id: value
                 .data
                 .get(0)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(0))?
                 .to_string(),
-            invoice_id_high: value
-                .data
-                .get(1)
-                .ok_or(TryPaymentEventFromApibaraEvent::Data(1))?
-                .to_string(),
             payer: value
                 .data
-                .get(2)
+                .get(1)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(2))?
                 .to_string(),
             amount_low: value
                 .data
-                .get(3)
+                .get(2)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(3))?
                 .to_string(),
             amount_high: value
                 .data
-                .get(4)
+                .get(3)
                 .ok_or(TryPaymentEventFromApibaraEvent::Data(4))?
                 .to_string(),
         })
@@ -99,8 +93,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
             event_index INTEGER NOT NULL,
             payee TEXT NOT NULL,
             asset TEXT NOT NULL,
-            invoice_id_low TEXT NOT NULL,
-            invoice_id_high TEXT NOT NULL,
+            invoice_id TEXT NOT NULL,
             payer TEXT NOT NULL,
             amount_low TEXT NOT NULL,
             amount_high TEXT NOT NULL
@@ -130,9 +123,9 @@ pub fn insert_payment_event(
 ) -> Result<()> {
     const INSERT_PAYMENT_EVENT: &str = r#"
         INSERT INTO payment_event
-            (block_id, tx_hash, event_index, payee, asset, invoice_id_low, invoice_id_high, payer, amount_low, amount_high)
+            (block_id, tx_hash, event_index, payee, asset, invoice_id, payer, amount_low, amount_high)
         VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#;
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#;
 
     conn.execute(
         INSERT_PAYMENT_EVENT,
@@ -142,8 +135,7 @@ pub fn insert_payment_event(
             &payment_event.index,
             &payment_event.payee,
             &payment_event.asset,
-            &payment_event.invoice_id_low,
-            &payment_event.invoice_id_high,
+            &payment_event.invoice_id,
             &payment_event.payer,
             &payment_event.amount_low,
             &payment_event.amount_high,

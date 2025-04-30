@@ -16,7 +16,6 @@ starknet-types = { workspace = true }
 # Optional starknet
 thiserror = { workspace = true, optional = true }
 
-
 [features]
 default = []
 mock = ["dep:thiserror"]

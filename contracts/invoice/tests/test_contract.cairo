@@ -62,7 +62,7 @@ fn it_works() {
     let erc20_abi = setup_erc20(OWNER());
     let invoice_payment_abi = setup_invoice_payment();
 
-    let id_hash: u256 = snforge_std::generate_random_felt().into();
+    let id_hash: felt252 = snforge_std::generate_random_felt();
 
     let mut spy = snforge_std::spy_events();
 

@@ -1,6 +1,6 @@
 use crate::StarknetCliConfig;
 use futures::TryStreamExt;
-use log::info;
+use log::{debug, info};
 use nuts::Amount;
 use nuts::nut04::MintQuoteState;
 use sqlx::{PgConnection, Postgres, pool::PoolConnection};
@@ -45,7 +45,7 @@ async fn init_indexer_task(
 
     let on_chain_constants = starknet_types::constants::ON_CHAIN_CONSTANTS
         .get(chain_id.as_str())
-        .ok_or(Error::UnknownChainId(chain_id))?;
+        .ok_or(Error::UnknownChainId(chain_id.clone()))?;
     let strk_token_address = on_chain_constants
         .assets_contract_address
         .get(Asset::Strk.as_str())
@@ -62,6 +62,7 @@ async fn init_indexer_task(
         conn,
         apibara_token,
         uri,
+        chain_id,
         on_chain_constants.apibara.starting_block,
         vec![(payee_address, *strk_token_address)],
     )
@@ -133,7 +134,10 @@ async fn process_payment_event(
         {
             // TODO: also check if it exists in the metl quote table.
             // If so, set the quote state to paid
-            None => continue,
+            None => {
+                debug!("no quote for invoice_id {:#x}", payment_event.invoice_id);
+                continue;
+            }
             Some(mint_quote_id) => mint_quote_id,
         };
         db_node::payment_event::insert_new_payment_event(db_conn, &payment_event).await?;

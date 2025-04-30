@@ -16,7 +16,7 @@ pub fn generate_payment_transaction_calls(
     token_contract_address: Felt,
     invoice_payment_contract_address: Felt,
     amount: StarknetU256,
-    invoice_id: StarknetU256,
+    invoice_id: Felt,
     payee: Felt,
 ) -> [Call; 2] {
     // First approve our invoice contract to spend the account funds
@@ -30,8 +30,7 @@ pub fn generate_payment_transaction_calls(
         to: invoice_payment_contract_address,
         selector: PAY_INVOICE_SELECTOR,
         calldata: vec![
-            invoice_id.low,
-            invoice_id.high,
+            invoice_id,
             token_contract_address,
             amount.low,
             amount.high,
@@ -46,7 +45,7 @@ pub async fn sign_and_send_payment_transactions<
     A: Account + ConnectedAccount + Sync + std::fmt::Debug,
 >(
     account: &A,
-    invoice_id: StarknetU256,
+    invoice_id: Felt,
     invoice_payment_contract_address: Felt,
     token_contract_address: Felt,
     amount: StarknetU256,
