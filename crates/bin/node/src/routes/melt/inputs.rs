@@ -169,7 +169,8 @@ mod tests {
         let result = validate_address(&invalid_address);
         assert!(result.is_err());
         if let Err(MeltError::InvalidAddress { addr, message }) = result {
-            assert_eq!(addr, invalid_address.to_string());
+            // Update the expected format to match the Debug representation
+            assert_eq!(addr, format!("{:?}", invalid_address));
             assert!(message.contains("Expected range"));
         }
     }
@@ -182,7 +183,8 @@ mod tests {
         let result = validate_address(&invalid_address);
         assert!(result.is_err());
         if let Err(MeltError::InvalidAddress { addr, message }) = result {
-            assert_eq!(addr, invalid_address.to_string());
+            // Update the expected format to match the Debug representation
+            assert_eq!(addr, format!("{:?}", invalid_address));
             assert!(message.contains("Expected range"));
         }
     }
