@@ -65,7 +65,7 @@ impl From<&nuts::nut01::PublicKey> for Felt {
     }
 }
 // Helper function to validate a Felt as a contract address
-fn validate_address(y: &Felt) -> Result<(), crate::routes::melt::errors::Error> { 
+fn validate_address(y: &Felt) -> Result<(), crate::routes::melt::errors::Error> {
     if *y > *BLOCK_HASH_TABLE_ADDRESS && *y < *L2_ADDRESS_UPPER_BOUND {
         Ok(())
     } else {
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn test_validate_address_invalid_above_range() {
         // Address above the valid range
-        let invalid_address = 
+        let invalid_address =
             Felt::from_hex("0x8000000000000000000000000000000000000000000000000000000000000001");
         let result = validate_address(&invalid_address);
         assert!(result.is_err());
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_validate_address_edge_case_lower_bound() {
         // Address at the lower bound (just above BLOCK_HASH_TABLE_ADDRESS)
-        let edge_case_address = 
+        let edge_case_address =
             Felt::from_hex("0x0000000000000000000000000000000000000000000000000000000000000002");
         assert!(validate_address(&edge_case_address).is_ok());
     }
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_validate_address_edge_case_upper_bound() {
         // Address at the upper bound (just below L2_ADDRESS_UPPER_BOUND)
-        let edge_case_address = 
+        let edge_case_address =
             Felt::from_hex("0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
         assert!(validate_address(&edge_case_address).is_ok());
     }
