@@ -101,7 +101,7 @@ pub async fn run_in_ctrl_c_cancellable_task(
     let indexer_service = init_indexer_task(
         apibara_token,
         config.chain_id.clone(),
-        config.our_account_address,
+        config.cashier_account_address,
     )
     .await?;
 
