@@ -161,7 +161,7 @@ mod tests {
     fn test_validate_address_valid() {
         // Address within the valid range
         let valid_address =
-+           Felt::from_hex("0x0000000000000000000000000000000000000000000000000000000000000002");
+            Felt::from_hex("0x0000000000000000000000000000000000000000000000000000000000000002");
         assert!(validate_address(&valid_address).is_ok());
     }
 
@@ -169,7 +169,7 @@ mod tests {
     fn test_validate_address_invalid_below_range() {
         // Address below the valid range
         let invalid_address =
-+           Felt::from_hex("0x0000000000000000000000000000000000000000000000000000000000000001");
+            Felt::from_hex("0x0000000000000000000000000000000000000000000000000000000000000001");
         let result = validate_address(&invalid_address);
         assert!(result.is_err());
         if let Err(MeltError::InvalidAddress { addr, message }) = result {
