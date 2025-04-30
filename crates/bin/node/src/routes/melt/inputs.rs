@@ -21,7 +21,7 @@ impl Felt {
         Felt(*bytes)
     }
 
-    pub fn to_bytes(&self) -> &[u8; 32] {
+    pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 
@@ -41,7 +41,7 @@ impl Felt {
 
 impl std::fmt::Display for Felt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.to_bytes()))
+        write!(f, "{}", hex::encode(self.as_bytes()))
     }
 }
 
@@ -64,17 +64,13 @@ impl From<&nuts::nut01::PublicKey> for Felt {
         Felt::from_bytes_be(&public_key.to_bytes()[..32].try_into().unwrap())
     }
 }
-// Helper function to validate a Felt as a contract address
 fn validate_address(y: &Felt) -> Result<(), crate::routes::melt::errors::Error> {
     if *y > *BLOCK_HASH_TABLE_ADDRESS && *y < *L2_ADDRESS_UPPER_BOUND {
         Ok(())
     } else {
         Err(crate::routes::melt::errors::Error::InvalidAddress {
-            addr: y.to_string(),
-            message: format!(
-                "Expected range: [0x2, {})",
-                L2_ADDRESS_UPPER_BOUND.to_string()
-            ),
+            addr: format!("{:?}", y),
+            message: format!("Expected range: [0x2, {:?})", *L2_ADDRESS_UPPER_BOUND),
         })
     }
 }
