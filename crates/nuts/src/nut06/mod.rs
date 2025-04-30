@@ -331,21 +331,6 @@ mod tests {
 
     #[test]
     fn test_ser_mint_info() {
-        /*
-                let mint_info = serde_json::to_string(&NodeInfo {
-                    name: Some("Cashu-crab".to_string()),
-                    pubkey: None,
-                    version: None,
-                    description: Some("A mint".to_string()),
-                    description_long: Some("Some longer test".to_string()),
-                    contact: None,
-                    nuts: Nuts::default(),
-                    motd: None,
-                })
-                .unwrap();
-
-                println!("{}", mint_info);
-        */
         let mint_info_str = r#"{
   "name": "Bob's Cashu mint",
   "pubkey": "0283bf290884eed3a7ca2663fc0260de2e2064d6b355ea13f98dec004b7a7ead99",

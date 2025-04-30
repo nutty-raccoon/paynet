@@ -5,7 +5,8 @@
 //! 
 //! We use it during the mint process:
 //! 1. the user require a mint quote form the node, it comes with an UUID.
-//! 2. the user deposit to the node address using this Invoice contract, providing the hash of this UUID as `invoice_id`
+//! 2. the user deposit to the node address using this Invoice contract,
+//     providing a felt build using `from_bytes_be` on the hash of this UUID as `invoice_id`
 //! 3. the node listen to on-chain deposit to its address, and use the `invoice_id` to flag the correct quote as `PAID`
 //! 4. the user call the node's `mint` route with the original UUID and receive the corresponding amount of tokens
 
@@ -16,7 +17,7 @@ pub trait IInvoicePayment<TContractState> {
     /// Execute an erc20 transfer and emit the rich event 
     fn pay_invoice(
         ref self: TContractState,
-        invoice_id: u256,
+        invoice_id: felt252,
         asset: ContractAddress,
         amount: u256,
         payee: ContractAddress,
@@ -47,7 +48,7 @@ pub mod InvoicePayment {
         #[key]
         pub asset: ContractAddress,
         // Data
-        pub invoice_id: u256,
+        pub invoice_id: felt252,
         pub payer: ContractAddress,
         pub amount: u256,
     }
@@ -56,7 +57,7 @@ pub mod InvoicePayment {
     impl InvoicePaymentImpl of super::IInvoicePayment<ContractState> {
         fn pay_invoice(
             ref self: ContractState,
-            invoice_id: u256,
+            invoice_id: felt252,
             asset: ContractAddress,
             amount: u256,
             payee: ContractAddress,

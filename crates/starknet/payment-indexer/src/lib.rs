@@ -8,13 +8,12 @@ use apibara_sdk::{ClientBuilder, Configuration, DataMessage, InvalidUri};
 use futures::StreamExt;
 use rusqlite::Connection;
 use starknet_core::types::Felt;
-use starknet_types::StarknetU256;
+use starknet_types::constants::ON_CHAIN_CONSTANTS;
+use starknet_types::{ChainId, StarknetU256};
 use thiserror::Error;
 
 mod db;
 
-const INVOICE_PAYMENT_CONTRACT_ADDRESS: &str =
-    "0x74e3cbebe007eb4732706bec58067da01d16c0d252d763843c76612c69a4e9a";
 const REMITTANCE_EVENT_KEY: &str =
     "0x027a12f554d018764f982295090da45b4ff0734785be0982b62c329b9ac38033";
 
@@ -28,6 +27,8 @@ pub enum Error {
     Db(#[from] rusqlite::Error),
     #[error(transparent)]
     ParseURI(#[from] InvalidUri),
+    #[error("unknown chain id: {0}")]
+    UnknownChainId(ChainId),
 }
 
 pub struct ApibaraIndexerService {
@@ -42,17 +43,21 @@ impl ApibaraIndexerService {
         mut db_conn: Connection,
         apibara_bearer_token: String,
         uri: Uri,
+        chain_id: ChainId,
         starting_block: u64,
         target_asset_and_payee_pairs: Vec<(Felt, Felt)>,
     ) -> Result<Self, Error> {
         db::create_tables(&mut db_conn)?;
 
+        let on_chain_constants = ON_CHAIN_CONSTANTS
+            .get(chain_id.as_str())
+            .ok_or(Error::UnknownChainId(chain_id))?;
+        let invoice_payment_contract_address = on_chain_constants.invoice_payment_contract_address;
+
         let config = Configuration::<Filter>::default()
             .with_starting_block(starting_block)
             .with_finality(DataFinality::DataStatusAccepted)
             .with_filter(|mut filter| {
-                let invoice_payment_contract_address =
-                    FieldElement::from_hex(INVOICE_PAYMENT_CONTRACT_ADDRESS).unwrap();
                 let remittance_event_key = FieldElement::from_hex(REMITTANCE_EVENT_KEY).unwrap();
 
                 target_asset_and_payee_pairs
@@ -62,7 +67,9 @@ impl ApibaraIndexerService {
                             .with_header(HeaderFilter::weak())
                             .add_event(|event| {
                                 event
-                                    .with_from_address(invoice_payment_contract_address.clone())
+                                    .with_from_address(FieldElement::from_bytes(
+                                        &invoice_payment_contract_address.to_bytes_be(),
+                                    ))
                                     .with_keys(vec![
                                         remittance_event_key.clone(),
                                         FieldElement::from_hex(&recipient.to_hex_string()).unwrap(),
@@ -104,7 +111,7 @@ pub struct PaymentEvent {
     pub event_idx: u64,
     pub payee: Felt,
     pub asset: Felt,
-    pub invoice_id: StarknetU256,
+    pub invoice_id: Felt,
     pub payer: Felt,
     pub amount: StarknetU256,
 }
@@ -170,18 +177,7 @@ impl futures::Stream for ApibaraIndexerService {
                                     payee: Felt::from_hex(&payment_event.payee).unwrap(),
                                     payer: Felt::from_hex(&payment_event.payer).unwrap(),
                                     asset: Felt::from_hex(&payment_event.asset).unwrap(),
-                                    invoice_id: StarknetU256::from_parts(
-                                        u128::from_str_radix(
-                                            &payment_event.invoice_id_low[2..],
-                                            16,
-                                        )
-                                        .unwrap(),
-                                        u128::from_str_radix(
-                                            &payment_event.invoice_id_high[2..],
-                                            16,
-                                        )
-                                        .unwrap(),
-                                    ),
+                                    invoice_id: Felt::from_hex(&payment_event.invoice_id).unwrap(),
                                     amount: StarknetU256::from_parts(
                                         u128::from_str_radix(&payment_event.amount_low[2..], 16)
                                             .unwrap(),
