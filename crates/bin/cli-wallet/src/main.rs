@@ -4,7 +4,7 @@ use itertools::Itertools;
 use node::{MintQuoteState, NodeClient, hash_melt_request};
 use nuts::Amount;
 use rusqlite::Connection;
-use starknet_types::Unit;
+use starknet_types::{Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
@@ -307,11 +307,16 @@ async fn main() -> Result<()> {
 
             let inputs = tokens.ok_or(anyhow!("not enough funds"))?;
 
+            let payee_address = Felt::from_hex(&to)?;
+            if !is_valid_starknet_address(&payee_address) {
+                return Err(anyhow!("Invalid starknet address: {}", payee_address));
+            }
+
             let melt_request = node::MeltRequest {
                 method: STARKNET_METHOD.to_string(),
                 unit,
                 request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-                    payee: Felt::from_hex(&to)?,
+                    payee: payee_address,
                     asset: starknet_types::Asset::Strk,
                 })?,
                 inputs: wallet::convert_inputs(&inputs),

@@ -7,6 +7,7 @@ use starknet_types_core::felt::Felt;
 use tonic::{Request, transport::Channel};
 
 use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
+use starknet_types::is_valid_starknet_address;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -14,6 +15,8 @@ pub enum Error {
     InvalidPaymentRequest(#[from] serde_json::Error),
     #[error("failed to trigger withdraw from starknet cashier: {0}")]
     StarknetCashier(#[source] tonic::Status),
+    #[error("invalid starknet address: {0}")]
+    InvalidStarknetAddress(Felt),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +59,10 @@ impl WithdrawInterface for Withdrawer {
     fn deserialize_payment_request(&self, raw_json_string: &str) -> Result<Self::Request, Error> {
         let pr = serde_json::from_str::<Self::Request>(raw_json_string)
             .map_err(Error::InvalidPaymentRequest)?;
+
+        if !is_valid_starknet_address(&pr.payee) {
+            return Err(Error::InvalidStarknetAddress(pr.payee));
+        }
         Ok(pr)
     }
 

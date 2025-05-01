@@ -85,3 +85,51 @@ impl From<Call> for starknet::core::types::Call {
         }
     }
 }
+
+/// Validates that a Felt value represents a valid Starknet contract address.
+///
+/// ### Arguments
+/// * `felt` - The Felt value to validate as a Starknet address
+///
+/// ### Returns
+/// Returns `true` if the `felt` is a valid Starknet address, `false` otherwise.
+pub fn is_valid_starknet_address(felt: &Felt) -> bool {
+    felt > &Felt::from(2u64)
+        && felt
+            < &Felt::from_hex_unchecked(
+                "0x800000000000000000000000000000000000000000000000000000000000000",
+            )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_starknet_address_validation() {
+        let valid_address1 = Felt::from_hex_unchecked(
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        );
+        let valid_address2 = Felt::from(100u64);
+
+        // Invalid addresses
+        let invalid_address1 = Felt::from(0u64);
+        let invalid_address2 = Felt::from(1u64);
+        let invalid_address3 = Felt::from(2u64);
+        let invalid_address4 = Felt::from_hex_unchecked(
+            "0x800000000000000000000000000000000000000000000000000000000000000",
+        );
+        let invalid_address5 = Felt::from_hex_unchecked(
+            "0x800000000000000000000000000000000000000000000000000000000000001",
+        );
+
+        assert!(is_valid_starknet_address(&valid_address1));
+        assert!(is_valid_starknet_address(&valid_address2));
+
+        assert!(!is_valid_starknet_address(&invalid_address1));
+        assert!(!is_valid_starknet_address(&invalid_address2));
+        assert!(!is_valid_starknet_address(&invalid_address3));
+        assert!(!is_valid_starknet_address(&invalid_address4));
+        assert!(!is_valid_starknet_address(&invalid_address5));
+    }
+}
