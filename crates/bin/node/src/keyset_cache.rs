@@ -91,26 +91,27 @@ impl KeysetCache {
         conn: &mut PgConnection,
         signer: SignerClient,
         keyset_id: KeysetId,
-    ) -> Result<BTreeMap<Amount, PublicKey>, Error> {
-        // happy path: the infos are already in the cache
-        {
-            let cache_read_lock = self.keys.read().await;
-            if let Some(info) = cache_read_lock.get(&keyset_id) {
-                return Ok(info.clone());
-            }
-        }
-
+    ) -> Result<(BTreeMap<Amount, PublicKey>, i32), Error> {
         // Load the infos from db
         let db_content = db_node::keyset::get_keyset::<Unit>(conn, &keyset_id)
             .await
             .map_err(|e| Error::UnknownKeysetId(keyset_id, e))?;
+        let max_order = db_content.max_order() as i32;
+
+        // happy path: the infos are already in the cache
+        {
+            let cache_read_lock = self.keys.read().await;
+            if let Some(info) = cache_read_lock.get(&keyset_id) {
+                return Ok((info.clone(), max_order));
+            }
+        }
 
         let signer_response = signer
             .clone()
             .declare_keyset(signer::DeclareKeysetRequest {
                 unit: db_content.unit().to_string(),
                 index: db_content.derivation_path_index(),
-                max_order: db_content.max_order().into(),
+                max_order: max_order as u32,
             })
             .await?;
         let signer_keyset_info = signer_response.into_inner();
@@ -131,7 +132,7 @@ impl KeysetCache {
             cache_write_lock.insert(keyset_id, keys.clone());
         }
 
-        Ok(keys)
+        Ok((keys, max_order))
     }
 
     pub async fn get_keyset_info(
