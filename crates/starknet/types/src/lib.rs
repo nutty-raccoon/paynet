@@ -88,13 +88,17 @@ impl From<Call> for starknet::core::types::Call {
 
 /// Validates that a Felt value represents a valid Starknet contract address.
 ///
-/// ### Arguments
-/// * `felt` - The Felt value to validate as a Starknet address
+/// In Starknet, contract addresses must follow specific constraints to be considered valid:
+/// - They must be greater than or equal to 2, as addresses 0 and 1 are reserved for system use:
+///   * 0x0 acts as the default caller address for external calls and has no storage
+///   * 0x1 functions as a storage space for block mapping [link](https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-state/#special_addresses)
+/// - They must be less than 2^251 (0x800000000000000000000000000000000000000000000000000000000000000)
+///   as this is the upper bound of the Starknet field prime
 ///
-/// ### Returns
-/// Returns `true` if the `felt` is a valid Starknet address, `false` otherwise.
+///This validation is critical for preventing funds from being sent to invalid addresses,
+///which would result in permanent loss.
 pub fn is_valid_starknet_address(felt: &Felt) -> bool {
-    felt > &Felt::from(2u64)
+    felt >= &Felt::from(2u64)
         && felt
             < &Felt::from_hex_unchecked(
                 "0x800000000000000000000000000000000000000000000000000000000000000",
