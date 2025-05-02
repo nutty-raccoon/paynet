@@ -253,7 +253,7 @@ impl Node for GrpcState {
                                 pubkey: pk.to_string(),
                                 max_order: keys.1,
                             })
-                            .collect()
+                            .collect(),
                     })
                 }
                 keysets
