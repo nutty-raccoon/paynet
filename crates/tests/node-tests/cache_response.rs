@@ -9,6 +9,7 @@ use nuts::Amount;
 use nuts::dhke::{blind_message, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut01::PublicKey;
+use starknet_types::Unit;
 
 // This tests check that the route that we want to cache are indeed cached.
 //
@@ -42,7 +43,7 @@ async fn works() -> Result<()> {
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
-        unit: "strk".to_string(),
+        unit: Unit::MilliStrk.to_string(),
         description: None,
     };
     let original_mint_quote_response = client
@@ -64,7 +65,7 @@ async fn works() -> Result<()> {
         .keysets;
     let active_keyset = keysets
         .iter()
-        .find(|ks| ks.active && ks.unit == "strk")
+        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
         .unwrap();
 
     let secret = Secret::generate();
@@ -168,7 +169,7 @@ async fn works() -> Result<()> {
     };
     let melt_request = MeltRequest {
         method: "starknet".to_string(),
-        unit: "strk".to_string(),
+        unit: Unit::MilliStrk.to_string(),
         request: "".to_string(),
         inputs: vec![proof],
     };

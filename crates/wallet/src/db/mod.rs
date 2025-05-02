@@ -68,7 +68,7 @@ pub fn store_mint_quote(
     conn: &Connection,
     method: String,
     amount: Amount,
-    unit: String,
+    unit: &str,
     response: &::node::MintQuoteResponse,
 ) -> Result<()> {
     const INSERT_NEW_MINT_QUOTE: &str = r#"

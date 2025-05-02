@@ -13,6 +13,8 @@ nuts = { workspace = true }
 node = { default-features = false, path = "../../bin/node", features = [
     "mock",
 ] }
+starknet-types = { workspace = true }
+
 
 [[test]]
 name = "keyset_rotation"
