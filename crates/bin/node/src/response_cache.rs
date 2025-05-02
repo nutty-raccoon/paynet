@@ -76,5 +76,5 @@ pub enum CachedResponse {
     /// A response from a swap operation.
     Swap(SwapResponse),
     /// A response from a melt operation.
-    Melt(MeltResponse)
+    Melt(MeltResponse),
 }
