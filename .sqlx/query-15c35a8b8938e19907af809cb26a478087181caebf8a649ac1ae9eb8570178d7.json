@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT amount, keyset_id, c\n        FROM blind_signature\n        WHERE amount = $1 AND keyset_id = $2 AND y = $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "keyset_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "c",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "15c35a8b8938e19907af809cb26a478087181caebf8a649ac1ae9eb8570178d7"
+}
