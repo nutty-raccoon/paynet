@@ -2,7 +2,6 @@ use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
     nut01::PublicKey,
-    nut02::KeysetId,
     traits::Unit,
 };
 use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
@@ -149,14 +148,6 @@ pub async fn get_blind_signature(
     let amount = blinded_message.amount.into_i64_repr();
     let keyset_id = blinded_message.keyset_id.as_i64();
     let blinded_secret = blinded_message.blinded_secret.to_bytes();
-
-    // Create a struct to represent the returned data with owned types
-    #[derive(sqlx::FromRow)]
-    struct BlindSignatureRow {
-        amount: i64,
-        keyset_id: Vec<u8>,
-        c: Vec<u8>,
-    }
 
     // Use the struct with query_as
     let row = sqlx::query!(
