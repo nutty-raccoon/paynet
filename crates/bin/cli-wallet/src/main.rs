@@ -48,15 +48,6 @@ enum NodeCommands {
     List {},
 }
 
-pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
-    if amount.starts_with("0x") {
-        U256::from_str_radix(amount, 16)
-    } else {
-        U256::from_str_radix(amount, 10)
-    }
-    .map_err(std::io::Error::other)
-}
-
 #[derive(Subcommand)]
 enum Commands {
     #[command(subcommand)]
@@ -504,4 +495,13 @@ pub async fn connect_to_node(
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
     let node_client = NodeClient::connect(&node_url).await?;
     Ok((node_client, node_url))
+}
+
+pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
+    if amount.starts_with("0x") || amount.starts_with("0X") {
+        U256::from_str_radix(amount, 16)
+    } else {
+        U256::from_str_radix(amount, 10)
+    }
+    .map_err(std::io::Error::other)
 }

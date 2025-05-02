@@ -136,7 +136,7 @@ async fn process_payment_event(
             )
             .await?
             {
-                // TODO: also check if it exists in the metl quote table.
+                // TODO: also check if it exists in the melt quote table.
                 // If so, set the quote state to paid
                 None => {
                     debug!("no quote for invoice_id {:#x}", payment_event.invoice_id);

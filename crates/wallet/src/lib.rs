@@ -79,7 +79,7 @@ pub async fn create_mint_quote(
         .await?
         .into_inner();
 
-    db::store_mint_quote(db_conn, method, amount, unit.to_string(), &response)?;
+    db::store_mint_quote(db_conn, method, amount, unit, &response)?;
 
     Ok(response)
 }
