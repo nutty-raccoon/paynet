@@ -159,23 +159,19 @@ pub async fn get_blind_signature(
     }
 
     // Use the struct with query_as
-    let row: BlindSignatureRow = sqlx::query_as(
+    let row = sqlx::query!(
         r#"
         SELECT amount, keyset_id, c
         FROM blind_signature
         WHERE amount = $1 AND keyset_id = $2 AND y = $3
-        "#,
+        "#, amount, keyset_id, &blinded_secret
     )
-    .bind(amount)
-    .bind(keyset_id)
-    .bind(blinded_secret)
     .fetch_one(conn)
     .await?;
 
     Ok(BlindSignature {
         amount: Amount::from_i64_repr(row.amount),
-        keyset_id: KeysetId::from_bytes(&row.keyset_id)
-            .map_err(|_| Error::DbToRuntimeConversion)?,
+        keyset_id: row.keyset_id.try_into().unwrap(),
         c: PublicKey::from_slice(&row.c).map_err(|_| Error::DbToRuntimeConversion)?,
     })
 }
