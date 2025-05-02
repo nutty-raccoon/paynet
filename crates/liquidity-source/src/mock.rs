@@ -37,7 +37,7 @@ impl WithdrawRequest for () {
 
 impl crate::WithdrawAmount for StarknetU256 {
     fn convert_from(unit: starknet_types::Unit, amount: nuts::Amount) -> Self {
-        unit.convert_amount_into_u256(amount)
+        StarknetU256::from(unit.convert_amount_into_u256(amount))
     }
 }
 

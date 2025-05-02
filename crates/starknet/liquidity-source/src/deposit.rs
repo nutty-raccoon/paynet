@@ -43,16 +43,16 @@ impl DepositInterface for Depositer {
         let asset = unit.asset();
         let amount = unit.convert_amount_into_u256(amount);
         let on_chain_constants = ON_CHAIN_CONSTANTS.get(self.chain_id.as_str()).unwrap();
-        let token_contract_address = *on_chain_constants
+        let token_contract_address = on_chain_constants
             .assets_contract_address
-            .get(asset.as_str())
+            .get_contract_address_for_asset(asset)
             .ok_or(Error::AssetNotFound(asset))?;
 
         let invoice_id = Felt::from_bytes_be(quote_hash.as_byte_array());
         let calls = generate_payment_transaction_calls(
             token_contract_address,
             on_chain_constants.invoice_payment_contract_address,
-            amount,
+            amount.into(),
             invoice_id,
             self.our_account_address,
         );

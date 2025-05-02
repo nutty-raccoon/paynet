@@ -34,7 +34,7 @@ pub struct StarknetU256WithdrawAmount(pub StarknetU256);
 
 impl WithdrawAmount for StarknetU256WithdrawAmount {
     fn convert_from(unit: Unit, amount: nuts::Amount) -> Self {
-        Self(unit.convert_amount_into_u256(amount))
+        Self(StarknetU256::from(unit.convert_amount_into_u256(amount)))
     }
 }
 
