@@ -173,11 +173,15 @@ impl Node for GrpcState {
         let keysets = db_node::keyset::get_keysets(&mut conn)
             .await
             .map_err(|e| Status::internal(e.to_string()))?
-            .map(|(id, unit, active)| Keyset {
-                id: id.to_vec(),
-                unit,
-                active,
-            })
+            .map(
+                |(id, unit, active, max_order, derivation_path_index)| Keyset {
+                    id: id.to_vec(),
+                    unit,
+                    active,
+                    max_order: max_order.into(),
+                    derivation_path_index,
+                },
+            )
             .collect();
 
         Ok(Response::new(GetKeysetsResponse { keysets }))
@@ -213,10 +217,12 @@ impl Node for GrpcState {
                     unit: keyset_info.unit(),
                     active: keyset_info.active(),
                     keys: keys
+                        .0
                         .into_iter()
                         .map(|(a, pk)| Key {
                             amount: a.into(),
                             pubkey: pk.to_string(),
+                            max_order: keys.1,
                         })
                         .collect(),
                 }]
@@ -240,12 +246,13 @@ impl Node for GrpcState {
                         unit: keyset_info.unit(),
                         active: keyset_info.active(),
                         keys: keys
+                            .0
                             .into_iter()
                             .map(|(a, pk)| Key {
                                 amount: a.into(),
                                 pubkey: pk.to_string(),
+                                max_order: keys.1.into(),
                             })
-                            .collect(),
                     })
                 }
                 keysets
