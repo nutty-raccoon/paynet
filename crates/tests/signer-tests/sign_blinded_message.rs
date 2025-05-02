@@ -10,6 +10,7 @@ use nuts::{
 use signer::SignBlindedMessagesRequest;
 use signer::{DeclareKeysetRequest, DeclareKeysetResponse};
 use signer_tests::init_signer_client;
+use starknet_types::Unit;
 use std::str::FromStr;
 use tonic::Code;
 
@@ -19,7 +20,7 @@ async fn secret() -> Result<()> {
 
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.to_string(),
             index: 1,
             max_order: 32,
         })
@@ -91,7 +92,7 @@ async fn amount() -> Result<()> {
 
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.to_string(),
             index: 1,
             max_order: 32,
         })
@@ -143,7 +144,7 @@ async fn non_existent_keysetid() -> Result<()> {
 
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.to_string(),
             index: 1,
             max_order: 32,
         })
@@ -199,7 +200,7 @@ async fn bad_version_keysetid() -> Result<()> {
 
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.to_string(),
             index: 1,
             max_order: 32,
         })

@@ -2,6 +2,7 @@ use anyhow::Result;
 use nuts::{nut01::PublicKey, nut02::KeysetId};
 use signer::{DeclareKeysetRequest, DeclareKeysetResponse};
 use signer_tests::init_signer_client;
+use starknet_types::Unit;
 use std::str::FromStr;
 
 #[tokio::test]
@@ -9,7 +10,7 @@ async fn ok() -> Result<()> {
     let mut client = init_signer_client().await?;
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.to_string(),
             index: 1,
             max_order: 32,
         })
@@ -43,7 +44,7 @@ async fn unknown_unit() -> Result<()> {
     let mut client = init_signer_client().await?;
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "stark".to_string(),
+            unit: "snark".to_string(),
             index: 1,
             max_order: 32,
         })
@@ -60,7 +61,7 @@ async fn exceed_max_order() -> Result<()> {
     let mut client = init_signer_client().await?;
     let res = client
         .declare_keyset(DeclareKeysetRequest {
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.to_string(),
             index: 1,
             max_order: 300,
         })

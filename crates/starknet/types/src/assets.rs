@@ -92,6 +92,7 @@ impl FromStr for Asset {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "strk" => Ok(Asset::Strk),
+            "eth" => Ok(Asset::Eth),
             _ => Err(AssetFromStrError),
         }
     }
