@@ -164,7 +164,10 @@ pub async fn get_blind_signature(
         SELECT amount, keyset_id, c
         FROM blind_signature
         WHERE amount = $1 AND keyset_id = $2 AND y = $3
-        "#, amount, keyset_id, &blinded_secret
+        "#,
+        amount,
+        keyset_id,
+        &blinded_secret
     )
     .fetch_one(conn)
     .await?;
