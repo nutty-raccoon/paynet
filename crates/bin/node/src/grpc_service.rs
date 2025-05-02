@@ -614,7 +614,7 @@ impl Node for GrpcState {
                     keyset_id: blind_signature.keyset_id.to_bytes().to_vec(),
                     blind_signature: blind_signature.c.to_bytes().to_vec(),
                 });
-                return Ok::<nuts::nut00::BlindedMessage, ParseGrpcError>(output);
+                Ok::<nuts::nut00::BlindedMessage, ParseGrpcError>(output)
             }
             .await?;
         }
