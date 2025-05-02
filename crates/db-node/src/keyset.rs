@@ -48,6 +48,7 @@ pub async fn get_keysets(
             r.derivation_path_index,
         )
     }))
+}
 
 pub async fn get_keyset<U: FromStr>(
     conn: &mut PgConnection,
