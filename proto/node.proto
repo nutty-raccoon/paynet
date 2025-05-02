@@ -26,7 +26,7 @@ service Node {
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
 
   // Restore signatures
-  rpc Restore (PostRestoreRequest) returns (PostRestoreResponse);
+  rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
 
 message GetNodeInfoRequest {} 
@@ -142,11 +142,11 @@ message AcknowledgeRequest {
 
 message AcknowledgeResponse {}
 
-message PostRestoreRequest {
+message RestoreRequest {
   repeated bdhke.BlindedMessage outputs = 1;
 }
 
-message PostRestoreResponse {
+message RestoreResponse {
   repeated bdhke.BlindedMessage outputs = 1;
   repeated bdhke.BlindSignature signatures = 2;
 }
