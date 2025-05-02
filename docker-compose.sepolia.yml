@@ -1,0 +1,89 @@
+services:
+  db:
+    image: "postgres"
+    environment:
+      - POSTGRES_USER=postgres
+      # Required by pg_isready
+      - PGUSER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=node
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  signer:
+    image: "signer"
+    restart: always
+    environment:
+      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+      - GRPC_PORT=10001
+    ports:
+      - "10001:10001"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/signer.Dockerfile
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  starknet-cashier:
+    image: "starknet-cashier"
+    restart: always
+    environment:
+      - STARKNET_RPC_URL=https://starknet-sepolia.public.blastapi.io
+      - GRPC_PORT=10002
+      - ACCOUNT_ADDRESS=0x2a4c56a99f93d0b19f9a3b09640cb9fd1f4c426474a85dedfec573849ab6235
+    # export the SIGNER_PRIVATE_KEY env var in this file
+    env_file: .env.sepolia.starknet-cashier
+    ports:
+      - "10002:10002"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/starknet-cashier.Dockerfile
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10002"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  node:
+    image: "node"
+    restart: always
+    environment:
+      - PG_URL=postgres://postgres:password@db/node
+      - SIGNER_URL=http://signer:10001
+      - GRPC_PORT=10003
+    # export the APIBARA_TOKEN env var in this file
+    env_file: .env.sepolia.node
+    volumes:
+      - ./crates/bin/node/config/sepolia.toml:/etc/paynet/config.toml
+    ports:
+      - "10003:10003"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/node.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      signer:
+        condition: service_healthy
+      starknet-cashier:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+volumes:
+  database_data:
+    driver: local

@@ -1,0 +1,4 @@
+chain_id = "SN_SEPOLIA"
+cashier_url = "http://starknet-cashier:10002"
+cashier_account_address = "0x2a4c56a99f93d0b19f9a3b09640cb9fd1f4c426474a85dedfec573849ab6235"  
+

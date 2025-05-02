@@ -67,19 +67,19 @@ pub async fn create_mint_quote(
     node_client: &mut NodeClient<Channel>,
     method: String,
     amount: Amount,
-    unit: String,
+    unit: &str,
 ) -> Result<MintQuoteResponse> {
     let response = node_client
         .mint_quote(MintQuoteRequest {
             method: method.clone(),
             amount: amount.into(),
-            unit: unit.clone(),
+            unit: unit.to_string(),
             description: None,
         })
         .await?
         .into_inner();
 
-    db::store_mint_quote(db_conn, method, amount, unit, &response)?;
+    db::store_mint_quote(db_conn, method, amount, unit.to_string(), &response)?;
 
     Ok(response)
 }
@@ -300,13 +300,13 @@ pub fn construct_proofs_from_blind_signatures(
     Ok(new_tokens)
 }
 
-pub async fn fetch_inputs_from_db_or_node(
+pub async fn fetch_inputs_ids_from_db_or_node(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     target_amount: Amount,
     unit: &str,
-) -> Result<Option<Vec<nut00::Proof>>> {
+) -> Result<Option<Vec<PublicKey>>> {
     let total_amount_available =
         db::proof::compute_total_amount_of_available_proofs(db_conn, node_id)?;
 
@@ -377,6 +377,13 @@ pub async fn fetch_inputs_from_db_or_node(
         }
     }
 
+    Ok(Some(proofs_ids))
+}
+
+pub async fn load_tokens_from_db(
+    db_conn: &Connection,
+    proofs_ids: Vec<PublicKey>,
+) -> Result<nut00::Proofs> {
     let proofs = db::proof::get_proofs_by_ids(db_conn, &proofs_ids)?
         .into_iter()
         .map(
@@ -393,7 +400,7 @@ pub async fn fetch_inputs_from_db_or_node(
 
     db::proof::set_proofs_to_state(db_conn, &proofs_ids, ProofState::Reserved)?;
 
-    Ok(Some(proofs))
+    Ok(proofs)
 }
 
 pub async fn swap_to_have_target_amount(

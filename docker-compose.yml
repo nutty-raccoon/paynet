@@ -142,6 +142,8 @@ services:
       - SIGNER_URL=http://signer:10001
       - DNA_URI=http://dna:7171
       - GRPC_PORT=10003
+    volumes:
+      - ./crates/bin/node/config/docker.toml:/etc/paynet/config.toml
     ports:
       - "10003:10003"
     build:
