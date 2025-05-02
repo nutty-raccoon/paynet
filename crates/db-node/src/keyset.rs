@@ -33,15 +33,21 @@ impl<U: Clone> KeysetInfo<U> {
 
 pub async fn get_keysets(
     conn: &mut PgConnection,
-) -> Result<impl Iterator<Item = ([u8; 8], String, bool)>, sqlx::Error> {
-    let record = sqlx::query!("SELECT id, unit, active FROM keyset")
-        .fetch_all(conn)
-        .await?;
+) -> Result<impl Iterator<Item = ([u8; 8], String, bool, i16, i32)>, sqlx::Error> {
+    let record =
+        sqlx::query!("SELECT id, unit, active, max_order, derivation_path_index FROM keyset")
+            .fetch_all(conn)
+            .await?;
 
-    Ok(record
-        .into_iter()
-        .map(|r| (r.id.to_be_bytes(), r.unit, r.active)))
-}
+    Ok(record.into_iter().map(|r| {
+        (
+            r.id.to_be_bytes(),
+            r.unit,
+            r.active,
+            r.max_order,
+            r.derivation_path_index,
+        )
+    }))
 
 pub async fn get_keyset<U: FromStr>(
     conn: &mut PgConnection,

@@ -42,6 +42,8 @@ message Keyset {
   bytes id = 1;
   string unit = 2;
   bool active = 3;
+  int32 max_order = 4;
+  int32 derivation_path_index = 5;
 }
 
 message GetKeysRequest {
@@ -62,6 +64,7 @@ message KeysetKeys {
 message Key {
   uint64 amount = 1;
   string pubkey = 2;
+  int32 max_order = 3;
 }
 
 message MintQuoteRequest {

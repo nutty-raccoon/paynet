@@ -144,6 +144,10 @@ impl Amount {
     pub fn from_i64_repr(value: i64) -> Self {
         Self(u64::from_be_bytes(value.to_be_bytes()))
     }
+
+    pub fn is_power_of_two(&self) -> bool {
+        self.0.is_power_of_two()
+    }
 }
 
 impl Zero for Amount {

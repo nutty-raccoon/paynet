@@ -9,6 +9,8 @@ pub enum Error {
     Transport(#[from] tonic::transport::Error),
     #[error("amount overflow")]
     AmountOverflow,
+    #[error("amount is not power of two")]
+    AmountNotPowerOfTwo,
     #[error("no matching keyset found")]
     NoMatchingKeyset,
     #[error("proof not available")]

@@ -69,6 +69,10 @@ pub async fn create_mint_quote(
     amount: Amount,
     unit: &str,
 ) -> Result<MintQuoteResponse> {
+    if !amount.is_power_of_two() {
+        return Err(Error::AmountNotPowerOfTwo);
+    }
+
     let response = node_client
         .mint_quote(MintQuoteRequest {
             method: method.clone(),
@@ -207,6 +211,10 @@ pub async fn mint_and_store_new_tokens(
     unit: &str,
     total_amount: Amount,
 ) -> Result<()> {
+    if !total_amount.is_power_of_two() {
+        return Err(Error::AmountNotPowerOfTwo);
+    }
+
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
     let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
@@ -411,6 +419,10 @@ pub async fn swap_to_have_target_amount(
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
 ) -> Result<Vec<(PublicKey, Amount)>> {
+    if !target_amount.is_power_of_two() {
+        return Err(Error::AmountNotPowerOfTwo);
+    }
+
     let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
 
     let input_unblind_signature =
