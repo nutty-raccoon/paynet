@@ -92,11 +92,10 @@ impl From<Call> for starknet::core::types::Call {
 /// - They must be greater than or equal to 2, as addresses 0 and 1 are reserved for system use:
 ///   * 0x0 acts as the default caller address for external calls and has no storage
 ///   * 0x1 functions as a storage space for block mapping [link](https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-state/#special_addresses)
-/// - They must be less than 2^251 (0x800000000000000000000000000000000000000000000000000000000000000)
-///   as this is the upper bound of the Starknet field prime
+/// - They must be less than 2^251 + 17 * 2^192 (0x800000000000000000000000000000000000000000000000000000000000000)
 ///
-///This validation is critical for preventing funds from being sent to invalid addresses,
-///which would result in permanent loss.
+/// This validation is critical for preventing funds from being sent to invalid addresses,
+/// which would result in permanent loss.
 pub fn is_valid_starknet_address(felt: &Felt) -> bool {
     felt >= &Felt::from(2u64)
         && felt
