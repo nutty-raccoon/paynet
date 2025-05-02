@@ -251,8 +251,9 @@ impl Node for GrpcState {
                             .map(|(a, pk)| Key {
                                 amount: a.into(),
                                 pubkey: pk.to_string(),
-                                max_order: keys.1.into(),
+                                max_order: keys.1,
                             })
+                            .collect()
                     })
                 }
                 keysets

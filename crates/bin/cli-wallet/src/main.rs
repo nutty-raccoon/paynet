@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
 use itertools::Itertools;
 use node::{MintQuoteState, NodeClient, hash_melt_request};
+use nuts::Amount;
 use primitive_types::U256;
 use rusqlite::Connection;
 use starknet_types::{Asset, Unit};
@@ -230,12 +231,12 @@ async fn main() -> Result<()> {
             asset,
             node_id,
         } => {
-            let amount = Amount::from(amount);
-            if !amount.is_power_of_two() {
-                println!("Amount {} is not power of two", amount.into_i64_repr());
+            let amt = Amount::from(amount.as_u64());
+            if !amt.is_power_of_two() {
+                println!("Amount {} is not power of two", amt.into_i64_repr());
                 return Ok(());
             }
-            
+
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Requesting {} to mint {} {}", &node_url, amount, asset);
 
