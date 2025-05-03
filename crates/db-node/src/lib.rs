@@ -156,7 +156,7 @@ pub async fn get_blind_signature(
     );
 
     let mut row = sqlx::query(sql.as_str());
-    for (_, output) in outputs.iter().enumerate() {
+    for output in outputs.iter() {
         row = row.bind(output.blinded_secret.to_bytes());
     }
 
