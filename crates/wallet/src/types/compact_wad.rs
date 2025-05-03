@@ -200,3 +200,29 @@ where
 {
     amounts.into_iter().all(is_power_of_two)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_amounts_power_of_two_positive() {
+        let amounts = vec![1u64, 2, 4, 8, 16, 32, 64];
+        assert!(all_amounts_power_of_two(amounts));
+    }
+
+    #[test]
+    fn test_all_amounts_power_of_two_negative() {
+        let amounts = vec![1u64, 3, 4, 5, 8];
+        assert!(!all_amounts_power_of_two(amounts));
+    }
+
+    #[test]
+    fn test_is_power_of_two() {
+        assert!(is_power_of_two(1));
+        assert!(is_power_of_two(2));
+        assert!(is_power_of_two(1024));
+        assert!(!is_power_of_two(0));
+        assert!(!is_power_of_two(6));
+    }
+}
