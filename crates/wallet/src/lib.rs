@@ -24,6 +24,7 @@ use rusqlite::{Connection, params};
 use tonic::Request;
 use tonic::transport::Channel;
 use types::{NodeUrl, PreMint, ProofState};
+use types::compact_wad::all_amounts_power_of_two;
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
     inputs
@@ -474,6 +475,11 @@ pub async fn receive_wad(
     let mut keyset_id_to_unit = HashMap::new();
     let mut unit_to_amount = HashMap::new();
     let mut ys = Vec::with_capacity(proofs.len());
+
+    // Validate all proof amounts are power of two before writing to db
+    if !all_amounts_power_of_two(proofs.iter().map(|p| u64::from(p.amount))) {
+        return Err(Error::Protocol("All proof amounts must be powers of two".to_string()));
+    }
 
     for proof in proofs.iter() {
         let y = hash_to_curve(proof.secret.as_ref())?;
