@@ -143,7 +143,7 @@ pub async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), sqlx::migrate::
 
 pub async fn get_blind_signature(
     conn: &mut PgConnection,
-    outputs: &Vec<BlindedMessage>,
+    outputs: &[BlindedMessage],
 ) -> Result<Vec<Result<BlindSignature, Error>>, Error> {
     let placeholders = (0..outputs.len())
         .map(|i| format!("${}", i + 1))
