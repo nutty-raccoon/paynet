@@ -187,3 +187,16 @@ where
     let bytes = Vec::<u8>::deserialize(deserializer)?;
     PublicKey::from_slice(&bytes).map_err(serde::de::Error::custom)
 }
+
+/// Returns true if `n` is a power of two (and not zero).
+pub fn is_power_of_two(n: u64) -> bool {
+    n > 0 && (n & (n - 1)) == 0
+}
+
+/// Returns true if all amounts in the slice are powers of two (and not zero).
+pub fn all_amounts_power_of_two<I>(amounts: I) -> bool
+where
+    I: IntoIterator<Item = u64>,
+{
+    amounts.into_iter().all(is_power_of_two)
+}
