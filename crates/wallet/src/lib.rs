@@ -23,8 +23,8 @@ use nuts::{Amount, SplitTarget};
 use rusqlite::{Connection, params};
 use tonic::Request;
 use tonic::transport::Channel;
-use types::{NodeUrl, PreMint, ProofState};
 use types::compact_wad::all_amounts_power_of_two;
+use types::{NodeUrl, PreMint, ProofState};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
     inputs
@@ -478,7 +478,17 @@ pub async fn receive_wad(
 
     // Validate all proof amounts are power of two before writing to db
     if !all_amounts_power_of_two(proofs.iter().map(|p| u64::from(p.amount))) {
-        return Err(Error::Protocol("All proof amounts must be powers of two".to_string()));
+        return Err(Error::Protocol(
+            "All proof amounts must be powers of two".to_string(),
+        ));
+    }
+    // Validate all proof amounts are valid compared against the max_order
+
+    {
+        use crate::types::compact_wad::validate_proofs_under_max_order_for_keyset;
+        if let Err(e) = validate_proofs_under_max_order_for_keyset(db_conn, proofs) {
+            return Err(Error::Protocol(e));
+        }
     }
 
     for proof in proofs.iter() {
