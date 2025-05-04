@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT state as \"state: MeltQuoteState\" FROM melt_quote where id = $1",
+  "query": "SELECT state AS \"state: MeltQuoteState\" FROM melt_quote where id = $1",
   "describe": {
     "columns": [
       {
@@ -29,5 +29,5 @@
       false
     ]
   },
-  "hash": "0544e6ef94c93022b013768853ef7312bb220a2e31dde344cb1436dfaaefbee3"
+  "hash": "6c516bc712f14a261b2adb7feb87bf913e89534a0e622f5145128fb0045db759"
 }

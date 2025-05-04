@@ -30,7 +30,7 @@ nuts = { workspace = true, features = ["nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
-sqlx = { workspace = true, features = ["postgres", "uuid"] }
+sqlx = { workspace = true, features = ["postgres", "uuid", "tls-native-tls"] }
 rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
 bitcoin_hashes = { workspace = true }
