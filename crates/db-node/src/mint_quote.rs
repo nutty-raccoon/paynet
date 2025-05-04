@@ -40,7 +40,7 @@ pub async fn build_response_from_db(
     quote_id: Uuid,
 ) -> Result<MintQuoteResponse<Uuid>, Error> {
     let record = sqlx::query!(
-        r#"SELECT request, state as "state: MintQuoteState", expiry FROM mint_quote where id = $1"#,
+        r#"SELECT request, state AS "state: MintQuoteState", expiry FROM mint_quote where id = $1"#,
         quote_id
     )
     .fetch_one(conn)
@@ -65,7 +65,7 @@ pub async fn get_amount_and_state(
     quote_id: Uuid,
 ) -> Result<(Amount, MintQuoteState), Error> {
     let record = sqlx::query!(
-        r#"SELECT amount, state as "state: MintQuoteState" FROM mint_quote where id = $1"#,
+        r#"SELECT amount, state AS "state: MintQuoteState" FROM mint_quote where id = $1"#,
         quote_id
     )
     .fetch_one(conn)
