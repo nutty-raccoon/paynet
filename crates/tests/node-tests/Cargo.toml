@@ -11,7 +11,7 @@ tonic = { workspace = true }
 tonic-health = { workspace = true }
 nuts = { workspace = true }
 node = { default-features = false, path = "../../bin/node", features = [
-    "mock",
+    "mock", "keyset-rotation"
 ] }
 starknet-types = { workspace = true }
 

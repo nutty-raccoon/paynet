@@ -47,6 +47,7 @@ starknet-liquidity-source = { workspace = true, optional = true }
 default = ["starknet"]
 mock = ["liquidity-source/mock"]
 starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier", "dep:starknet-liquidity-source"]
+keyset-rotation = []
 
 
 [build-dependencies]
