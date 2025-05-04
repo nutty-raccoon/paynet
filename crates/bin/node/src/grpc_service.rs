@@ -8,8 +8,8 @@ use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
     MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
-    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+    Node, NodeInfoResponse, QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest,
+    SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -581,5 +581,61 @@ impl Node for GrpcState {
         }
 
         Ok(Response::new(AcknowledgeResponse {}))
+    }
+
+    async fn restore(
+        &self,
+        restore_signatures_request: Request<RestoreRequest>,
+    ) -> Result<Response<RestoreResponse>, Status> {
+        let restore_signatures_request = restore_signatures_request.into_inner();
+
+        let mut conn = self
+            .pg_pool
+            .acquire()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let outputs: Result<Vec<BlindedMessage>, ParseGrpcError> = restore_signatures_request
+            .outputs
+            .iter()
+            .map(|bm| {
+                Ok(BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                        .map_err(ParseGrpcError::KeysetId)?,
+                    blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                        .map_err(ParseGrpcError::PublicKey)?,
+                })
+            })
+            .collect();
+
+        let outputs = outputs.map_err(|e| Status::invalid_argument(e.to_string()))?;
+
+        let signatures = db_node::blind_signature::get_for_messages(
+            &mut conn,
+            outputs.iter().map(|bm| bm.blinded_secret),
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        if signatures.len() != outputs.len() {
+            return Err(Status::not_found(
+                "did not found a signature for each message in db",
+            ));
+        }
+
+        let restore_response = RestoreResponse {
+            signatures: signatures
+                .into_iter()
+                .map(|p| BlindSignature {
+                    amount: p.amount.into(),
+                    keyset_id: p.keyset_id.to_bytes().to_vec(),
+                    blind_signature: p.c.to_bytes().to_vec(),
+                })
+                .collect::<Vec<_>>(),
+            outputs: restore_signatures_request.outputs,
+        };
+
+        Ok(Response::new(restore_response))
     }
 }

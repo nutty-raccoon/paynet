@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unit, amount, fee, state as \"state: MeltQuoteState\", expiry FROM melt_quote where id = $1",
+  "query": "SELECT unit, amount, fee, state AS \"state: MeltQuoteState\", expiry FROM melt_quote WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -53,5 +53,5 @@
       false
     ]
   },
-  "hash": "9fc89daea3eab94dfdbac0a715869628e24b4c807f8937a2705beabb7a70565c"
+  "hash": "5cc334475277180c55b0bfa4a5ffa9afc647a1ede0db3f2e1ef3b32efca72c41"
 }

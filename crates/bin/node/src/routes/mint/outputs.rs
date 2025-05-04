@@ -43,7 +43,9 @@ pub async fn check_outputs_allow_single_unit(
     }
 
     // Make sure those outputs were not already signed
-    if db_node::is_any_blind_message_already_used(conn, blind_secrets.into_iter()).await? {
+    if db_node::blind_signature::is_any_blind_message_already_used(conn, blind_secrets.into_iter())
+        .await?
+    {
         return Err(OutputsError::AlreadySigned);
     }
 
