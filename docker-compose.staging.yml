@@ -1,0 +1,66 @@
+services:
+  signer:
+    image: "ghcr.io/nutty-raccoon/paynet-signer:latest"
+    restart: always
+    environment:
+      - ROOT_KEY
+      - GRPC_PORT=10001
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  starknet-cashier:
+    image: "ghcr.io/nutty-raccoon/paynet-starknet-cashier:latest"
+    restart: always
+    environment:
+      - SIGNER_PRIVATE_KEY
+      - STARKNET_RPC_URL=https://starknet-sepolia.public.blastapi.io
+      - GRPC_PORT=10002
+      - ACCOUNT_ADDRESS=0x2a4c56a99f93d0b19f9a3b09640cb9fd1f4c426474a85dedfec573849ab6235
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10002"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  node:
+    image: "ghcr.io/nutty-raccoon/paynet-node:latest"
+    restart: always
+    volumes:
+      - ./node-config-sepolia.toml:/etc/paynet/config.toml
+    environment:
+      - PG_URL
+      - APIBARA_TOKEN
+      - SIGNER_URL=http://signer:10001
+      - GRPC_PORT=10003
+    command:
+      - --config
+      - /etc/paynet/config.toml
+    ports:
+      - "9090:10003"
+    depends_on:
+      signer:
+        condition: service_healthy
+      starknet-cashier:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  nginx:
+    image: nginx:latest
+    restart: always
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ${TLS_CERT_PATH}:/etc/nginx/ssl/cert.pem
+      - ${TLS_KEY_PATH}:/etc/nginx/ssl/key.pem
+    ports:
+      - "443:443"
+    depends_on:
+      node:
+        condition: service_healthy
+

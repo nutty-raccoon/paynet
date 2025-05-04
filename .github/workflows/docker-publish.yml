@@ -12,7 +12,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [node, signer, starknet-cashier]
+        service: [node, node-tls, signer, starknet-cashier]
 
     steps:
       - name: Checkout repository
@@ -38,7 +38,36 @@ jobs:
             type=sha
             latest
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image for node
+        if: matrix.service == 'node'
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./dockerfiles/${{ matrix.service }}.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          build-args: |
+            CARGO_FEATURES=starknet
+
+      - name: Build and push Docker image for node-tls
+        if: matrix.service == 'node-tls'
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./dockerfiles/node.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          build-args: |
+            CARGO_FEATURES=starknet,tls
+
+      - name: Build and push Docker image for other services
+        if: matrix.service != 'node' && matrix.service != 'node-tls'
         uses: docker/build-push-action@v4
         with:
           context: .
