@@ -77,7 +77,7 @@ pub async fn run_verification_queries(
             .map_ok(|r| r.get_ref().is_valid)
             .map_err(Error::Signer),
         // Make sure those inputs were not already used
-        db_node::is_any_proof_already_used(conn, secrets.into_iter()).map_err(Error::Db),
+        db_node::proof::is_any_proof_already_used(conn, secrets.into_iter()).map_err(Error::Db),
     );
 
     match res {

@@ -1,10 +1,4 @@
-use nuts::{
-    Amount,
-    nut00::{BlindSignature, BlindedMessage},
-    nut01::PublicKey,
-    traits::Unit,
-};
-use sqlx::{Connection, PgConnection, Pool, Postgres, Row, Transaction};
+use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
 use thiserror::Error;
 
 mod insert_spent_proofs;
@@ -13,10 +7,12 @@ mod insert_blind_signatures;
 pub use insert_blind_signatures::InsertBlindSignaturesQueryBuilder;
 mod insert_keysets;
 pub use insert_keysets::InsertKeysetsQueryBuilder;
+pub mod blind_signature;
 pub mod keyset;
 pub mod melt_quote;
 pub mod mint_quote;
 pub mod payment_event;
+pub mod proof;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -32,47 +28,6 @@ pub enum Error {
     DbToRuntimeConversion,
     #[error("Failed to convert the runtime type into the db type")]
     RuntimeToDbConversion,
-}
-
-/// Will return true if this secret has already been signed by us
-pub async fn is_any_blind_message_already_used(
-    conn: &mut PgConnection,
-    blind_secrets: impl Iterator<Item = PublicKey>,
-) -> Result<bool, sqlx::Error> {
-    let ys: Vec<_> = blind_secrets.map(|pk| pk.to_bytes().to_vec()).collect();
-
-    let record = sqlx::query!(
-        r#"SELECT EXISTS (
-            SELECT * FROM blind_signature WHERE y = ANY($1)
-        ) AS "exists!";"#,
-        &ys
-    )
-    .fetch_one(conn)
-    .await?;
-
-    Ok(record.exists)
-}
-
-/// Will return true if one of the provided secret
-/// is already in db with state = SPENT
-pub async fn is_any_proof_already_used(
-    conn: &mut PgConnection,
-    secret_derived_pubkeys: impl Iterator<Item = PublicKey>,
-) -> Result<bool, sqlx::Error> {
-    let ys: Vec<_> = secret_derived_pubkeys
-        .map(|pk| pk.to_bytes().to_vec())
-        .collect();
-
-    let record = sqlx::query!(
-        r#"SELECT EXISTS (
-            SELECT * FROM proof WHERE y = ANY($1) AND state = 1
-        ) AS "exists!";"#,
-        &ys
-    )
-    .fetch_one(conn)
-    .await?;
-
-    Ok(record.exists)
 }
 
 /// Handle concurency at the database level
@@ -97,26 +52,6 @@ async fn set_transaction_isolation_level_to_serializable(
     Ok(())
 }
 
-pub async fn sum_amount_of_unit_in_circulation<U: Unit>(
-    conn: &mut PgConnection,
-    unit: U,
-) -> Result<Amount, Error> {
-    let record = sqlx::query!(
-        r#"
-            SELECT SUM(amount) AS "sum!: i64" FROM blind_signature 
-            INNER JOIN keyset ON blind_signature.keyset_id = keyset.id
-            WHERE keyset.unit = $1;
-        "#,
-        &unit.to_string()
-    )
-    .fetch_one(conn)
-    .await?;
-
-    let amount = Amount::from_i64_repr(record.sum);
-
-    Ok(amount)
-}
-
 pub async fn begin_db_tx(
     pool: &Pool<Postgres>,
 ) -> Result<Transaction<'static, Postgres>, sqlx::Error> {
@@ -139,49 +74,4 @@ pub async fn start_db_tx_from_conn(
 
 pub async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), sqlx::migrate::MigrateError> {
     sqlx::migrate!("./db/migrations/").run(pool).await
-}
-
-pub async fn get_blind_signature(
-    conn: &mut PgConnection,
-    outputs: &[BlindedMessage],
-) -> Result<Vec<Result<BlindSignature, Error>>, Error> {
-    let placeholders = (0..outputs.len())
-        .map(|i| format!("${}", i + 1))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let sql = format!(
-        r#"SELECT amount, keyset_id, c FROM blind_signature WHERE y IN ({})"#,
-        placeholders
-    );
-
-    let mut row = sqlx::query(sql.as_str());
-    for output in outputs.iter() {
-        row = row.bind(output.blinded_secret.to_bytes());
-    }
-
-    let results = row
-        .fetch_all(conn)
-        .await?
-        .iter()
-        .map(|r| {
-            let amount: i64 = r
-                .try_get("amount")
-                .map_err(|_| Error::DbToRuntimeConversion)?;
-            let keyset_id: i64 = r
-                .try_get("keyset_id")
-                .map_err(|_| Error::DbToRuntimeConversion)?;
-            let c: [u8; 33] = r.try_get("c").map_err(|_| Error::DbToRuntimeConversion)?;
-
-            Ok(BlindSignature {
-                amount: Amount::from_i64_repr(amount),
-                keyset_id: keyset_id
-                    .try_into()
-                    .map_err(|_| Error::DbToRuntimeConversion)?,
-                c: PublicKey::from_slice(&c).map_err(|_| Error::DbToRuntimeConversion)?,
-            })
-        })
-        .collect::<Vec<Result<BlindSignature, Error>>>();
-
-    Ok(results)
 }

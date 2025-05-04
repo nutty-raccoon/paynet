@@ -22,7 +22,6 @@ use nuts::{
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
 use starknet_types::Unit;
-use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -612,35 +611,31 @@ impl Node for GrpcState {
 
         let outputs = outputs.map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        let signature_results = db_node::get_blind_signature(&mut conn, &outputs)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let signatures = db_node::blind_signature::get_for_messages(
+            &mut conn,
+            outputs.iter().map(|bm| bm.blinded_secret),
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
 
-        let mut map = HashMap::new();
-        for result in signature_results {
-            let bs = result.map_err(|e| Status::internal(e.to_string()))?;
-            map.insert(bs.c.to_bytes(), bs);
+        if signatures.len() != outputs.len() {
+            return Err(Status::not_found(
+                "did not found a signature for each message in db",
+            ));
         }
 
-        let mut blind_signatures = Vec::with_capacity(outputs.len());
-        for output in &outputs {
-            let key = output.blinded_secret.to_bytes();
-            let bs = map.get(&key).ok_or_else(|| {
-                Status::internal("Missing corresponding blind signature for an output")
-            })?;
-
-            blind_signatures.push(BlindSignature {
-                amount: bs.amount.into(),
-                keyset_id: bs.keyset_id.to_bytes().to_vec(),
-                blind_signature: bs.c.to_bytes().to_vec(),
-            });
-        }
-
-        let restore_signatures_response = RestoreResponse {
-            signatures: blind_signatures,
+        let restore_response = RestoreResponse {
+            signatures: signatures
+                .into_iter()
+                .map(|p| BlindSignature {
+                    amount: p.amount.into(),
+                    keyset_id: p.keyset_id.to_bytes().to_vec(),
+                    blind_signature: p.c.to_bytes().to_vec(),
+                })
+                .collect::<Vec<_>>(),
             outputs: restore_signatures_request.outputs,
         };
 
-        Ok(Response::new(restore_signatures_response))
+        Ok(Response::new(restore_response))
     }
 }
