@@ -1,18 +1,23 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
 use num_traits::CheckedAdd;
+
 use nuts::Amount;
 use nuts::nut00::secret::Secret;
 use nuts::nut00::{Proof, Proofs};
 use nuts::nut01::PublicKey;
 use nuts::nut02::KeysetId;
 use nuts::traits::Unit;
+
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
+
+use rusqlite;
 
 use super::NodeUrl;
 
@@ -201,9 +206,80 @@ where
     amounts.into_iter().all(is_power_of_two)
 }
 
+/// Validates that all proofs have amounts less than the max_order (maximum key amount) for their keyset.
+///
+/// # Arguments
+/// * `db_conn` - A reference to the database connection.
+/// * `proofs` - A slice of proofs to validate.
+///
+/// # Returns
+/// * `Ok(())` if all proofs are valid.
+/// * `Err(String)` if any proof amount is not less than the max_order for its keyset.
+pub fn validate_proofs_under_max_order_for_keyset(
+    db_conn: &rusqlite::Connection,
+    proofs: &[nuts::nut00::Proof],
+) -> Result<(), String> {
+    use nuts::nut02::KeysetId;
+    let mut keyset_to_max: HashMap<KeysetId, u64> = HashMap::new();
+    for proof in proofs {
+        let keyset_id = proof.keyset_id;
+        let max_order = *keyset_to_max.entry(keyset_id).or_insert_with(|| {
+            let mut stmt = db_conn
+                .prepare("SELECT MAX(amount) FROM key WHERE keyset_id = ?1")
+                .expect("Failed to prepare statement for max amount");
+            stmt.query_row([keyset_id], |row| row.get::<_, Option<u64>>(0))
+                .expect("Failed to query max amount")
+                .unwrap_or(0)
+        });
+        let proof_amount = u64::from(proof.amount);
+        if proof_amount >= max_order {
+            return Err(format!(
+                "Proof amount {} is not less than max_order {} for keyset {}",
+                proof_amount, max_order, keyset_id
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nuts::{Amount, nut00::Proof, nut02::KeysetId};
+    use rusqlite::Connection;
+
+    pub fn test_pubkey() -> nuts::nut01::PublicKey {
+        nuts::nut01::PublicKey::from_hex(
+            "02194603ffa36356f4a56b7df9371fc3192472351453ec7398b8da8117e7c3e104",
+        )
+        .expect("valid test pubkey")
+    }
+
+    fn setup_db_with_keys(keys: &[(KeysetId, u64)]) -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE key (keyset_id BLOB(8), amount INTEGER, pubkey BLOB(33), PRIMARY KEY (keyset_id, amount))",
+            [],
+        ).unwrap();
+        for (keyset_id, amount) in keys {
+            conn.execute(
+                "INSERT INTO key (keyset_id, amount, pubkey) VALUES (?1, ?2, zeroblob(33))",
+                (&keyset_id.to_bytes()[..], *amount as i64),
+            )
+            .unwrap();
+        }
+        conn
+    }
+
+    fn make_proof(keyset_id: KeysetId, amount: u64) -> Proof {
+        let dummy_pubkey = test_pubkey();
+        Proof {
+            amount: Amount::from(amount),
+            keyset_id,
+            secret: Default::default(),
+            c: dummy_pubkey,
+        }
+    }
 
     #[test]
     fn test_all_amounts_power_of_two_positive() {
@@ -224,5 +300,38 @@ mod tests {
         assert!(is_power_of_two(1024));
         assert!(!is_power_of_two(0));
         assert!(!is_power_of_two(6));
+    }
+
+    #[test]
+    fn test_all_proofs_amounts_valid_for_keyset_positive() {
+        let keyset_id = KeysetId::from_str("009a1f293253e41e").unwrap();
+        let keys = vec![(keyset_id, 1), (keyset_id, 2), (keyset_id, 4)];
+        let conn = setup_db_with_keys(&keys);
+        let proofs = vec![make_proof(keyset_id, 1), make_proof(keyset_id, 2)];
+        assert!(validate_proofs_under_max_order_for_keyset(&conn, &proofs).is_ok());
+    }
+
+    #[test]
+    fn test_all_proofs_amounts_valid_for_keyset_negative() {
+        let keyset_id = KeysetId::from_str("009a1f293253e41e").unwrap();
+        let keys = vec![(keyset_id, 1), (keyset_id, 2), (keyset_id, 4)];
+        let conn = setup_db_with_keys(&keys);
+        let proofs = vec![make_proof(keyset_id, 1), make_proof(keyset_id, 8)];
+        let res = validate_proofs_under_max_order_for_keyset(&conn, &proofs);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("8"));
+    }
+
+    #[test]
+    fn test_all_proofs_amounts_valid_for_keyset_multiple_keysets() {
+        let keyset1 = KeysetId::from_str("009a1f293253e41e").unwrap();
+        let keyset2 = KeysetId::from_str("001e14e3a292f190").unwrap();
+        let keys = vec![(keyset1, 2), (keyset2, 4)];
+        let conn = setup_db_with_keys(&keys);
+        // Use proof amounts strictly less than max_order for each keyset
+        let proofs = vec![make_proof(keyset1, 1), make_proof(keyset2, 3)];
+        assert!(validate_proofs_under_max_order_for_keyset(&conn, &proofs).is_ok());
+        let proofs_invalid = vec![make_proof(keyset1, 2), make_proof(keyset2, 8)];
+        assert!(validate_proofs_under_max_order_for_keyset(&conn, &proofs_invalid).is_err());
     }
 }
