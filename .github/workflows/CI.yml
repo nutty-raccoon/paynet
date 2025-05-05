@@ -74,7 +74,7 @@ jobs:
       - name: Run unit tests
         run: |
           cargo test -p node --no-default-features --features=mock
-          cargo test -p node --no-default-features --features=starknet
+          cargo test -p node --no-default-features --features=starknet,keyset-rotation
           cargo test -p signer --no-default-features
           cargo test -p cli-wallet --no-default-features
           cargo test -p starknet-cashier --no-default-features
@@ -92,7 +92,7 @@ jobs:
       - name: Build services for integration tests
         run: |
           cargo build -p signer --bin signer
-          cargo build -p node --no-default-features --features=mock --bin node
+          cargo build -p node --no-default-features --features=mock,keyset-rotation --bin node
       - name: Run integration tests
         timeout-minutes: 1
         run: |
@@ -102,7 +102,7 @@ jobs:
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
           # Node
-          GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --no-default-features --features=mock --bin node -- --config ./crates/bin/node/config/local.toml &
+          GRPC_PORT=$NODE_GRPC_PORT cargo run -p node --no-default-features --features=mock,keyset-rotation --bin node -- --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
           while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
           GRPC_PORT=$NODE_GRPC_PORT cargo test -p node-tests

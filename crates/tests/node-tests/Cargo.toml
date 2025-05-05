@@ -14,11 +14,11 @@ starknet-types-core = { workspace = true }
 serde_json = { workspace = true }
 
 node = { default-features = false, path = "../../bin/node", features = [
-    "mock",
+    "mock", "keyset-rotation"
 ] }
-starknet-types = { path = "../../starknet/types" }
-starknet-liquidity-source = { path = "../../starknet/liquidity-source" }
 
+starknet-liquidity-source = { path = "../../starknet/liquidity-source" }
+starknet-types = { workspace = true }
 
 
 [[test]]

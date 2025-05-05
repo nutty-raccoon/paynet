@@ -7,7 +7,7 @@ use sqlx::{PgConnection, Postgres, QueryBuilder};
 ///  ON CONFLICT (y) WHERE state = 0 DO UPDATE SET state = 1;
 ///
 /// Meaning it will fail if a state is already set to 1 (SPENT).
-/// Otherwise it will either inset new proofs as SPENT,
+/// Otherwise it will either inset new proofs AS SPENT,
 /// or or update previously existing UNSPENT proofs to SPENT.
 pub struct InsertSpentProofsQueryBuilder<'args> {
     builder: QueryBuilder<'args, Postgres>,

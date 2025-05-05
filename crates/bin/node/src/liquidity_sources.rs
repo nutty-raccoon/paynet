@@ -16,6 +16,9 @@ pub enum Error {
     Starknet(#[from] starknet_liquidity_source::Error),
     #[error("failed to acquire db connection: {0}")]
     SqlxAcquire(#[from] sqlx::Error),
+    #[cfg(not(feature = "mock"))]
+    #[error("feature {0} requires the arg `--config` to be given a value")]
+    MissingConfigFile(String),
 }
 
 impl LiquiditySources {
@@ -25,7 +28,8 @@ impl LiquiditySources {
             #[cfg(feature = "starknet")]
             starknet: starknet_liquidity_source::StarknetLiquiditySource::init(
                 pg_pool.acquire().await?,
-                args.config,
+                args.config
+                    .ok_or(Error::MissingConfigFile(String::from("starknet")))?,
             )
             .await?,
         })

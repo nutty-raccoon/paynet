@@ -140,15 +140,12 @@ services:
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
-      - CASHIER_URL=http://starknet-cashier:10002
       - DNA_URI=http://dna:7171
-      - GRPC_PORT=20001
-    # lower precedence that `environment`
-    # use it to set your secret APIBARA_TOKEN
-    env_file:
-      - node.env
+      - GRPC_PORT=10003
+    volumes:
+      - ./crates/bin/node/config/docker.toml:/etc/paynet/config.toml
     ports:
-      - "20001:20001"
+      - "10003:10003"
     build:
       context: .
       dockerfile: ./dockerfiles/node.Dockerfile
@@ -162,7 +159,7 @@ services:
       dna:
         condition: service_started
     healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:20001"]
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
       start_period: 1s
       interval: 3s
       retries: 3

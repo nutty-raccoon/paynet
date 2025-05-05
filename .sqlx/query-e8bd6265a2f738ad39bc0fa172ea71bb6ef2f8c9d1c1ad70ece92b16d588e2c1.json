@@ -1,12 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT request, state as \"state: MintQuoteState\", expiry FROM mint_quote where id = $1",
+  "query": "SELECT amount, state AS \"state: MintQuoteState\" FROM mint_quote where id = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "request",
-        "type_info": "Text"
+        "name": "amount",
+        "type_info": "Int8"
       },
       {
         "ordinal": 1,
@@ -23,11 +23,6 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 2,
-        "name": "expiry",
-        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -37,9 +32,8 @@
     },
     "nullable": [
       false,
-      false,
       false
     ]
   },
-  "hash": "3cc0c5343eb4de5bcdc722f7264257e6a4767af534c7b6b5dd7bc60598670db3"
+  "hash": "e8bd6265a2f738ad39bc0fa172ea71bb6ef2f8c9d1c1ad70ece92b16d588e2c1"
 }

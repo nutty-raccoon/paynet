@@ -1,3 +1,4 @@
+#[cfg(feature = "keyset-rotation")]
 use node::KeysetRotationServiceServer;
 use std::net::SocketAddr;
 
@@ -36,6 +37,7 @@ pub async fn launch_tonic_server_task(
 
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter.set_serving::<NodeServer<GrpcState>>().await;
+    #[cfg(feature = "keyset-rotation")]
     health_reporter
         .set_serving::<KeysetRotationServiceServer<GrpcState>>()
         .await;
@@ -43,8 +45,11 @@ pub async fn launch_tonic_server_task(
     grpc_state
         .init_first_keysets(&[Unit::MilliStrk], 0, 32)
         .await?;
-    let tonic_future = tonic::transport::Server::builder()
-        .add_service(KeysetRotationServiceServer::new(grpc_state.clone()))
+    let mut tonic_server = tonic::transport::Server::builder();
+    #[cfg(feature = "keyset-rotation")]
+    let tonic_server =
+        tonic_server.add_service(KeysetRotationServiceServer::new(grpc_state.clone()));
+    let tonic_future = tonic_server
         .add_service(NodeServer::new(grpc_state))
         .add_service(health_service)
         .serve(address)

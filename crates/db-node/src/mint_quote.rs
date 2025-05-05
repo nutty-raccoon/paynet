@@ -40,7 +40,7 @@ pub async fn build_response_from_db(
     quote_id: Uuid,
 ) -> Result<MintQuoteResponse<Uuid>, Error> {
     let record = sqlx::query!(
-        r#"SELECT request, state as "state: MintQuoteState", expiry FROM mint_quote where id = $1"#,
+        r#"SELECT request, state AS "state: MintQuoteState", expiry FROM mint_quote where id = $1"#,
         quote_id
     )
     .fetch_one(conn)
@@ -65,7 +65,7 @@ pub async fn get_amount_and_state(
     quote_id: Uuid,
 ) -> Result<(Amount, MintQuoteState), Error> {
     let record = sqlx::query!(
-        r#"SELECT amount, state as "state: MintQuoteState" FROM mint_quote where id = $1"#,
+        r#"SELECT amount, state AS "state: MintQuoteState" FROM mint_quote where id = $1"#,
         quote_id
     )
     .fetch_one(conn)
@@ -96,36 +96,27 @@ pub async fn set_state(
     Ok(())
 }
 
-pub async fn get_quote_id_by_invoice_id(
+pub async fn get_quote_infos_by_invoice_id<U: Unit>(
     conn: &mut PgConnection,
     invoice_id: &[u8; 32],
-) -> Result<Option<Uuid>, sqlx::Error> {
+) -> Result<Option<(Uuid, Amount, U)>, Error> {
     let record = sqlx::query!(
         r#"
-            SELECT id from mint_quote WHERE invoice_id = $1 LIMIT 1
+            SELECT id, amount, unit from mint_quote WHERE invoice_id = $1 LIMIT 1
         "#,
         invoice_id
     )
     .fetch_optional(conn)
     .await?;
 
-    match record {
-        Some(r) => Ok(Some(r.id)),
-        None => Ok(None),
-    }
-}
+    let ret = if let Some(record) = record {
+        let quote_id = record.id;
+        let amount = Amount::from_i64_repr(record.amount);
+        let unit = U::from_str(&record.unit).map_err(|_| Error::DbToRuntimeConversion)?;
+        Some((quote_id, amount, unit))
+    } else {
+        None
+    };
 
-pub async fn get_amount_from_invoice_id(
-    conn: &mut PgConnection,
-    invoice_id: &[u8; 32],
-) -> Result<u64, sqlx::Error> {
-    let amount: i64 = sqlx::query!(
-        r#"SELECT amount FROM mint_quote WHERE invoice_id = $1 LIMIT 1"#,
-        invoice_id
-    )
-    .fetch_one(conn)
-    .await?
-    .amount;
-
-    Ok(u64::from_be_bytes(amount.to_be_bytes()))
+    Ok(ret)
 }
