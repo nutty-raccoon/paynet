@@ -1,9 +1,12 @@
 use nuts::{nut04, nut05};
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
+#[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::keyset_rotation_service_client::KeysetRotationServiceClient;
+#[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::keyset_rotation_service_server::{
     KeysetRotationService, KeysetRotationServiceServer,
 };
+#[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::*;
 pub use proto::node::node_client::NodeClient;
 pub use proto::node::node_server::{Node, NodeServer};
@@ -16,6 +19,7 @@ mod proto {
     pub mod node {
         tonic::include_proto!("node");
     }
+    #[cfg(feature = "keyset-rotation")]
     pub mod keyset_rotation {
         tonic::include_proto!("keyset_rotation");
     }

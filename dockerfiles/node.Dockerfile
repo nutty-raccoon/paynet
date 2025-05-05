@@ -25,12 +25,11 @@ RUN cargo build --release -p node --no-default-features --features=starknet
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y libsqlite3-0 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libsqlite3-0 libssl3 && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
 COPY --from=builder ./target/release/node ./
-COPY --from=builder ./crates/bin/node/config/local.toml ./config.toml
 
 ENV RUST_LOG=info
 
-CMD ["./node", "--config", "./config.toml"]
+CMD ["./node", "--config", "/etc/paynet/config.toml"]

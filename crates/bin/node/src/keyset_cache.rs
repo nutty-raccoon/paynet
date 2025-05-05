@@ -76,6 +76,7 @@ impl KeysetCache {
         write_lock.insert(keyset_id, keys.into_iter().collect());
     }
 
+    #[cfg(feature = "keyset-rotation")]
     pub async fn disable_keys(&self, keyset_ids: &[KeysetId]) {
         let mut write_lock = self.infos.write().await;
 

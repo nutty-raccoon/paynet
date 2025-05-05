@@ -6,5 +6,5 @@ use clap::Parser;
 #[command(version, about)]
 pub struct ProgramArguments {
     #[arg(long)]
-    pub config: PathBuf,
+    pub config: Option<PathBuf>,
 }

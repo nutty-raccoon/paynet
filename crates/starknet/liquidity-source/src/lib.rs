@@ -8,6 +8,7 @@ use std::path::PathBuf;
 pub use deposit::{Depositer, Error as DepositError};
 use log::info;
 use sqlx::{Postgres, pool::PoolConnection};
+use starknet_types::ChainId;
 pub use withdraw::{
     Error as WithdrawalError, MeltPaymentRequest, StarknetU256WithdrawAmount, Withdrawer,
 };
@@ -32,8 +33,9 @@ pub fn read_starknet_config(path: PathBuf) -> Result<StarknetCliConfig, ReadStar
 pub struct StarknetCliConfig {
     /// The chain we are using as backend
     pub chain_id: starknet_types::ChainId,
+    pub cashier_url: String,
     /// The address of the on-chain account managing deposited assets
-    pub our_account_address: starknet_types_core::felt::Felt,
+    pub cashier_account_address: starknet_types_core::felt::Felt,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -53,19 +55,21 @@ impl StarknetLiquiditySource {
         conn: PoolConnection<Postgres>,
         config_path: PathBuf,
     ) -> Result<StarknetLiquiditySource, Error> {
-        let cashier_url = std::env::var("CASHIER_URL").map_err(|e| Error::Env("CASHIER_URL", e))?;
-        let apibara_token =
-            std::env::var("APIBARA_TOKEN").map_err(|e| Error::Env("APIBARA_TOKEN", e))?;
-
         let config = read_starknet_config(config_path)?;
 
-        let cashier = cashier::connect(cashier_url, &config.chain_id).await?;
+        let apibara_token = match config.chain_id {
+            // Not needed for local DNA service
+            ChainId::Devnet => "".to_string(),
+            _ => std::env::var("APIBARA_TOKEN").map_err(|e| Error::Env("APIBARA_TOKEN", e))?,
+        };
+
+        let cashier = cashier::connect(config.cashier_url.clone(), &config.chain_id).await?;
         info!("Connected to starknet cashier server.");
 
         indexer::run_in_ctrl_c_cancellable_task(conn, apibara_token, &config).await?;
 
         Ok(StarknetLiquiditySource {
-            depositer: Depositer::new(config.chain_id, config.our_account_address),
+            depositer: Depositer::new(config.chain_id, config.cashier_account_address),
             withdrawer: Withdrawer(cashier),
         })
     }

@@ -13,6 +13,7 @@ nuts = { workspace = true }
 dotenvy = { workspace = true }
 bitcoin = { workspace = true }
 assert_matches = { workspace = true }
+starknet-types = { workspace = true }
 
 [[test]]
 name = "declare_keyset"

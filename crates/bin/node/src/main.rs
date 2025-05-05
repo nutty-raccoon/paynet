@@ -16,6 +16,7 @@ mod errors;
 mod grpc_service;
 mod initialization;
 mod keyset_cache;
+#[cfg(feature = "keyset-rotation")]
 mod keyset_rotation;
 mod liquidity_sources;
 mod logic;
