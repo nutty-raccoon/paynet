@@ -128,7 +128,7 @@ mod tests {
 
         assert!(is_valid_starknet_address(&valid_address1));
         assert!(is_valid_starknet_address(&valid_address2));
-        assert!(!is_valid_starknet_address(&valid_address3));
+        assert!(is_valid_starknet_address(&valid_address3));
 
         assert!(!is_valid_starknet_address(&invalid_address1));
         assert!(!is_valid_starknet_address(&invalid_address2));
