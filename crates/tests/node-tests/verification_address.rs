@@ -22,6 +22,7 @@ async fn test_melt_with_valid_address() -> Result<()> {
 
     let amount = Amount::from_i64_repr(32);
 
+    // MINT
     let keysets = node_client
         .keysets(GetKeysetsRequest {})
         .await?
@@ -31,8 +32,8 @@ async fn test_melt_with_valid_address() -> Result<()> {
         .iter()
         .find(|ks| ks.active && ks.unit == "strk")
         .unwrap();
-    let secret = Secret::generate();
 
+    // MINT QUOTE
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
@@ -44,6 +45,7 @@ async fn test_melt_with_valid_address() -> Result<()> {
         .await?
         .into_inner();
 
+    let secret = Secret::generate();
     let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
     let mint_request = MintRequest {
         method: "starknet".to_string(),
@@ -56,6 +58,7 @@ async fn test_melt_with_valid_address() -> Result<()> {
     };
     let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
 
+    // SWAP
     let node_pubkey_for_amount = PublicKey::from_hex(
         &node_client
             .keys(GetKeysRequest {
@@ -72,6 +75,8 @@ async fn test_melt_with_valid_address() -> Result<()> {
             .unwrap()
             .pubkey,
     )?;
+
+    // MELT
     let blind_signature = PublicKey::from_slice(
         &original_mint_response
             .signatures
@@ -131,7 +136,6 @@ async fn test_melt_with_valid_address() -> Result<()> {
 
 #[tokio::test]
 async fn test_melt_with_invalid_addresses() -> Result<()> {
-    // Initialize node client
     let mut node_client = init_node_client().await?;
 
     // Create test cases for invalid addresses
@@ -140,10 +144,10 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
         Felt::from(0),
         // Address 1 (reserved)
         Felt::from(1),
-        // Address at 2^251 (upper bound)
+        // Address at 2^251 + 17 * 2^192
         Felt::from_hex_unchecked(
             "0x800000000000000000000000000000000000000000000000000000000000000",
-        ), // Address above 2^251
+        ), // Address above 2^251 + 17 * 2^192
         Felt::from_hex_unchecked(
             "0x800000000000000000000000000000000000000000000000000000000000001",
         ),
@@ -151,6 +155,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
 
     let amount = Amount::from_i64_repr(32);
 
+    // MINT
     let keysets = node_client
         .keysets(GetKeysetsRequest {})
         .await?
@@ -160,8 +165,8 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
         .iter()
         .find(|ks| ks.active && ks.unit == "strk")
         .unwrap();
-    let secret = Secret::generate();
 
+    // MINT QUOTE
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
@@ -173,6 +178,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
         .await?
         .into_inner();
 
+    let secret = Secret::generate();
     let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
     let mint_request = MintRequest {
         method: "starknet".to_string(),
@@ -185,6 +191,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
     };
     let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
 
+    // SWAP
     let node_pubkey_for_amount = PublicKey::from_hex(
         &node_client
             .keys(GetKeysRequest {
@@ -219,6 +226,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
     };
 
     for invalid_address in invalid_addresses {
+        // MELT
         let payment_request = MeltPaymentRequest {
             payee: invalid_address,
             asset: Asset::Strk,
