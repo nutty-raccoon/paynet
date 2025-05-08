@@ -58,19 +58,24 @@ services:
   node:
     image: "node"
     restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/node.Dockerfile
+      args:
+        - CARGO_FEATURES="starknet"
+    volumes:
+      - ./crates/bin/node/config/sepolia.toml:/etc/paynet/config.toml
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
       - GRPC_PORT=10003
     # export the APIBARA_TOKEN env var in this file
     env_file: .env.sepolia.node
-    volumes:
-      - ./crates/bin/node/config/sepolia.toml:/etc/paynet/config.toml
+    command:
+      - --config
+      - /etc/paynet/config.toml
     ports:
       - "10003:10003"
-    build:
-      context: .
-      dockerfile: ./dockerfiles/node.Dockerfile
     depends_on:
       db:
         condition: service_healthy
