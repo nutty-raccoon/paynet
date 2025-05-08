@@ -493,7 +493,7 @@ pub async fn connect_to_node(
 ) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
     let node_url = wallet::db::get_node_url(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = NodeClient::connect(&node_url).await?;
+    let node_client = wallet::connect_to_node(&node_url).await?;
     Ok((node_client, node_url))
 }
 
