@@ -9,7 +9,7 @@ use nuts::dhke::{blind_message, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut01::PublicKey;
 use starknet_liquidity_source::MeltPaymentRequest;
-use starknet_types::Asset;
+use starknet_types::{Asset, Unit};
 use starknet_types_core::felt::Felt;
 
 #[tokio::test]
@@ -30,14 +30,14 @@ async fn test_melt_with_valid_address() -> Result<()> {
         .keysets;
     let active_keyset = keysets
         .iter()
-        .find(|ks| ks.active && ks.unit == "strk")
+        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
         .unwrap();
 
     // MINT QUOTE
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
-        unit: "strk".to_string(),
+        unit: Unit::MilliStrk.to_string(),
         description: None,
     };
     let original_mint_quote_response = node_client
@@ -163,14 +163,14 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
         .keysets;
     let active_keyset = keysets
         .iter()
-        .find(|ks| ks.active && ks.unit == "strk")
+        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
         .unwrap();
 
     // MINT QUOTE
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
-        unit: "strk".to_string(),
+        unit: Unit::MilliStrk.to_string(),
         description: None,
     };
     let original_mint_quote_response = node_client
