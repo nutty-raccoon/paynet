@@ -103,7 +103,7 @@ async fn test_melt_with_valid_address() -> Result<()> {
 
     let melt_request = MeltRequest {
         method: "starknet".to_string(),
-        unit: "strk".to_string(),
+        unit: Unit::MilliStrk.as_str().to_string(),
         request: serialized_request,
         inputs: vec![proof], // Empty inputs for testing
     };
@@ -236,7 +236,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
 
         let melt_request = MeltRequest {
             method: "starknet".to_string(),
-            unit: "strk".to_string(),
+            unit: Unit::MilliStrk.as_str().to_string(),
             request: serialized_request,
             inputs: vec![proof.clone()],
         };
