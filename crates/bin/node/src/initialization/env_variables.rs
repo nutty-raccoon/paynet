@@ -15,10 +15,20 @@ pub fn read_env_variables() -> Result<EnvVariables, Error> {
         .parse()
         .map_err(Error::ParseInt)?;
 
+    #[cfg(feature = "tls")]
+    let tls_cert_path =
+        std::env::var("TLS_CERT_PATH").map_err(|e| Error::Env("TLS_CERT_PATH", e))?;
+    #[cfg(feature = "tls")]
+    let tls_key_path = std::env::var("TLS_KEY_PATH").map_err(|e| Error::Env("TLS_KEY_PATH", e))?;
+
     Ok(EnvVariables {
         pg_url,
         signer_url,
         grpc_port,
+        #[cfg(feature = "tls")]
+        tls_cert_path,
+        #[cfg(feature = "tls")]
+        tls_key_path,
     })
 }
 
@@ -27,4 +37,8 @@ pub struct EnvVariables {
     pub pg_url: String,
     pub signer_url: String,
     pub grpc_port: u16,
+    #[cfg(feature = "tls")]
+    pub tls_cert_path: String,
+    #[cfg(feature = "tls")]
+    pub tls_key_path: String,
 }

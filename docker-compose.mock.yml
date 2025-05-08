@@ -38,15 +38,17 @@ services:
   node:
     image: "node.mock"
     restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/node.Dockerfile
+      args:
+        - CARGO_FEATURES="mock"
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
       - GRPC_PORT=10003
     ports:
       - "10003:10003"
-    build:
-      context: .
-      dockerfile: ./dockerfiles/node.mock.Dockerfile
     depends_on:
       db:
         condition: service_healthy

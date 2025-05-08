@@ -562,12 +562,53 @@ pub async fn register_node(
     db_conn: &Connection,
     node_url: NodeUrl,
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32)> {
-    let mut node_client = NodeClient::connect(&node_url).await?;
+    let mut node_client = connect_to_node(&node_url).await?;
 
     let node_id = db::node::insert(db_conn, node_url)?;
     refresh_node_keysets(db_conn, &mut node_client, node_id).await?;
 
     Ok((node_client, node_id))
+}
+
+pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> {
+    #[cfg(not(feature = "tls"))]
+    let node_client = NodeClient::connect(node_url).await?;
+
+    #[cfg(feature = "tls")]
+    let node_client = {
+        let mut connector =
+            openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();
+        // ignore server cert validation errors.
+        connector.set_verify_callback(openssl::ssl::SslVerifyMode::PEER, |ok, ctx| {
+            if !ok {
+                let e = ctx.error();
+                #[cfg(feature = "tls-allow-self-signed")]
+                if e.as_raw() == openssl_sys::X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT {
+                    return true;
+                }
+                log::error!("verify failed with code {}: {}", e.as_raw(), e);
+                return false;
+            }
+            true
+        });
+        connector
+            .set_alpn_protos(tonic_tls::openssl::ALPN_H2_WIRE)
+            .unwrap();
+        let ssl_conn = connector.build();
+        let uri: tonic::transport::Uri = node_url.as_ref().parse().unwrap();
+        let channel = tonic_tls::new_endpoint()
+            .connect_with_connector(tonic_tls::openssl::TlsConnector::new(
+                uri.clone(),
+                ssl_conn,
+                uri.host().unwrap().to_string(), // server has cert with dns localhost
+            ))
+            .await
+            .map_err(tonic_tls::Error::from)
+            .unwrap();
+        NodeClient::new(channel)
+    };
+
+    Ok(node_client)
 }
 
 pub async fn acknowledge(
