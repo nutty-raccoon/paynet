@@ -35,6 +35,8 @@ pub enum Error {
 pub struct NodeUrl(pub(crate) Url);
 
 fn parse_node_url(url_string: &str) -> Result<Url, Error> {
+    let url_string = url_string.trim_end_matches('/');
+
     let url = Url::parse(url_string)?;
     #[cfg(feature = "tls")]
     if url.scheme() != "https" {
@@ -89,31 +91,41 @@ mod tests {
 
     #[test]
     fn test_trim_trailing_slashes() {
-        let very_unformatted_url = "http://url-to-check.com////";
-        let unformatted_url = "http://url-to-check.com/";
-        let formatted_url = "http://url-to-check.com";
+        let scheme = if cfg!(feature = "tls") {
+            "https"
+        } else {
+            "http"
+        };
+        let very_unformatted_url = format!("{}://url-to-check.com////", scheme);
+        let unformatted_url = format!("{}://url-to-check.com", scheme);
+        let formatted_url = format!("{}://url-to-check.com/", scheme);
 
-        let very_trimmed_url = NodeUrl::from_str(very_unformatted_url).unwrap();
+        let very_trimmed_url = NodeUrl::from_str(&very_unformatted_url).unwrap();
         assert_eq!(formatted_url, very_trimmed_url.to_string());
 
-        let trimmed_url = NodeUrl::from_str(unformatted_url).unwrap();
+        let trimmed_url = NodeUrl::from_str(&unformatted_url).unwrap();
         assert_eq!(formatted_url, trimmed_url.to_string());
 
-        let unchanged_url = NodeUrl::from_str(formatted_url).unwrap();
+        let unchanged_url = NodeUrl::from_str(&formatted_url).unwrap();
         assert_eq!(formatted_url, unchanged_url.to_string());
     }
     #[test]
     fn test_case_insensitive() {
-        let wrong_cased_url = "http://URL-to-check.com";
-        let correct_cased_url = "http://url-to-check.com";
+        let scheme = if cfg!(feature = "tls") {
+            "https"
+        } else {
+            "http"
+        };
+        let wrong_cased_url = format!("{}://URL-to-check.com", scheme);
+        let correct_cased_url = format!("{}://url-to-check.com/", scheme);
 
-        let cased_url_formatted = NodeUrl::from_str(wrong_cased_url).unwrap();
+        let cased_url_formatted = NodeUrl::from_str(&wrong_cased_url).unwrap();
         assert_eq!(correct_cased_url, cased_url_formatted.to_string());
 
-        let wrong_cased_url_with_path = "http://URL-to-check.com/PATH/to/check";
-        let correct_cased_url_with_path = "http://url-to-check.com/PATH/to/check";
+        let wrong_cased_url_with_path = format!("{}://URL-to-check.com/PATH/to/check", scheme);
+        let correct_cased_url_with_path = format!("{}://url-to-check.com/PATH/to/check", scheme);
 
-        let cased_url_with_path_formatted = NodeUrl::from_str(wrong_cased_url_with_path).unwrap();
+        let cased_url_with_path_formatted = NodeUrl::from_str(&wrong_cased_url_with_path).unwrap();
         assert_eq!(
             correct_cased_url_with_path,
             cased_url_with_path_formatted.to_string()
