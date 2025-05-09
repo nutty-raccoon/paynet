@@ -8,7 +8,7 @@ use core::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use url::ParseError;
+use url::{ParseError, Url};
 
 use rusqlite::{
     Result as SqlResult,
@@ -22,62 +22,36 @@ pub enum Error {
     #[error(transparent)]
     Url(#[from] ParseError),
     /// Invalid URL structure
-    #[error("Invalid URL")]
+    #[error("invalid URL")]
     InvalidUrl,
+    #[error("https is required")]
+    HttpsRequired,
 }
 
 /// MintUrl Url
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NodeUrl(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct NodeUrl(pub(crate) Url);
 
-impl NodeUrl {
-    // This should only be used on values that have been previously parsed,
-    // most likely read from the database.
-    pub(crate) fn new_unchecked(url: String) -> Self {
-        Self(url)
+fn parse_node_url(url_string: &str) -> Result<Url, Error> {
+    let url = Url::parse(url_string)?;
+    if url.scheme() != "https" {
+        return Err(Error::HttpsRequired);
     }
-}
+    if url.domain().is_none() {
+        return Err(Error::HttpsRequired);
+    }
 
-fn format_url(url: &str) -> Result<String, Error> {
-    if url.is_empty() {
-        return Err(Error::InvalidUrl);
-    }
-    let url = url.trim_end_matches('/');
-    // https://URL.com/path/TO/resource -> https://url.com/path/TO/resource
-    let mut split_url = url.split("://");
-    let protocol = split_url.next().ok_or(Error::InvalidUrl)?.to_lowercase();
-    let mut split_address = split_url.next().ok_or(Error::InvalidUrl)?.split('/');
-    let host = split_address
-        .next()
-        .ok_or(Error::InvalidUrl)?
-        .to_lowercase();
-    let path = split_address.collect::<Vec<&str>>().join("/");
-    let mut formatted_url = format!("{}://{}", protocol, host);
-    if !path.is_empty() {
-        formatted_url.push_str(&format!("/{}", path));
-    }
-    Ok(formatted_url)
+    Ok(url)
 }
 
 impl FromStr for NodeUrl {
     type Err = Error;
 
     fn from_str(url: &str) -> Result<Self, Self::Err> {
-        let formatted_url = format_url(url);
-        match formatted_url {
-            Ok(url) => Ok(Self(url)),
-            Err(_) => Err(Error::InvalidUrl),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for NodeUrl {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        FromStr::from_str(&s).map_err(serde::de::Error::custom)
+        let parsed_url = parse_node_url(url)?;
+        Ok(Self(parsed_url))
     }
 }
 
@@ -87,36 +61,17 @@ impl fmt::Display for NodeUrl {
     }
 }
 
-impl Serialize for NodeUrl {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl AsRef<str> for NodeUrl {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<&NodeUrl> for tonic::transport::Endpoint {
-    fn from(value: &NodeUrl) -> Self {
-        value.0.parse().unwrap()
-    }
-}
-
 impl ToSql for NodeUrl {
     fn to_sql(&self) -> SqlResult<ToSqlOutput<'_>> {
-        Ok(self.as_ref().into())
+        Ok(self.0.as_str().into())
     }
 }
 
 impl FromSql for NodeUrl {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        String::column_result(value).map(NodeUrl::new_unchecked)
+        let s = String::column_result(value)?;
+
+        NodeUrl::from_str(&s).map_err(|e| rusqlite::types::FromSqlError::Other(Box::new(e)))
     }
 }
 

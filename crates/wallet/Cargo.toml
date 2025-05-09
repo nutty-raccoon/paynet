@@ -13,7 +13,7 @@ rusqlite = { workspace = true }
 log = { workspace = true }
 num-traits = { workspace = true }
 thiserror = { workspace = true }
-url = { workspace = true }
+url = { workspace = true, features = ["serde"] }
 bitcoin = { workspace = true }
 ciborium = { workspace = true }
 itertools = { workspace = true }
@@ -24,6 +24,6 @@ openssl = { workspace = true, optional = true }
 openssl-sys = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["tls"]
 tls = ["dep:tonic-tls", "dep:openssl"]
 tls-allow-self-signed = ["dep:openssl-sys"]

@@ -595,13 +595,16 @@ pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> 
             .set_alpn_protos(tonic_tls::openssl::ALPN_H2_WIRE)
             .unwrap();
         let ssl_conn = connector.build();
-        let uri: tonic::transport::Uri = node_url.as_ref().parse().unwrap();
+        let socket_address = node_url.0.socket_addrs(|| None).unwrap()[0];
+        let uri: tonic::transport::Uri = socket_address.to_string().parse().unwrap();
+
+        let connector = tonic_tls::openssl::TlsConnector::new(
+            uri.clone(),
+            ssl_conn,
+            node_url.0.domain().unwrap().to_string(),
+        );
         let channel = tonic_tls::new_endpoint()
-            .connect_with_connector(tonic_tls::openssl::TlsConnector::new(
-                uri.clone(),
-                ssl_conn,
-                uri.host().unwrap().to_string(), // server has cert with dns localhost
-            ))
+            .connect_with_connector(connector)
             .await
             .map_err(tonic_tls::Error::from)
             .unwrap();
