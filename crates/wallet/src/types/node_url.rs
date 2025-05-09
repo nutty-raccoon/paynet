@@ -24,8 +24,8 @@ pub enum Error {
     /// Invalid URL structure
     #[error("invalid URL")]
     InvalidUrl,
-    #[error("https is required")]
-    HttpsRequired,
+    #[error("invalide transmision scheme. {0} is expected, got {1}")]
+    InvalidScheme(&'static str, String),
 }
 
 /// MintUrl Url
@@ -36,11 +36,18 @@ pub struct NodeUrl(pub(crate) Url);
 
 fn parse_node_url(url_string: &str) -> Result<Url, Error> {
     let url = Url::parse(url_string)?;
+    #[cfg(feature = "tls")]
     if url.scheme() != "https" {
-        return Err(Error::HttpsRequired);
+        return Err(Error::InvalidScheme("https", url.scheme().to_string()));
     }
+    #[cfg(feature = "tls")]
     if url.domain().is_none() {
-        return Err(Error::HttpsRequired);
+        return Err(Error::InvalidUrl);
+    }
+
+    #[cfg(not(feature = "tls"))]
+    if url.scheme() != "http" {
+        return Err(Error::InvalidScheme("http", url.scheme().to_string()));
     }
 
     Ok(url)

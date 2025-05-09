@@ -24,6 +24,6 @@ openssl = { workspace = true, optional = true }
 openssl-sys = { workspace = true, optional = true }
 
 [features]
-default = ["tls"]
+default = []
 tls = ["dep:tonic-tls", "dep:openssl"]
 tls-allow-self-signed = ["dep:openssl-sys"]
