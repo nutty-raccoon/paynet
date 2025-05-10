@@ -475,24 +475,6 @@ pub async fn receive_wad(
     let mut unit_to_amount = HashMap::new();
     let mut ys = Vec::with_capacity(proofs.len());
 
-    // Validate all proof amounts are power of two before writing to db
-    if !proofs
-        .iter()
-        .map(|p| u64::from(p.amount))
-        .all(|a| a.is_power_of_two() && a != 0)
-    {
-        return Err(Error::Protocol(
-            "All proof amounts must be powers of two".to_string(),
-        ));
-    }
-    // Validate all proof amounts are valid compared against the max_order
-    {
-        use crate::types::compact_wad::validate_proofs_under_max_order_for_keyset;
-        if let Err(e) = validate_proofs_under_max_order_for_keyset(tx, proofs) {
-            return Err(Error::Protocol(e));
-        }
-    }
-
     for proof in proofs.iter() {
         // Query max_order for this keyset_id
         let mut stmt = tx.prepare("SELECT MAX(amount) FROM key WHERE keyset_id = ?1")?;
