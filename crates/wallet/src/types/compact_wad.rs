@@ -198,13 +198,6 @@ pub fn is_power_of_two(n: u64) -> bool {
     n > 0 && (n & (n - 1)) == 0
 }
 
-/// Returns true if all amounts in the slice are powers of two (and not zero).
-pub fn all_amounts_power_of_two<I>(amounts: I) -> bool
-where
-    I: IntoIterator<Item = u64>,
-{
-    amounts.into_iter().all(is_power_of_two)
-}
 
 /// Validates that all proofs have amounts less than the max_order (maximum key amount) for their keyset.
 ///
@@ -279,18 +272,6 @@ mod tests {
             secret: Default::default(),
             c: dummy_pubkey,
         }
-    }
-
-    #[test]
-    fn test_all_amounts_power_of_two_positive() {
-        let amounts = vec![1u64, 2, 4, 8, 16, 32, 64];
-        assert!(all_amounts_power_of_two(amounts));
-    }
-
-    #[test]
-    fn test_all_amounts_power_of_two_negative() {
-        let amounts = vec![1u64, 3, 4, 5, 8];
-        assert!(!all_amounts_power_of_two(amounts));
     }
 
     #[test]
