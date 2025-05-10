@@ -193,11 +193,13 @@ where
     PublicKey::from_slice(&bytes).map_err(serde::de::Error::custom)
 }
 
-/// Returns true if `n` is a power of two (and not zero).
-pub fn is_power_of_two(n: u64) -> bool {
-    n > 0 && (n & (n - 1)) == 0
+/// Returns true if all amounts in the slice are powers of two (and not zero).
+pub fn all_amounts_power_of_two<I>(amounts: I) -> bool
+where
+    I: IntoIterator<Item = u64>,
+{
+    amounts.into_iter().all(|a| a.is_power_of_two() && a != 0)
 }
-
 
 /// Validates that all proofs have amounts less than the max_order (maximum key amount) for their keyset.
 ///
@@ -272,15 +274,6 @@ mod tests {
             secret: Default::default(),
             c: dummy_pubkey,
         }
-    }
-
-    #[test]
-    fn test_is_power_of_two() {
-        assert!(is_power_of_two(1));
-        assert!(is_power_of_two(2));
-        assert!(is_power_of_two(1024));
-        assert!(!is_power_of_two(0));
-        assert!(!is_power_of_two(6));
     }
 
     #[test]
