@@ -501,7 +501,9 @@ pub async fn receive_wad(
             .map(|opt| opt.unwrap_or(0))?;
         let amount = u64::from(proof.amount);
         if !amount.is_power_of_two() || amount == 0 {
-            return Err(Error::Protocol("All proof amounts must be powers of two".to_string()));
+            return Err(Error::Protocol(
+                "All proof amounts must be powers of two".to_string(),
+            ));
         }
         if amount >= max_order {
             return Err(Error::Protocol(format!(
@@ -509,10 +511,10 @@ pub async fn receive_wad(
                 amount, max_order, proof.keyset_id
             )));
         }
-        
+
         let y = hash_to_curve(proof.secret.as_ref())?;
         ys.push(y);
-        
+
         insert_proof_stmt.execute(params![
             y,
             node_id,
@@ -530,8 +532,7 @@ pub async fn receive_wad(
             }
             hash_map::Entry::Vacant(vacant_entry) => {
                 let unit =
-                    read_or_import_node_keyset(tx, node_client, node_id, proof.keyset_id)
-                        .await?;
+                    read_or_import_node_keyset(tx, node_client, node_id, proof.keyset_id).await?;
 
                 vacant_entry.insert(unit.clone());
                 unit
