@@ -13,6 +13,7 @@ use starknet_types::{Asset, Unit};
 use starknet_types_core::felt::Felt;
 
 #[tokio::test]
+#[cfg(feature = "starknet")]
 async fn test_melt_with_valid_address() -> Result<()> {
     let mut node_client = init_node_client().await?;
 
@@ -37,7 +38,7 @@ async fn test_melt_with_valid_address() -> Result<()> {
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
-        unit: Unit::MilliStrk.to_string(),
+        unit: Unit::MilliStrk.as_str().to_string(),
         description: None,
     };
     let original_mint_quote_response = node_client
@@ -105,22 +106,18 @@ async fn test_melt_with_valid_address() -> Result<()> {
         method: "starknet".to_string(),
         unit: Unit::MilliStrk.as_str().to_string(),
         request: serialized_request,
-        inputs: vec![proof], // Empty inputs for testing
+        inputs: vec![proof],
     };
 
     let result = node_client.melt(melt_request).await;
 
-    // Validate: It should fail, but NOT with an invalid starknet address error
-    // (It would fail with something like "no inputs" or "insufficient funds")
     match result {
         Err(status) => {
-            // We expect an error, but ensure it's not an "Invalid starknet address" error
             assert!(
                 !status.message().contains("Invalid starknet address"),
                 "Address validation should pass, but failed with: {}",
                 status.message()
             );
-            // The error should be about inputs or amounts, not address validation
             println!(
                 "Test passed: Request failed as expected with error: {}",
                 status.message()
@@ -135,6 +132,7 @@ async fn test_melt_with_valid_address() -> Result<()> {
 }
 
 #[tokio::test]
+#[cfg(feature = "starknet")]
 async fn test_melt_with_invalid_addresses() -> Result<()> {
     let mut node_client = init_node_client().await?;
 
@@ -170,7 +168,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
-        unit: Unit::MilliStrk.to_string(),
+        unit: Unit::MilliStrk.as_str().to_string(),
         description: None,
     };
     let original_mint_quote_response = node_client
@@ -236,7 +234,7 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
 
         let melt_request = MeltRequest {
             method: "starknet".to_string(),
-            unit: Unit::MilliStrk.as_str().to_string(),
+            unit: Unit::MilliStrk.to_string(),
             request: serialized_request,
             inputs: vec![proof.clone()],
         };
@@ -250,12 +248,6 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
                     status.message().contains("Invalid starknet address")
                         || status.message().contains("invalid starknet address"),
                     "Expected an invalid address error, but got: {}",
-                    status.message()
-                );
-
-                println!(
-                    "Test passed: Invalid address {} correctly rejected with error: {}",
-                    invalid_address,
                     status.message()
                 );
             }
