@@ -1,5 +1,4 @@
 use crate::{
-    Error,
     keyset_cache::CachedKeysetInfo,
     liquidity_sources::LiquiditySources,
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
@@ -45,6 +44,18 @@ pub struct GrpcState {
     pub response_cache: Arc<InMemResponseCache<(Route, u64), CachedResponse>>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum InitKeysetError {
+    #[error(transparent)]
+    Tonic(#[from] tonic::Status),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
+    #[error(transparent)]
+    Nut02(#[from] nut02::Error),
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+}
+
 impl GrpcState {
     pub fn new(
         pg_pool: PgPool,
@@ -69,21 +80,19 @@ impl GrpcState {
         units: &[Unit],
         index: u32,
         max_order: u32,
-    ) -> Result<(), Error> {
+    ) -> Result<(), InitKeysetError> {
         let mut insert_keysets_query_builder = db_node::InsertKeysetsQueryBuilder::new();
 
         for unit in units {
-            let response = {
-                self.signer
-                    .clone()
-                    .declare_keyset(signer::DeclareKeysetRequest {
-                        unit: unit.to_string(),
-                        index,
-                        max_order,
-                    })
-                    .await
-                    .map_err(Error::Signer)?
-            };
+            let response = self
+                .signer
+                .clone()
+                .declare_keyset(signer::DeclareKeysetRequest {
+                    unit: unit.to_string(),
+                    index,
+                    max_order,
+                })
+                .await?;
             let response = response.into_inner();
             let keyset_id = KeysetId::from_bytes(&response.keyset_id)?;
 
@@ -96,10 +105,10 @@ impl GrpcState {
             let keys = response
                 .keys
                 .into_iter()
-                .map(|k| -> Result<(Amount, PublicKey), Error> {
+                .map(|k| -> Result<(Amount, PublicKey), InitKeysetError> {
                     Ok((
                         Amount::from(k.amount),
-                        PublicKey::from_str(&k.pubkey).map_err(Error::Nut01)?,
+                        PublicKey::from_str(&k.pubkey).map_err(InitKeysetError::Nut01)?,
                     ))
                 })
                 .collect::<Result<Vec<_>, _>>()?;

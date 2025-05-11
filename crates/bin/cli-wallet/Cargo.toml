@@ -24,3 +24,9 @@ starknet-types = { workspace = true }
 starknet-liquidity-source = { workspace = true }
 nuts = { workspace = true }
 wallet = { workspace = true }
+
+
+[features]
+default = []
+tls = ["wallet/tls"]
+tls-allow-self-signed = ["tls", "wallet/tls-allow-self-signed"]

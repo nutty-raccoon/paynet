@@ -137,18 +137,23 @@ services:
   node:
     image: "node"
     restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/node.Dockerfile
+      args:
+        - CARGO_FEATURES="starknet"
+    volumes:
+      - ./crates/bin/node/config/docker.toml:/etc/paynet/config.toml
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
       - DNA_URI=http://dna:7171
       - GRPC_PORT=10003
-    volumes:
-      - ./crates/bin/node/config/docker.toml:/etc/paynet/config.toml
+    command:
+      - --config
+      - /etc/paynet/config.toml
     ports:
       - "10003:10003"
-    build:
-      context: .
-      dockerfile: ./dockerfiles/node.Dockerfile
     depends_on:
       db:
         condition: service_healthy
