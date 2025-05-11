@@ -193,14 +193,6 @@ where
     PublicKey::from_slice(&bytes).map_err(serde::de::Error::custom)
 }
 
-/// Returns true if all amounts in the slice are powers of two (and not zero).
-pub fn all_amounts_power_of_two<I>(amounts: I) -> bool
-where
-    I: IntoIterator<Item = u64>,
-{
-    amounts.into_iter().all(|a| a.is_power_of_two() && a != 0)
-}
-
 /// Validates that all proofs have amounts less than the max_order (maximum key amount) for their keyset.
 ///
 /// # Arguments
