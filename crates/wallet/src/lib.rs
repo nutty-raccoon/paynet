@@ -65,6 +65,7 @@ pub fn build_outputs_from_premints(
 pub async fn create_mint_quote(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
+    node_id: u32,
     method: String,
     amount: Amount,
     unit: &str,
@@ -79,13 +80,13 @@ pub async fn create_mint_quote(
         .await?
         .into_inner();
 
-    db::store_mint_quote(db_conn, method, amount, unit, &response)?;
+    db::store_mint_quote(db_conn, node_id, method, amount, unit, &response)?;
 
     Ok(response)
 }
 
 pub async fn get_mint_quote_state(
-    db_conn: &mut Connection,
+    db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,

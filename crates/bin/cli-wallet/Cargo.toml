@@ -17,6 +17,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 starknet-types-core = { workspace = true }
 itertools = { workspace = true }
+uuid = { workspace = true }
 primitive-types = { workspace = true }
 
 # Local
