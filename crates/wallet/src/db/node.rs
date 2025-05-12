@@ -15,7 +15,7 @@ pub const CREATE_TABLE_NODE: &str = r#"
 pub fn insert(conn: &Connection, node_url: NodeUrl) -> Result<u32> {
     conn.execute(
         "INSERT INTO node (url) VALUES (?1) ON CONFLICT DO NOTHING;",
-        [node_url.as_ref()],
+        [&node_url],
     )?;
 
     let mut stmt = conn.prepare("SELECT id FROM node WHERE url = ?1;")?;

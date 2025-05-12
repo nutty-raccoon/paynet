@@ -570,14 +570,29 @@ pub async fn register_node(
     Ok((node_client, node_id))
 }
 
+#[cfg(feature = "tls")]
+#[derive(thiserror::Error, Debug)]
+pub enum TlsError {
+    #[error("failed to build tls connector: {0}")]
+    BuildConnector(openssl::error::ErrorStack),
+    #[error("failed set ALPN protocols: {0}")]
+    SetAlpnProtos(openssl::error::ErrorStack),
+    #[error("failed to get the node's socket address: {0}")]
+    Socket(#[from] std::io::Error),
+    #[error("invalid uri")]
+    Uri,
+    #[error("failed to connect to the node: {0}")]
+    Connect(#[from] tonic_tls::Error),
+}
+
 pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> {
     #[cfg(not(feature = "tls"))]
-    let node_client = NodeClient::connect(node_url).await?;
+    let node_client = NodeClient::connect(node_url.0.to_string()).await?;
 
     #[cfg(feature = "tls")]
     let node_client = {
-        let mut connector =
-            openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();
+        let mut connector = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())
+            .map_err(|e| Error::Tls(TlsError::BuildConnector(e)))?;
         // ignore server cert validation errors.
         connector.set_verify_callback(openssl::ssl::SslVerifyMode::PEER, |ok, ctx| {
             if !ok {
@@ -593,18 +608,28 @@ pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> 
         });
         connector
             .set_alpn_protos(tonic_tls::openssl::ALPN_H2_WIRE)
-            .unwrap();
+            .map_err(|e| Error::Tls(TlsError::SetAlpnProtos(e)))?;
         let ssl_conn = connector.build();
-        let uri: tonic::transport::Uri = node_url.as_ref().parse().unwrap();
+        let socket_address = node_url
+            .0
+            .socket_addrs(|| None)
+            .map_err(|e| Error::Tls(TlsError::Socket(e)))?[0];
+        let uri: tonic::transport::Uri = socket_address
+            .to_string()
+            .parse()
+            .map_err(|_| Error::Tls(TlsError::Uri))?;
+
+        let connector = tonic_tls::openssl::TlsConnector::new(
+            uri.clone(),
+            ssl_conn,
+            // Safe to unwrap because NodeUrl guarantee it has a domain
+            node_url.0.domain().unwrap().to_string(),
+        );
         let channel = tonic_tls::new_endpoint()
-            .connect_with_connector(tonic_tls::openssl::TlsConnector::new(
-                uri.clone(),
-                ssl_conn,
-                uri.host().unwrap().to_string(), // server has cert with dns localhost
-            ))
+            .connect_with_connector(connector)
             .await
-            .map_err(tonic_tls::Error::from)
-            .unwrap();
+            .map_err(|e| Error::Tls(TlsError::Connect(tonic_tls::Error::from(e))))?;
+
         NodeClient::new(channel)
     };
 
