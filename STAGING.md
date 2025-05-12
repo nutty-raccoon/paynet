@@ -145,16 +145,16 @@ you can send some to someone.
 
 To do so run,
 ```shell
-./target/debug/cli-wallet send --node-id 1 --amount 10 --asset strk -o ./wad.json
+./target/debug/cli-wallet send --node-id 1 --amount 10 --asset strk -o ./10strk.wad
 ```
 
-It will store the money inside the `wad.json` file.
+It will store the money inside the `10strk.wad` file.
 The content will be something like this:
 `paynetBo2FudWh0dHBzOi8vdGRlbGFicm8uY29tL2F1aW1pbGxpc3Rya2FwgaJhaUgAe32dgxHDg2FwiKNhYRhAYXN4QDMwODBmYWM1NzNjOGQwM2E4OWEzNDk4ZGI5YTdmNTNlNThjMWZkMGUzNTMxNjRiZTM0MzVhNGU4MTFiZTdlOWNhY1ghArMvhY0BwKhC9kirBTeHQ_-B7jtVxFK6lk25g_APehZTo2FhGQIAYXN4QGJiZWUyN2RjM2NiMTU1YmVkYmE4YTVmMWQ1Yzk5MzMxMjZjMjNiZjk1Yjc3Y2M4MTJmMDRiY2I5OTI1Njk5MDNhY1ghAlPMA699HM2ziL5q5Uv6HNJrK4O1cmZI26PxZ0cJ8mnCo2FhGCBhc3hAMjUzM2FiZGZmMzVjNTY1OGNlZWVlNjYwZWM3MDFjMzMyMzkxNDUyNGI5YmNiOGQzYmNjMDNiYzk4MmU5ZGFhZGFjWCECdUz7IJ_pwLV30GYLAEzC5cwS2xhELZI1mEumcmDClyCjYWEYIGFzeEA1NjE4NDIyYjU4YTYzODA4ZjI1NjVkZWI1YTgxYjY3NGQ1NWY3OTU3YmMyYTJkM2RmNDI2MDBlYzRkODVhYjYxYWNYIQI6aI4JW6OPhtW8vvFaNEXJC_qbU6mVktfdV8o6pMEAMqNhYRiAYXN4QDdkMWI1OTk5YWM3NmE1ZjE3ZGI4MDA5YTI2NmEzYzc3OTkwNmFmZWUyMmMwMDhiOTRhMGY0NzFkOTkzOWRkNTlhY1ghAgYvjD7_tskcy-VA4Ku5C1sWvEqwsM8RJa78l1cqqDBSo2FhGQQAYXN4QDg2NGI3MDM5YjBkMGNiNjQ3YzIyYWNjM2NiZjQ4NzNjOGYyMWUxNDY3YzA5MDAzYjE2NmI1NjFmYjhkZTVhMWJhY1ghA9H_ZJm7QSIEsOCCozDQv50a4dxM3AkvF2eTMO-ypSwPo2FhEGFzeEA5OThmNDc5YzIwYWMzYjMwZDQ2NzA5ZjFiZTBhZGExZTE0MGZmZjBmMjE5N2U3NzZlOTRkZWY0NzM3NDM3ODc1YWNYIQMUeTlhne6DeD0CPOSDVBZSu80qedRMOa3tuOBY46EofaNhYRkgAGFzeEBmZWM5YzdmNmE0YjNhMzk1YzI1N2Q1YWM1ZDM3ZjEyMGFjMjQxYzIzNTA3NjY3NmI1OWIxZWQ3ZWQyNWU3NWM2YWNYIQJQq_DkoByxvwsN2YoGwPluHSD-aKlCLk_HpXoNx6YHmw==`
 
 that you can decode to a more readable form running:
 ```shell
-./target/debug/cli-wallet decode-wad -f ./wad.json
+./target/debug/cli-wallet decode-wad -f ./10strk.wad
 ```
 It will display a json containing a `node_url` as well as a list of proofs, each one of a specific amount, the total adding up to the amount you decided to send.
 
@@ -167,12 +167,12 @@ As long as you can chat, you can pay.
 Let's say someone sent such a file to you, how do you consume it?
 Like this:
 ```shell
- ./target/debug/cli-wallet receive -f ./wad.json
+ ./target/debug/cli-wallet receive -f ./10strk.wad
 ```
 
 Now, check your balance, it increased.
 If you try to receive the file again, you will get a `"proof already used"` error. No double spending is allowed there!
-You can rm the `wad.json` file if you wish, it is not of any use any more.
+You can rm the `10strk.wad` file if you wish, it is not of any use any more.
 
 
 ### Withdrawing money

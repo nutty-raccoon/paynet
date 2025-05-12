@@ -149,17 +149,17 @@ enum Commands {
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 struct WadArgs {
-    #[arg(long = "string", short = 's', value_name = "JSON STRING")]
-    opt_wad_json_string: Option<String>,
+    #[arg(long = "string", short = 's', value_name = "WAD STRING")]
+    opt_wad_string: Option<String>,
     #[arg(long = "file", short = 'f', value_name = "PATH", value_hint = ValueHint::FilePath)]
-    opt_wad_json_file_path: Option<String>,
+    opt_wad_file_path: Option<String>,
 }
 
 impl WadArgs {
     fn read_wad(&self) -> Result<CompactWad<Unit>> {
-        let wad_string = if let Some(json_string) = &self.opt_wad_json_string {
+        let wad_string = if let Some(json_string) = &self.opt_wad_string {
             Ok(json_string.clone())
-        } else if let Some(file_path) = &self.opt_wad_json_file_path {
+        } else if let Some(file_path) = &self.opt_wad_file_path {
             fs::read_to_string(file_path).map_err(|e| anyhow!("Failed to read wad file: {}", e))
         } else {
             Err(anyhow!("cli rules guarantee one and only one will be set"))
@@ -407,12 +407,12 @@ async fn main() -> Result<()> {
                 .map(|output_path| {
                     if output_path
                         .extension()
-                        .ok_or_else(|| anyhow!("output file must have a .json extension."))?
-                        == "json"
+                        .ok_or_else(|| anyhow!("output file must have a .wad extension."))?
+                        == "wad"
                     {
                         Ok(output_path)
                     } else {
-                        Err(anyhow!("Output file should be a `.json` file"))
+                        Err(anyhow!("Output file should be a `.wad` file"))
                     }
                 })
                 .transpose()?;
@@ -480,12 +480,12 @@ async fn main() -> Result<()> {
             tx.commit()?;
         }
         Commands::Receive(WadArgs {
-            opt_wad_json_string,
-            opt_wad_json_file_path,
+            opt_wad_string,
+            opt_wad_file_path,
         }) => {
             let args = WadArgs {
-                opt_wad_json_string,
-                opt_wad_json_file_path,
+                opt_wad_string,
+                opt_wad_file_path,
             };
             let wad = args.read_wad()?;
 
@@ -507,12 +507,12 @@ async fn main() -> Result<()> {
             }
         }
         Commands::DecodeWad(WadArgs {
-            opt_wad_json_string,
-            opt_wad_json_file_path,
+            opt_wad_string,
+            opt_wad_file_path,
         }) => {
             let args = WadArgs {
-                opt_wad_json_string,
-                opt_wad_json_file_path,
+                opt_wad_string,
+                opt_wad_file_path,
             };
             let wad = args.read_wad()?;
 
