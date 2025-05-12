@@ -6,6 +6,8 @@ pub mod types;
 use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
 
+use crate::db::proof::get_max_order_for_keyset;
+
 use errors::{Error, Result};
 use futures::StreamExt;
 use node::{
@@ -477,10 +479,7 @@ pub async fn receive_wad(
 
     for proof in proofs.iter() {
         // Query max_order for this keyset_id
-        let mut stmt = tx.prepare("SELECT MAX(amount) FROM key WHERE keyset_id = ?1")?;
-        let max_order: u64 = stmt
-            .query_row([proof.keyset_id], |row| row.get::<_, Option<u64>>(0))
-            .map(|opt| opt.unwrap_or(0))?;
+        let max_order: u64 = get_max_order_for_keyset(tx, proof.keyset_id)?;
         let amount = u64::from(proof.amount);
         if !amount.is_power_of_two() || amount == 0 {
             return Err(Error::Protocol(

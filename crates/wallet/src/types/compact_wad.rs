@@ -14,9 +14,9 @@ use nuts::traits::Unit;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::db::proof::get_max_order_for_keyset;
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
-
 use rusqlite;
 
 use super::NodeUrl;
@@ -211,12 +211,7 @@ pub fn validate_proofs_under_max_order_for_keyset(
     for proof in proofs {
         let keyset_id = proof.keyset_id;
         let max_order = *keyset_to_max.entry(keyset_id).or_insert_with(|| {
-            let mut stmt = db_conn
-                .prepare("SELECT MAX(amount) FROM key WHERE keyset_id = ?1")
-                .expect("Failed to prepare statement for max amount");
-            stmt.query_row([keyset_id], |row| row.get::<_, Option<u64>>(0))
-                .expect("Failed to query max amount")
-                .unwrap_or(0)
+            get_max_order_for_keyset(db_conn, keyset_id).expect("Failed to get max_order")
         });
         let proof_amount = u64::from(proof.amount);
         if proof_amount >= max_order {
