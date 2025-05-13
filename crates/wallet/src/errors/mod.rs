@@ -33,6 +33,9 @@ pub enum Error {
     Nuts(#[from] nuts::Error),
     #[error("Secret error: {0}")]
     Secret(#[from] nuts::nut00::secret::Error),
+    #[cfg(feature = "tls")]
+    #[error("tls error: {0}")]
+    Tls(crate::TlsError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

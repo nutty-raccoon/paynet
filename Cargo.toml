@@ -90,6 +90,11 @@ async-trait = "0.1.88"
 itertools = "0.14"
 dashmap = "6.1.0"
 
+# TLS
+tonic-tls = { version = "0.3.0", default-features = false }
+openssl = "0.10"
+openssl-sys = "0.9.108"
+
 # Local crates
 # Clients
 signer = { path = "crates/bin/signer" }

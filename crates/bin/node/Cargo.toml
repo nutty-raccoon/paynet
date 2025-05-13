@@ -38,15 +38,20 @@ async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
 
-# Optional 
+# tls optional
+openssl = { workspace = true, optional = true }
+tonic-tls= { workspace = true, features = ["openssl"], optional = true }
+
+# starknet optional 
 starknet-payment-indexer = { workspace = true, optional = true }
 starknet-cashier = { workspace = true, optional = true }
 starknet-liquidity-source = { workspace = true, optional = true }
 
 [features]
-default = ["starknet"]
+default = ["starknet", "tls"]
 mock = ["liquidity-source/mock"]
 starknet = ["dep:starknet-payment-indexer", "dep:starknet-cashier", "dep:starknet-liquidity-source"]
+tls = ["dep:openssl", "dep:tonic-tls"]
 keyset-rotation = []
 
 

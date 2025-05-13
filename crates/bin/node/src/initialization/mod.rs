@@ -10,6 +10,8 @@ pub use signer_client::connect_to_signer;
 mod grpc;
 pub use grpc::launch_tonic_server_task;
 
+use crate::grpc_service::InitKeysetError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Failed to connect to database: {0}")]
@@ -27,4 +29,11 @@ pub enum Error {
     InvalidGrpcAddress(#[from] std::net::AddrParseError),
     #[error("failed to connect to signer")]
     SignerConnection(tonic::transport::Error),
+    #[cfg(feature = "tls")]
+    #[error("failed to setup gRPC server: {0}")]
+    OpenSSL(#[from] openssl::error::ErrorStack),
+    #[error("failed to bind gRPC server to port: {0}")]
+    Bind(#[from] std::io::Error),
+    #[error("failed to init first keysets: {0}")]
+    InitKeysets(#[from] InitKeysetError),
 }

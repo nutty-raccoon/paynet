@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
 use itertools::Itertools;
 use node::{MintQuoteState, NodeClient, hash_melt_request};
+use nuts::Amount;
 use primitive_types::U256;
 use rusqlite::Connection;
 use starknet_types::{Asset, Unit};
@@ -25,6 +26,33 @@ struct Cli {
     /// `dirs::data_dir().cli-wallet.sqlite3`
     #[arg(long, value_hint(ValueHint::FilePath))]
     db_path: Option<PathBuf>,
+}
+
+#[derive(Subcommand)]
+enum MintCommands {
+    /// Mint new tokens
+    #[command(
+        about = "Mint some tokens",
+        long_about = "Mint some tokens. Will require you to send some assets to the node."
+    )]
+    New {
+        /// Amount requested
+        #[arg(long, value_parser = parse_asset_amount)]
+        amount: U256,
+        /// Asset requested
+        #[arg(long, value_parser = Asset::from_str)]
+        asset: Asset,
+        /// Id of the node to use
+        #[arg(long)]
+        node_id: u32,
+    },
+
+    /// Sync
+    #[command(
+        about = "Sync ongoing mint operation",
+        long_about = "Sync ongoing mint operation. Inspect the database for pending quote and ask the node about updates. Finalize the mint if possible."
+    )]
+    Sync {},
 }
 
 #[derive(Subcommand)]
@@ -62,26 +90,12 @@ enum Commands {
         #[arg(long, short)]
         node_id: Option<u32>,
     },
-    /// Mint new tokens
-    #[command(
-        about = "Mint some tokens",
-        long_about = "Mint some tokens. Will require you to send some assets to the node."
-    )]
-    Mint {
-        /// Amount requested
-        #[arg(long, value_parser = parse_asset_amount)]
-        amount: U256,
-        /// Asset requested
-        #[arg(long, value_parser = Asset::from_str)]
-        asset: Asset,
-        /// Id of the node to use
-        #[arg(long)]
-        node_id: u32,
-    },
+    #[command(subcommand)]
+    Mint(MintCommands),
     /// Melt existing tokens
     #[command(
         about = "Melt some tokens",
-        long_about = "Melt some tokens. Send them to the node and receive the original asset back"
+        long_about = "Melt some tokens. Send them to the node and receive the original asset back."
     )]
     Melt {
         /// Amount to melt
@@ -135,17 +149,17 @@ enum Commands {
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 struct WadArgs {
-    #[arg(long = "string", short = 's', value_name = "JSON STRING")]
-    opt_wad_json_string: Option<String>,
+    #[arg(long = "string", short = 's', value_name = "WAD STRING")]
+    opt_wad_string: Option<String>,
     #[arg(long = "file", short = 'f', value_name = "PATH", value_hint = ValueHint::FilePath)]
-    opt_wad_json_file_path: Option<String>,
+    opt_wad_file_path: Option<String>,
 }
 
 impl WadArgs {
     fn read_wad(&self) -> Result<CompactWad<Unit>> {
-        let wad_string = if let Some(json_string) = &self.opt_wad_json_string {
+        let wad_string = if let Some(json_string) = &self.opt_wad_string {
             Ok(json_string.clone())
-        } else if let Some(file_path) = &self.opt_wad_json_file_path {
+        } else if let Some(file_path) = &self.opt_wad_file_path {
             fs::read_to_string(file_path).map_err(|e| anyhow!("Failed to read wad file: {}", e))
         } else {
             Err(anyhow!("cli rules guarantee one and only one will be set"))
@@ -225,11 +239,11 @@ async fn main() -> Result<()> {
                 }
             }
         },
-        Commands::Mint {
+        Commands::Mint(MintCommands::New {
             amount,
             asset,
             node_id,
-        } => {
+        }) => {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Requesting {} to mint {} {}", &node_url, amount, asset);
 
@@ -240,11 +254,10 @@ async fn main() -> Result<()> {
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            println!("amount {:?}, unit {:?}, rem {:?}", amount, unit, _remainder);
-
             let mint_quote_response = wallet::create_mint_quote(
                 &tx,
                 &mut node_client,
+                node_id,
                 STARKNET_METHOD.to_string(),
                 amount,
                 unit.as_str(),
@@ -261,13 +274,20 @@ async fn main() -> Result<()> {
                 // Wait a bit
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                let state = wallet::get_mint_quote_state(
-                    &mut db_conn,
+                let state = match wallet::get_mint_quote_state(
+                    &db_conn,
                     &mut node_client,
                     STARKNET_METHOD.to_string(),
                     mint_quote_response.quote.clone(),
                 )
-                .await?;
+                .await?
+                {
+                    Some(new_state) => new_state,
+                    None => {
+                        println!("quote {} has expired", mint_quote_response.quote);
+                        return Ok(());
+                    }
+                };
 
                 if state == MintQuoteState::MnqsPaid {
                     println!("On-chain deposit received");
@@ -290,6 +310,48 @@ async fn main() -> Result<()> {
 
             // TODO: remove mint_quote
             println!("Token stored. Finished.");
+        }
+        Commands::Mint(MintCommands::Sync {}) => {
+            let pending_quotes = wallet::db::get_pending_mint_quotes(&db_conn)?;
+            for (node_id, quotes) in pending_quotes {
+                let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
+                for (method, quote_id, previous_state, unit, amount) in quotes {
+                    let tx = db_conn.transaction()?;
+                    let new_state = match wallet::get_mint_quote_state(
+                        &tx,
+                        &mut node_client,
+                        method,
+                        quote_id.clone(),
+                    )
+                    .await?
+                    {
+                        Some(new_state) => new_state,
+                        None => {
+                            println!("quote {} has expired", quote_id);
+                            continue;
+                        }
+                    };
+
+                    let previous_state = MintQuoteState::try_from(previous_state).unwrap();
+                    if previous_state == MintQuoteState::MnqsUnpaid
+                        && new_state == MintQuoteState::MnqsPaid
+                    {
+                        println!("On-chain deposit received for quote {}", quote_id);
+                        wallet::mint_and_store_new_tokens(
+                            &tx,
+                            &mut node_client,
+                            STARKNET_METHOD.to_string(),
+                            quote_id,
+                            node_id,
+                            unit.as_str(),
+                            Amount::from(amount),
+                        )
+                        .await?;
+                        println!("Token stored.");
+                    }
+                    tx.commit()?;
+                }
+            }
         }
         Commands::Melt {
             amount,
@@ -334,7 +396,7 @@ async fn main() -> Result<()> {
             let melt_request_hash = hash_melt_request(&melt_request);
             let resp = node_client.melt(melt_request).await?.into_inner();
 
-            wallet::db::register_melt_quote(&tx, &resp)?;
+            wallet::db::register_melt_quote(&tx, node_id, &resp)?;
 
             tx.commit()?;
 
@@ -359,12 +421,12 @@ async fn main() -> Result<()> {
                 .map(|output_path| {
                     if output_path
                         .extension()
-                        .ok_or_else(|| anyhow!("output file must have a .json extension."))?
-                        == "json"
+                        .ok_or_else(|| anyhow!("output file must have a .wad extension."))?
+                        == "wad"
                     {
                         Ok(output_path)
                     } else {
-                        Err(anyhow!("Output file should be a `.json` file"))
+                        Err(anyhow!("Output file should be a `.wad` file"))
                     }
                 })
                 .transpose()?;
@@ -432,12 +494,12 @@ async fn main() -> Result<()> {
             tx.commit()?;
         }
         Commands::Receive(WadArgs {
-            opt_wad_json_string,
-            opt_wad_json_file_path,
+            opt_wad_string,
+            opt_wad_file_path,
         }) => {
             let args = WadArgs {
-                opt_wad_json_string,
-                opt_wad_json_file_path,
+                opt_wad_string,
+                opt_wad_file_path,
             };
             let wad = args.read_wad()?;
 
@@ -459,12 +521,12 @@ async fn main() -> Result<()> {
             }
         }
         Commands::DecodeWad(WadArgs {
-            opt_wad_json_string,
-            opt_wad_json_file_path,
+            opt_wad_string,
+            opt_wad_file_path,
         }) => {
             let args = WadArgs {
-                opt_wad_json_string,
-                opt_wad_json_file_path,
+                opt_wad_string,
+                opt_wad_file_path,
             };
             let wad = args.read_wad()?;
 
@@ -493,7 +555,7 @@ pub async fn connect_to_node(
 ) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
     let node_url = wallet::db::get_node_url(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = NodeClient::connect(&node_url).await?;
+    let node_client = wallet::connect_to_node(&node_url).await?;
     Ok((node_client, node_url))
 }
 

@@ -1,4 +1,3 @@
-use node::CREATE_TABLE_NODE;
 use nuts::Amount;
 use nuts::nut02::KeysetId;
 use rusqlite::{Connection, OptionalExtension, Result, params};
@@ -35,6 +34,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     const CREATE_TABLE_MINT_QUOTE: &str = r#"
         CREATE TABLE IF NOT EXISTS mint_quote (
             id BLOB(16) PRIMARY KEY,
+            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             method TEXT NOT NULL,
             amount INTEGER NOT NULL,
             unit TEXT NOT NULL,
@@ -45,6 +45,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     const CREATE_TABLE_MELT_RESPONSE: &str = r#"
         CREATE TABLE IF NOT EXISTS melt_response (
             id BLOB (16) PRIMARY KEY,
+            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             amount INTEGER NOT NULL,
             fee INT2 NOT NULL,
             state INT2 NOT NULL,
@@ -52,7 +53,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
         )
     "#;
 
-    tx.execute(CREATE_TABLE_NODE, ())?;
+    tx.execute(node::CREATE_TABLE_NODE, ())?;
     tx.execute(CREATE_TABLE_KEYSET, ())?;
     tx.execute(CREATE_TABLE_KEY, ())?;
     tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
@@ -66,6 +67,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
 
 pub fn store_mint_quote(
     conn: &Connection,
+    node_id: u32,
     method: String,
     amount: Amount,
     unit: &str,
@@ -73,15 +75,16 @@ pub fn store_mint_quote(
 ) -> Result<()> {
     const INSERT_NEW_MINT_QUOTE: &str = r#"
         INSERT INTO mint_quote
-            (id, method, amount, unit, request, state, expiry)
+            (id, node_id, method, amount, unit, request, state, expiry)
         VALUES
-            (?1, ?2, ?3, ?4, ?5, ?6, ?7);
+            (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
     "#;
 
     conn.execute(
         INSERT_NEW_MINT_QUOTE,
         (
             &response.quote,
+            node_id,
             method,
             amount,
             unit,
@@ -101,6 +104,17 @@ pub fn set_mint_quote_state(conn: &Connection, quote_id: String, state: i32) -> 
     "#;
 
     conn.execute(SET_MINT_QUOTE_STATE, (&quote_id, state))?;
+
+    Ok(())
+}
+
+pub fn delete_mint_quote(conn: &Connection, quote_id: &str) -> Result<()> {
+    const SET_MINT_QUOTE_STATE: &str = r#"
+        DELETE FROM mint_quote
+        WHERE id = ?1;
+    "#;
+
+    conn.execute(SET_MINT_QUOTE_STATE, [quote_id])?;
 
     Ok(())
 }
@@ -206,11 +220,15 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: KeysetId) -> Result<Option<
     Ok(opt_unit)
 }
 
-pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -> Result<()> {
+pub fn register_melt_quote(
+    conn: &Connection,
+    node_id: u32,
+    response: &::node::MeltResponse,
+) -> Result<()> {
     const INSERT_MELT_RESPONSE: &str = r#"
             INSERT INTO melt_response (
-                id, amount, fee, state, expiry
-            ) VALUES (?1, ?2, ?3, ?4, ?5)
+                id, node_id, amount, fee, state, expiry
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
             "#;
 
     let fee_i16: i16 = response
@@ -222,6 +240,7 @@ pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -
         INSERT_MELT_RESPONSE,
         params![
             &response.quote,
+            node_id,
             response.amount,
             fee_i16,
             response.state,
@@ -230,4 +249,33 @@ pub fn register_melt_quote(conn: &Connection, response: &::node::MeltResponse) -
     )?;
 
     Ok(())
+}
+
+#[allow(clippy::type_complexity)]
+pub fn get_pending_mint_quotes(
+    conn: &Connection,
+) -> Result<Vec<(u32, Vec<(String, String, i32, String, u64)>)>> {
+    const GET_PENDING_QUOTES: &str = r#"
+        SELECT node_id, method, id, state, unit, amount FROM mint_quote WHERE state = 1 OR state = 2;
+    "#;
+
+    let mut stmt = conn.prepare(GET_PENDING_QUOTES)?;
+    let mut rows = stmt.query([])?;
+
+    let mut quote_per_node: Vec<(u32, Vec<(String, String, i32, String, u64)>)> = Vec::new();
+    while let Some(row) = rows.next()? {
+        let node_id = row.get::<_, u32>(0)?;
+        let method = row.get::<_, String>(1)?;
+        let id = row.get::<_, String>(2)?;
+        let state = row.get::<_, i32>(3)?;
+        let unit = row.get::<_, String>(4)?;
+        let amount = row.get::<_, u64>(5)?;
+
+        match quote_per_node.iter().position(|v| v.0 == node_id) {
+            Some(p) => quote_per_node[p].1.push((method, id, state, unit, amount)),
+            None => quote_per_node.push((node_id, vec![(method, id, state, unit, amount)])),
+        }
+    }
+
+    Ok(quote_per_node)
 }

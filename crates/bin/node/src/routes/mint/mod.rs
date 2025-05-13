@@ -14,7 +14,6 @@ use crate::{
     grpc_service::GrpcState,
     logic::{OutputsError, process_outputs},
     methods::Method,
-    utils::unix_time,
 };
 
 #[derive(Debug, Error)]
@@ -64,7 +63,7 @@ impl From<Error> for Status {
             },
             Error::InvalidQuoteStateAtThisPoint(_)
             | Error::OutputsAmount { .. }
-            | Error::QuoteExpired => Status::invalid_argument(value.to_string()),
+            | Error::QuoteExpired => Status::deadline_exceeded(value.to_string()),
         }
     }
 }
@@ -82,16 +81,8 @@ impl GrpcState {
 
         let mut tx = db_node::begin_db_tx(&self.pg_pool).await?;
 
-        let quote_response = db_node::mint_quote::build_response_from_db(&mut tx, quote).await?;
-
         let (expected_amount, state) =
             db_node::mint_quote::get_amount_and_state(&mut tx, quote).await?;
-
-        let current_time = unix_time();
-
-        if current_time > quote_response.expiry {
-            return Err(Error::QuoteExpired);
-        }
 
         if state != MintQuoteState::Paid {
             return Err(Error::InvalidQuoteStateAtThisPoint(state));
