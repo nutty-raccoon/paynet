@@ -62,7 +62,7 @@ services:
       context: .
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
-        - CARGO_FEATURES="starknet"
+        - CARGO_FEATURES=starknet
     volumes:
       - ./crates/bin/node/config/sepolia.toml:/etc/paynet/config.toml
     environment:

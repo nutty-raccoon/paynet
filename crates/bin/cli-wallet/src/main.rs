@@ -274,13 +274,20 @@ async fn main() -> Result<()> {
                 // Wait a bit
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                let state = wallet::get_mint_quote_state(
+                let state = match wallet::get_mint_quote_state(
                     &db_conn,
                     &mut node_client,
                     STARKNET_METHOD.to_string(),
                     mint_quote_response.quote.clone(),
                 )
-                .await?;
+                .await?
+                {
+                    Some(new_state) => new_state,
+                    None => {
+                        println!("quote {} has expired", mint_quote_response.quote);
+                        return Ok(());
+                    }
+                };
 
                 if state == MintQuoteState::MnqsPaid {
                     println!("On-chain deposit received");
@@ -310,13 +317,20 @@ async fn main() -> Result<()> {
                 let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
                 for (method, quote_id, previous_state, unit, amount) in quotes {
                     let tx = db_conn.transaction()?;
-                    let new_state = wallet::get_mint_quote_state(
+                    let new_state = match wallet::get_mint_quote_state(
                         &tx,
                         &mut node_client,
                         method,
                         quote_id.clone(),
                     )
-                    .await?;
+                    .await?
+                    {
+                        Some(new_state) => new_state,
+                        None => {
+                            println!("quote {} has expired", quote_id);
+                            continue;
+                        }
+                    };
 
                     let previous_state = MintQuoteState::try_from(previous_state).unwrap();
                     if previous_state == MintQuoteState::MnqsUnpaid

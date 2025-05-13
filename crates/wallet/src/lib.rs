@@ -5,6 +5,7 @@ pub mod types;
 
 use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use errors::{Error, Result};
 use futures::StreamExt;
@@ -90,18 +91,38 @@ pub async fn get_mint_quote_state(
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
-) -> Result<MintQuoteState> {
+) -> Result<Option<MintQuoteState>> {
     let response = node_client
         .mint_quote_state(QuoteStateRequest {
             method,
-            quote: quote_id,
+            quote: quote_id.clone(),
         })
-        .await?
-        .into_inner();
+        .await;
 
-    db::set_mint_quote_state(db_conn, response.quote, response.state)?;
+    match response {
+        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
+            db::delete_mint_quote(db_conn, &quote_id)?;
+            Ok(None)
+        }
+        Ok(response) => {
+            let response = response.into_inner();
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
 
-    MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
+            if now >= response.expiry {
+                db::delete_mint_quote(db_conn, &quote_id)?;
+                Ok(None)
+            } else {
+                db::set_mint_quote_state(db_conn, response.quote, response.state)?;
+                let state = MintQuoteState::try_from(response.state)
+                    .map_err(|e| Error::Conversion(e.to_string()))?;
+                Ok(Some(state))
+            }
+        }
+        Err(e) => Err(e)?,
+    }
 }
 
 pub async fn refresh_node_keysets(
