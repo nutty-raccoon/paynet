@@ -5,6 +5,7 @@ pub mod types;
 
 use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use errors::{Error, Result};
 use futures::StreamExt;
@@ -65,6 +66,7 @@ pub fn build_outputs_from_premints(
 pub async fn create_mint_quote(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
+    node_id: u32,
     method: String,
     amount: Amount,
     unit: &str,
@@ -79,28 +81,51 @@ pub async fn create_mint_quote(
         .await?
         .into_inner();
 
-    db::store_mint_quote(db_conn, method, amount, unit, &response)?;
+    db::store_mint_quote(db_conn, node_id, method, amount, unit, &response)?;
 
     Ok(response)
 }
 
 pub async fn get_mint_quote_state(
-    db_conn: &mut Connection,
+    db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
-) -> Result<MintQuoteState> {
+) -> Result<Option<MintQuoteState>> {
     let response = node_client
         .mint_quote_state(QuoteStateRequest {
             method,
-            quote: quote_id,
+            quote: quote_id.clone(),
         })
-        .await?
-        .into_inner();
+        .await;
 
-    db::set_mint_quote_state(db_conn, response.quote, response.state)?;
+    match response {
+        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
+            db::delete_mint_quote(db_conn, &quote_id)?;
+            Ok(None)
+        }
+        Ok(response) => {
+            let response = response.into_inner();
+            let state = MintQuoteState::try_from(response.state)
+                .map_err(|e| Error::Conversion(e.to_string()))?;
 
-    MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
+            if state == MintQuoteState::MnqsUnpaid {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                if now >= response.expiry {
+                    db::delete_mint_quote(db_conn, &quote_id)?;
+                    return Ok(None);
+                }
+            }
+            db::set_mint_quote_state(db_conn, response.quote, response.state)?;
+            let state = MintQuoteState::try_from(response.state)
+                .map_err(|e| Error::Conversion(e.to_string()))?;
+            Ok(Some(state))
+        }
+        Err(e) => Err(e)?,
+    }
 }
 
 pub async fn refresh_node_keysets(
@@ -570,14 +595,29 @@ pub async fn register_node(
     Ok((node_client, node_id))
 }
 
+#[cfg(feature = "tls")]
+#[derive(thiserror::Error, Debug)]
+pub enum TlsError {
+    #[error("failed to build tls connector: {0}")]
+    BuildConnector(openssl::error::ErrorStack),
+    #[error("failed set ALPN protocols: {0}")]
+    SetAlpnProtos(openssl::error::ErrorStack),
+    #[error("failed to get the node's socket address: {0}")]
+    Socket(#[from] std::io::Error),
+    #[error("invalid uri")]
+    Uri,
+    #[error("failed to connect to the node: {0}")]
+    Connect(#[from] tonic_tls::Error),
+}
+
 pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> {
     #[cfg(not(feature = "tls"))]
-    let node_client = NodeClient::connect(node_url).await?;
+    let node_client = NodeClient::connect(node_url.0.to_string()).await?;
 
     #[cfg(feature = "tls")]
     let node_client = {
-        let mut connector =
-            openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();
+        let mut connector = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())
+            .map_err(|e| Error::Tls(TlsError::BuildConnector(e)))?;
         // ignore server cert validation errors.
         connector.set_verify_callback(openssl::ssl::SslVerifyMode::PEER, |ok, ctx| {
             if !ok {
@@ -593,18 +633,28 @@ pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> 
         });
         connector
             .set_alpn_protos(tonic_tls::openssl::ALPN_H2_WIRE)
-            .unwrap();
+            .map_err(|e| Error::Tls(TlsError::SetAlpnProtos(e)))?;
         let ssl_conn = connector.build();
-        let uri: tonic::transport::Uri = node_url.as_ref().parse().unwrap();
+        let socket_address = node_url
+            .0
+            .socket_addrs(|| None)
+            .map_err(|e| Error::Tls(TlsError::Socket(e)))?[0];
+        let uri: tonic::transport::Uri = socket_address
+            .to_string()
+            .parse()
+            .map_err(|_| Error::Tls(TlsError::Uri))?;
+
+        let connector = tonic_tls::openssl::TlsConnector::new(
+            uri.clone(),
+            ssl_conn,
+            // Safe to unwrap because NodeUrl guarantee it has a domain
+            node_url.0.domain().unwrap().to_string(),
+        );
         let channel = tonic_tls::new_endpoint()
-            .connect_with_connector(tonic_tls::openssl::TlsConnector::new(
-                uri.clone(),
-                ssl_conn,
-                uri.host().unwrap().to_string(), // server has cert with dns localhost
-            ))
+            .connect_with_connector(connector)
             .await
-            .map_err(tonic_tls::Error::from)
-            .unwrap();
+            .map_err(|e| Error::Tls(TlsError::Connect(tonic_tls::Error::from(e))))?;
+
         NodeClient::new(channel)
     };
 

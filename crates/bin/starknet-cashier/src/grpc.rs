@@ -5,7 +5,7 @@ use starknet::providers::jsonrpc::{HttpTransport, JsonRpcClient};
 use starknet::signers::{LocalWallet, SigningKey};
 use starknet_cashier::{ConfigRequest, ConfigResponse, WithdrawRequest, WithdrawResponse};
 use starknet_types::transactions::sign_and_send_payment_transactions;
-use starknet_types::{Asset, StarknetU256, felt_to_short_string};
+use starknet_types::{Asset, StarknetU256, felt_to_short_string, is_valid_starknet_address};
 use std::str::FromStr;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -89,6 +89,12 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
             .ok_or_else(|| Status::invalid_argument("bad assset"))?;
 
         let payee_address = Felt::from_bytes_be_slice(&request.payee);
+        if !is_valid_starknet_address(&payee_address) {
+            return Err(Status::invalid_argument(format!(
+                "invalid payee address: {}",
+                payee_address
+            )));
+        }
 
         match sign_and_send_payment_transactions(
             &self.account,

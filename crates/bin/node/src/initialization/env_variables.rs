@@ -1,3 +1,5 @@
+use std::env::VarError;
+
 use super::Error;
 
 pub fn read_env_variables() -> Result<EnvVariables, Error> {
@@ -14,6 +16,11 @@ pub fn read_env_variables() -> Result<EnvVariables, Error> {
         .map_err(|e| Error::Env("GRPC_PORT", e))?
         .parse()
         .map_err(Error::ParseInt)?;
+    let quote_ttl = match std::env::var("QUOTE_TTL") {
+        Ok(v) => Some(v.parse().map_err(Error::ParseInt)?),
+        Err(VarError::NotPresent) => None,
+        Err(e) => return Err(Error::Env("QUOTE_TTL", e)),
+    };
 
     #[cfg(feature = "tls")]
     let tls_cert_path =
@@ -25,6 +32,7 @@ pub fn read_env_variables() -> Result<EnvVariables, Error> {
         pg_url,
         signer_url,
         grpc_port,
+        quote_ttl,
         #[cfg(feature = "tls")]
         tls_cert_path,
         #[cfg(feature = "tls")]
@@ -37,6 +45,7 @@ pub struct EnvVariables {
     pub pg_url: String,
     pub signer_url: String,
     pub grpc_port: u16,
+    pub quote_ttl: Option<u64>,
     #[cfg(feature = "tls")]
     pub tls_cert_path: String,
     #[cfg(feature = "tls")]
