@@ -106,20 +106,23 @@ pub async fn get_mint_quote_state(
         }
         Ok(response) => {
             let response = response.into_inner();
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
+            let state = MintQuoteState::try_from(response.state)
+                .map_err(|e| Error::Conversion(e.to_string()))?;
 
-            if now >= response.expiry {
-                db::delete_mint_quote(db_conn, &quote_id)?;
-                Ok(None)
-            } else {
-                db::set_mint_quote_state(db_conn, response.quote, response.state)?;
-                let state = MintQuoteState::try_from(response.state)
-                    .map_err(|e| Error::Conversion(e.to_string()))?;
-                Ok(Some(state))
+            if state == MintQuoteState::MnqsUnpaid {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                if now >= response.expiry {
+                    db::delete_mint_quote(db_conn, &quote_id)?;
+                    return Ok(None);
+                }
             }
+            db::set_mint_quote_state(db_conn, response.quote, response.state)?;
+            let state = MintQuoteState::try_from(response.state)
+                .map_err(|e| Error::Conversion(e.to_string()))?;
+            Ok(Some(state))
         }
         Err(e) => Err(e)?,
     }
