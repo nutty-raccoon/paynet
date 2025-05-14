@@ -108,6 +108,17 @@ pub fn set_mint_quote_state(conn: &Connection, quote_id: String, state: i32) -> 
     Ok(())
 }
 
+pub fn delete_mint_quote(conn: &Connection, quote_id: &str) -> Result<()> {
+    const SET_MINT_QUOTE_STATE: &str = r#"
+        DELETE FROM mint_quote
+        WHERE id = ?1;
+    "#;
+
+    conn.execute(SET_MINT_QUOTE_STATE, [quote_id])?;
+
+    Ok(())
+}
+
 pub fn upsert_node_keysets(
     conn: &Connection,
     node_id: u32,

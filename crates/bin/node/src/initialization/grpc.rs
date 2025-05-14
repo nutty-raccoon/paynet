@@ -21,13 +21,14 @@ pub async fn launch_tonic_server_task(
     env_vars: EnvVariables,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();
+    let ttl = env_vars.quote_ttl.unwrap_or(3600);
     let grpc_state = GrpcState::new(
         pg_pool,
         signer_client,
         nuts_settings,
         QuoteTTLConfig {
-            mint_ttl: 3600,
-            melt_ttl: 3600,
+            mint_ttl: ttl,
+            melt_ttl: ttl,
         },
         liquidity_sources,
     );
