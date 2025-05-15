@@ -3,12 +3,16 @@ mod deposit;
 mod indexer;
 mod withdraw;
 
-use std::path::PathBuf;
+use std::{
+    fmt::{LowerHex, UpperHex},
+    path::PathBuf,
+};
 
 pub use deposit::{Depositer, Error as DepositError};
-use log::info;
-use sqlx::{Postgres, pool::PoolConnection};
+use sqlx::PgPool;
 use starknet_types::ChainId;
+use starknet_types_core::{felt::Felt, hash::Poseidon};
+use tracing::trace;
 pub use withdraw::{
     Error as WithdrawalError, MeltPaymentRequest, StarknetU256WithdrawAmount, Withdrawer,
 };
@@ -52,7 +56,7 @@ pub enum Error {
 
 impl StarknetLiquiditySource {
     pub async fn init(
-        conn: PoolConnection<Postgres>,
+        pg_pool: PgPool,
         config_path: PathBuf,
     ) -> Result<StarknetLiquiditySource, Error> {
         let config = read_starknet_config(config_path)?;
@@ -64,14 +68,44 @@ impl StarknetLiquiditySource {
         };
 
         let cashier = cashier::connect(config.cashier_url.clone(), &config.chain_id).await?;
-        info!("Connected to starknet cashier server.");
+        trace!("connected to starknet cashier server");
 
-        indexer::run_in_ctrl_c_cancellable_task(conn, apibara_token, &config).await?;
+        let cloned_chain_id = config.chain_id.clone();
+        let cloned_cashier_account_address = config.cashier_account_address;
+        let _handle = tokio::spawn(async move {
+            indexer::run_in_ctrl_c_cancellable_task(
+                pg_pool,
+                apibara_token,
+                cloned_chain_id,
+                cloned_cashier_account_address,
+            )
+            .await
+        });
 
         Ok(StarknetLiquiditySource {
             depositer: Depositer::new(config.chain_id, config.cashier_account_address),
             withdrawer: Withdrawer(cashier),
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StarknetInvoiceId(Felt);
+
+impl From<StarknetInvoiceId> for [u8; 32] {
+    fn from(value: StarknetInvoiceId) -> Self {
+        value.0.to_bytes_be()
+    }
+}
+
+impl LowerHex for StarknetInvoiceId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        LowerHex::fmt(&self.0, f)
+    }
+}
+impl UpperHex for StarknetInvoiceId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        UpperHex::fmt(&self.0, f)
     }
 }
 
@@ -84,6 +118,7 @@ pub struct StarknetLiquiditySource {
 impl liquidity_source::LiquiditySource for StarknetLiquiditySource {
     type Depositer = Depositer;
     type Withdrawer = Withdrawer;
+    type InvoiceId = StarknetInvoiceId;
 
     fn depositer(&self) -> Depositer {
         self.depositer.clone()
@@ -91,5 +126,14 @@ impl liquidity_source::LiquiditySource for StarknetLiquiditySource {
 
     fn withdrawer(&self) -> Withdrawer {
         self.withdrawer.clone()
+    }
+
+    fn compute_invoice_id(&self, quote_id: uuid::Uuid, expiry: u64) -> Self::InvoiceId {
+        let quote_id_hash =
+            Felt::from_bytes_be(bitcoin_hashes::Sha256::hash(quote_id.as_bytes()).as_byte_array());
+        let mut values = [quote_id_hash, expiry.into(), 2.into()];
+        Poseidon::hades_permutation(&mut values);
+
+        StarknetInvoiceId(values[0])
     }
 }

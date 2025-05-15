@@ -1,9 +1,10 @@
-use log::error;
 use starknet::{
     accounts::{Account, AccountError, ConnectedAccount},
     core::types::Call,
 };
 use starknet_types_core::felt::Felt;
+use tracing::error;
+use tracing::{Instrument, info_span};
 
 use crate::StarknetU256;
 
@@ -66,6 +67,7 @@ pub async fn sign_and_send_payment_transactions<
     let tx_result = account
         .execute_v3(calls.to_vec())
         .send()
+        .instrument(info_span!("send-withdraw-transaction"))
         .await
         .inspect_err(|e| error!("send payment tx failed: {:?}", e))?;
 

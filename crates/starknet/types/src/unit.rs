@@ -37,7 +37,7 @@ impl Unit {
         }
     }
 
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Unit::MilliStrk => MILLI_STR,
             Unit::Gwei => GWEI_STR,

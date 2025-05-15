@@ -1,4 +1,3 @@
-use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
 use serde::{Deserialize, Serialize};
 use starknet_cashier::{StarknetCashierClient, WithdrawRequest as CashierWithdrawRequest};
@@ -8,6 +7,9 @@ use tonic::{Request, transport::Channel};
 
 use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use starknet_types::is_valid_starknet_address;
+use uuid::Uuid;
+
+use crate::StarknetInvoiceId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -42,10 +44,10 @@ impl WithdrawAmount for StarknetU256WithdrawAmount {
 }
 
 #[derive(Debug, Clone)]
-pub struct Withdrawer(pub StarknetCashierClient<Channel>);
+pub struct Withdrawer(pub StarknetCashierClient<tower_otel::trace::Grpc<Channel>>);
 
 impl Withdrawer {
-    pub fn new(cashier: StarknetCashierClient<Channel>) -> Self {
+    pub fn new(cashier: StarknetCashierClient<tower_otel::trace::Grpc<Channel>>) -> Self {
         Self(cashier)
     }
 }
@@ -55,6 +57,7 @@ impl WithdrawInterface for Withdrawer {
     type Error = Error;
     type Request = MeltPaymentRequest;
     type Amount = StarknetU256WithdrawAmount;
+    type InvoiceId = StarknetInvoiceId;
 
     fn deserialize_payment_request(&self, raw_json_string: &str) -> Result<Self::Request, Error> {
         let pr = serde_json::from_str::<Self::Request>(raw_json_string)
@@ -68,32 +71,32 @@ impl WithdrawInterface for Withdrawer {
 
     async fn proceed_to_payment(
         &mut self,
-        quote_hash: Sha256,
+        quote_id: Uuid,
         melt_payment_request: MeltPaymentRequest,
         amount: Self::Amount,
         expiry: u64,
-    ) -> Result<(MeltQuoteState, Vec<u8>), Error> {
-        let tx_hash = self
-            .0
-            .withdraw(Request::new(CashierWithdrawRequest {
-                quote_id_hash: Felt::from_bytes_be(quote_hash.as_byte_array())
-                    .to_bytes_be()
-                    .to_vec(),
-                asset: melt_payment_request.asset.to_string(),
-                amount: amount
-                    .0
-                    .to_bytes_be()
-                    .into_iter()
-                    .skip_while(|&b| b == 0)
-                    .collect(),
-                payee: melt_payment_request.payee.to_bytes_be().to_vec(),
-                expiry,
-            }))
-            .await
-            .map_err(Error::StarknetCashier)?
-            .into_inner()
-            .tx_hash;
+    ) -> Result<(MeltQuoteState, Self::InvoiceId), Error> {
+        // let tx_hash = self
+        //     .0
+        //     .withdraw(Request::new(CashierWithdrawRequest {
+        //         invoice_id: invoice_id.0.to_bytes_be().to_vec(),
+        //         asset: melt_payment_request.asset.to_string(),
+        //         amount: amount
+        //             .0
+        //             .to_bytes_be()
+        //             .into_iter()
+        //             .skip_while(|&b| b == 0)
+        //             .collect(),
+        //         payee: melt_payment_request.payee.to_bytes_be().to_vec(),
+        //         expiry,
+        //     }))
+        //     .await
+        //     .map_err(Error::StarknetCashier)?
+        //     .into_inner()
+        //     .tx_hash;
+        //
+        let invoice_id = todo!();
 
-        Ok((MeltQuoteState::Pending, tx_hash))
+        Ok((MeltQuoteState::Pending, invoice_id))
     }
 }

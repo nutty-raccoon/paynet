@@ -4,11 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = { workspace = true, features = ["macros"] }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { workspace = true, features = ["timeout"] }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 parking_lot = { workspace = true, features = ["arc_lock"] }
@@ -20,12 +17,11 @@ num-traits = { workspace = true }
 num-bigint = { workspace = true }
 dotenvy = { workspace = true }
 primitive-types = { workspace = true }
+http = { workspace = true }
+log = { workspace = true }
 url = { workspace = true }
 toml = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-tonic = { workspace = true }
-tonic-health = { workspace = true }
-prost = { workspace = true }
 nuts = { workspace = true, features = ["nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
@@ -37,6 +33,17 @@ bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
+
+# gRPC
+prost = { workspace = true }
+tonic = { workspace = true }
+tonic-health = { workspace = true }
+
+# OPTL
+tracing = { workspace = true }
+open-telemetry-tracing = { workspace = true }
+tower-otel = { workspace = true }
+opentelemetry = { workspace = true }
 
 # tls optional
 openssl = { workspace = true, optional = true }

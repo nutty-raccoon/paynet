@@ -9,6 +9,7 @@ use starknet_types::{Asset, StarknetU256, felt_to_short_string, is_valid_starkne
 use std::str::FromStr;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
+use tracing::{Level, event, instrument};
 
 use crate::env_vars::read_env_variables;
 use starknet_types::constants::ON_CHAIN_CONSTANTS;
@@ -47,6 +48,7 @@ impl StarknetCashierState {
 
 #[tonic::async_trait]
 impl starknet_cashier::StarknetCashier for StarknetCashierState {
+    #[instrument]
     async fn config(
         &self,
         _withdraw_request: Request<ConfigRequest>,
@@ -57,6 +59,7 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
         Ok(Response::new(ConfigResponse { chain_id }))
     }
 
+    #[instrument]
     async fn withdraw(
         &self,
         withdraw_request: Request<WithdrawRequest>,
@@ -96,24 +99,31 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
             )));
         }
 
-        match sign_and_send_payment_transactions(
+        let tx_hash = sign_and_send_payment_transactions(
             &self.account,
             quote_id_hash,
             on_chain_constants.invoice_payment_contract_address,
             asset_contract_address,
-            amount,
+            amount.clone(),
             payee_address,
             request.expiry,
         )
         .await
-        {
-            Ok(tx_hash) => Ok(Response::new(WithdrawResponse {
-                tx_hash: tx_hash.to_bytes_be().to_vec(),
-            })),
-            Err(err) => Err(Status::internal(format!(
-                "Failed to execute transaction: {}",
-                err
-            ))),
-        }
+        .map_err(|e| Status::internal(format!("failed to execute transaction: {}", e)))?;
+
+        event!(
+            name: "withdraw",
+            Level::INFO,
+            name = "withdraw",
+            invoice_id = invoice_id.to_hex_string(),
+            tx_hash = tx_hash.to_hex_string(),
+            amount = amount.to_dec_string(),
+            asset = asset_contract_address.to_string(),
+            payee = payee_address.to_string(),
+        );
+
+        Ok(Response::new(WithdrawResponse {
+            tx_hash: tx_hash.to_bytes_be().to_vec(),
+        }))
     }
 }
