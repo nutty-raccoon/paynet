@@ -1,6 +1,7 @@
 mod errors;
 mod inputs;
 
+use bitcoin_hashes::hex::DisplayHex;
 use inputs::process_melt_inputs;
 use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use nuts::Amount;
@@ -8,6 +9,7 @@ use nuts::nut05::MeltQuoteResponse;
 use nuts::{nut00::Proof, nut05::MeltMethodSettings};
 use sqlx::PgConnection;
 use starknet_types::Unit;
+use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::utils::unix_time;
@@ -56,6 +58,16 @@ impl GrpcState {
         let (quote_id, quote_hash, total_amount, fee, expiry) = self
             .validate_and_register_quote(&mut conn, &settings, melt_payment_request, inputs)
             .await?;
+
+        event!(
+            name: "melt-quote",
+            Level::INFO,
+            %method,
+            amount = u64::from(total_amount),
+            %unit,
+            %quote_id,
+        );
+
         let (state, transfer_id) = withdrawer
             .proceed_to_payment(
                 quote_hash,
@@ -64,9 +76,18 @@ impl GrpcState {
             )
             .await
             .map_err(|e| Error::LiquiditySource(e.into()))?;
-        // TODO: merge those in a signle call
+
+        // TODO: merge those in a single call
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;
         db_node::melt_quote::register_transfer_id(&mut conn, quote_id, &transfer_id).await?;
+
+        event!(
+            name: "melt",
+            Level::INFO,
+            %method,
+            %quote_id,
+            transfer_id = transfer_id.as_hex().to_string(),
+        );
 
         Ok(MeltQuoteResponse {
             quote: quote_id,

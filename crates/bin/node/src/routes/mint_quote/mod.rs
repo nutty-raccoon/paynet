@@ -8,6 +8,7 @@ use sqlx::PgConnection;
 use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
+use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::{methods::Method, utils::unix_time};
@@ -106,6 +107,15 @@ impl GrpcState {
             ),
         }
         .await?;
+
+        event!(
+            name: "mint-quote",
+            Level::INFO,
+            %method,
+            amount = u64::from(amount),
+            %unit,
+            quote_id = %response.quote
+        );
 
         Ok(response)
     }

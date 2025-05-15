@@ -25,6 +25,7 @@ use std::{str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status, transport::Channel};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -169,6 +170,7 @@ impl From<ParseGrpcError> for Status {
 
 #[tonic::async_trait]
 impl Node for GrpcState {
+    #[instrument]
     async fn keysets(
         &self,
         _request: Request<GetKeysetsRequest>,
@@ -192,6 +194,7 @@ impl Node for GrpcState {
         Ok(Response::new(GetKeysetsResponse { keysets }))
     }
 
+    #[instrument]
     async fn keys(
         &self,
         request: Request<GetKeysRequest>,
@@ -264,6 +267,7 @@ impl Node for GrpcState {
         Ok(Response::new(GetKeysResponse { keysets }))
     }
 
+    #[instrument]
     async fn swap(
         &self,
         swap_request: Request<SwapRequest>,
@@ -341,6 +345,7 @@ impl Node for GrpcState {
         Ok(Response::new(swap_response))
     }
 
+    #[instrument]
     async fn mint_quote(
         &self,
         mint_quote_request: Request<MintQuoteRequest>,
@@ -364,6 +369,7 @@ impl Node for GrpcState {
         Ok(Response::new(mint_quote_response))
     }
 
+    #[instrument]
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
@@ -424,6 +430,7 @@ impl Node for GrpcState {
         Ok(Response::new(mint_response))
     }
 
+    #[instrument]
     async fn melt(
         &self,
         melt_request: Request<MeltRequest>,
@@ -484,6 +491,7 @@ impl Node for GrpcState {
         Ok(Response::new(melt_response))
     }
 
+    #[instrument]
     async fn mint_quote_state(
         &self,
         mint_quote_state_request: Request<QuoteStateRequest>,
@@ -504,6 +512,7 @@ impl Node for GrpcState {
         }))
     }
 
+    #[instrument]
     async fn melt_quote_state(
         &self,
         melt_quote_state_request: Request<QuoteStateRequest>,
@@ -526,6 +535,7 @@ impl Node for GrpcState {
         }))
     }
 
+    #[instrument]
     async fn get_node_info(
         &self,
         _node_info_request: Request<GetNodeInfoRequest>,
@@ -572,6 +582,7 @@ impl Node for GrpcState {
     }
 
     /// acknowledge is for the client to say he successfully stored the quote_id
+    #[instrument]
     async fn acknowledge(
         &self,
         ack_request: Request<AcknowledgeRequest>,

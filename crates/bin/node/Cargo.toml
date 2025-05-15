@@ -20,12 +20,11 @@ num-traits = { workspace = true }
 num-bigint = { workspace = true }
 dotenvy = { workspace = true }
 primitive-types = { workspace = true }
+http = { workspace = true }
+log = { workspace = true }
 url = { workspace = true }
 toml = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-tonic = { workspace = true }
-tonic-health = { workspace = true }
-prost = { workspace = true }
 nuts = { workspace = true, features = ["nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
@@ -37,6 +36,18 @@ bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
+
+# gRPC
+prost = { workspace = true }
+tonic = { workspace = true }
+tonic-health = { workspace = true }
+
+# OPTL
+opentelemetry = "0.29.1"
+opentelemetry_sdk = { version = "0.29.0", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.29.0", features = ["grpc-tonic"] }
+tracing-opentelemetry = "0.30.0"
+tower-otel = "0.5.0"
 
 # tls optional
 openssl = { workspace = true, optional = true }

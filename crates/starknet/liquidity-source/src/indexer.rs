@@ -1,8 +1,6 @@
-use crate::StarknetCliConfig;
 use futures::TryStreamExt;
-use log::{debug, error, info};
 use nuts::nut04::MintQuoteState;
-use sqlx::{PgConnection, Postgres, pool::PoolConnection};
+use sqlx::PgPool;
 use starknet_payment_indexer::{ApibaraIndexerService, Message, PaymentEvent, Uri};
 use starknet_types::constants::ON_CHAIN_CONSTANTS;
 use starknet_types::{Asset, AssetToUnitConversionError, ChainId};
@@ -10,7 +8,9 @@ use starknet_types::{StarknetU256, Unit};
 use starknet_types_core::felt::Felt;
 use std::env;
 use std::str::FromStr;
+use std::time::Duration;
 use tokio::select;
+use tracing::{Level, debug, error, event};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -73,14 +73,14 @@ async fn init_indexer_task(
 }
 
 async fn listen_to_indexer(
-    mut db_conn: PoolConnection<Postgres>,
+    pg_pool: PgPool,
     mut indexer_service: ApibaraIndexerService,
     chain_id: ChainId,
 ) -> Result<(), Error> {
     while let Some(event) = indexer_service.try_next().await? {
         match event {
             Message::Payment(payment_events) => {
-                process_payment_event(payment_events, &mut db_conn, &chain_id).await?;
+                process_payment_event(payment_events, &pg_pool, &chain_id).await?;
             }
             Message::Invalidate {
                 last_valid_block_number: _,
@@ -95,39 +95,67 @@ async fn listen_to_indexer(
 }
 
 pub async fn run_in_ctrl_c_cancellable_task(
-    db_conn: PoolConnection<Postgres>,
+    pg_pool: PgPool,
     apibara_token: String,
-    config: &StarknetCliConfig,
-) -> Result<(), Error> {
-    let indexer_service = init_indexer_task(
-        apibara_token,
-        config.chain_id.clone(),
-        config.cashier_account_address,
-    )
-    .await?;
+    chain_id: ChainId,
+    cashier_account_address: Felt,
+) {
+    // It can happen that the DNA indexer goes down at some point, or close our connection.
+    // We should restart then.
+    loop {
+        let indexer_service = match init_indexer_task(
+            apibara_token.clone(),
+            chain_id.clone(),
+            cashier_account_address,
+        )
+        .await
+        {
+            Ok(ais) => ais,
+            Err(e) => {
+                error!(name: "indexer-service-initialization", error = %e);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+        debug!("indexer-service-initialized");
 
-    let cloned_chain_id = config.chain_id.clone();
-    let _indexer_handle = tokio::spawn(async move {
-        select! {
-            indexer_res = listen_to_indexer(db_conn, indexer_service, cloned_chain_id) => match indexer_res {
-                Ok(()) => eprintln!("indexer task should never return"),
-                Err(err) => eprintln!("indexer task failed: {}", err),
+        let cloned_chain_id = chain_id.clone();
+        let cloned_pg_pool = pg_pool.clone();
+
+        let should_restart = select! {
+            indexer_res = listen_to_indexer(cloned_pg_pool, indexer_service, cloned_chain_id) => match indexer_res {
+                Ok(()) => {
+                    error!(name: "indexer-task-error", error = "returned");
+                    true
+                },
+                Err(err) => {
+                    error!(name: "indexer-task-error", error = %err);
+                    true
+                },
             },
             sig = tokio::signal::ctrl_c() => match sig {
-                Ok(()) => info!("indexer task terminated"),
-                Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
+                Ok(()) => false,
+                Err(err) => {
+                    error!(name: "ctrl-c-error", error = %err);
+                    true
+                },
             }
-        }
-    });
+        };
 
-    Ok(())
+        if !should_restart {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
 }
 
 async fn process_payment_event(
     payment_events: Vec<PaymentEvent>,
-    db_conn: &mut PgConnection,
+    pg_pool: &PgPool,
     chain_id: &ChainId,
 ) -> Result<(), Error> {
+    let db_conn = &mut pg_pool.acquire().await?;
+
     for payment_event in payment_events {
         let (quote_id, quote_amount, unit) =
             match db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(
@@ -195,6 +223,11 @@ async fn process_payment_event(
         let to_pay = unit.convert_amount_into_u256(quote_amount);
         if current_paid >= to_pay {
             db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;
+            event!(
+                name: "mint-quote-paid",
+                Level::INFO,
+                %quote_id,
+            );
         }
     }
 

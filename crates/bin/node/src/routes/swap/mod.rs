@@ -8,6 +8,7 @@ use nuts::{
 use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
+use tracing::{Level, event};
 
 use crate::{
     grpc_service::GrpcState,
@@ -91,17 +92,17 @@ impl GrpcState {
         .map_err(Error::Inputs)?;
 
         // Amount matching
-        for (asset, output_amount) in outputs_amounts {
+        for (asset, output_amount) in outputs_amounts.iter() {
             let &(_, input_amount) = input_fees_and_amount
                 .iter()
-                .find(|(u, _)| *u == asset)
+                .find(|(u, _)| u == asset)
                 .ok_or(Error::UnbalancedUnits)?;
 
-            if input_amount != output_amount {
+            if input_amount != *output_amount {
                 Err(Error::TransactionUnbalanced(
-                    asset,
+                    *asset,
                     input_amount,
-                    output_amount,
+                    *output_amount,
                 ))?;
             }
         }
@@ -116,6 +117,15 @@ impl GrpcState {
             .await?;
 
         tx.commit().await.map_err(Error::TxCommit)?;
+
+        // Should be safe to unwrap since both Unit and Amount derive their serde impl from std types
+        // and the max len of the output vector is capped and checked at runtime.
+        let json_string_output_amounts = serde_json::to_string(&outputs_amounts).unwrap();
+        event!(
+            name: "swap",
+            Level::INFO,
+            amounts = json_string_output_amounts
+        );
 
         Ok(blind_signatures)
     }

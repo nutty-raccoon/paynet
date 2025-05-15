@@ -9,7 +9,6 @@ use initialization::{
     read_env_variables,
 };
 use tracing::info;
-use tracing_subscriber::EnvFilter;
 
 mod app_state;
 mod errors;
@@ -21,15 +20,15 @@ mod keyset_rotation;
 mod liquidity_sources;
 mod logic;
 mod methods;
+mod open_telemetry;
 mod response_cache;
 mod routes;
 mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
+    open_telemetry::init_tracing().await;
+
     info!("Initializing node...");
     let args = <initialization::ProgramArguments as clap::Parser>::parse();
 

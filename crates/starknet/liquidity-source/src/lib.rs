@@ -6,9 +6,9 @@ mod withdraw;
 use std::path::PathBuf;
 
 pub use deposit::{Depositer, Error as DepositError};
-use log::info;
-use sqlx::{Postgres, pool::PoolConnection};
+use sqlx::PgPool;
 use starknet_types::ChainId;
+use tracing::trace;
 pub use withdraw::{
     Error as WithdrawalError, MeltPaymentRequest, StarknetU256WithdrawAmount, Withdrawer,
 };
@@ -52,7 +52,7 @@ pub enum Error {
 
 impl StarknetLiquiditySource {
     pub async fn init(
-        conn: PoolConnection<Postgres>,
+        pg_pool: PgPool,
         config_path: PathBuf,
     ) -> Result<StarknetLiquiditySource, Error> {
         let config = read_starknet_config(config_path)?;
@@ -64,9 +64,19 @@ impl StarknetLiquiditySource {
         };
 
         let cashier = cashier::connect(config.cashier_url.clone(), &config.chain_id).await?;
-        info!("Connected to starknet cashier server.");
+        trace!("connected to starknet cashier server");
 
-        indexer::run_in_ctrl_c_cancellable_task(conn, apibara_token, &config).await?;
+        let cloned_chain_id = config.chain_id.clone();
+        let cloned_cashier_account_address = config.cashier_account_address;
+        let _handle = tokio::spawn(async move {
+            indexer::run_in_ctrl_c_cancellable_task(
+                pg_pool,
+                apibara_token,
+                cloned_chain_id,
+                cloned_cashier_account_address,
+            )
+            .await
+        });
 
         Ok(StarknetLiquiditySource {
             depositer: Depositer::new(config.chain_id, config.cashier_account_address),

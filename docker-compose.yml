@@ -85,9 +85,6 @@ services:
     restart: "no"
     stdin_open: false
     tty: false
-    deploy:
-      restart_policy:
-        condition: none
     depends_on:
       starknet-devnet:
         condition: service_healthy
@@ -149,6 +146,8 @@ services:
       - SIGNER_URL=http://signer:10001
       - DNA_URI=http://dna:7171
       - GRPC_PORT=10003
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://jaeger:4317
+      - OTEL_SERVICE_NAME=node
     command:
       - --config
       - /etc/paynet/config.toml
@@ -168,6 +167,19 @@ services:
       start_period: 1s
       interval: 3s
       retries: 3
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    ports:
+      - "16686:16686"     # Jaeger UI
+      - "4317:4317"       # OpenTelemetry Protocol (OTLP) gRPC
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:14269/"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+
 
 volumes:
   dna:
