@@ -15,8 +15,12 @@ url = { workspace = true }
 prost = { workspace = true }
 dotenvy = { workspace = true }
 anyhow = { workspace = true }
+
+# OPTL
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+open-telemetry-tracing = { workspace = true }
+tower-otel = { workspace = true }
+tower = { workspace = true }
 
 # Local deps
 starknet-types = { workspace = true }

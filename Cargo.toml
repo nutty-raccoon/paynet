@@ -9,6 +9,7 @@ members = [
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
+  "crates/open-telemetry-tracing",
   "crates/liquidity-source",
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
@@ -26,6 +27,7 @@ default-members = [
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
+  "crates/open-telemetry-tracing",
   "crates/liquidity-source",
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
@@ -90,6 +92,13 @@ async-trait = "0.1.88"
 itertools = "0.14"
 dashmap = "6.1.0"
 
+# OPTL
+opentelemetry = "0.29.1"
+opentelemetry_sdk = { version = "0.29.0" }
+opentelemetry-otlp = { version = "0.29.0" }
+tracing-opentelemetry = "0.30.0"
+tower-otel = "0.5.0"
+
 # TLS
 tonic-tls = { version = "0.3.0", default-features = false }
 openssl = "0.10"
@@ -104,6 +113,8 @@ starknet-cashier = { path = "crates/bin/starknet-cashier" }
 starknet-types = { path = "crates/starknet/types" }
 starknet-payment-indexer = { path = "crates/starknet/payment-indexer" }
 starknet-liquidity-source = { path = "crates/starknet/liquidity-source" }
+# Tracing
+open-telemetry-tracing = { path = "crates/open-telemetry-tracing"}
 # Others
 nuts = { path = "crates/nuts" }
 db-node = { path = "crates/db-node" }

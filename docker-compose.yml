@@ -97,11 +97,16 @@ services:
     environment:
       - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
       - GRPC_PORT=10001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://jaeger:4317
+      - OTEL_SERVICE_NAME=signer
     ports:
       - "10001:10001"
     build:
       context: .
       dockerfile: ./dockerfiles/signer.Dockerfile
+    depends_on:
+      jaeger:
+        condition: service_started
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
       start_period: 1s
@@ -117,6 +122,8 @@ services:
       # Predeployed account for seed 0
       - SIGNER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9
       - ACCOUNT_ADDRESS=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://jaeger:4317
+      - OTEL_SERVICE_NAME=starknet-cashier
     ports:
       - "10002:10002"
     build:
@@ -130,6 +137,8 @@ services:
     depends_on:
       starknet-devnet:
         condition: service_healthy
+      jaeger:
+        condition: service_started
 
   node:
     image: "node"
@@ -162,6 +171,8 @@ services:
         condition: service_healthy
       dna:
         condition: service_started
+      jaeger:
+        condition: service_started
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
       start_period: 1s
@@ -170,6 +181,8 @@ services:
 
   jaeger:
     image: jaegertracing/jaeger:latest
+    environment:
+        - SPAN_STORAGE_LOCAL_CLOCK_SKEW_ADJUSTMENT_ENABLED=true  # Enable clock skew adjustment
     ports:
       - "16686:16686"     # Jaeger UI
       - "4317:4317"       # OpenTelemetry Protocol (OTLP) gRPC
@@ -179,7 +192,6 @@ services:
       interval: 5s
       timeout: 2s
       retries: 3
-
 
 volumes:
   dna:

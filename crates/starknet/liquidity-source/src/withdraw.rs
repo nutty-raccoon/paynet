@@ -42,10 +42,10 @@ impl WithdrawAmount for StarknetU256WithdrawAmount {
 }
 
 #[derive(Debug, Clone)]
-pub struct Withdrawer(pub StarknetCashierClient<Channel>);
+pub struct Withdrawer(pub StarknetCashierClient<tower_otel::trace::Grpc<Channel>>);
 
 impl Withdrawer {
-    pub fn new(cashier: StarknetCashierClient<Channel>) -> Self {
+    pub fn new(cashier: StarknetCashierClient<tower_otel::trace::Grpc<Channel>>) -> Self {
         Self(cashier)
     }
 }

@@ -1,0 +1,17 @@
+[package]
+name = "open-telemetry-tracing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+opentelemetry-otlp = { workspace = true, features = ["grpc-tonic"] }
+tracing-opentelemetry = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+tower-otel = { workspace = true }
+http = { workspace = true }
+

@@ -14,7 +14,7 @@ num-derive = { workspace = true }
 primitive-types = { workspace = true }
 phf = { workspace = true, features = ["macros"] }
 bitcoin_hashes = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
 
 # Local deps
 starknet = { workspace = true }

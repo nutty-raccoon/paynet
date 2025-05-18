@@ -12,11 +12,11 @@ use signer::{
     VerifyProofsResponse,
 };
 use state::{SharedKeySetCache, SharedRootKey};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
-use tonic::{Request, Response, Status};
-use tracing::info;
-use tracing_subscriber::EnvFilter;
+use tonic::{Request, Response, Status, service::LayerExt};
+use tower::ServiceBuilder;
+use tracing::{instrument, trace};
 
 mod server_errors;
 mod state;
@@ -35,6 +35,7 @@ pub struct SignerState {
 
 #[tonic::async_trait]
 impl signer::Signer for SignerState {
+    #[instrument]
     async fn declare_keyset(
         &self,
         declare_keyset_request: Request<DeclareKeysetRequest>,
@@ -79,6 +80,7 @@ impl signer::Signer for SignerState {
         }))
     }
 
+    #[instrument]
     async fn sign_blinded_messages(
         &self,
         sign_blinded_messages_request: Request<SignBlindedMessagesRequest>,
@@ -137,6 +139,7 @@ impl signer::Signer for SignerState {
         Ok(Response::new(SignBlindedMessagesResponse { signatures }))
     }
 
+    #[instrument]
     async fn verify_proofs(
         &self,
         verify_proofs_request: Request<VerifyProofsRequest>,
@@ -191,6 +194,7 @@ impl signer::Signer for SignerState {
         Ok(Response::new(VerifyProofsResponse { is_valid: true }))
     }
 
+    #[instrument]
     async fn get_root_pub_key(
         &self,
         _get_root_pub_key_request: tonic::Request<GetRootPubKeyRequest>,
@@ -205,10 +209,9 @@ impl signer::Signer for SignerState {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-    info!("Initializing signer...");
+    const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+    const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+    open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
 
     #[cfg(debug_assertions)]
     {
@@ -216,7 +219,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .inspect_err(|e| tracing::error!("dotenvy initialization failed: {e}"));
     }
 
-    let socket_addr = {
+    let socket_addr: SocketAddr = {
         let socket_port_env_var: String =
             std::env::var(GRPC_PORT_ENV_VAR).expect("env var `GRPC_PORT` should be set");
         format!("[::0]:{}", socket_port_env_var).parse()?
@@ -233,14 +236,16 @@ async fn main() -> Result<(), anyhow::Error> {
         keyset_cache: SharedKeySetCache(Arc::new(RwLock::new(HashMap::new()))),
     };
 
-    let signer_server_service = SignerServer::new(signer_logic);
+    let signer_server_service = ServiceBuilder::new()
+        .layer(tower_otel::trace::GrpcLayer::server(tracing::Level::INFO))
+        .named_layer(SignerServer::new(signer_logic));
 
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<SignerServer<SignerState>>()
         .await;
 
-    info!("listening to new request on {}", socket_addr);
+    trace!(name: "grpc-listen", port = socket_addr.port());
 
     tonic::transport::Server::builder()
         .add_service(signer_server_service)

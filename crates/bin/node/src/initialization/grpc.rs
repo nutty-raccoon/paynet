@@ -1,9 +1,9 @@
-use http::Request;
 #[cfg(feature = "keyset-rotation")]
 use node::KeysetRotationServiceServer;
-use std::{convert::Infallible, net::SocketAddr};
-use tower::{Service, ServiceBuilder};
-use tracing::Level;
+use std::net::SocketAddr;
+use tower::ServiceBuilder;
+use tower_otel::trace;
+use tracing::instrument;
 
 use futures::TryFutureExt;
 use node::NodeServer;
@@ -11,62 +11,16 @@ use nuts::QuoteTTLConfig;
 use signer::SignerClient;
 use sqlx::Postgres;
 use starknet_types::Unit;
-use tonic::{body::Body, server::NamedService, transport::Channel};
-use tower_otel::trace::{GrpcLayer, grpc::ResponseFuture};
+use tonic::{service::LayerExt, transport::Channel};
 
 use crate::{grpc_service::GrpcState, liquidity_sources::LiquiditySources};
 
 use super::{Error, env_variables::EnvVariables};
 
-#[derive(Debug, Clone)]
-pub struct OpenTelemetryLayeredServer<S>
-where
-    S: Service<Request<Body>, Error = Infallible> + NamedService + Clone + Send + Sync + 'static,
-    S::Response: axum::response::IntoResponse,
-    S::Future: Send + 'static,
-{
-    inner: tower_otel::trace::Grpc<S>,
-}
-
-impl<S> NamedService for OpenTelemetryLayeredServer<S>
-where
-    S: Service<Request<Body>, Error = Infallible> + NamedService + Clone + Send + Sync + 'static,
-    S::Response: axum::response::IntoResponse,
-    S::Future: Send + 'static,
-{
-    const NAME: &'static str = NodeServer::<GrpcState>::NAME;
-}
-
-impl<S, ResBody> Service<Request<Body>> for OpenTelemetryLayeredServer<S>
-where
-    S: Service<Request<Body>, Error = Infallible, Response = http::Response<ResBody>>
-        + NamedService
-        + Clone
-        + Send
-        + Sync
-        + 'static,
-    S::Response: axum::response::IntoResponse,
-    S::Future: Send + 'static,
-{
-    type Response = <S as Service<Request<Body>>>::Response;
-    type Error = <S as Service<Request<Body>>>::Error;
-    type Future = ResponseFuture<S::Future>;
-
-    fn poll_ready(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        self.inner.call(req)
-    }
-}
-
+#[instrument]
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
-    signer_client: SignerClient<Channel>,
+    signer_client: SignerClient<trace::Grpc<Channel>>,
     liquidity_sources: LiquiditySources,
     env_vars: EnvVariables,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
@@ -86,6 +40,7 @@ pub async fn launch_tonic_server_task(
         .parse()
         .map_err(Error::InvalidGrpcAddress)?;
 
+    // TODO: take into account past keyset rotations
     // init node shared
     grpc_state
         .init_first_keysets(&[Unit::MilliStrk], 0, 32)
@@ -102,18 +57,16 @@ pub async fn launch_tonic_server_task(
 
         health_service
     };
-    let optl_layer = GrpcLayer::server(Level::INFO);
-
-    let node_service = OpenTelemetryLayeredServer {
-        inner: ServiceBuilder::new()
-            .layer(optl_layer.clone())
-            .service(NodeServer::new(grpc_state)),
-    };
+    let optl_layer = tower_otel::trace::GrpcLayer::server(tracing::Level::INFO);
 
     #[cfg(feature = "keyset-rotation")]
     let keyset_rotation_service = ServiceBuilder::new()
         .layer(optl_layer.clone())
-        .service(KeysetRotationServiceServer::new(grpc_state.clone()));
+        .named_layer(KeysetRotationServiceServer::new(grpc_state.clone()));
+
+    let node_service = ServiceBuilder::new()
+        .layer(optl_layer)
+        .named_layer(NodeServer::new(grpc_state.clone()));
 
     let tonic_future = {
         let mut tonic_server = tonic::transport::Server::builder();

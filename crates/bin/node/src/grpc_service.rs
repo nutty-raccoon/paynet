@@ -5,10 +5,10 @@ use crate::{
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
-    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
-    MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
-    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset, MeltRequest, MeltResponse,
+    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
+    QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request, hash_mint_request,
+    hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -24,7 +24,7 @@ use starknet_types::Unit;
 use std::{str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
-use tonic::{Request, Response, Status, transport::Channel};
+use tonic::{Request, Response, Status};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -60,7 +60,7 @@ pub enum InitKeysetError {
 impl GrpcState {
     pub fn new(
         pg_pool: PgPool,
-        signer_client: signer::SignerClient<Channel>,
+        signer_client: SignerClient,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
         liquidity_sources: LiquiditySources,
@@ -201,7 +201,7 @@ impl Node for GrpcState {
     ) -> Result<Response<GetKeysResponse>, Status> {
         let request = request.into_inner();
 
-        let mut conn = self
+        let mut db_conn = self
             .pg_pool
             .acquire()
             .await
@@ -209,59 +209,10 @@ impl Node for GrpcState {
 
         let keysets = match request.keyset_id {
             Some(keyset_id) => {
-                let keyset_id = KeysetId::from_bytes(&keyset_id)
-                    .map_err(|e| Status::invalid_argument(e.to_string()))?;
-                let keyset_info = db_node::keyset::get_keyset(&mut conn, &keyset_id)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-                let keys = self
-                    .keyset_cache
-                    .get_keyset_keys(&mut conn, self.signer.clone(), keyset_id)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-
-                vec![KeysetKeys {
-                    id: keyset_id.to_bytes().to_vec(),
-                    unit: keyset_info.unit(),
-                    active: keyset_info.active(),
-                    keys: keys
-                        .into_iter()
-                        .map(|(a, pk)| Key {
-                            amount: a.into(),
-                            pubkey: pk.to_string(),
-                        })
-                        .collect(),
-                }]
+                self.inner_keys_with_keyset_id(&mut db_conn, keyset_id)
+                    .await?
             }
-            None => {
-                let keysets_info = db_node::keyset::get_active_keysets::<String>(&mut conn)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-
-                let mut keysets = Vec::with_capacity(keysets_info.len());
-                // TODO: add concurency
-                for (keyset_id, keyset_info) in keysets_info {
-                    let keys = self
-                        .keyset_cache
-                        .get_keyset_keys(&mut conn, self.signer.clone(), keyset_id)
-                        .await
-                        .map_err(|e| Status::internal(e.to_string()))?;
-
-                    keysets.push(KeysetKeys {
-                        id: keyset_id.to_bytes().to_vec(),
-                        unit: keyset_info.unit(),
-                        active: keyset_info.active(),
-                        keys: keys
-                            .into_iter()
-                            .map(|(a, pk)| Key {
-                                amount: a.into(),
-                                pubkey: pk.to_string(),
-                            })
-                            .collect(),
-                    })
-                }
-                keysets
-            }
+            None => self.inner_keys_no_keyset_id(&mut db_conn).await?,
         };
 
         Ok(Response::new(GetKeysResponse { keysets }))

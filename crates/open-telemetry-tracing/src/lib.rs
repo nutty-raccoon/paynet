@@ -5,18 +5,17 @@ use tracing_subscriber::{
 };
 
 /// By default, the data will be sent to `https://localhost:4317`,
-/// to override this behavious set the `OTEL_EXPORTER_OTLP_ENDPOINT` env variable
-pub async fn init_tracing() {
+/// to override this behavious set the `OTEL_EXPORTER_OTLP_ENDPOINT` env variable.
+///
+/// Can panic.
+pub fn init(pkg_name: &'static str, pkg_version: &'static str) {
     opentelemetry::global::set_text_map_propagator(
         opentelemetry_sdk::propagation::TraceContextPropagator::new(),
     );
 
-    const PKG_NAME: &str = env!("CARGO_PKG_NAME");
-    const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-
     let resource = opentelemetry_sdk::Resource::builder()
-        .with_service_name(PKG_NAME)
-        .with_attribute(opentelemetry::KeyValue::new("service.version", PKG_VERSION))
+        .with_service_name(pkg_name)
+        .with_attribute(opentelemetry::KeyValue::new("service.version", pkg_version))
         .build();
 
     let exporter = opentelemetry_otlp::SpanExporter::builder()

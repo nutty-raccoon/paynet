@@ -21,6 +21,11 @@ futures = { workspace = true }
 primitive-types = { workspace = true }
 tracing = { workspace = true }
 
+# OPTL
+http = { workspace = true }
+tower = { workspace = true }
+tower-otel = { workspace = true }
+
 # Local
 db-node = { workspace = true }
 starknet-types = { workspace = true }

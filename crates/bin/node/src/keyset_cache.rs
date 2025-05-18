@@ -70,7 +70,7 @@ impl KeysetCache {
 
     pub async fn insert_keys<I>(&self, keyset_id: KeysetId, keys: I)
     where
-        I: IntoIterator<Item = (Amount, PublicKey)>,
+        I: IntoIterator<Item = (Amount, PublicKey)> + std::fmt::Debug,
     {
         let mut write_lock = self.keys.write().await;
         write_lock.insert(keyset_id, keys.into_iter().collect());

@@ -8,7 +8,7 @@ use initialization::{
     connect_to_db_and_run_migrations, connect_to_signer, launch_tonic_server_task,
     read_env_variables,
 };
-use tracing::info;
+use tracing::{info, trace};
 
 mod app_state;
 mod errors;
@@ -20,14 +20,15 @@ mod keyset_rotation;
 mod liquidity_sources;
 mod logic;
 mod methods;
-mod open_telemetry;
 mod response_cache;
 mod routes;
 mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    open_telemetry::init_tracing().await;
+    const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+    const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+    open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
 
     info!("Initializing node...");
     let args = <initialization::ProgramArguments as clap::Parser>::parse();
@@ -55,7 +56,8 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .await?;
 
-    info!("Running gRPC server at {}", address);
+    trace!(name: "grpc-listen", port = address.port());
+
     tokio::select! {
         grpc_res = grpc_future => match grpc_res {
             Ok(()) => eprintln!("gRPC task should never return"),
