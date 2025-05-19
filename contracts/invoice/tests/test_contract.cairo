@@ -9,6 +9,8 @@ use invoice_payment::{IInvoicePaymentDispatcherTrait, IInvoicePaymentDispatcher}
 use openzeppelin_presets::interfaces::{ERC20UpgradeableABIDispatcher};
 use openzeppelin_utils::serde::SerializedAppend;
 use openzeppelin_token::erc20::ERC20Component;
+use core::poseidon::PoseidonTrait;
+use core::hash::HashStateTrait;
 
 pub const SUPPLY: u256 = 1_000_000_000_000_000_000; // 1e18
 
@@ -62,9 +64,11 @@ fn it_works() {
     let erc20_abi = setup_erc20(OWNER());
     let invoice_payment_abi = setup_invoice_payment();
 
-    let id_hash: felt252 = snforge_std::generate_random_felt();
+    let quote_id_hash: felt252 = snforge_std::generate_random_felt();
 
     let mut spy = snforge_std::spy_events();
+
+    let expiry = 0;
 
     // OWNER fund SENDER
     snforge_std::cheat_caller_address(
@@ -82,7 +86,12 @@ fn it_works() {
     snforge_std::cheat_caller_address(
         invoice_payment_abi.contract_address, SENDER(), CheatSpan::TargetCalls(1),
     );
-    invoice_payment_abi.pay_invoice(id_hash, erc20_abi.contract_address, AMOUNT, RECIPIENT());
+    invoice_payment_abi.pay_invoice(quote_id_hash, expiry, erc20_abi.contract_address, AMOUNT, RECIPIENT());
+
+    let mut hash_state = PoseidonTrait::new();
+    hash_state.update(quote_id_hash);
+    hash_state.update(expiry.into());
+    let id_hash = hash_state.finalize();
 
     // Payment went through
     assert_eq!(erc20_abi.balance_of(SENDER()), 0);
