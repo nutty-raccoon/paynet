@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
@@ -14,12 +13,10 @@ use nuts::traits::Unit;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::db::proof::get_max_order_for_keyset;
+use super::NodeUrl;
+
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
-use rusqlite;
-
-use super::NodeUrl;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -193,48 +190,41 @@ where
     PublicKey::from_slice(&bytes).map_err(serde::de::Error::custom)
 }
 
-/// Validates that all proofs have amounts less than the max_order (maximum key amount) for their keyset.
-///
-/// # Arguments
-/// * `db_conn` - A reference to the database connection.
-/// * `proofs` - A slice of proofs to validate.
-///
-/// # Returns
-/// * `Ok(())` if all proofs are valid.
-/// * `Err(String)` if any proof amount is not less than the max_order for its keyset.
-pub fn validate_proofs_under_max_order_for_keyset(
-    db_conn: &rusqlite::Connection,
-    proofs: &[nuts::nut00::Proof],
-) -> Result<(), String> {
-    use nuts::nut02::KeysetId;
-    let mut keyset_to_max: HashMap<KeysetId, u64> = HashMap::new();
-    for proof in proofs {
-        let keyset_id = proof.keyset_id;
-        let max_order = *keyset_to_max.entry(keyset_id).or_insert_with(|| {
-            get_max_order_for_keyset(db_conn, keyset_id).expect("Failed to get max_order")
-        });
-        let proof_amount = u64::from(proof.amount);
-        if proof_amount >= max_order {
-            return Err(format!(
-                "Proof amount {} is not less than max_order {} for keyset {}",
-                proof_amount, max_order, keyset_id
-            ));
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::proof::get_max_order_for_keyset;
     use nuts::{Amount, nut00::Proof, nut02::KeysetId};
     use rusqlite::Connection;
+    use std::collections::HashMap;
 
     pub fn test_pubkey() -> nuts::nut01::PublicKey {
         nuts::nut01::PublicKey::from_hex(
             "02194603ffa36356f4a56b7df9371fc3192472351453ec7398b8da8117e7c3e104",
         )
         .expect("valid test pubkey")
+    }
+
+    pub fn validate_proofs_under_max_order_for_keyset(
+        db_conn: &rusqlite::Connection,
+        proofs: &[nuts::nut00::Proof],
+    ) -> Result<(), String> {
+        use nuts::nut02::KeysetId;
+        let mut keyset_to_max: HashMap<KeysetId, u64> = HashMap::new();
+        for proof in proofs {
+            let keyset_id = proof.keyset_id;
+            let max_order = *keyset_to_max.entry(keyset_id).or_insert_with(|| {
+                get_max_order_for_keyset(db_conn, keyset_id).expect("Failed to get max_order")
+            });
+            let proof_amount = u64::from(proof.amount);
+            if proof_amount >= max_order {
+                return Err(format!(
+                    "Proof amount {} is not less than max_order {} for keyset {}",
+                    proof_amount, max_order, keyset_id
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn setup_db_with_keys(keys: &[(KeysetId, u64)]) -> Connection {
