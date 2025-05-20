@@ -10,9 +10,14 @@ signer = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
 nuts = { workspace = true }
+starknet-types-core = { workspace = true }
+serde_json = { workspace = true }
+
 node = { default-features = false, path = "../../bin/node", features = [
     "mock", "keyset-rotation"
 ] }
+
+starknet-liquidity-source = { path = "../../starknet/liquidity-source" }
 starknet-types = { workspace = true }
 
 
@@ -27,3 +32,6 @@ path = "health_check.rs"
 [[test]]
 name = "cache_response"
 path = "cache_response.rs"
+[[test]]
+name = "verification_address"
+path = "verification_address.rs"
