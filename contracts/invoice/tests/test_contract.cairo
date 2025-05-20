@@ -9,8 +9,7 @@ use invoice_payment::{IInvoicePaymentDispatcherTrait, IInvoicePaymentDispatcher}
 use openzeppelin_presets::interfaces::{ERC20UpgradeableABIDispatcher};
 use openzeppelin_utils::serde::SerializedAppend;
 use openzeppelin_token::erc20::ERC20Component;
-use core::poseidon::PoseidonTrait;
-use core::hash::HashStateTrait;
+use core::poseidon::poseidon_hash_span;
 
 pub const SUPPLY: u256 = 1_000_000_000_000_000_000; // 1e18
 
@@ -86,12 +85,11 @@ fn it_works() {
     snforge_std::cheat_caller_address(
         invoice_payment_abi.contract_address, SENDER(), CheatSpan::TargetCalls(1),
     );
+
     invoice_payment_abi.pay_invoice(quote_id_hash, expiry, erc20_abi.contract_address, AMOUNT, RECIPIENT());
 
-    let mut hash_state = PoseidonTrait::new();
-    hash_state.update(quote_id_hash);
-    hash_state.update(expiry.into());
-    let id_hash = hash_state.finalize();
+    let span = [quote_id_hash, expiry.into()].span();
+    let id_hash = poseidon_hash_span(span);
 
     // Payment went through
     assert_eq!(erc20_abi.balance_of(SENDER()), 0);
@@ -111,6 +109,110 @@ fn it_works() {
             ],
         );
 
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    invoice_payment_abi.contract_address,
+                    invoice_payment::InvoicePayment::Event::Remittance(
+                        invoice_payment::InvoicePayment::Remittance {
+                            payee: RECIPIENT(),
+                            asset: erc20_abi.contract_address,
+                            invoice_id: id_hash,
+                            amount: AMOUNT,
+                            payer: SENDER(),
+                        },
+                    ),
+                ),
+            ],
+        );
+}
+
+
+#[test]
+fn good_invoice_id() {
+    const AMOUNT: u256 = 200;
+    let erc20_abi = setup_erc20(OWNER());
+    let invoice_payment_abi = setup_invoice_payment();
+
+    let quote_id_hash: felt252 = 5;
+
+    let mut spy = snforge_std::spy_events();
+
+    let expiry = 0;
+
+    // OWNER fund SENDER
+    snforge_std::cheat_caller_address(
+        erc20_abi.contract_address, OWNER(), CheatSpan::TargetCalls(1),
+    );
+    erc20_abi.transfer(SENDER(), AMOUNT);
+
+    // SENDER allow invoice_payment
+    snforge_std::cheat_caller_address(
+        erc20_abi.contract_address, SENDER(), CheatSpan::TargetCalls(1),
+    );
+    erc20_abi.approve(invoice_payment_abi.contract_address, AMOUNT);
+
+    // SENDER pay invoice
+    snforge_std::cheat_caller_address(
+        invoice_payment_abi.contract_address, SENDER(), CheatSpan::TargetCalls(1),
+    );
+
+    invoice_payment_abi.pay_invoice(quote_id_hash, expiry, erc20_abi.contract_address, AMOUNT, RECIPIENT());
+
+    let id_hash: felt252 = 593577557340018314678415990879734807818083626248355598150054109794228418409;
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    invoice_payment_abi.contract_address,
+                    invoice_payment::InvoicePayment::Event::Remittance(
+                        invoice_payment::InvoicePayment::Remittance {
+                            payee: RECIPIENT(),
+                            asset: erc20_abi.contract_address,
+                            invoice_id: id_hash,
+                            amount: AMOUNT,
+                            payer: SENDER(),
+                        },
+                    ),
+                ),
+            ],
+        );
+}
+
+#[test]
+#[should_panic]
+fn bad_expiry() {
+    const AMOUNT: u256 = 200;
+    let erc20_abi = setup_erc20(OWNER());
+    let invoice_payment_abi = setup_invoice_payment();
+
+    let quote_id_hash: felt252 = 5;
+
+    let mut spy = snforge_std::spy_events();
+
+    let expiry = 1;
+
+    // OWNER fund SENDER
+    snforge_std::cheat_caller_address(
+        erc20_abi.contract_address, OWNER(), CheatSpan::TargetCalls(1),
+    );
+    erc20_abi.transfer(SENDER(), AMOUNT);
+
+    // SENDER allow invoice_payment
+    snforge_std::cheat_caller_address(
+        erc20_abi.contract_address, SENDER(), CheatSpan::TargetCalls(1),
+    );
+    erc20_abi.approve(invoice_payment_abi.contract_address, AMOUNT);
+
+    // SENDER pay invoice
+    snforge_std::cheat_caller_address(
+        invoice_payment_abi.contract_address, SENDER(), CheatSpan::TargetCalls(1),
+    );
+
+    invoice_payment_abi.pay_invoice(quote_id_hash, expiry, erc20_abi.contract_address, AMOUNT, RECIPIENT());
+
+    let id_hash: felt252 = 593577557340018314678415990879734807818083626248355598150054109794228418409;
     spy
         .assert_emitted(
             @array![
