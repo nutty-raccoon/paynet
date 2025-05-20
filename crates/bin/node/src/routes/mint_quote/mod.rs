@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::grpc_service::GrpcState;
 use liquidity_source::{DepositInterface, LiquiditySource};
 use nuts::{
@@ -123,11 +125,12 @@ async fn create_new_starknet_mint_quote(
     let quote = Uuid::new_v4();
     let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
 
-    let (invoice_id, request) = depositer
-        .generate_deposit_payload(quote_hash, unit, amount)
+    let (_, request) = depositer
+        .generate_deposit_payload(quote_hash, unit, amount, expiry)
+        .await
         .map_err(|e| Error::LiquiditySource(e.into()))?;
 
-    db_node::mint_quote::insert_new(conn, quote, &invoice_id, unit, amount, &request, expiry)
+    db_node::mint_quote::insert_new(conn, quote, quote_hash, unit, amount, &request, expiry)
         .await
         .map_err(Error::Db)?;
 

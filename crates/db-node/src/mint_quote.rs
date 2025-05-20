@@ -1,22 +1,40 @@
+use bitcoin_hashes::{Sha256, sha256};
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},
     traits::Unit,
 };
 use sqlx::{PgConnection, types::time::OffsetDateTime};
+use starknet_types::calculate_invoice_id;
+use starknet_types_core::felt::Felt;
 use uuid::Uuid;
 
 use crate::Error;
 
+/// Calculate the invoice_id from the quote_id and expiry
+/// This follows the same algorithm as in the smart contract:
+/// invoice_id = poseidon(sha256(quote_id), expiry)
+fn calculate_invoice_id_from_quote(quote_hash: &Sha256, expiry: u64) -> [u8; 32] {
+    let quote_hash_bytes = quote_hash.to_byte_array();
+    let quote_id_hash = Felt::from_bytes_be(&quote_hash_bytes);
+
+    let invoice_id_felt = calculate_invoice_id(&quote_id_hash, expiry);
+
+    invoice_id_felt.to_bytes_be()
+}
+
 pub async fn insert_new<U: Unit>(
     conn: &mut PgConnection,
     quote_id: Uuid,
-    invoice_id: &[u8; 32],
+    quote_hash: Sha256,
     unit: U,
     amount: Amount,
     request: &str,
     expiry: u64,
 ) -> Result<(), Error> {
+    // Calculate the invoice_id from quote_id and expiry
+    let invoice_id = calculate_invoice_id_from_quote(&quote_hash, expiry);
+
     let expiry: i64 = expiry
         .try_into()
         .map_err(|_| Error::RuntimeToDbConversion)?;
@@ -25,7 +43,7 @@ pub async fn insert_new<U: Unit>(
     sqlx::query!(
         r#"INSERT INTO mint_quote (id, invoice_id, unit, amount, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID')"#,
         quote_id,
-        invoice_id,
+        &invoice_id,
         &unit.to_string(),
         amount.into_i64_repr(),
         request,

@@ -16,8 +16,9 @@ pub fn generate_payment_transaction_calls(
     token_contract_address: Felt,
     invoice_payment_contract_address: Felt,
     amount: StarknetU256,
-    invoice_id: Felt,
+    quote_id_hash: Felt,
     payee: Felt,
+    expiry: u64,
 ) -> [Call; 2] {
     // First approve our invoice contract to spend the account funds
     let approve_call = Call {
@@ -30,7 +31,8 @@ pub fn generate_payment_transaction_calls(
         to: invoice_payment_contract_address,
         selector: PAY_INVOICE_SELECTOR,
         calldata: vec![
-            invoice_id,
+            quote_id_hash,
+            expiry.into(),
             token_contract_address,
             amount.low,
             amount.high,
@@ -45,18 +47,20 @@ pub async fn sign_and_send_payment_transactions<
     A: Account + ConnectedAccount + Sync + std::fmt::Debug,
 >(
     account: &A,
-    invoice_id: Felt,
+    quote_id_hash: Felt,
     invoice_payment_contract_address: Felt,
     token_contract_address: Felt,
     amount: StarknetU256,
     payee: Felt,
+    expiry: u64,
 ) -> Result<Felt, AccountError<A::SignError>> {
     let calls = generate_payment_transaction_calls(
         token_contract_address,
         invoice_payment_contract_address,
         amount,
-        invoice_id,
+        quote_id_hash,
         payee,
+        expiry,
     );
     // Execute the transaction
     let tx_result = account

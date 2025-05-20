@@ -59,6 +59,7 @@ impl WithdrawInterface for MockWithdrawer {
         _quote_hash: Sha256,
         _melt_payment_request: (),
         _amount: Self::Amount,
+        _ttl: u64,
     ) -> Result<(MeltQuoteState, Vec<u8>), Self::Error> {
         Ok((MeltQuoteState::Paid, "caffebabe".as_bytes().to_vec()))
     }
@@ -67,14 +68,16 @@ impl WithdrawInterface for MockWithdrawer {
 #[derive(Debug, Clone)]
 pub struct MockDepositer;
 
+#[async_trait::async_trait]
 impl DepositInterface for MockDepositer {
     type Error = Error;
 
-    fn generate_deposit_payload(
+    async fn generate_deposit_payload(
         &self,
         quote_hash: Sha256,
         _unit: starknet_types::Unit,
         _amount: nuts::Amount,
+        _expiry: u64,
     ) -> Result<([u8; 32], String), Self::Error> {
         Ok((quote_hash.to_byte_array(), "".to_string()))
     }

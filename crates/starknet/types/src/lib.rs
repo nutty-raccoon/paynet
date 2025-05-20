@@ -111,9 +111,9 @@ pub fn calculate_invoice_id(quote_id_hash: &Felt, expiry: u64) -> Felt {
     let expiry_felt = Felt::from(expiry);
 
     // Calculate poseidon hash
-    let mut hash_state = PoseidonHasher::new()
-        .update(quote_id_hash)
-        .update(expiry_felt);
+    let mut hash_state = PoseidonHasher::new();
+    hash_state.update(*quote_id_hash);
+    hash_state.update(expiry_felt);
     hash_state.finalize()
 }
 
@@ -148,3 +148,4 @@ mod tests {
         assert!(!is_valid_starknet_address(&invalid_address4));
         assert!(!is_valid_starknet_address(&invalid_address5));
     }
+}
