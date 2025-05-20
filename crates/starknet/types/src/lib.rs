@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use starknet_crypto::PoseidonHasher;
 use starknet_types_core::felt::Felt;
 
 mod assets;
@@ -104,6 +105,18 @@ pub fn is_valid_starknet_address(felt: &Felt) -> bool {
             )
 }
 
+/// Calculate the invoice_id using poseidon hash of quote_id_hash and expiry
+pub fn calculate_invoice_id(quote_id_hash: &Felt, expiry: u64) -> Felt {
+    // Convert expiry to Felt
+    let expiry_felt = Felt::from(expiry);
+
+    // Calculate poseidon hash
+    let mut hash_state = PoseidonHasher::new()
+        .update(quote_id_hash)
+        .update(expiry_felt);
+    hash_state.finalize()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,4 +148,3 @@ mod tests {
         assert!(!is_valid_starknet_address(&invalid_address4));
         assert!(!is_valid_starknet_address(&invalid_address5));
     }
-}
