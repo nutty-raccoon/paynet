@@ -7,6 +7,8 @@ use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::db::proof::get_max_order_for_keyset;
+
 use errors::{Error, Result};
 use futures::StreamExt;
 use node::{
@@ -482,7 +484,7 @@ pub async fn swap_to_have_target_amount(
 }
 
 pub async fn receive_wad(
-    db_conn: &Connection,
+    tx: &mut rusqlite::Transaction<'_>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     proofs: &[nut00::Proof],
@@ -495,12 +497,27 @@ pub async fn receive_wad(
         ON CONFLICT DO UPDATE
             SET state = excluded.state
     "#;
-    let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
+    let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
     let mut keyset_id_to_unit = HashMap::new();
     let mut unit_to_amount = HashMap::new();
     let mut ys = Vec::with_capacity(proofs.len());
 
     for proof in proofs.iter() {
+        // Query max_order for this keyset_id
+        let max_order: u64 = get_max_order_for_keyset(tx, proof.keyset_id)?;
+        let amount = u64::from(proof.amount);
+        if !amount.is_power_of_two() || amount == 0 {
+            return Err(Error::Protocol(
+                "All proof amounts must be powers of two".to_string(),
+            ));
+        }
+        if amount >= max_order {
+            return Err(Error::Protocol(format!(
+                "Proof amount {} is not less than max_order {} for keyset {}",
+                amount, max_order, proof.keyset_id
+            )));
+        }
+
         let y = hash_to_curve(proof.secret.as_ref())?;
         ys.push(y);
 
@@ -521,8 +538,7 @@ pub async fn receive_wad(
             }
             hash_map::Entry::Vacant(vacant_entry) => {
                 let unit =
-                    read_or_import_node_keyset(db_conn, node_client, node_id, proof.keyset_id)
-                        .await?;
+                    read_or_import_node_keyset(tx, node_client, node_id, proof.keyset_id).await?;
 
                 vacant_entry.insert(unit.clone());
                 unit
@@ -541,7 +557,7 @@ pub async fn receive_wad(
     let mut unit_to_premints = HashMap::new();
     for (unit, amount) in unit_to_amount.iter() {
         let pre_mints = PreMint::generate_for_amount(*amount, &SplitTarget::None)?;
-        let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
+        let keyset_id = get_active_keyset_for_unit(tx, node_id, unit)?;
         outputs.extend_from_slice(
             build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints).as_slice(),
         );
@@ -552,19 +568,19 @@ pub async fn receive_wad(
     let swap_request_hash = hash_swap_request(&swap_request);
     let swap_response = match node_client.swap(swap_request).await {
         Ok(r) => {
-            db::proof::set_proofs_to_state(db_conn, &ys, ProofState::Spent)?;
+            db::proof::set_proofs_to_state(tx, &ys, ProofState::Spent)?;
             r.into_inner()
         }
         Err(e) => {
             // TODO: delete instead?
-            db::proof::set_proofs_to_state(db_conn, &ys, ProofState::Unspent)?;
+            db::proof::set_proofs_to_state(tx, &ys, ProofState::Unspent)?;
             return Err(e.into());
         }
     };
 
     for (_unit, (keyset_id, pre_mints)) in unit_to_premints.into_iter() {
         let _new_tokens = store_new_tokens(
-            db_conn,
+            tx,
             node_id,
             keyset_id,
             pre_mints.into_iter(),
