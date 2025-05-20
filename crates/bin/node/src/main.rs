@@ -41,7 +41,7 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Connected to node database.");
 
     // Connect to the signer service
-    let signer_client = connect_to_signer(env_variables.signer_url).await?;
+    let signer_client = connect_to_signer(env_variables.signer_url.clone()).await?;
     info!("Connected to signer server.");
 
     let liquidity_sources =
@@ -52,7 +52,7 @@ async fn main() -> Result<(), anyhow::Error> {
         pg_pool.clone(),
         signer_client,
         liquidity_sources,
-        env_variables.grpc_port,
+        env_variables,
     )
     .await?;
 

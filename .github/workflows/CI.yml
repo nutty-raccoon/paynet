@@ -73,16 +73,18 @@ jobs:
 
       - name: Run unit tests
         run: |
-          cargo test -p node --no-default-features --features=mock
-          cargo test -p node --no-default-features --features=starknet,keyset-rotation
+          cargo test -p node --no-default-features --features=mock,keyset-rotation,tls
+          cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls
           cargo test -p signer --no-default-features
           cargo test -p cli-wallet --no-default-features
+          cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed
           cargo test -p starknet-cashier --no-default-features
           cargo test -p db-node --no-default-features
           cargo test -p nuts --no-default-features
           cargo test -p nuts --features=starknet,sqlx,nut19
           cargo test -p starknet-types --no-default-features
           cargo test -p wallet --no-default-features
+          cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed
           cargo test -p liquidity-source --no-default-features
           cargo test -p liquidity-source --features=mock
           cargo test -p starknet-on-chain-setup --no-default-features
