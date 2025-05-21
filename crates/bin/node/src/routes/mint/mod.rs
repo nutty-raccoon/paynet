@@ -89,7 +89,7 @@ impl GrpcState {
             return Err(Error::InvalidQuoteStateAtThisPoint(state));
         }
 
-        let total_amount =
+        let (total_amount, _unit) =
             check_outputs_allow_single_unit(&mut tx, &self.keyset_cache, outputs).await?;
 
         if total_amount != expected_amount {
@@ -115,6 +115,10 @@ impl GrpcState {
             %method,
             quote_id = %quote
         );
+
+        let meter = opentelemetry::global::meter("business");
+        let n_mint_counter = meter.u64_counter("mint.operation.count").build();
+        n_mint_counter.add(1, &[]);
 
         Ok(blind_signatures)
     }

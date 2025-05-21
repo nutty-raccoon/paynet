@@ -58,6 +58,7 @@ pub async fn launch_tonic_server_task(
         health_service
     };
     let optl_layer = tower_otel::trace::GrpcLayer::server(tracing::Level::INFO);
+    let meter = opentelemetry::global::meter(env!("CARGO_PKG_NAME"));
 
     #[cfg(feature = "keyset-rotation")]
     let keyset_rotation_service = ServiceBuilder::new()
@@ -69,7 +70,8 @@ pub async fn launch_tonic_server_task(
         .named_layer(NodeServer::new(grpc_state.clone()));
 
     let tonic_future = {
-        let mut tonic_server = tonic::transport::Server::builder();
+        let mut tonic_server = tonic::transport::Server::builder()
+            .layer(tower_otel::metrics::HttpLayer::server(&meter));
 
         let router = tonic_server
             .add_service(health_service)

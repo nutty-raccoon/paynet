@@ -20,6 +20,7 @@ rusqlite = { workspace = true }
 futures = { workspace = true }
 primitive-types = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 # OPTL
 http = { workspace = true }

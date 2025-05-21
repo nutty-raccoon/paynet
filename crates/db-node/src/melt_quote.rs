@@ -142,3 +142,28 @@ pub async fn register_transfer_id(
 
     Ok(())
 }
+
+pub async fn get_quote_infos_by_invoice_id<U: Unit>(
+    conn: &mut PgConnection,
+    invoice_id: &[u8; 32],
+) -> Result<Option<(Uuid, Amount, U)>, Error> {
+    let record = sqlx::query!(
+        r#"
+            SELECT id, amount, unit from melt_quote WHERE invoice_id = $1 LIMIT 1
+        "#,
+        invoice_id
+    )
+    .fetch_optional(conn)
+    .await?;
+
+    let ret = if let Some(record) = record {
+        let quote_id = record.id;
+        let amount = Amount::from_i64_repr(record.amount);
+        let unit = U::from_str(&record.unit).map_err(|_| Error::DbToRuntimeConversion)?;
+        Some((quote_id, amount, unit))
+    } else {
+        None
+    };
+
+    Ok(ret)
+}

@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  - job_name: 'paynet-metrics'
+    static_configs:
+      - targets: ['otel-collector:8889']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'paynet_.*'
+        action: keep
+
+  - job_name: 'other-opentelemetry'
+    static_configs:
+      - targets: ['otel-collector:8889']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'paynet_.*'
+        action: drop

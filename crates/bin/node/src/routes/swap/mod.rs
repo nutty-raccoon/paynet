@@ -92,15 +92,15 @@ impl GrpcState {
         .map_err(Error::Inputs)?;
 
         // Amount matching
-        for (asset, output_amount) in outputs_amounts.iter() {
+        for (unit, output_amount) in outputs_amounts.iter() {
             let &(_, input_amount) = input_fees_and_amount
                 .iter()
-                .find(|(u, _)| u == asset)
+                .find(|(u, _)| u == unit)
                 .ok_or(Error::UnbalancedUnits)?;
 
             if input_amount != *output_amount {
                 Err(Error::TransactionUnbalanced(
-                    *asset,
+                    *unit,
                     input_amount,
                     *output_amount,
                 ))?;
@@ -118,14 +118,21 @@ impl GrpcState {
 
         tx.commit().await.map_err(Error::TxCommit)?;
 
-        // Should be safe to unwrap since both Unit and Amount derive their serde impl from std types
-        // and the max len of the output vector is capped and checked at runtime.
-        let json_string_output_amounts = serde_json::to_string(&outputs_amounts).unwrap();
         event!(
             name: "swap",
             Level::INFO,
-            amounts = json_string_output_amounts
+            amounts = serde_json::to_string(&outputs_amounts).unwrap(),
         );
+        let meter = opentelemetry::global::meter("business");
+        let n_swap_counter = meter.u64_counter("swap.operation.count").build();
+        n_swap_counter.add(1, &[]);
+        for (u, a) in outputs_amounts {
+            let amount_of_unit_swaped_counter = meter
+                .u64_counter(format!("swap.amount.{}.count", &u))
+                .with_unit(u.as_str())
+                .build();
+            amount_of_unit_swaped_counter.add(a.into(), &[]);
+        }
 
         Ok(blind_signatures)
     }

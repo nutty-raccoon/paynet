@@ -10,6 +10,7 @@ opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
 opentelemetry-otlp = { workspace = true, features = ["grpc-tonic"] }
 tracing-opentelemetry = { workspace = true }
+opentelemetry-appender-tracing = { version = "0.29.1" }
 tonic = { workspace = true }
 tower = { workspace = true }
 tower-otel = { workspace = true }

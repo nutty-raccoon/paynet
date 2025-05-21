@@ -7,6 +7,7 @@ edition = "2024"
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { workspace = true, features = ["timeout"] }
 futures = { workspace = true }
+futures-executor = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 parking_lot = { workspace = true, features = ["arc_lock"] }
 serde = { workspace = true, features = ["derive"] }
@@ -43,6 +44,7 @@ tonic-health = { workspace = true }
 tracing = { workspace = true }
 open-telemetry-tracing = { workspace = true }
 tower-otel = { workspace = true }
+opentelemetry = { workspace = true }
 
 # tls optional
 openssl = { workspace = true, optional = true }

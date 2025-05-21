@@ -89,6 +89,10 @@ impl GrpcState {
             transfer_id = transfer_id.as_hex().to_string(),
         );
 
+        let meter = opentelemetry::global::meter("business");
+        let n_melt_counter = meter.u64_counter("melt.operation.count").build();
+        n_melt_counter.add(1, &[]);
+
         Ok(MeltQuoteResponse {
             quote: quote_id,
             amount: total_amount,

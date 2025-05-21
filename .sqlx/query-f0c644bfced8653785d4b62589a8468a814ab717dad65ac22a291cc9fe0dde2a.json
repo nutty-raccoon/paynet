@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT amount_low, amount_high\n        FROM melt_payment_event\n        WHERE invoice_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "amount_low",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "amount_high",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f0c644bfced8653785d4b62589a8468a814ab717dad65ac22a291cc9fe0dde2a"
+}

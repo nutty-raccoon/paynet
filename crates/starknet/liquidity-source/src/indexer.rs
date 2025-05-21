@@ -1,6 +1,9 @@
 use futures::TryStreamExt;
+use nuts::Amount;
 use nuts::nut04::MintQuoteState;
-use sqlx::PgPool;
+use nuts::nut05::MeltQuoteState;
+use sqlx::pool::PoolConnection;
+use sqlx::{PgPool, Postgres};
 use starknet_payment_indexer::{ApibaraIndexerService, Message, PaymentEvent, Uri};
 use starknet_types::constants::ON_CHAIN_CONSTANTS;
 use starknet_types::{Asset, AssetToUnitConversionError, ChainId};
@@ -11,6 +14,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::select;
 use tracing::{Level, debug, error, event};
+use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -157,21 +161,26 @@ async fn process_payment_event(
     let db_conn = &mut pg_pool.acquire().await?;
 
     for payment_event in payment_events {
-        let (quote_id, quote_amount, unit) =
-            match db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(
+        let (is_mint, quote_id, quote_amount, unit) = if let Some((quote_id, amount, unit)) =
+            db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(
                 db_conn,
                 &payment_event.invoice_id.to_bytes_be(),
             )
             .await?
-            {
-                // TODO: also check if it exists in the melt quote table.
-                // If so, set the quote state to paid
-                None => {
-                    debug!("no quote for invoice_id {:#x}", payment_event.invoice_id);
-                    continue;
-                }
-                Some(mint_quote_id) => mint_quote_id,
-            };
+        {
+            (true, quote_id, amount, unit)
+        } else if let Some((quote_id, amount, unit)) =
+            db_node::melt_quote::get_quote_infos_by_invoice_id::<Unit>(
+                db_conn,
+                &payment_event.invoice_id.to_bytes_be(),
+            )
+            .await?
+        {
+            (false, quote_id, amount, unit)
+        } else {
+            debug!("no quote for invoice_id {:#x}", payment_event.invoice_id);
+            continue;
+        };
 
         let on_chain_constants = ON_CHAIN_CONSTANTS
             .get(chain_id.as_str())
@@ -201,34 +210,91 @@ async fn process_payment_event(
             continue;
         }
 
-        db_node::payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-        let current_paid = db_node::payment_event::get_current_paid(
-            db_conn,
-            &payment_event.invoice_id.to_bytes_be(),
-        )
-        .await?
-        .map(|(low, high)| -> Result<primitive_types::U256, Error> {
-            let amount_as_strk_256 = StarknetU256 {
-                low: Felt::from_str(&low)?,
-                high: Felt::from_str(&high)?,
-            };
-
-            Ok(primitive_types::U256::from(amount_as_strk_256))
-        })
-        .try_fold(primitive_types::U256::zero(), |acc, a| match a {
-            Ok(v) => v.checked_add(acc).ok_or(Error::AmountPaidOverflow),
-            Err(e) => Err(e),
-        })?;
-
-        let to_pay = unit.convert_amount_into_u256(quote_amount);
-        if current_paid >= to_pay {
-            db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;
-            event!(
-                name: "mint-quote-paid",
-                Level::INFO,
-                %quote_id,
-            );
+        if is_mint {
+            handle_mint_payment(db_conn, quote_id, payment_event, unit, quote_amount).await?;
+        } else {
+            handle_melt_payment(db_conn, quote_id, payment_event, unit, quote_amount).await?;
         }
+    }
+
+    Ok(())
+}
+
+// Yeah I now it's basically the same code copied and pasted.
+// For now it's fine, better this than adding trait and struct and so on.
+async fn handle_mint_payment(
+    db_conn: &mut PoolConnection<Postgres>,
+    quote_id: Uuid,
+    payment_event: PaymentEvent,
+    unit: Unit,
+    quote_amount: Amount,
+) -> Result<(), Error> {
+    db_node::mint_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
+    let current_paid = db_node::mint_payment_event::get_current_paid(
+        db_conn,
+        &payment_event.invoice_id.to_bytes_be(),
+    )
+    .await?
+    .map(|(low, high)| -> Result<primitive_types::U256, Error> {
+        let amount_as_strk_256 = StarknetU256 {
+            low: Felt::from_str(&low)?,
+            high: Felt::from_str(&high)?,
+        };
+
+        Ok(primitive_types::U256::from(amount_as_strk_256))
+    })
+    .try_fold(primitive_types::U256::zero(), |acc, a| match a {
+        Ok(v) => v.checked_add(acc).ok_or(Error::AmountPaidOverflow),
+        Err(e) => Err(e),
+    })?;
+
+    let to_pay = unit.convert_amount_into_u256(quote_amount);
+    if current_paid >= to_pay {
+        db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;
+        event!(
+            name: "mint-quote-paid",
+            Level::INFO,
+            %quote_id,
+        );
+    }
+
+    Ok(())
+}
+
+async fn handle_melt_payment(
+    db_conn: &mut PoolConnection<Postgres>,
+    quote_id: Uuid,
+    payment_event: PaymentEvent,
+    unit: Unit,
+    quote_amount: Amount,
+) -> Result<(), Error> {
+    db_node::melt_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
+    let current_paid = db_node::melt_payment_event::get_current_paid(
+        db_conn,
+        &payment_event.invoice_id.to_bytes_be(),
+    )
+    .await?
+    .map(|(low, high)| -> Result<primitive_types::U256, Error> {
+        let amount_as_strk_256 = StarknetU256 {
+            low: Felt::from_str(&low)?,
+            high: Felt::from_str(&high)?,
+        };
+
+        Ok(primitive_types::U256::from(amount_as_strk_256))
+    })
+    .try_fold(primitive_types::U256::zero(), |acc, a| match a {
+        Ok(v) => v.checked_add(acc).ok_or(Error::AmountPaidOverflow),
+        Err(e) => Err(e),
+    })?;
+
+    let to_pay = unit.convert_amount_into_u256(quote_amount);
+    if current_paid >= to_pay {
+        db_node::melt_quote::set_state(db_conn, quote_id, MeltQuoteState::Paid).await?;
+        event!(
+            name: "melt-quote-paid",
+            Level::INFO,
+            %quote_id,
+        );
     }
 
     Ok(())

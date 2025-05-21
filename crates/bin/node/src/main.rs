@@ -3,7 +3,10 @@ compile_error!("Only one of the features 'mock' and 'starknet' can be enabled at
 #[cfg(not(any(feature = "mock", feature = "starknet")))]
 compile_error!("At least one liquidity feature should be provided during compilation");
 
+use core::panic;
+
 use errors::Error;
+use gauge::DbMetricsObserver;
 use initialization::{
     connect_to_db_and_run_migrations, connect_to_signer, launch_tonic_server_task,
     read_env_variables,
@@ -12,6 +15,7 @@ use tracing::{info, trace};
 
 mod app_state;
 mod errors;
+mod gauge;
 mod grpc_service;
 mod initialization;
 mod keyset_cache;
@@ -28,7 +32,10 @@ mod utils;
 async fn main() -> Result<(), anyhow::Error> {
     const PKG_NAME: &str = env!("CARGO_PKG_NAME");
     const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-    open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
+    let (meter_provider, subscriber) = open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    opentelemetry::global::set_meter_provider(meter_provider);
 
     info!("Initializing node...");
     let args = <initialization::ProgramArguments as clap::Parser>::parse();
@@ -39,6 +46,14 @@ async fn main() -> Result<(), anyhow::Error> {
     // Connect to db
     let pg_pool = connect_to_db_and_run_migrations(&env_variables.pg_url).await?;
     info!("Connected to node database.");
+    let meter = opentelemetry::global::meter("business");
+    let gauge = meter.u64_gauge("stock").build();
+    let observer = DbMetricsObserver::new(
+        pg_pool.clone(),
+        vec![starknet_types::Unit::MilliStrk],
+        gauge,
+    );
+    let _handle = tokio::spawn(gauge::init_metrics_polling(observer));
 
     // Connect to the signer service
     let signer_client = connect_to_signer(env_variables.signer_url.clone()).await?;

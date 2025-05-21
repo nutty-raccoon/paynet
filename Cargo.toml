@@ -71,6 +71,7 @@ parking_lot = "0.12.3"
 rand = "0.9.0"
 starknet-core = "0.13.0"
 futures = "0.3.31"
+futures-executor = "0.3.31"
 anyhow = "1.0.95"
 apibara-core = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
 apibara-sdk = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
