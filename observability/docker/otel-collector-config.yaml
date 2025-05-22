@@ -28,6 +28,9 @@ exporters:
     tls:
       insecure: true
 
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
   debug:
     verbosity: detailed
 
@@ -45,7 +48,11 @@ service:
       receivers: [otlp]
       processors: [batch, memory_limiter]
       exporters: [otlp/jaeger]
+    logs:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [loki]
     metrics:
       receivers: [otlp]
       processors: [batch, memory_limiter]
-      exporters: [debug, prometheus]
+      exporters: [prometheus]

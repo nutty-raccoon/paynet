@@ -112,8 +112,9 @@ impl GrpcState {
         event!(
             name: "mint",
             Level::INFO,
+            name = "mint",
             %method,
-            quote_id = %quote
+            quote_id = %quote,
         );
 
         let meter = opentelemetry::global::meter("business");

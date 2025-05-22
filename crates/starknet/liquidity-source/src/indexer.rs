@@ -178,7 +178,7 @@ async fn process_payment_event(
         {
             (false, quote_id, amount, unit)
         } else {
-            debug!("no quote for invoice_id {:#x}", payment_event.invoice_id);
+            error!("no quote for invoice_id {:#x}", payment_event.invoice_id);
             continue;
         };
 
@@ -254,6 +254,7 @@ async fn handle_mint_payment(
         event!(
             name: "mint-quote-paid",
             Level::INFO,
+            name = "mint-quote-paid",
             %quote_id,
         );
     }
@@ -293,6 +294,7 @@ async fn handle_melt_payment(
         event!(
             name: "melt-quote-paid",
             Level::INFO,
+            name = "melt-quote-paid",
             %quote_id,
         );
     }

@@ -1,4 +1,3 @@
-use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
 use serde::{Deserialize, Serialize};
 use starknet_cashier::{StarknetCashierClient, WithdrawRequest as CashierWithdrawRequest};
@@ -8,6 +7,8 @@ use tonic::{Request, transport::Channel};
 
 use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use starknet_types::is_valid_starknet_address;
+
+use crate::StarknetInvoiceId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -55,6 +56,7 @@ impl WithdrawInterface for Withdrawer {
     type Error = Error;
     type Request = MeltPaymentRequest;
     type Amount = StarknetU256WithdrawAmount;
+    type InvoiceId = StarknetInvoiceId;
 
     fn deserialize_payment_request(&self, raw_json_string: &str) -> Result<Self::Request, Error> {
         let pr = serde_json::from_str::<Self::Request>(raw_json_string)
@@ -68,16 +70,14 @@ impl WithdrawInterface for Withdrawer {
 
     async fn proceed_to_payment(
         &mut self,
-        quote_hash: Sha256,
+        invoice_id: Self::InvoiceId,
         melt_payment_request: MeltPaymentRequest,
         amount: Self::Amount,
     ) -> Result<(MeltQuoteState, Vec<u8>), Error> {
         let tx_hash = self
             .0
             .withdraw(Request::new(CashierWithdrawRequest {
-                invoice_id: Felt::from_bytes_be(quote_hash.as_byte_array())
-                    .to_bytes_be()
-                    .to_vec(),
+                invoice_id: <[u8; 32]>::from(invoice_id).to_vec(),
                 asset: melt_payment_request.asset.to_string(),
                 amount: amount
                     .0

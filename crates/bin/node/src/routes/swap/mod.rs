@@ -121,6 +121,7 @@ impl GrpcState {
         event!(
             name: "swap",
             Level::INFO,
+            name = "swap",
             amounts = serde_json::to_string(&outputs_amounts).unwrap(),
         );
         let meter = opentelemetry::global::meter("business");

@@ -111,13 +111,14 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
         .map_err(|e| Status::internal(format!("failed to execute transaction: {}", e)))?;
 
         event!(
-            name: "withraw",
+            name: "withdraw",
             Level::INFO,
+            name = "withdraw",
             invoice_id = invoice_id.to_hex_string(),
             tx_hash = tx_hash.to_hex_string(),
             amount = amount.to_dec_string(),
             asset = asset_contract_address.to_string(),
-            payee = payee_address.to_string()
+            payee = payee_address.to_string(),
         );
 
         Ok(Response::new(WithdrawResponse {

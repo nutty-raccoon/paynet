@@ -1,6 +1,7 @@
 use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
 use starknet_types::{Asset, StarknetU256};
+use uuid::Uuid;
 
 use crate::DepositInterface;
 
@@ -12,6 +13,7 @@ pub struct MockLiquiditySource;
 impl LiquiditySource for MockLiquiditySource {
     type Depositer = MockDepositer;
     type Withdrawer = MockWithdrawer;
+    type InvoiceId = MockInvoiceId;
 
     fn depositer(&self) -> MockDepositer {
         MockDepositer
@@ -19,6 +21,10 @@ impl LiquiditySource for MockLiquiditySource {
 
     fn withdrawer(&self) -> MockWithdrawer {
         MockWithdrawer
+    }
+
+    fn compute_invoice_id(&self, quote_id: Uuid) -> Self::InvoiceId {
+        MockInvoiceId(Sha256::hash(quote_id.as_bytes()))
     }
 }
 
@@ -41,11 +47,21 @@ impl crate::WithdrawAmount for StarknetU256 {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MockInvoiceId(Sha256);
+
+impl From<MockInvoiceId> for [u8; 32] {
+    fn from(value: MockInvoiceId) -> Self {
+        value.0.to_byte_array()
+    }
+}
+
 #[async_trait::async_trait]
 impl WithdrawInterface for MockWithdrawer {
     type Error = Error;
     type Request = ();
     type Amount = StarknetU256;
+    type InvoiceId = MockInvoiceId;
 
     fn deserialize_payment_request(
         &self,
@@ -56,7 +72,7 @@ impl WithdrawInterface for MockWithdrawer {
 
     async fn proceed_to_payment(
         &mut self,
-        _quote_hash: Sha256,
+        _invoice_id: Self::InvoiceId,
         _melt_payment_request: (),
         _amount: Self::Amount,
     ) -> Result<(MeltQuoteState, Vec<u8>), Self::Error> {
@@ -69,13 +85,17 @@ pub struct MockDepositer;
 
 impl DepositInterface for MockDepositer {
     type Error = Error;
+    type InvoiceId = MockInvoiceId;
 
     fn generate_deposit_payload(
         &self,
-        quote_hash: Sha256,
+        quote_id: Uuid,
         _unit: starknet_types::Unit,
         _amount: nuts::Amount,
-    ) -> Result<([u8; 32], String), Self::Error> {
-        Ok((quote_hash.to_byte_array(), "".to_string()))
+    ) -> Result<(Self::InvoiceId, String), Self::Error> {
+        Ok((
+            MockInvoiceId(bitcoin_hashes::Sha256::hash(quote_id.as_bytes())),
+            "".to_string(),
+        ))
     }
 }

@@ -20,6 +20,7 @@ tracing = { workspace = true }
 open-telemetry-tracing = { workspace = true }
 tower-otel = { workspace = true }
 tower = { workspace = true }
+opentelemetry = { workspace = true }
 
 # Local deps
 starknet-types = { workspace = true }

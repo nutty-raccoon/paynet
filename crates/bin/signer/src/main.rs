@@ -215,7 +215,9 @@ impl signer::Signer for SignerState {
 async fn main() -> Result<(), anyhow::Error> {
     const PKG_NAME: &str = env!("CARGO_PKG_NAME");
     const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-    open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
+    let (meter_provider, subscriber) = open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    opentelemetry::global::set_meter_provider(meter_provider);
 
     #[cfg(debug_assertions)]
     {

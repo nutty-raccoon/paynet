@@ -1,4 +1,3 @@
-use bitcoin_hashes::Sha256;
 use nuts::{Amount, nut05::MeltQuoteState};
 use starknet_types::{Asset, Unit};
 
@@ -19,6 +18,7 @@ pub trait WithdrawInterface: Send {
         + WithdrawRequest
         + Send;
     type Amount: std::fmt::Debug + WithdrawAmount + Send;
+    type InvoiceId: Into<[u8; 32]> + Send + Sync + 'static;
 
     fn deserialize_payment_request(
         &self,
@@ -27,7 +27,7 @@ pub trait WithdrawInterface: Send {
 
     async fn proceed_to_payment(
         &mut self,
-        quote_hash: Sha256,
+        invoice_id: Self::InvoiceId,
         request: Self::Request,
         amount: Self::Amount,
     ) -> Result<(MeltQuoteState, Vec<u8>), Self::Error>;

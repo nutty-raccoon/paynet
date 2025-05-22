@@ -98,7 +98,7 @@ impl GrpcState {
 
         let mut conn = self.pg_pool.acquire().await?;
         let response = match method {
-            Method::Starknet => create_new_starknet_mint_quote(
+            Method::Starknet => create_new_mint_quote(
                 &mut conn,
                 liquidity_source.depositer(),
                 amount,
@@ -111,18 +111,19 @@ impl GrpcState {
         event!(
             name: "mint-quote",
             Level::INFO,
+            name = "mint-quote",
             %method,
             amount = u64::from(amount),
             %unit,
-            quote_id = %response.quote
+            quote_id = %response.quote,
         );
 
         Ok(response)
     }
 }
 
-/// Initialize a new Starknet mint quote
-async fn create_new_starknet_mint_quote(
+/// Initialize a new mint quote
+async fn create_new_mint_quote(
     conn: &mut PgConnection,
     depositer: impl DepositInterface,
     amount: Amount,
@@ -130,16 +131,23 @@ async fn create_new_starknet_mint_quote(
     mint_ttl: u64,
 ) -> Result<MintQuoteResponse<Uuid>, Error> {
     let expiry = unix_time() + mint_ttl;
-    let quote = Uuid::new_v4();
-    let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
+    let quote_id = Uuid::new_v4();
 
     let (invoice_id, request) = depositer
-        .generate_deposit_payload(quote_hash, unit, amount)
+        .generate_deposit_payload(quote_id, unit, amount)
         .map_err(|e| Error::LiquiditySource(e.into()))?;
 
-    db_node::mint_quote::insert_new(conn, quote, &invoice_id, unit, amount, &request, expiry)
-        .await
-        .map_err(Error::Db)?;
+    db_node::mint_quote::insert_new(
+        conn,
+        quote_id,
+        &invoice_id.into(),
+        unit,
+        amount,
+        &request,
+        expiry,
+    )
+    .await
+    .map_err(Error::Db)?;
 
     let state = {
         // If running with no backend, we immediatly set the state to paid
@@ -148,7 +156,7 @@ async fn create_new_starknet_mint_quote(
             use futures::TryFutureExt;
 
             let new_state = MintQuoteState::Paid;
-            db_node::mint_quote::set_state(conn, quote, new_state)
+            db_node::mint_quote::set_state(conn, quote_id, new_state)
                 .map_err(Error::Sqlx)
                 .await?;
             new_state
@@ -158,7 +166,7 @@ async fn create_new_starknet_mint_quote(
     };
 
     Ok(MintQuoteResponse {
-        quote,
+        quote: quote_id,
         request,
         state,
         expiry,
