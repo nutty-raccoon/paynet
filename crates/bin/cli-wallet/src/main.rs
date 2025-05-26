@@ -516,14 +516,18 @@ async fn main() -> Result<()> {
             }
 
             let mut tx = db_conn.transaction()?;
-            let amounts_received_per_unit =
-                wallet::receive_wad(&mut tx, &mut node_client, node_id, &wad.proofs()).await?;
+            let amount_received = wallet::receive_wad(
+                &mut tx,
+                &mut node_client,
+                node_id,
+                wad.unit.as_str(),
+                &wad.proofs,
+            )
+            .await?;
             tx.commit()?;
 
             println!("Received:");
-            for (unit, amount) in amounts_received_per_unit {
-                println!("{} {}", amount, unit);
-            }
+            println!("{} {}", amount_received, wad.unit.as_str());
         }
         Commands::DecodeWad(WadArgs {
             opt_wad_string,

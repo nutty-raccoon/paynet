@@ -214,7 +214,9 @@ mod tests {
         for proof in proofs {
             let keyset_id = proof.keyset_id;
             let max_order = *keyset_to_max.entry(keyset_id).or_insert_with(|| {
-                get_max_order_for_keyset(db_conn, keyset_id).expect("Failed to get max_order")
+                get_max_order_for_keyset(db_conn, keyset_id)
+                    .expect("Failed to get max_order")
+                    .unwrap()
             });
             let proof_amount = u64::from(proof.amount);
             if proof_amount >= max_order {

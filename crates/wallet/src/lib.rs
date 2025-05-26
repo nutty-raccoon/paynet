@@ -3,7 +3,6 @@ pub mod errors;
 mod outputs;
 pub mod types;
 
-use std::collections::{HashMap, hash_map};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,6 +25,7 @@ use nuts::{Amount, SplitTarget};
 use rusqlite::{Connection, params};
 use tonic::Request;
 use tonic::transport::Channel;
+use types::compact_wad::CompactKeysetProofs;
 use types::{NodeUrl, PreMint, ProofState};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
@@ -487,8 +487,9 @@ pub async fn receive_wad(
     tx: &mut rusqlite::Transaction<'_>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    proofs: &[nut00::Proof],
-) -> Result<HashMap<String, Amount>> {
+    unit: &str,
+    compact_keyset_proofs: &[CompactKeysetProofs],
+) -> Result<Amount> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
             (y, node_id, keyset_id, amount, secret, unblind_signature, state)
@@ -498,71 +499,63 @@ pub async fn receive_wad(
             SET state = excluded.state
     "#;
     let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
-    let mut keyset_id_to_unit = HashMap::new();
-    let mut unit_to_amount = HashMap::new();
-    let mut ys = Vec::with_capacity(proofs.len());
+    let mut ys = Vec::with_capacity(compact_keyset_proofs.len());
+    let mut total_amount = Amount::ZERO;
+    let mut inputs = Vec::with_capacity(compact_keyset_proofs.len());
 
-    for proof in proofs.iter() {
+    for compact_keyset_proof in compact_keyset_proofs.iter() {
         // Query max_order for this keyset_id
-        let max_order: u64 = get_max_order_for_keyset(tx, proof.keyset_id)?;
-        let amount = u64::from(proof.amount);
-        if !amount.is_power_of_two() || amount == 0 {
-            return Err(Error::Protocol(
-                "All proof amounts must be powers of two".to_string(),
-            ));
+        let keyset_unit =
+            read_or_import_node_keyset(tx, node_client, node_id, compact_keyset_proof.keyset_id)
+                .await?;
+        if keyset_unit != unit {
+            return Err(Error::UnitMissmatch(keyset_unit, unit.to_string()));
         }
-        if amount >= max_order {
-            return Err(Error::Protocol(format!(
-                "Proof amount {} is not less than max_order {} for keyset {}",
-                amount, max_order, proof.keyset_id
-            )));
+        // Safe to unwrap as we just updated our db with this keyset
+        let max_order: u64 = get_max_order_for_keyset(tx, compact_keyset_proof.keyset_id)?.unwrap();
+
+        for compact_proof in compact_keyset_proof.proofs.iter() {
+            let amount = u64::from(compact_proof.amount);
+            if !amount.is_power_of_two() || amount == 0 {
+                return Err(Error::Protocol(
+                    "All proof amounts must be powers of two".to_string(),
+                ));
+            }
+            if amount >= max_order {
+                return Err(Error::Protocol(format!(
+                    "Proof amount {} is not less than max_order {} for keyset {}",
+                    amount, max_order, compact_keyset_proof.keyset_id
+                )));
+            }
+            let y = hash_to_curve(compact_proof.secret.as_ref())?;
+            ys.push(y);
+
+            insert_proof_stmt.execute(params![
+                y,
+                node_id,
+                compact_keyset_proof.keyset_id,
+                compact_proof.amount,
+                compact_proof.secret,
+                compact_proof.c,
+                ProofState::Pending
+            ])?;
+
+            total_amount = total_amount
+                .checked_add(&compact_proof.amount)
+                .ok_or(Error::AmountOverflow)?;
+
+            inputs.push(node::Proof {
+                amount,
+                keyset_id: compact_keyset_proof.keyset_id.to_bytes().to_vec(),
+                secret: compact_proof.secret.to_string(),
+                unblind_signature: compact_proof.c.to_bytes().to_vec(),
+            });
         }
-
-        let y = hash_to_curve(proof.secret.as_ref())?;
-        ys.push(y);
-
-        insert_proof_stmt.execute(params![
-            y,
-            node_id,
-            proof.keyset_id,
-            proof.amount,
-            proof.secret,
-            proof.c,
-            ProofState::Pending
-        ])?;
-
-        let unit = match keyset_id_to_unit.entry(proof.keyset_id) {
-            hash_map::Entry::Occupied(occupied_entry) => {
-                let unit: &String = occupied_entry.get();
-                unit.clone()
-            }
-            hash_map::Entry::Vacant(vacant_entry) => {
-                let unit =
-                    read_or_import_node_keyset(tx, node_client, node_id, proof.keyset_id).await?;
-
-                vacant_entry.insert(unit.clone());
-                unit
-            }
-        };
-
-        let entry = unit_to_amount.entry(unit).or_insert(Amount::ZERO);
-        *entry = entry
-            .checked_add(&proof.amount)
-            .ok_or(Error::AmountOverflow)?;
     }
 
-    let inputs = convert_inputs(proofs);
-
-    let mut outputs = Vec::new();
-    let mut unit_to_premints = HashMap::new();
-    for (unit, amount) in unit_to_amount.iter() {
-        let pre_mints = PreMint::generate_for_amount(*amount, &SplitTarget::None)?;
-        let keyset_id = get_active_keyset_for_unit(tx, node_id, unit)?;
-        outputs.extend_from_slice(
-            build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints).as_slice(),
-        );
-        unit_to_premints.insert(unit, (keyset_id, pre_mints));
-    }
+    let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
+    let keyset_id = get_active_keyset_for_unit(tx, node_id, unit)?;
+    let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
     let swap_request = node::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
@@ -578,25 +571,17 @@ pub async fn receive_wad(
         }
     };
 
-    for (_unit, (keyset_id, pre_mints)) in unit_to_premints.into_iter() {
-        let _new_tokens = store_new_tokens(
-            tx,
-            node_id,
-            keyset_id,
-            pre_mints.into_iter(),
-            swap_response.signatures.iter().filter_map(|s| {
-                if s.keyset_id == keyset_id.to_bytes() {
-                    Some(s.clone())
-                } else {
-                    None
-                }
-            }),
-        )?;
-    }
+    let _new_tokens = store_new_tokens(
+        tx,
+        node_id,
+        keyset_id,
+        pre_mints.into_iter(),
+        swap_response.signatures.into_iter(),
+    )?;
 
     acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
 
-    Ok(unit_to_amount)
+    Ok(total_amount)
 }
 
 pub async fn register_node(

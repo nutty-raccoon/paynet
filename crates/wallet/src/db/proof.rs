@@ -139,10 +139,9 @@ pub fn get_proofs_by_ids(
 pub fn get_max_order_for_keyset(
     conn: &rusqlite::Connection,
     keyset_id: nuts::nut02::KeysetId,
-) -> rusqlite::Result<u64> {
+) -> rusqlite::Result<Option<u64>> {
     let mut stmt = conn.prepare("SELECT MAX(amount) FROM key WHERE keyset_id = ?1")?;
-    let max_order: u64 = stmt
-        .query_row([keyset_id], |row| row.get::<_, Option<u64>>(0))?
-        .unwrap_or(0);
+    let max_order = stmt.query_row([keyset_id], |row| row.get::<_, Option<u64>>(0))?;
+
     Ok(max_order)
 }

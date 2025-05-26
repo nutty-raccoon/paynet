@@ -36,6 +36,8 @@ pub enum Error {
     #[cfg(feature = "tls")]
     #[error("tls error: {0}")]
     Tls(crate::TlsError),
+    #[error("keyset unit mismatch, expected {0} got {0}")]
+    UnitMissmatch(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
