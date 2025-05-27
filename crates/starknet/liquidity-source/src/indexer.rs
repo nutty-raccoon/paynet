@@ -220,7 +220,7 @@ async fn process_payment_event(
     Ok(())
 }
 
-// Yeah I now it's basically the same code copied and pasted.
+// Yeah I know it's basically the same code copied and pasted.
 // For now it's fine, better this than adding trait and struct and so on.
 async fn handle_mint_payment(
     db_conn: &mut PoolConnection<Postgres>,

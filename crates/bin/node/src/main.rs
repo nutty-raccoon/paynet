@@ -46,6 +46,8 @@ async fn main() -> Result<(), anyhow::Error> {
     // Connect to db
     let pg_pool = connect_to_db_and_run_migrations(&env_variables.pg_url).await?;
     info!("Connected to node database.");
+
+    // Lauch the database metrics polling task
     let meter = opentelemetry::global::meter("business");
     let gauge = meter.u64_gauge("stock").build();
     let observer = DbMetricsObserver::new(
