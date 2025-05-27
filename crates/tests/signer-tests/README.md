@@ -50,10 +50,10 @@ Note that you will have to manually pass the required environment variables.
 #### With the other services using docker-compose
 
 ```shell
-$ docker-compose -p paynet -f ./docker-compose.yml up -d
+$  docker compose -f docker-compose.app.mock.yml up -d
 ```
 
-This time the environment variables are set in the `docker-compose.yml` file at the repository's root.
+This will launch PostgreSQL, Signer, and Node with the proper environment variables already set.
 
 ### Run the tests
 

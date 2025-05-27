@@ -1,4 +1,5 @@
 use num_traits::CheckedAdd;
+use starknet_types::Unit;
 use std::collections::HashSet;
 
 use nuts::{Amount, nut00::BlindedMessage};
@@ -10,7 +11,7 @@ pub async fn check_outputs_allow_single_unit(
     conn: &mut PgConnection,
     keyset_cache: &KeysetCache,
     outputs: &[BlindedMessage],
-) -> Result<Amount, OutputsError> {
+) -> Result<(Amount, Unit), OutputsError> {
     let mut blind_secrets = HashSet::with_capacity(outputs.len());
     let mut total_amount = Amount::ZERO;
     let mut unit = None;
@@ -47,5 +48,6 @@ pub async fn check_outputs_allow_single_unit(
         return Err(OutputsError::AlreadySigned);
     }
 
-    Ok(total_amount)
+    // Safe to unwrap as long as outputs.len() > 0, which we check in the grpc service.
+    Ok((total_amount, unit.unwrap()))
 }

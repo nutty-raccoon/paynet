@@ -8,6 +8,7 @@ use nuts::{
 use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
+use tracing::{Level, event};
 
 use crate::{
     grpc_service::GrpcState,
@@ -91,17 +92,17 @@ impl GrpcState {
         .map_err(Error::Inputs)?;
 
         // Amount matching
-        for (asset, output_amount) in outputs_amounts {
+        for (unit, output_amount) in outputs_amounts.iter() {
             let &(_, input_amount) = input_fees_and_amount
                 .iter()
-                .find(|(u, _)| *u == asset)
+                .find(|(u, _)| u == unit)
                 .ok_or(Error::UnbalancedUnits)?;
 
-            if input_amount != output_amount {
+            if input_amount != *output_amount {
                 Err(Error::TransactionUnbalanced(
-                    asset,
+                    *unit,
                     input_amount,
-                    output_amount,
+                    *output_amount,
                 ))?;
             }
         }
@@ -116,6 +117,23 @@ impl GrpcState {
             .await?;
 
         tx.commit().await.map_err(Error::TxCommit)?;
+
+        event!(
+            name: "swap",
+            Level::INFO,
+            name = "swap",
+            amounts = serde_json::to_string(&outputs_amounts).unwrap(),
+        );
+        let meter = opentelemetry::global::meter("business");
+        let n_swap_counter = meter.u64_counter("swap.operation.count").build();
+        n_swap_counter.add(1, &[]);
+        for (u, a) in outputs_amounts {
+            let amount_of_unit_swaped_counter = meter
+                .u64_counter(format!("swap.amount.{}.count", &u))
+                .with_unit(u.as_str())
+                .build();
+            amount_of_unit_swaped_counter.add(a.into(), &[]);
+        }
 
         Ok(blind_signatures)
     }

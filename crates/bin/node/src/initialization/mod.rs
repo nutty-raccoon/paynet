@@ -18,9 +18,6 @@ pub enum Error {
     DbConnect(#[source] sqlx::Error),
     #[error("Failed to run the database migration: {0}")]
     DbMigrate(#[source] sqlx::migrate::MigrateError),
-    #[cfg(debug_assertions)]
-    #[error("Failed to load .env file: {0}")]
-    Dotenvy(#[source] dotenvy::Error),
     #[error("Failed to read environment variable `{0}`: {1}")]
     Env(&'static str, #[source] std::env::VarError),
     #[error(transparent)]
@@ -36,4 +33,6 @@ pub enum Error {
     Bind(#[from] std::io::Error),
     #[error("failed to init first keysets: {0}")]
     InitKeysets(#[from] InitKeysetError),
+    #[error("invalid signer uri: {0}")]
+    Uri(#[from] http::uri::InvalidUri),
 }

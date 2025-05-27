@@ -7,12 +7,13 @@ edition = "2024"
 nuts = { workspace = true, features = ["sqlx"] }
 uuid = { workspace = true, features = ["v4"] }
 thiserror = { workspace = true }
-sqlx = { workspace = true, features = ["postgres", "macros", "runtime-tokio", "time", "uuid"] }
+sqlx = { workspace = true, features = ["postgres", "macros", "runtime-tokio", "time", "uuid", "bigdecimal"] }
 starknet-types = { workspace = true }
 num-traits = { workspace = true }
 dotenvy = { workspace = true }
 sha2 = { workspace = true }
 starknet-payment-indexer = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 sqlx = { workspace = true, features = ["runtime-tokio"] }

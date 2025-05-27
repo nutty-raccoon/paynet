@@ -1,6 +1,5 @@
 use bitcoin_hashes::Sha256;
 use num_bigint::BigUint;
-use nuts::Amount;
 use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 
@@ -77,6 +76,16 @@ impl StarknetU256 {
 
         Ok(Self::from_parts(low, high))
     }
+
+    pub fn to_dec_string(self) -> String {
+        let p = primitive_types::U256::from(self);
+        format!("{}", p)
+    }
+
+    pub fn to_hex_string(self) -> String {
+        let p = primitive_types::U256::from(self);
+        format!("{:#X}", p)
+    }
 }
 
 impl From<Sha256> for StarknetU256 {
@@ -89,15 +98,6 @@ impl From<Sha256> for StarknetU256 {
 impl core::fmt::Display for StarknetU256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "low: {:#x} - high: {:#x}", self.low, self.high)
-    }
-}
-
-impl From<Amount> for StarknetU256 {
-    fn from(value: Amount) -> Self {
-        Self {
-            low: value.into(),
-            high: Felt::ZERO,
-        }
     }
 }
 
@@ -161,7 +161,6 @@ impl From<&StarknetU256> for primitive_types::U256 {
 mod tests {
     use bitcoin_hashes::sha256::Hash as Sha256;
     use num_bigint::BigUint;
-    use nuts::Amount;
     use primitive_types::U256;
     use starknet_types_core::felt::Felt;
 
@@ -262,24 +261,6 @@ mod tests {
         // Verify the conversion preserves the hash bytes
         let bytes = value.to_bytes_be();
         assert_eq!(&bytes, hash.as_byte_array());
-    }
-
-    #[test]
-    fn test_from_amount() {
-        let amount = Amount::from(42u64);
-        let value = StarknetU256::from(amount);
-        assert_eq!(value.low, Felt::from(42u128));
-        assert_eq!(value.high, Felt::ZERO);
-
-        // Test number too big
-        let mut bytes = [0u8; 33];
-        // Set the most significant byte (index 32 for little-endian) to make the number exceed U256::MAX
-        bytes[32] = 1;
-        let biguint = BigUint::from_bytes_le(&bytes);
-        assert!(matches!(
-            StarknetU256::try_from(biguint),
-            Err(super::TryU256FromBigUintError::TooBig)
-        ));
     }
 
     #[test]

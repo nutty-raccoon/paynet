@@ -1,6 +1,7 @@
 mod errors;
 mod inputs;
 
+use bitcoin_hashes::hex::DisplayHex;
 use inputs::process_melt_inputs;
 use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use nuts::Amount;
@@ -8,6 +9,7 @@ use nuts::nut05::MeltQuoteResponse;
 use nuts::{nut00::Proof, nut05::MeltMethodSettings};
 use sqlx::PgConnection;
 use starknet_types::Unit;
+use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::utils::unix_time;
@@ -37,11 +39,11 @@ impl GrpcState {
                 .ok_or(Error::UnitNotSupported(unit, method))?
         };
 
-        let mut withdrawer = self
+        let liquidity_source = self
             .liquidity_sources
             .get_liquidity_source(method)
-            .ok_or(Error::MethodNotSupported(method))?
-            .withdrawer();
+            .ok_or(Error::MethodNotSupported(method))?;
+        let mut withdrawer = liquidity_source.withdrawer();
 
         let payment_request = withdrawer
             .deserialize_payment_request(&melt_payment_request)
@@ -50,23 +52,59 @@ impl GrpcState {
         if !settings.unit.is_asset_supported(asset) {
             return Err(Error::InvalidAssetForUnit(asset, settings.unit));
         }
+        let expiry = unix_time() + self.quote_ttl.melt_ttl();
+        let quote_id = Uuid::new_v4();
+        let invoice_id = liquidity_source.compute_invoice_id(quote_id);
 
         let mut conn = self.pg_pool.acquire().await?;
 
-        let (quote_id, quote_hash, total_amount, fee, expiry) = self
-            .validate_and_register_quote(&mut conn, &settings, melt_payment_request, inputs)
+        let (total_amount, fee) = self
+            .validate_and_register_quote(
+                &mut conn,
+                &settings,
+                melt_payment_request,
+                inputs,
+                quote_id,
+                invoice_id.clone(),
+                expiry,
+            )
             .await?;
+
+        event!(
+            name: "melt-quote",
+            Level::INFO,
+            name = "melt-quote",
+            %method,
+            amount = u64::from(total_amount),
+            %unit,
+            %quote_id,
+        );
+
         let (state, transfer_id) = withdrawer
             .proceed_to_payment(
-                quote_hash,
+                invoice_id,
                 payment_request,
                 WithdrawAmount::convert_from(settings.unit, total_amount),
             )
             .await
             .map_err(|e| Error::LiquiditySource(e.into()))?;
-        // TODO: merge those in a signle call
+
+        // TODO: merge those in a single call
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;
         db_node::melt_quote::register_transfer_id(&mut conn, quote_id, &transfer_id).await?;
+
+        event!(
+            name: "melt",
+            Level::INFO,
+            name = "melt",
+            %method,
+            %quote_id,
+            transfer_id = transfer_id.as_hex().to_string(),
+        );
+
+        let meter = opentelemetry::global::meter("business");
+        let n_melt_counter = meter.u64_counter("melt.operation.count").build();
+        n_melt_counter.add(1, &[]);
 
         Ok(MeltQuoteResponse {
             quote: quote_id,
@@ -78,13 +116,17 @@ impl GrpcState {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn validate_and_register_quote(
         &self,
         conn: &mut PgConnection,
         settings: &MeltMethodSettings<Method, Unit>,
         melt_payment_request: String,
         inputs: &[Proof],
-    ) -> Result<(Uuid, bitcoin_hashes::Sha256, Amount, Amount, u64), Error> {
+        quote_id: Uuid,
+        invoice_id: impl Into<[u8; 32]>,
+        expiry: u64,
+    ) -> Result<(Amount, Amount), Error> {
         let mut tx = db_node::start_db_tx_from_conn(conn)
             .await
             .map_err(Error::TxBegin)?;
@@ -108,16 +150,13 @@ impl GrpcState {
             }
         }
 
-        let expiry = unix_time() + self.quote_ttl.melt_ttl();
-        let quote = Uuid::new_v4();
-        let quote_hash = bitcoin_hashes::Sha256::hash(quote.as_bytes());
         // Arbitrary for now, but will be enough to pay tx fee on starknet
         let fee = Amount::ONE;
 
         db_node::melt_quote::insert_new(
             &mut tx,
-            quote,
-            quote_hash.as_byte_array(),
+            quote_id,
+            &invoice_id.into(),
             settings.unit,
             total_amount,
             fee,
@@ -130,6 +169,6 @@ impl GrpcState {
 
         tx.commit().await?;
 
-        Ok((quote, quote_hash, total_amount, fee, expiry))
+        Ok((total_amount, fee))
     }
 }

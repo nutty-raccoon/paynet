@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-log = { workspace = true }
 toml = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
@@ -20,6 +19,13 @@ sqlx = { workspace = true }
 rusqlite = { workspace = true }
 futures = { workspace = true }
 primitive-types = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+# OPTL
+http = { workspace = true }
+tower = { workspace = true }
+tower-otel = { workspace = true }
 
 # Local
 db-node = { workspace = true }

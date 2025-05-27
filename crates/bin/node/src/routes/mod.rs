@@ -1,3 +1,4 @@
+mod keys;
 mod melt;
 mod melt_quote_state;
 mod mint;

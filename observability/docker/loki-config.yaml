@@ -1,0 +1,88 @@
+# Loki Configuration
+# ==================
+# Loki is a log aggregation system that stores and indexes log messages from applications.
+# Unlike traditional log systems, Loki doesn't index the log content itself, but rather
+# the labels attached to log streams, making it more efficient and cost-effective.
+#
+# Key Concepts:
+# - Log Streams: Groups of log entries with the same set of labels
+# - Labels: Key-value pairs that identify log sources (like service=paynet, level=error)
+# - Chunks: Compressed blocks of log data stored together
+# - Index: Metadata about where to find specific log streams
+
+# AUTHENTICATION: Disable authentication for local development
+# In production, you'd typically enable authentication and authorization
+auth_enabled: false
+
+# SERVER CONFIGURATION: How Loki exposes its API
+server:
+  # Port where Loki listens for log ingestion and queries
+  http_listen_port: 3100
+
+# COMMON SETTINGS: Shared configuration across all Loki components
+common:
+  # Base directory for all Loki data and configuration
+  path_prefix: /loki
+  
+  # STORAGE CONFIGURATION: Where and how logs are stored
+  storage:
+    # Use local filesystem storage (simpler for development/single-node setups)
+    # In production, you might use cloud storage like S3, GCS, or Azure Blob
+    filesystem:
+      # Directory where compressed log data (chunks) are stored
+      chunks_directory: /loki/chunks
+      # Directory where alerting rules are stored
+      rules_directory: /loki/rules
+  
+  # REPLICATION: How many copies of data to keep
+  replication_factor: 1          # Only 1 copy (single-node setup)
+  
+  # RING CONFIGURATION: Manages distributed coordination (even for single node)
+  ring:
+    kvstore:
+      store: inmemory           # Keep coordination data in memory (simpler for development)
+
+# LIMITS: Control resource usage and prevent abuse
+limits_config:
+  # Disable structured metadata to keep things simple
+  # Structured metadata allows key-value pairs within log entries
+  allow_structured_metadata: false
+
+# QUERY PERFORMANCE: Cache query results to speed up repeated queries
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true           # Enable caching for better performance
+        max_size_mb: 100       # Use up to 100MB for caching query results
+
+# SCHEMA CONFIGURATION: Defines how logs are stored and indexed over time
+# This is like the "database schema" for your logs
+schema_config:
+  configs:
+    # Schema version that started on 2020-10-24 (can be any past date)
+    - from: 2020-10-24
+      store: tsdb              # Use TSDB (Time Series Database) for the index
+      object_store: filesystem # Store actual log data on filesystem
+      schema: v13             # Use schema version 13 (latest stable)
+      
+      # INDEX CONFIGURATION: How to organize the searchable index
+      index:
+        prefix: index_         # Prefix for index files
+        period: 24h           # Create new index files every 24 hours
+
+# ALERTING: Integration with Alertmanager for log-based alerts
+ruler:
+  # Where to send alerts (though we're not using this in our current setup)
+  alertmanager_url: http://localhost:9093
+
+# TELEMETRY: Disable sending usage analytics to Grafana Labs
+analytics:
+  reporting_enabled: false
+
+# How does this work with our setup?
+# 1. Applications send logs to OpenTelemetry Collector
+# 2. Collector forwards logs to Loki (this service) via HTTP API
+# 3. Loki stores logs with labels for efficient querying
+# 4. Grafana queries Loki to display logs in dashboards
+# 5. Users can search logs by labels (e.g., service=paynet, level=error)

@@ -6,7 +6,7 @@ pub async fn insert_new_payment_event(
     payment_event: &PaymentEvent,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        r#" INSERT INTO payment_event
+        r#" INSERT INTO melt_payment_event
                 (block_id, tx_hash, event_index, payee, asset, invoice_id, payer, amount_low, amount_high)
             VALUES
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -33,7 +33,7 @@ pub async fn get_current_paid(
 ) -> Result<impl Iterator<Item = (String, String)>, sqlx::Error> {
     let record = sqlx::query!(
         r#"SELECT amount_low, amount_high
-        FROM payment_event
+        FROM melt_payment_event
         WHERE invoice_id = $1"#,
         invoice_id
     )

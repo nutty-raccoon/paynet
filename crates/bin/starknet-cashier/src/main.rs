@@ -1,18 +1,22 @@
 mod env_vars;
 mod grpc;
 
+use std::net::SocketAddr;
+
 use grpc::StarknetCashierState;
 use starknet_cashier::StarknetCashierServer;
 
-use tracing::info;
-use tracing_subscriber::EnvFilter;
+use tonic::service::LayerExt;
+use tower::ServiceBuilder;
+use tracing::trace;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-    info!("Initializing starknet cashier...");
+    const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+    const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+    let (meter_provider, subscriber) = open_telemetry_tracing::init(PKG_NAME, PKG_VERSION);
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    opentelemetry::global::set_meter_provider(meter_provider);
 
     #[cfg(debug_assertions)]
     {
@@ -20,20 +24,22 @@ async fn main() -> anyhow::Result<()> {
             .inspect_err(|e| tracing::error!("dotenvy initialization failed: {e}"));
     }
 
-    let socket_addr = {
+    let socket_addr: SocketAddr = {
         let (_, _, _, socket_port) = env_vars::read_env_variables()?;
         format!("[::0]:{}", socket_port).parse()?
     };
 
     let state = StarknetCashierState::new().await?;
 
-    let cashier_server_service = StarknetCashierServer::new(state);
+    let cashier_server_service = ServiceBuilder::new()
+        .layer(tower_otel::trace::GrpcLayer::server(tracing::Level::INFO))
+        .named_layer(StarknetCashierServer::new(state));
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<StarknetCashierServer<StarknetCashierState>>()
         .await;
 
-    info!("listening to new request on {}", socket_addr);
+    trace!(name: "grpc-listen", port = socket_addr.port());
 
     tonic::transport::Server::builder()
         .add_service(cashier_server_service)

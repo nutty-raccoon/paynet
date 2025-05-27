@@ -12,9 +12,18 @@ Install docker: https://docs.docker.com/desktop/
 
 Using docker you will be able to run all the required services locally.
 
+We split our logic into three independent docker compose files.
+- `observability` contains our open telemetry stack (collector, prometheus, loki, grafana)
+- `testnet` contains our local starknet testnet (devnet, custom deployment, indexer, explorer)
+- `app` contains our business logic (node, signer, starknet cashier)
+
 ```shell
-$ docker-compose -p paynet -f ./docker-compose.yml up -d
+$  docker compose -f docker-compose.observability.yml -f docker-compose.testnet.yml -f docker-compose.app.yml up -d
 ```
+
+They can all be run independently, and `app` comes in two extra flavour:
+- `app.mock` which doesn't require `testnet` because it doesn't really do any deposit or withdrawal on-chain.
+- `app.sepolia` which doesn't require `testnet` because it uses `sepolia` as on-chain liquidity source.
 
 ## Interact with the node
 

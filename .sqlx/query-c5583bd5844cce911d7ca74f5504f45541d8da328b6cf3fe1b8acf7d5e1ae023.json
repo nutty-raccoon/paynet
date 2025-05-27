@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                unit AS \"unit!\",\n                (SELECT COALESCE(SUM(amount), 0) FROM mint_quote WHERE unit = mq.unit AND state = 'UNPAID') AS \"pending_deposits!\",\n                (SELECT COALESCE(SUM(amount), 0) FROM mint_quote WHERE unit = mq.unit AND state = 'PAID') AS \"paid_deposits!\",\n                (SELECT COALESCE(SUM(amount), 0) FROM mint_quote WHERE unit = mq.unit AND state = 'ISSUED') AS \"issued_deposits!\",\n                (SELECT COALESCE(SUM(amount), 0) FROM melt_quote WHERE unit = mq.unit AND state = 'UNPAID') AS \"unpaid_withdrawals!\",\n                (SELECT COALESCE(SUM(amount), 0) FROM melt_quote WHERE unit = mq.unit AND state = 'PENDING') AS \"pending_withdrawals!\",\n                (SELECT COALESCE(SUM(amount), 0) FROM melt_quote WHERE unit = mq.unit AND state = 'PAID') AS \"paid_withdrawals!\"\n            FROM (SELECT DISTINCT unit FROM unnest($1::text[]) AS unit) mq\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unit!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "pending_deposits!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 2,
+        "name": "paid_deposits!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "issued_deposits!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "unpaid_withdrawals!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "pending_withdrawals!",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "paid_withdrawals!",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c5583bd5844cce911d7ca74f5504f45541d8da328b6cf3fe1b8acf7d5e1ae023"
+}

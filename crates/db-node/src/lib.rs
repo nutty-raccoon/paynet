@@ -2,6 +2,7 @@ use nuts::{Amount, nut01::PublicKey, traits::Unit};
 use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
 use thiserror::Error;
 
+pub mod gauge;
 mod insert_spent_proofs;
 pub use insert_spent_proofs::InsertSpentProofsQueryBuilder;
 mod insert_blind_signatures;
@@ -9,9 +10,10 @@ pub use insert_blind_signatures::InsertBlindSignaturesQueryBuilder;
 mod insert_keysets;
 pub use insert_keysets::InsertKeysetsQueryBuilder;
 pub mod keyset;
+pub mod melt_payment_event;
 pub mod melt_quote;
+pub mod mint_payment_event;
 pub mod mint_quote;
-pub mod payment_event;
 
 #[derive(Debug, Error)]
 pub enum Error {

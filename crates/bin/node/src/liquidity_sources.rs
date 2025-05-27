@@ -27,7 +27,7 @@ impl LiquiditySources {
         Ok(LiquiditySources {
             #[cfg(feature = "starknet")]
             starknet: starknet_liquidity_source::StarknetLiquiditySource::init(
-                pg_pool.acquire().await?,
+                pg_pool,
                 args.config
                     .ok_or(Error::MissingConfigFile(String::from("starknet")))?,
             )
