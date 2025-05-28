@@ -71,7 +71,7 @@ impl WithdrawInterface for Withdrawer {
         quote_hash: Sha256,
         melt_payment_request: MeltPaymentRequest,
         amount: Self::Amount,
-        ttl: u64,
+        expiry: u64,
     ) -> Result<(MeltQuoteState, Vec<u8>), Error> {
         let tx_hash = self
             .0
@@ -87,7 +87,7 @@ impl WithdrawInterface for Withdrawer {
                     .skip_while(|&b| b == 0)
                     .collect(),
                 payee: melt_payment_request.payee.to_bytes_be().to_vec(),
-                ttl,
+                expiry,
             }))
             .await
             .map_err(Error::StarknetCashier)?

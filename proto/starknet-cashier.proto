@@ -13,7 +13,7 @@ message WithdrawRequest {
    string asset = 2;       // eg. `strk`
    bytes amount = 3;      // Vec<u8>, bigendian repr of the u256 starknet amount
    bytes payee = 4;       // starknet address as bytes
-   uint64 ttl = 5;        // time to live
+   uint64 expiry = 5;        // expiration time
 } 
 
 message WithdrawResponse { 

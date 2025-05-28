@@ -8,7 +8,6 @@ use starknet_types::transactions::sign_and_send_payment_transactions;
 use starknet_types::{Asset, StarknetU256, felt_to_short_string, is_valid_starknet_address};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::{Request, Response, Status};
 
 use crate::env_vars::read_env_variables;
@@ -96,11 +95,6 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
                 payee_address
             )));
         }
-        let expiry = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            + request.ttl;
 
         match sign_and_send_payment_transactions(
             &self.account,
@@ -109,7 +103,7 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
             asset_contract_address,
             amount,
             payee_address,
-            expiry,
+            request.expiry,
         )
         .await
         {
