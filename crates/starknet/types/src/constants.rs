@@ -78,25 +78,22 @@ pub struct ApibaraConstants {
 pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::phf_map! {
     "SN_SEPOLIA" =>  OnChainConstants {
         // Starting block is the one which contains the invoice_payment_contract deployment
-        // Tx: 0x02ffa6a366b7224ed8fcdc4fda5afbd3f92266e478436d6b156e060862d5440f
-        apibara: ApibaraConstants { data_stream_uri:  Some("http://sepolia.starknet.a5a.ch"), starting_block: 735060 },
-        // Done with starkli 0.4.1 (b4223ee)
+        // Tx: 0x0582cb60c2fc97fd9fbb18a818197611e1971498a3e5a34272d7072d70a009f3
+        apibara: ApibaraConstants { data_stream_uri:  Some("http://sepolia.starknet.a5a.ch"), starting_block: 808660 },
         //
         // Declaration
         //
-        // Declaring Cairo 1 class: 0x0044b7358648f0c0bef25b4e36609642733275fef1b9253e21033d3d72403250
-        // Compiling Sierra class to CASM with compiler version 2.11.4...
-        // CASM class hash: 0x04a557923b9e5be32642cbbdca690af4896aede90a4765d94efc583113a48535
-        // Contract declaration transaction: 0x031ada53541e88a431efc8a7eed44e2a62960e9ded11a8710ffb4b18a348ce75
-        // Class hash declared: 0x0044b7358648f0c0bef25b4e36609642733275fef1b9253e21033d3d72403250
+        // Declaring Cairo 1 class: 0x06542863bc6124f0b00d3e87837bef7a7c65b8701f33be3c4e9a5235e99aad85
+        // Contract declaration transaction: 0x0789769d3e488c721813cce9faf56bbf89566260c976f8bdf013433c3e9b2686
+        // Class hash declared: 0x06542863bc6124f0b00d3e87837bef7a7c65b8701f33be3c4e9a5235e99aad85
         //
         // Deployment
         //
-        // Deploying class 0x0044b7358648f0c0bef25b4e36609642733275fef1b9253e21033d3d72403250 with salt 0x026b572f7817a705ae298831994ca6ab772f5ce89e57368ee677b5dae8fb34c5...
-        // The contract will be deployed at address 0x044aa20c51f815974487cbe06ae547a16690d4ca7f8c703aa8bbffe6d7393d46
-        // Contract deployment transaction: 0x02ffa6a366b7224ed8fcdc4fda5afbd3f92266e478436d6b156e060862d5440f
-        // Contract deployed: 0x044aa20c51f815974487cbe06ae547a16690d4ca7f8c703aa8bbffe6d7393d46
-        invoice_payment_contract_address: Felt::from_hex_unchecked("0x044aa20c51f815974487cbe06ae547a16690d4ca7f8c703aa8bbffe6d7393d46"),
+        // Deploying class 0x06542863bc6124f0b00d3e87837bef7a7c65b8701f33be3c4e9a5235e99aad85
+        // The contract will be deployed at address 0x03ea260a0d19a073d2b5b97e7673605e164fbe2660d76953254060dda0c38124
+        // Contract deployment transaction: 0x0582cb60c2fc97fd9fbb18a818197611e1971498a3e5a34272d7072d70a009f3
+        // Contract deployed: 0x03ea260a0d19a073d2b5b97e7673605e164fbe2660d76953254060dda0c38124
+        invoice_payment_contract_address: Felt::from_hex_unchecked("0x03ea260a0d19a073d2b5b97e7673605e164fbe2660d76953254060dda0c38124"),
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
     },
     "SN_DEVNET" =>  OnChainConstants {
