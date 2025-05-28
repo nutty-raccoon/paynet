@@ -63,7 +63,7 @@ impl starknet_cashier::StarknetCashier for StarknetCashierState {
     ) -> Result<Response<WithdrawResponse>, Status> {
         let request = withdraw_request.into_inner();
 
-        let invoice_id = Felt::from_bytes_be_slice(&request.invoice_id);
+        let invoice_id = Felt::from_bytes_be_slice(&request.quote_id_hash);
         let amount = StarknetU256::from_bytes_slice(&request.amount)
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
         let asset =

@@ -30,7 +30,7 @@ pub trait IInvoicePayment<TContractState> {
 pub mod InvoicePayment {
     use starknet::{get_caller_address, ContractAddress};
     use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use core::poseidon::poseidon_hash_span;
+    use core::poseidon::hades_permutation;
 
     #[storage]
     struct Storage {}
@@ -70,8 +70,7 @@ pub mod InvoicePayment {
 
             assert!(expiry >= starknet::get_block_timestamp(), "Invoice expired");
 
-            let span = [quote_id_hash, expiry.into()].span();
-            let invoice_id = poseidon_hash_span(span);
+            let (invoice_id, _, _) = hades_permutation(quote_id_hash, expiry.into(), 2);
 
             assert!(erc20_dispatcher.transfer_from(payer, payee, amount));
 

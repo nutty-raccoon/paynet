@@ -30,6 +30,6 @@ pub trait WithdrawInterface: Send {
         quote_hash: Sha256,
         request: Self::Request,
         amount: Self::Amount,
-        ttl: u64,
+        expiry: u64,
     ) -> Result<(MeltQuoteState, Vec<u8>), Self::Error>;
 }

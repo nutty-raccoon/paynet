@@ -9,7 +9,7 @@ service StarknetCashier {
 }
 
 message WithdrawRequest {
-   bytes invoice_id = 1;  // hash of the melt_quote_id
+   bytes quote_id_hash = 1;  // hash of the melt_quote_id
    string asset = 2;       // eg. `strk`
    bytes amount = 3;      // Vec<u8>, bigendian repr of the u256 starknet amount
    bytes payee = 4;       // starknet address as bytes

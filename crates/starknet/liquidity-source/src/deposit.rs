@@ -30,10 +30,9 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
 }
 
-#[async_trait::async_trait]
 impl DepositInterface for Depositer {
     type Error = Error;
-    async fn generate_deposit_payload(
+    fn generate_deposit_payload(
         &self,
         quote_hash: Sha256,
         unit: Unit,
@@ -59,7 +58,7 @@ impl DepositInterface for Depositer {
         );
         let calls: Vec<Call> = calls.into_iter().map(Into::into).collect();
 
-        let invoice_id = calculate_invoice_id(&quote_id_hash, expiry);
+        let invoice_id = calculate_invoice_id(quote_id_hash, expiry);
 
         let calls_json_string = serde_json::to_string(&calls)?;
 
