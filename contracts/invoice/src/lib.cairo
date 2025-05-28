@@ -68,7 +68,7 @@ pub mod InvoicePayment {
             let payer = get_caller_address();
             let erc20_dispatcher = IERC20Dispatcher { contract_address: asset };
 
-            assert!(expiry <= starknet::get_block_timestamp());
+            assert!(expiry >= starknet::get_block_timestamp(), "Invoice expired");
 
             let span = [quote_id_hash, expiry.into()].span();
             let invoice_id = poseidon_hash_span(span);
