@@ -1,4 +1,4 @@
-use bitcoin_hashes::{Sha256, sha256};
+use bitcoin_hashes::Sha256;
 use nuts::{
     Amount,
     nut04::{MintQuoteResponse, MintQuoteState},

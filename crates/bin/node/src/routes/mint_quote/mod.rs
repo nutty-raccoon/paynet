@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use crate::grpc_service::GrpcState;
 use liquidity_source::{DepositInterface, LiquiditySource};
 use nuts::{
