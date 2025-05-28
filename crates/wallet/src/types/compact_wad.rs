@@ -2,19 +2,21 @@ use std::fmt;
 use std::str::FromStr;
 
 use num_traits::CheckedAdd;
+
 use nuts::Amount;
 use nuts::nut00::secret::Secret;
 use nuts::nut00::{Proof, Proofs};
 use nuts::nut01::PublicKey;
 use nuts::nut02::KeysetId;
 use nuts::traits::Unit;
+
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::NodeUrl;
+
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
-
-use super::NodeUrl;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
