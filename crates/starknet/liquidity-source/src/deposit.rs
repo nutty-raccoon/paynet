@@ -2,7 +2,7 @@ use bitcoin_hashes::Sha256;
 use liquidity_source::DepositInterface;
 use nuts::Amount;
 use starknet_types::{
-    Asset, Call, ChainId, Unit, calculate_invoice_id, constants::ON_CHAIN_CONSTANTS,
+    Asset, Call, ChainId, Unit, compute_invoice_id, constants::ON_CHAIN_CONSTANTS,
     transactions::generate_payment_transaction_calls,
 };
 use starknet_types_core::felt::Felt;
@@ -58,7 +58,7 @@ impl DepositInterface for Depositer {
         );
         let calls: Vec<Call> = calls.into_iter().map(Into::into).collect();
 
-        let invoice_id = calculate_invoice_id(quote_id_hash, expiry);
+        let invoice_id = compute_invoice_id(quote_id_hash, expiry);
 
         let calls_json_string = serde_json::to_string(&calls)?;
 

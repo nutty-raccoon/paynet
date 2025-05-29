@@ -106,7 +106,7 @@ pub fn is_valid_starknet_address(felt: &Felt) -> bool {
 }
 
 /// Calculate the invoice_id using poseidon hash of quote_id_hash and expiry
-pub fn calculate_invoice_id(quote_id_hash: Felt, expiry: u64) -> Felt {
+pub fn compute_invoice_id(quote_id_hash: Felt, expiry: u64) -> Felt {
     // Convert expiry to Felt
     let expiry_felt = Felt::from(expiry);
 
