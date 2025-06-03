@@ -44,7 +44,27 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-8-core
+    strategy:
+      matrix:
+        test_cmd:
+          - "node --no-default-features --features=mock,keyset-rotation,tls"
+          - "node --no-default-features --features=starknet,keyset-rotation,tls"
+          - "signer --no-default-features"
+          - "cli-wallet --no-default-features"
+          - "cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+          - "starknet-cashier --no-default-features"
+          - "db-node --no-default-features"
+          - "nuts --no-default-features"
+          - "nuts --features=starknet,sqlx,nut19"
+          - "starknet-types --no-default-features"
+          - "wallet --no-default-features"
+          - "wallet --no-default-features --features=tls,tls-allow-self-signed"
+          - "liquidity-source --no-default-features"
+          - "liquidity-source --features=mock"
+          - "starknet-on-chain-setup --no-default-features"
+          - "starknet-payment-indexer --no-default-features"
+          - "starknet-liquidity-source --no-default-features"
+    runs-on: ubuntu-latest
     services:
       db:
         image: postgres:15
@@ -71,27 +91,38 @@ jobs:
       - uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
+      - name: Run test
+        run: cargo test -p ${{ matrix.test_cmd }}
 
-      - name: Run unit tests
-        run: |
-          cargo test -p node --no-default-features --features=mock,keyset-rotation,tls
-          cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls
-          cargo test -p signer --no-default-features
-          cargo test -p cli-wallet --no-default-features
-          cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed
-          cargo test -p starknet-cashier --no-default-features
-          cargo test -p db-node --no-default-features
-          cargo test -p nuts --no-default-features
-          cargo test -p nuts --features=starknet,sqlx,nut19
-          cargo test -p starknet-types --no-default-features
-          cargo test -p wallet --no-default-features
-          cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed
-          cargo test -p liquidity-source --no-default-features
-          cargo test -p liquidity-source --features=mock
-          cargo test -p starknet-on-chain-setup --no-default-features
-          cargo test -p starknet-payment-indexer --no-default-features
-          cargo test -p starknet-liquidity-source --no-default-features
-
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: 'password'
+          POSTGRES_DB: node
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
       - name: Build services for integration tests
         run: |
           cargo build -p signer --bin signer
