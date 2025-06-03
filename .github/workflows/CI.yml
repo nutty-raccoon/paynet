@@ -7,8 +7,8 @@ on:
     branches: ["main"]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: droplet-manager
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,9 +20,26 @@ env:
   SIGNER_URL: http://localhost:10001
 
 jobs:
+  start-runner:
+    name: Start Self-Hosted Runner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+      
+      - name: Start droplet
+        run: |
+          echo "Starting droplet..."
+          doctl compute droplet-action power-on ${{ secrets.DROPLET_ID }} --wait
+          echo "Droplet started, waiting for runner to be ready..."
+          sleep 45  # Give the runner service time to start
+
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    needs: start-runner
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -41,9 +58,11 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run clippy
         run: cargo clippy -- -D warnings
+
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    needs: start-runner
     services:
       db:
         image: postgres:15
@@ -111,3 +130,20 @@ jobs:
           # Cleanup
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID
+
+  stop-runner:
+    name: Stop Self-Hosted Runner
+    runs-on: ubuntu-latest
+    needs: [start-runner, lint, test]
+    if: always()  # Always run, even if other jobs fail
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+      
+      - name: Stop droplet
+        run: |
+          echo "Stopping droplet..."
+          doctl compute droplet-action shutdown ${{ secrets.DROPLET_ID }}
+          echo "Shutdown command sent"
