@@ -22,7 +22,7 @@ env:
 jobs:
   start-runner:
     name: Start Self-Hosted Runner
-    runs-on: ubuntu-latest
+    runs-on: do-github-ci-runner
     steps:
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
@@ -61,7 +61,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: self-hosted
+    runs-on: do-github-ci-runner
     needs: start-runner
     services:
       db:
@@ -133,7 +133,7 @@ jobs:
 
   stop-runner:
     name: Stop Self-Hosted Runner
-    runs-on: ubuntu-latest
+    runs-on: do-github-ci-runner
     needs: [start-runner, lint, test]
     if: always()  # Always run, even if other jobs fail
     steps:
