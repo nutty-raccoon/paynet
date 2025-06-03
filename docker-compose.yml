@@ -85,9 +85,6 @@ services:
     restart: "no"
     stdin_open: false
     tty: false
-    deploy:
-      restart_policy:
-        condition: none
     depends_on:
       starknet-devnet:
         condition: service_healthy

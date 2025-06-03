@@ -1,8 +1,17 @@
-FROM rust:1.86.0 as builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.86.0 AS chef
 
+WORKDIR app
+
+#------------
+
+FROM chef AS planner
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
-COPY ./proto/ ./proto/
+RUN cargo chef prepare --recipe-path recipe.json
+
+#------------
+
+FROM chef AS builder 
 
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
@@ -18,15 +27,28 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${PROBE_ARCH} && \
     chmod +x /bin/grpc_health_probe
 
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json --no-default-features
+
+COPY ./Cargo.toml ./
+COPY ./crates/ ./crates/
+COPY ./proto/ ./proto/
+
+#------------
+# Everything up to there is common with signer and starknet-cashier,
+# which mean common layers, cached together increasing speed.
+# What comes next is binary specific.
+#------------
+ 
 RUN cargo build --release -p starknet-cashier
 
 #------------
 
 FROM debian:bookworm-slim
 
-COPY --from=builder ./target/release/starknet-cashier ./
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
+COPY --from=builder /app/target/release/starknet-cashier /usr/local/bin/starknet-cashier
 
 ENV RUST_LOG=info
 
-CMD ["./starknet-cashier"]
+CMD ["/usr/local/bin/starknet-cashier"]
