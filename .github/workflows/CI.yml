@@ -122,7 +122,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.86.0
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-cache-integratio-${{ hashFiles('**/Cargo.lock') }}"
+          shared-key: "rust-cache-integration-${{ hashFiles('**/Cargo.lock') }}"
           cache-on-failure: true
       - uses: arduino/setup-protoc@v3
         with:
