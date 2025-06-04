@@ -130,7 +130,8 @@ jobs:
       - name: Build services for integration tests
         run: |
           cargo build -p signer --bin signer -p node --no-default-features --features=mock,keyset-rotation --bin node
-          cargo test --no-run -p signer-tests -p node-tests
+          cargo test --no-run -p signer-tests
+          cargo test --no-run -p node-tests
       - name: Run integration tests
         timeout-minutes: 1
         run: |
