@@ -42,10 +42,29 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-  build-tests:
-    name: Build All Tests
-    runs-on: ubuntu-8-core
-
+  test:
+    name: Test
+    strategy:
+      matrix:
+        test_cmd:
+          - "node --no-default-features --features=mock,keyset-rotation,tls"
+          - "node --no-default-features --features=starknet,keyset-rotation,tls"
+          - "signer --no-default-features"
+          - "cli-wallet --no-default-features"
+          - "cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+          - "starknet-cashier --no-default-features"
+          - "db-node --no-default-features"
+          - "nuts --no-default-features"
+          - "nuts --features=starknet,sqlx,nut19"
+          - "starknet-types --no-default-features"
+          - "wallet --no-default-features"
+          - "wallet --no-default-features --features=tls,tls-allow-self-signed"
+          - "liquidity-source --no-default-features"
+          - "liquidity-source --features=mock"
+          - "starknet-on-chain-setup --no-default-features"
+          - "starknet-payment-indexer --no-default-features"
+          - "starknet-liquidity-source --no-default-features"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -58,87 +77,12 @@ jobs:
       - uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
-      
-      # Build all test binaries once
-      - name: Build all test binaries
-        run: |
-          cargo test --no-run -p node --no-default-features --features=mock,keyset-rotation,tls
-          cargo test --no-run -p node --no-default-features --features=starknet,keyset-rotation,tls  
-          cargo test --no-run -p signer --no-default-features
-          cargo test --no-run -p cli-wallet --no-default-features
-          cargo test --no-run -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed
-          cargo test --no-run -p starknet-cashier --no-default-features
-          cargo test --no-run -p db-node --no-default-features
-          cargo test --no-run -p nuts --no-default-features
-          cargo test --no-run -p nuts --features=starknet,sqlx,nut19
-          cargo test --no-run -p starknet-types --no-default-features
-          cargo test --no-run -p wallet --no-default-features
-          cargo test --no-run -p wallet --no-default-features --features=tls,tls-allow-self-signed
-          cargo test --no-run -p liquidity-source --no-default-features
-          cargo test --no-run -p liquidity-source --features=mock
-          cargo test --no-run -p starknet-on-chain-setup --no-default-features
-          cargo test --no-run -p starknet-payment-indexer --no-default-features
-          cargo test --no-run -p starknet-liquidity-source --no-default-features
-      
-      # Cache the entire target directory
-      - name: Tar target directory
-        run: tar -czf target.tar.gz target/
-      
-      - name: Upload compiled tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: compiled-tests
-          path: target.tar.gz
-          retention-days: 1
-
-  test:
-    name: Test
-    needs: build-tests
-    strategy:
-      matrix:
-        test_cmd:
-          - "cargo test -p node --no-default-features --features=mock,keyset-rotation,tls"
-          - "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
-          - "cargo test -p signer --no-default-features"
-          - "cargo test -p cli-wallet --no-default-features"
-          - "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
-          - "cargo test -p starknet-cashier --no-default-features"
-          - "cargo test -p db-node --no-default-features"
-          - "cargo test -p nuts --no-default-features"
-          - "cargo test -p nuts --features=starknet,sqlx,nut19"
-          - "cargo test -p starknet-types --no-default-features"
-          - "cargo test -p wallet --no-default-features"
-          - "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
-          - "cargo test -p liquidity-source --no-default-features"
-          - "cargo test -p liquidity-source --features=mock"
-          - "cargo test -p starknet-on-chain-setup --no-default-features"
-          - "cargo test -p starknet-payment-indexer --no-default-features"
-          - "cargo test -p starknet-liquidity-source --no-default-features"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
-      - uses: dtolnay/rust-toolchain@1.86.0
-      - uses: arduino/setup-protoc@v3
-        with:
-          version: "28.x"
-      
-      - name: Download compiled tests
-        uses: actions/download-artifact@v4
-        with:
-          name: compiled-tests
-      
-      - name: Extract compiled tests
-        run: tar -xzf target.tar.gz
-      
-      - name: Run test (already compiled)
-        run: ${{ matrix.test_cmd }}
+      - name: Run test
+        run: cargo test -p ${{ matrix.test_cmd }}
 
   integration-test:
     name: Integration Test
-    needs: build-tests
-    runs-on: ubuntu-8-core
+    runs-on: ubuntu-latest
     services:
       db:
         image: postgres:15
@@ -165,19 +109,9 @@ jobs:
       - uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
-      
-      - name: Download compiled tests
-        uses: actions/download-artifact@v4
-        with:
-          name: compiled-tests
-      
-      - name: Extract compiled tests
-        run: tar -xzf target.tar.gz
-      
       - name: Build services for integration tests
         run: |
-          cargo build -p signer --bin signer
-          cargo build -p node --no-default-features --features=mock,keyset-rotation --bin node
+          cargo build -p signer --bin signer -p node --no-default-features --features=mock,keyset-rotation --bin node
       - name: Run integration tests
         timeout-minutes: 1
         run: |
