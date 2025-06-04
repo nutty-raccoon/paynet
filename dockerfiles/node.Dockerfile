@@ -15,6 +15,13 @@ FROM chef AS builder
 
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json --no-default-features
+
+COPY ./Cargo.toml ./
+COPY ./crates/ ./crates/
+COPY ./proto/ ./proto/
+
 RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
@@ -26,13 +33,6 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     fi && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${PROBE_ARCH} && \
     chmod +x /bin/grpc_health_probe
-
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json --no-default-features
-
-COPY ./Cargo.toml ./
-COPY ./crates/ ./crates/
-COPY ./proto/ ./proto/
 
 #------------
 # Everything up to there is common with signer and starknet-cashier,
