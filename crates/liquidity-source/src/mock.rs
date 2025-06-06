@@ -1,3 +1,5 @@
+use std::fmt::{LowerHex, UpperHex};
+
 use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
 use starknet_types::{Asset, StarknetU256};
@@ -56,6 +58,17 @@ impl From<MockInvoiceId> for [u8; 32] {
     }
 }
 
+impl LowerHex for MockInvoiceId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        LowerHex::fmt(&self.0, f)
+    }
+}
+impl UpperHex for MockInvoiceId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        UpperHex::fmt(&self.0, f)
+    }
+}
+
 #[async_trait::async_trait]
 impl WithdrawInterface for MockWithdrawer {
     type Error = Error;
@@ -76,8 +89,11 @@ impl WithdrawInterface for MockWithdrawer {
         _melt_payment_request: (),
         _amount: Self::Amount,
         _expiry: u64,
-    ) -> Result<(MeltQuoteState, Vec<u8>), Self::Error> {
-        Ok((MeltQuoteState::Paid, "caffebabe".as_bytes().to_vec()))
+    ) -> Result<(MeltQuoteState, MockInvoiceId), Self::Error> {
+        Ok((
+            MeltQuoteState::Paid,
+            MockInvoiceId(Sha256::hash(b"coffebabe")),
+        ))
     }
 }
 

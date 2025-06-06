@@ -32,5 +32,5 @@ pub trait WithdrawInterface: Send {
         request: Self::Request,
         amount: Self::Amount,
         expiry: u64,
-    ) -> Result<(MeltQuoteState, Self::InvoiceId), Self::Error>;
+    ) -> Result<MeltQuoteState, Self::Error>;
 }

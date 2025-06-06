@@ -4,7 +4,6 @@ members = [
   "crates/bin/node",
   "crates/bin/signer",
   "crates/bin/cli-wallet",
-  # "crates/bin/starknet-cashier",
   "crates/bin/starknet-on-chain-setup",
   "crates/db-node",
   "crates/nuts",
@@ -22,7 +21,6 @@ default-members = [
   "crates/bin/node",
   "crates/bin/signer",
   "crates/bin/cli-wallet",
-  # "crates/bin/starknet-cashier",
   "crates/bin/starknet-on-chain-setup",
   "crates/db-node",
   "crates/nuts",
@@ -110,7 +108,6 @@ openssl-sys = "0.9.108"
 # Clients
 signer = { path = "crates/bin/signer" }
 node = { path = "crates/bin/node" }
-starknet-cashier = { path = "crates/bin/starknet-cashier" }
 # Starknet
 starknet-types = { path = "crates/starknet/types" }
 starknet-payment-indexer = { path = "crates/starknet/payment-indexer" }

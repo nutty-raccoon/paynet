@@ -27,10 +27,12 @@ http = { workspace = true }
 tower = { workspace = true }
 tower-otel = { workspace = true }
 
+# Starknet
+starknet = { workspace = true }
+
 # Local
 db-node = { workspace = true }
 starknet-types = { workspace = true }
-starknet-cashier = { workspace = true }
 starknet-payment-indexer = { workspace = true }
 liquidity-source = { workspace = true }
 nuts = { workspace = true }

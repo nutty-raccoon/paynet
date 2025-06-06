@@ -3,7 +3,7 @@ use liquidity_source::DepositInterface;
 use nuts::Amount;
 use starknet_types::{
     Asset, Call, ChainId, Unit, compute_invoice_id, constants::ON_CHAIN_CONSTANTS,
-    transactions::generate_payment_transaction_calls,
+    transactions::generate_single_payment_transaction_calls,
 };
 use starknet_types_core::felt::Felt;
 use uuid::Uuid;
@@ -53,19 +53,19 @@ impl DepositInterface for Depositer {
             .ok_or(Error::AssetNotFound(asset))?;
 
         let quote_id_hash = Felt::from_bytes_be(Sha256::hash(quote_id.as_bytes()).as_byte_array());
-        let calls = generate_payment_transaction_calls(
-            token_contract_address,
+        let calls = generate_single_payment_transaction_calls(
             on_chain_constants.invoice_payment_contract_address,
-            amount.into(),
             quote_id_hash,
+            expiry.into(),
+            token_contract_address,
+            amount.into(),
             self.our_account_address,
-            expiry,
         );
         let calls: Vec<Call> = calls.into_iter().map(Into::into).collect();
 
-        let invoice_id = compute_invoice_id(quote_id_hash, expiry);
-
         let calls_json_string = serde_json::to_string(&calls)?;
+
+        let invoice_id = compute_invoice_id(quote_id_hash, expiry);
 
         Ok((StarknetInvoiceId(invoice_id), calls_json_string))
     }
