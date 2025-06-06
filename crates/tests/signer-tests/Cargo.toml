@@ -14,10 +14,7 @@ dotenvy = { workspace = true }
 bitcoin = { workspace = true }
 assert_matches = { workspace = true }
 starknet-types = { workspace = true }
-node = { default-features = false, path = "../../bin/node", features = [
-    "mock",
-    "keyset-rotation",
-] }
+hex = { workspace = true }
 
 [[test]]
 name = "declare_keyset"

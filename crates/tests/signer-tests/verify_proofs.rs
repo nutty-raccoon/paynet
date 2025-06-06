@@ -1,87 +1,82 @@
 use anyhow::{Ok, Result};
-use node::{
-    BlindedMessage, GetKeysRequest, GetKeysetsRequest, Keyset, MintQuoteRequest, MintRequest,
-};
+
 use nuts::Amount;
-use nuts::dhke::{blind_message, unblind_message};
+use nuts::dhke::{blind_message, sign_message, unblind_message};
 use nuts::nut00::secret::Secret;
-use nuts::nut01::PublicKey;
-use signer::{Proof, VerifyProofsRequest, VerifyProofsResponse};
-use signer_tests::{init_node_client, init_signer_client};
+use nuts::nut01::{PublicKey, SecretKey};
+use signer::{
+    BlindedMessage, DeclareKeysetRequest, DeclareKeysetResponse, Proof, SignBlindedMessagesRequest,
+    SignBlindedMessagesResponse, VerifyProofsRequest, VerifyProofsResponse,
+};
+use signer_tests::init_signer_client;
 use starknet_types::Unit;
 
+#[derive(Clone)]
+pub struct Keyset {
+    pub id: String,
+    pub unit: String,
+    pub active: bool,
+}
+
 async fn create_valid_proof(amount: Amount) -> Result<(Proof, Keyset)> {
-    let mut node_client = init_node_client().await?;
-    let secret = Secret::generate();
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
-    let active_keyset = keysets
-        .iter()
-        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
-        .unwrap();
+    let mut signer_client = init_signer_client().await?;
 
-    let node_pubkey_for_amount = PublicKey::from_hex(
-        &node_client
-            .keys(GetKeysRequest {
-                keyset_id: Some(active_keyset.id.clone()),
-            })
-            .await?
-            .into_inner()
-            .keysets
-            .first()
-            .unwrap()
-            .keys
-            .iter()
-            .find(|key| Amount::from(key.amount) == amount)
-            .unwrap()
-            .pubkey,
-    )?;
+    let res = signer_client
+        .declare_keyset(DeclareKeysetRequest {
+            unit: Unit::MilliStrk.to_string(),
+            index: 1,
+            max_order: 32,
+        })
+        .await?;
 
-    let mint_quote_request = MintQuoteRequest {
-        method: "starknet".to_string(),
-        amount: amount.into(),
+    let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
+    let active_keyset = Keyset {
+        id: hex::encode(&declare_keyset_response.keyset_id),
         unit: Unit::MilliStrk.to_string(),
-        description: None,
+        active: true,
     };
 
-    let original_mint_quote_response = node_client
-        .mint_quote(mint_quote_request.clone())
+    let public_key = declare_keyset_response
+        .keys
+        .iter()
+        .find(|key| Amount::from(key.amount) == amount)
+        .ok_or_else(|| anyhow::anyhow!("No key found for amount {}", amount))?;
+
+    let node_pubkey_for_amount = PublicKey::from_hex(&public_key.pubkey)?;
+
+    let secret = Secret::generate();
+    let (blinded_message, r) = blind_message(secret.as_bytes(), None)?;
+
+    let sign_request = SignBlindedMessagesRequest {
+        messages: vec![BlindedMessage {
+            amount: amount.into(),
+            keyset_id: declare_keyset_response.keyset_id.clone(),
+            blinded_secret: blinded_message.to_bytes().to_vec(),
+        }],
+    };
+
+    let sign_response: SignBlindedMessagesResponse = signer_client
+        .sign_blinded_messages(sign_request)
         .await?
         .into_inner();
 
-    let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
-    let mint_request = MintRequest {
-        method: "starknet".to_string(),
-        quote: original_mint_quote_response.quote,
-        outputs: vec![BlindedMessage {
-            amount: amount.into(),
-            keyset_id: active_keyset.id.clone(),
-            blinded_secret: blinded_secret.to_bytes().to_vec(),
-        }],
-    };
-    let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
-
     let blind_signature = PublicKey::from_slice(
-        &original_mint_response
+        sign_response
             .signatures
             .first()
-            .unwrap()
-            .blind_signature,
-    )
-    .unwrap();
+            .ok_or_else(|| anyhow::anyhow!("No signature returned"))?,
+    )?;
+
     let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)?;
 
     let proof = Proof {
         amount: amount.into(),
-        keyset_id: active_keyset.id.clone(),
+        keyset_id: declare_keyset_response.keyset_id,
         secret: secret.to_string(),
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
 
-    Ok((proof, active_keyset.clone()))
+    Ok((proof, active_keyset))
 }
 
 #[tokio::test]
@@ -153,13 +148,16 @@ async fn verify_invalid_amount_not_power_of_two() -> Result<()> {
     assert!(res.is_err());
     Ok(())
 }
-
 #[tokio::test]
 async fn verify_signature_valid_format_but_invalid_content() -> Result<()> {
     let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
 
-    let last_index = proof.unblind_signature.len() - 1;
-    proof.unblind_signature[last_index] ^= 0x01;
+    use nuts::nut01::SecretKey;
+
+    // Generate a random valid public key (wrong signature)
+    let random_secret = SecretKey::generate();
+    let wrong_signature = random_secret.public_key();
+    proof.unblind_signature = wrong_signature.to_bytes().to_vec();
 
     let mut signer_client = init_signer_client().await?;
     let res = signer_client
