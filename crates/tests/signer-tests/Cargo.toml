@@ -14,6 +14,10 @@ dotenvy = { workspace = true }
 bitcoin = { workspace = true }
 assert_matches = { workspace = true }
 starknet-types = { workspace = true }
+node = { default-features = false, path = "../../bin/node", features = [
+    "mock",
+    "keyset-rotation",
+] }
 
 [[test]]
 name = "declare_keyset"
@@ -27,3 +31,6 @@ path = "get_root_pubkey.rs"
 [[test]]
 name = "sign_blinded_message"
 path = "sign_blinded_message.rs"
+[[test]]
+name = "verify_proofs"
+path = "verify_proofs.rs"
