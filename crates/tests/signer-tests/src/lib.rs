@@ -32,48 +32,29 @@ fn ensure_env_variables() -> Result<()> {
     })
 }
 
-async fn get_signer_channel() -> Result<Channel> {
+async fn connect_with_timeout(port_env_var: &str, label: &str) -> Result<Channel> {
     ensure_env_variables()?;
-    let signer_port = std::env::var("GRPC_PORT")?;
-
-    let address = format!("https://localhost:{}", signer_port);
-
+    let port = env::var(port_env_var)?;
+    let address = format!("https://localhost:{}", port);
     let timeout = Instant::now() + Duration::from_secs(3);
-    let channel = loop {
-        if let Ok(c) = tonic::transport::Channel::builder(address.parse()?)
-            .connect()
-            .await
-        {
-            break c;
-        }
-        if Instant::now() > timeout {
-            return Err(anyhow!("timeout waiting for signer"));
-        }
-    };
 
-    Ok(channel)
+    loop {
+        match Channel::builder(address.parse()?).connect().await {
+            Ok(channel) => return Ok(channel),
+            Err(_) if Instant::now() > timeout => {
+                return Err(anyhow!("timeout waiting for {}", label));
+            }
+            Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+        }
+    }
 }
 
-async fn get_grpc_channel() -> Result<Channel> {
-    ensure_env_variables()?;
-    let signer_port = std::env::var("NODE_GRPC_PORT")?;
+pub async fn get_signer_channel() -> Result<Channel> {
+    connect_with_timeout("GRPC_PORT", "signer").await
+}
 
-    let address = format!("https://localhost:{}", signer_port);
-
-    let timeout = Instant::now() + Duration::from_secs(3);
-    let channel = loop {
-        if let Ok(c) = tonic::transport::Channel::builder(address.parse()?)
-            .connect()
-            .await
-        {
-            break c;
-        }
-        if Instant::now() > timeout {
-            return Err(anyhow!("timeout waiting for signer"));
-        }
-    };
-
-    Ok(channel)
+pub async fn get_node_channel() -> Result<Channel> {
+    connect_with_timeout("NODE_GRPC_PORT", "node").await
 }
 
 pub async fn init_health_client() -> Result<HealthClient<tonic::transport::Channel>> {
@@ -91,7 +72,7 @@ pub async fn init_signer_client() -> Result<signer::SignerClient<tonic::transpor
 }
 
 pub async fn init_node_client() -> Result<NodeClient<tonic::transport::Channel>> {
-    let channel = get_grpc_channel().await?;
+    let channel = get_node_channel().await?;
     let client = NodeClient::new(channel);
 
     Ok(client)
@@ -99,7 +80,7 @@ pub async fn init_node_client() -> Result<NodeClient<tonic::transport::Channel>>
 
 pub async fn init_keyset_client() -> Result<KeysetRotationServiceClient<tonic::transport::Channel>>
 {
-    let channel = get_grpc_channel().await?;
+    let channel = get_node_channel().await?;
     let client = KeysetRotationServiceClient::new(channel);
 
     Ok(client)
