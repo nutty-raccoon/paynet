@@ -139,7 +139,7 @@ jobs:
           GRPC_PORT=$SIGNER_GRPC_PORT ./target/debug/signer &
           SIGNER_RUN_PID=$!
           while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
-          GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
+          GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests  -- --test-threads=1
           # Node
           GRPC_PORT=$NODE_GRPC_PORT ./target/debug/node --config ./crates/bin/node/config/local.toml &
           NODE_RUN_PID=$!
