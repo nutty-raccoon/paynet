@@ -11,13 +11,6 @@ use signer::{
 use signer_tests::init_signer_client;
 use starknet_types::Unit;
 
-#[derive(Clone)]
-pub struct Keyset {
-    pub id: String,
-    pub unit: String,
-    pub active: bool,
-}
-
 async fn create_valid_proof(amount: Amount) -> Result<Proof> {
     let mut signer_client = init_signer_client().await?;
 
