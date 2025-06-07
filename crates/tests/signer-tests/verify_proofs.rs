@@ -1,12 +1,12 @@
 use anyhow::{Ok, Result};
 
 use nuts::Amount;
-use nuts::dhke::{blind_message, sign_message, unblind_message};
+use nuts::dhke::{blind_message, unblind_message};
 use nuts::nut00::secret::Secret;
-use nuts::nut01::{PublicKey, SecretKey};
+use nuts::nut01::PublicKey;
 use signer::{
     BlindedMessage, DeclareKeysetRequest, DeclareKeysetResponse, Proof, SignBlindedMessagesRequest,
-    SignBlindedMessagesResponse, VerifyProofsRequest, VerifyProofsResponse,
+    SignBlindedMessagesResponse, VerifyProofsRequest,
 };
 use signer_tests::init_signer_client;
 use starknet_types::Unit;
