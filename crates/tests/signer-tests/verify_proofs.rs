@@ -18,7 +18,7 @@ pub struct Keyset {
     pub active: bool,
 }
 
-async fn create_valid_proof(amount: Amount) -> Result<(Proof, Keyset)> {
+async fn create_valid_proof(amount: Amount) -> Result<Proof> {
     let mut signer_client = init_signer_client().await?;
 
     let res = signer_client
@@ -30,11 +30,6 @@ async fn create_valid_proof(amount: Amount) -> Result<(Proof, Keyset)> {
         .await?;
 
     let declare_keyset_response: DeclareKeysetResponse = res.into_inner();
-    let active_keyset = Keyset {
-        id: hex::encode(&declare_keyset_response.keyset_id),
-        unit: Unit::MilliStrk.to_string(),
-        active: true,
-    };
 
     let public_key = declare_keyset_response
         .keys
@@ -76,13 +71,13 @@ async fn create_valid_proof(amount: Amount) -> Result<(Proof, Keyset)> {
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
 
-    Ok((proof, active_keyset))
+    Ok(proof)
 }
 
 #[tokio::test]
 async fn verify_ok() -> Result<()> {
     let mut signer_client = init_signer_client().await?;
-    let (proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let proof = create_valid_proof(Amount::from_i64_repr(32)).await?;
     let res = signer_client
         .verify_proofs(VerifyProofsRequest {
             proofs: vec![proof],
@@ -94,7 +89,7 @@ async fn verify_ok() -> Result<()> {
 
 #[tokio::test]
 async fn verify_invalid_keyset_id_format() -> Result<()> {
-    let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let mut proof = create_valid_proof(Amount::from_i64_repr(32)).await?;
     proof.keyset_id = b"\xF0\x5D\xB0\x25\x9D\x04\x42\xBA\xAA\xDD\x66\x7B\x80\x41\x88\xA8".to_vec();
     let mut signer_client = init_signer_client().await?;
     let res = signer_client
@@ -108,7 +103,7 @@ async fn verify_invalid_keyset_id_format() -> Result<()> {
 
 #[tokio::test]
 async fn verify_empty_signature() -> Result<()> {
-    let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let mut proof = create_valid_proof(Amount::from_i64_repr(32)).await?;
     proof.unblind_signature = vec![];
     let mut signer_client = init_signer_client().await?;
     let res = signer_client
@@ -122,7 +117,7 @@ async fn verify_empty_signature() -> Result<()> {
 
 #[tokio::test]
 async fn verify_unknown_keyset_id() -> Result<()> {
-    let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let mut proof = create_valid_proof(Amount::from_i64_repr(32)).await?;
     proof.keyset_id = "unknown_keyset_id".as_bytes().to_vec();
 
     let mut signer_client = init_signer_client().await?;
@@ -137,7 +132,7 @@ async fn verify_unknown_keyset_id() -> Result<()> {
 
 #[tokio::test]
 async fn verify_invalid_amount_not_power_of_two() -> Result<()> {
-    let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(8)).await?;
+    let mut proof = create_valid_proof(Amount::from_i64_repr(8)).await?;
     proof.amount = 7;
     let mut signer_client = init_signer_client().await?;
     let res = signer_client
@@ -150,7 +145,7 @@ async fn verify_invalid_amount_not_power_of_two() -> Result<()> {
 }
 #[tokio::test]
 async fn verify_signature_valid_format_but_invalid_content() -> Result<()> {
-    let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let mut proof = create_valid_proof(Amount::from_i64_repr(32)).await?;
 
     use nuts::nut01::SecretKey;
 
@@ -172,8 +167,8 @@ async fn verify_signature_valid_format_but_invalid_content() -> Result<()> {
 
 #[tokio::test]
 async fn verify_structurally_valid_but_incorrect_signature() -> Result<()> {
-    let (mut proof1, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
-    let (proof2, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let mut proof1 = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let proof2 = create_valid_proof(Amount::from_i64_repr(32)).await?;
 
     proof1.unblind_signature = proof2.unblind_signature.clone();
 
@@ -190,7 +185,7 @@ async fn verify_structurally_valid_but_incorrect_signature() -> Result<()> {
 
 #[tokio::test]
 async fn verify_malformed_signature() -> Result<()> {
-    let (mut proof, _) = create_valid_proof(Amount::from_i64_repr(32)).await?;
+    let mut proof = create_valid_proof(Amount::from_i64_repr(32)).await?;
 
     proof.unblind_signature = vec![0x99; 10];
 
