@@ -1,8 +1,12 @@
+//! Instrumentation for the amounts at the different steps of the deposit and withdrawal processes
+//!
+//! The values are represented as open-telemetry gauges, and read from db at a fixed time interval.
 use std::time::Duration;
 
 use opentelemetry::{KeyValue, metrics::Gauge};
 use sqlx::{PgPool, Pool, Postgres};
 use starknet_types::Unit;
+use tracing::error;
 
 pub struct DbMetricsObserver {
     pool: Pool<Postgres>,
@@ -68,9 +72,11 @@ impl DbMetricsObserver {
     }
 }
 
-pub async fn init_metrics_polling(mut observer: DbMetricsObserver) {
+pub async fn run_metrics_polling(mut observer: DbMetricsObserver, interval: Duration) {
     loop {
-        observer.poll_metrics().await.unwrap();
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        if let Err(err) = observer.poll_metrics().await {
+            error!(name: "db-metrics-polling", error = %err);
+        }
+        tokio::time::sleep(interval).await;
     }
 }

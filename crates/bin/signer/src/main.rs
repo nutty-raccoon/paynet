@@ -42,7 +42,7 @@ impl signer::Signer for SignerState {
     ) -> Result<Response<DeclareKeysetResponse>, Status> {
         let declare_keyset_request = declare_keyset_request.get_ref();
 
-        // By setting this limit, we make sure that the bigest key has amount, 1^63
+        // By setting this limit, we make sure that the bigest key has amount 2^63
         // which is exactly i64::MAX. So we can convert any proof amount to i64 safely,
         // this is really usefull for interacting with external dependecies,
         // such as databases or networking protocols.

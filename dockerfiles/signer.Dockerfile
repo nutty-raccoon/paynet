@@ -35,7 +35,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     chmod +x /bin/grpc_health_probe
 
 #------------
-# Everything up to there is common with signer and starknet-cashier,
+# Everything up to there is common with signer
 # which mean common layers, cached together increasing speed.
 # What comes next is binary specific.
 #------------

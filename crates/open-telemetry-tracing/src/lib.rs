@@ -60,12 +60,6 @@ use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt};
 /// * `OTEL_EXPORTER_OTLP_ENDPOINT` - Override the default OTLP endpoint (default: `http://localhost:4317`)
 /// * `RUST_LOG` - Control terminal logging levels (default: `info`)
 ///
-/// ## Panics
-///
-/// This function may panic if:
-/// - The OTLP exporter cannot be built (invalid endpoint configuration)
-/// - The telemetry providers cannot be initialized
-///
 /// ## Example
 ///
 /// ```rust

@@ -102,7 +102,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum by (attributes_name) (count_over_time({service_name=~\"node|starknet-cashier\"} | json attributes_name=\"[\\\"attributes\\\"][\\\"name\\\"]\" | drop __error__, __error_details__ | attributes_name!=\"\" [$__auto]))",
+          "expr": "sum by (attributes_name) (count_over_time({service_name=~\"node\"} | json attributes_name=\"[\\\"attributes\\\"][\\\"name\\\"]\" | drop __error__, __error_details__ | attributes_name!=\"\" [$__auto]))",
           "legendFormat": "{{attributes_name}}",
           "queryType": "range",
           "refId": "logs"
@@ -267,7 +267,7 @@
           },
           "direction": "backward",
           "editorMode": "builder",
-          "expr": "{service_name=~\"node|starknet-cashier\"} | json name=\"attributes.name\"",
+          "expr": "{service_name=~\"node\"} | json name=\"attributes.name\"",
           "legendFormat": "{{name}}",
           "queryType": "range",
           "refId": "A"

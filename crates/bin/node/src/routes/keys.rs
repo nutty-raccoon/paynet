@@ -6,7 +6,7 @@ use tonic::Status;
 use crate::grpc_service::GrpcState;
 
 impl GrpcState {
-    pub async fn inner_keys_with_keyset_id(
+    pub async fn inner_keys_for_keyset_id(
         &self,
         db_conn: &mut PgConnection,
         keyset_id: Vec<u8>,

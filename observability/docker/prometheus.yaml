@@ -40,15 +40,10 @@ scrape_configs:
       # Same endpoint as above, but different filtering rules
       - targets: ['otel-collector:8889']
     
-    # METRIC FILTERING: Drop Paynet metrics (we already collect them in job 2)
+    # METRIC FILTERING: Drop Paynet metrics (we already collect them in job 1)
     # This prevents duplicate storage of the same metrics
     metric_relabel_configs:
       - source_labels: [__name__]        # Look at the metric name
         regex: 'paynet_.*'               # Match names starting with "paynet_"
         action: drop                     # Drop matching metrics, keep everything else
 
-# Why separate jobs for the same endpoint?
-# - Different retention policies (could be configured)
-# - Different alerting rules for app vs infrastructure metrics
-# - Clearer organization when viewing metrics in Grafana
-# - Ability to apply different processing rules to different metric types

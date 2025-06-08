@@ -76,16 +76,6 @@ impl StarknetU256 {
 
         Ok(Self::from_parts(low, high))
     }
-
-    pub fn to_dec_string(self) -> String {
-        let p = primitive_types::U256::from(self);
-        format!("{}", p)
-    }
-
-    pub fn to_hex_string(self) -> String {
-        let p = primitive_types::U256::from(self);
-        format!("{:#X}", p)
-    }
 }
 
 impl From<Sha256> for StarknetU256 {

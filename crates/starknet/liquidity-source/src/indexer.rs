@@ -116,7 +116,7 @@ pub async fn run_in_ctrl_c_cancellable_task(
         {
             Ok(ais) => ais,
             Err(e) => {
-                error!(name: "indexer-service-initialization", error = %e);
+                error!(name: "indexer-service-initialization", name = "indexer-task-error", error = ?e);
                 tokio::time::sleep(Duration::from_secs(5)).await;
                 continue;
             }
@@ -129,18 +129,18 @@ pub async fn run_in_ctrl_c_cancellable_task(
         let should_restart = select! {
             indexer_res = listen_to_indexer(cloned_pg_pool, indexer_service, cloned_chain_id) => match indexer_res {
                 Ok(()) => {
-                    error!(name: "indexer-task-error", error = "returned");
+                    error!(name: "indexer-task-error", name = "indexer-task-error", error = "returned");
                     true
                 },
                 Err(err) => {
-                    error!(name: "indexer-task-error", error = %err);
+                    error!(name: "indexer-task-error", name = "indexer-task-error", error = ?err);
                     true
                 },
             },
             sig = tokio::signal::ctrl_c() => match sig {
                 Ok(()) => false,
                 Err(err) => {
-                    error!(name: "ctrl-c-error", error = %err);
+                    error!(name: "ctrl-c-error", name = "ctrl-c-error", error = ?err);
                     true
                 },
             }

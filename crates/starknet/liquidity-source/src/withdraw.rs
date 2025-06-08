@@ -226,14 +226,11 @@ pub async fn process_withdraw_requests(
                 tx_handle = None;
             }
             _ => {
-                let orders = std::mem::take(&mut orders);
-
                 let tx_hash = if orders.len() == 1 {
-                    let withdraw_order = orders.into_iter().next().unwrap();
                     sign_and_send_single_payment_transactions(
                         account.clone(),
                         invoice_payment_contract_address,
-                        withdraw_order,
+                        &orders[0],
                     )
                     .await?
                 } else {
@@ -244,6 +241,8 @@ pub async fn process_withdraw_requests(
                     )
                     .await?
                 };
+
+                orders.clear();
 
                 tx_handle = Some(tokio::spawn(wait_for_tx_completion(
                     account.clone(),

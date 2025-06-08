@@ -89,7 +89,7 @@ impl GrpcState {
             return Err(Error::InvalidQuoteStateAtThisPoint(state));
         }
 
-        let (total_amount, _unit) =
+        let total_amount =
             check_outputs_allow_single_unit(&mut tx, &self.keyset_cache, outputs).await?;
 
         if total_amount != expected_amount {

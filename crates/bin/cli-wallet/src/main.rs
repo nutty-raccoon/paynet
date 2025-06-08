@@ -422,22 +422,15 @@ async fn main() -> Result<()> {
                     .into_inner();
 
                 if !melt_quote_state_response.transfer_ids.is_empty() {
-                    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
-                    if melt_quote_state_response.transfer_ids.len() != 1 {
-                        string_to_print.push('s');
-                    }
-                    string_to_print.push_str(": ");
-                    let mut iterator = melt_quote_state_response.transfer_ids.into_iter();
-                    string_to_print.push_str(&iterator.next().unwrap());
-                    for tx_hash in iterator {
-                        string_to_print.push_str(", ");
-                        string_to_print.push_str(&tx_hash);
-                    }
-
-                    println!("{}", string_to_print);
+                    println!(
+                        "{}",
+                        format_melt_transfers_id_into_term_message(
+                            melt_quote_state_response.transfer_ids
+                        )
+                    );
                     break;
                 }
-                tokio::time::sleep(Duration::from_secs(2)).await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
         Commands::Send {
@@ -600,4 +593,20 @@ pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
         U256::from_str_radix(amount, 10)
     }
     .map_err(std::io::Error::other)
+}
+
+fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
+    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
+    if transfer_ids.len() != 1 {
+        string_to_print.push('s');
+    }
+    string_to_print.push_str(": ");
+    let mut iterator = transfer_ids.into_iter();
+    string_to_print.push_str(&iterator.next().unwrap());
+    for tx_hash in iterator {
+        string_to_print.push_str(", ");
+        string_to_print.push_str(&tx_hash);
+    }
+
+    string_to_print
 }

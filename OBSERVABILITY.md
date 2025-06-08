@@ -39,7 +39,7 @@ Aggregates logs from all services and provides efficient querying capabilities. 
 
 ## Service Integration
 
-All services are instrumented with OpenTelemetry through the shared open-telemetry-tracing crate: Node Service, Signer Service and Starknet Cashier.
+All services are instrumented with OpenTelemetry through the shared open-telemetry-tracing crate: Node Service and Signer Service.
 Each service calls the library's initialization function during startup, which automatically configures tracing, metrics collection, and structured logging. The services then send telemetry data to the OpenTelemetry Collector via OTLP without requiring additional configuration.
 
 Each service sends telemetry data to the OpenTelemetry Collector via OTLP.
@@ -57,5 +57,6 @@ The entire observability stack is deployed using Docker Compose and can be start
 ## Data Flow
 
 ```
-Paynet Services → OpenTelemetry Collector → Prometheus/Jaeger/Loki → Grafana
+Paynet Services → OpenTelemetry Collector → Prometheus/Loki → Grafana
+                                          → Jaeger
 ```

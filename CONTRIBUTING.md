@@ -41,7 +41,7 @@ $  docker compose -f docker-compose.observability.yml -f docker-compose.testnet.
 
 It will automatically set up a functional dev environment.
 When working on a specific part of the infra, shut down the container you are debuging and run in localy instead.
-You just have to update the url accordingly (eg. `SIGNER_URL=http://signer:10001` becomes `SIGNER_URL=http://localhost:10001`).
+You just have to update the URLs accordingly (eg. `SIGNER_URL=http://signer:10001` becomes `SIGNER_URL=http://localhost:10001`).
 
 ## Test a Project 🧪
 

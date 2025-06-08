@@ -80,9 +80,3 @@ ruler:
 analytics:
   reporting_enabled: false
 
-# How does this work with our setup?
-# 1. Applications send logs to OpenTelemetry Collector
-# 2. Collector forwards logs to Loki (this service) via HTTP API
-# 3. Loki stores logs with labels for efficient querying
-# 4. Grafana queries Loki to display logs in dashboards
-# 5. Users can search logs by labels (e.g., service=paynet, level=error)

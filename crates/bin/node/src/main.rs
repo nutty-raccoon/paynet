@@ -4,6 +4,7 @@ compile_error!("Only one of the features 'mock' and 'starknet' can be enabled at
 compile_error!("At least one liquidity feature should be provided during compilation");
 
 use core::panic;
+use std::time::Duration;
 
 use errors::Error;
 use gauge::DbMetricsObserver;
@@ -55,7 +56,10 @@ async fn main() -> Result<(), anyhow::Error> {
         vec![starknet_types::Unit::MilliStrk],
         gauge,
     );
-    let _handle = tokio::spawn(gauge::init_metrics_polling(observer));
+    let _handle = tokio::spawn(gauge::run_metrics_polling(
+        observer,
+        Duration::from_secs(60),
+    ));
 
     // Connect to the signer service
     let signer_client = connect_to_signer(env_variables.signer_url.clone()).await?;

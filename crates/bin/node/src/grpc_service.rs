@@ -209,7 +209,7 @@ impl Node for GrpcState {
 
         let keysets = match request.keyset_id {
             Some(keyset_id) => {
-                self.inner_keys_with_keyset_id(&mut db_conn, keyset_id)
+                self.inner_keys_for_keyset_id(&mut db_conn, keyset_id)
                     .await?
             }
             None => self.inner_keys_no_keyset_id(&mut db_conn).await?,

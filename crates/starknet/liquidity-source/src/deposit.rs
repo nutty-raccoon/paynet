@@ -58,7 +58,7 @@ impl DepositInterface for Depositer {
             quote_id_hash,
             expiry.into(),
             token_contract_address,
-            amount.into(),
+            &amount.into(),
             self.our_account_address,
         );
         let calls: Vec<Call> = calls.into_iter().map(Into::into).collect();

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use num_traits::ToPrimitive;
 use nuts::{Amount, traits::Unit};
 use sqlx::Error;
@@ -8,7 +6,7 @@ use sqlx::PgConnection;
 pub async fn get_all_gauge_metrics_by_units<U: Unit>(
     conn: &mut PgConnection,
     units: &[U],
-) -> Result<HashMap<String, GaugeMetrics>, Error> {
+) -> Result<Vec<(String, GaugeMetrics)>, Error> {
     // Convert each unit to string
     let unit_strs: Vec<String> = units.iter().map(|u| u.to_string()).collect();
 
@@ -30,10 +28,9 @@ pub async fn get_all_gauge_metrics_by_units<U: Unit>(
     .fetch_all(conn)
     .await?;
 
-    // Convert results into a HashMap with unit as key
-    let mut results = HashMap::new();
+    let mut results = Vec::with_capacity(units.len());
     for record in records {
-        results.insert(
+        results.push((
             record.unit,
             GaugeMetrics {
                 pending_deposits: Amount::from(record.pending_deposits.to_u64().unwrap()),
@@ -43,7 +40,7 @@ pub async fn get_all_gauge_metrics_by_units<U: Unit>(
                 pending_withdrawals: Amount::from(record.pending_withdrawals.to_u64().unwrap()),
                 paid_withdrawals: Amount::from(record.paid_withdrawals.to_u64().unwrap()),
             },
-        );
+        ));
     }
 
     Ok(results)
