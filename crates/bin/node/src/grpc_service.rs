@@ -7,8 +7,9 @@ use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
     MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
-    Node, NodeInfoResponse, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+    Node, NodeInfoResponse, PostCheckStateRequest, PostCheckStateResponse, ProofCheckState,
+    QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request, hash_mint_request,
+    hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -590,5 +591,31 @@ impl Node for GrpcState {
         }
 
         Ok(Response::new(AcknowledgeResponse {}))
+    }
+
+    async fn post_check_state(
+        &self,
+        request: Request<PostCheckStateRequest>,
+    ) -> Result<Response<PostCheckStateResponse>, Status> {
+        let request = request.into_inner();
+
+        let ys = request.proofs;
+
+        let proof_state = self
+            .inner_check_state(ys)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to check state: {}", e)))?
+            .proof_check_states;
+
+        Ok(Response::new(PostCheckStateResponse {
+            states: proof_state
+                .iter()
+                .map(|state| ProofCheckState {
+                    proof: state.y.clone(),
+                    state: state.state.clone().into(),
+                    witness: state.witness.clone(),
+                })
+                .collect::<Vec<_>>(),
+        }))
     }
 }

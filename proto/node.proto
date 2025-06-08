@@ -24,6 +24,9 @@ service Node {
   // TODO: add Acknowledgment route
   // for the client to say he successfully stored the quote_id
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
+
+  // NUT07
+  rpc PostCheckState (PostCheckStateRequest) returns (PostCheckStateResponse);
 }
 
 message GetNodeInfoRequest {} 
@@ -138,3 +141,20 @@ message AcknowledgeRequest {
 }
 
 message AcknowledgeResponse {}
+
+message PostCheckStateRequest {
+  repeated string proofs = 1;
+}
+
+enum ProofState {
+  UNSPENT = 0;
+  SPENT = 1;
+}
+message ProofCheckState {
+  string proof = 1;
+  ProofState state = 2;
+  optional string witness = 3;
+}
+message PostCheckStateResponse {
+  repeated ProofCheckState states = 1;
+}
