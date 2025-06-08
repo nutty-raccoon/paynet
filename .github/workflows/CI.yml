@@ -2,15 +2,17 @@ name: Rust CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]
   pull_request:
-    branches: ["main"]
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
   CARGO_TERM_COLOR: always
   ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
   SIGNER_GRPC_PORT: 10001
@@ -42,7 +44,7 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-  test:
+  rust-tests:
     name: Test
     strategy:
       matrix:
@@ -97,7 +99,6 @@ jobs:
       - name: Run test
         run: ${{ matrix.test_cmd }}
 
-
   integration-test:
     name: Integration Test
     runs-on: ubuntu-latest
@@ -148,3 +149,179 @@ jobs:
           # Cleanup
           kill $SIGNER_RUN_PID
           kill $NODE_RUN_PID
+
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      explorer: ${{ steps.changes.outputs.explorer }}
+      node: ${{ steps.changes.outputs.node }}
+      signer: ${{ steps.changes.outputs.signer }}
+      starknet-cashier: ${{ steps.changes.outputs.starknet-cashier }}
+      starknet-setup: ${{ steps.changes.outputs.starknet-setup }}
+      docker-compose: ${{ steps.changes.outputs.docker-compose }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            explorer:
+              - 'dockerfiles/explorer.Dockerfile'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'rust-toolchain.toml'
+            node:
+              - 'dockerfiles/node.Dockerfile'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'rust-toolchain.toml'
+            signer:
+              - 'dockerfiles/signer.Dockerfile'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'rust-toolchain.toml'
+            starknet-cashier:
+              - 'dockerfiles/starknet-cashier.Dockerfile'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'rust-toolchain.toml'
+            starknet-setup:
+              - 'dockerfiles/starknet-setup.Dockerfile'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'rust-toolchain.toml'
+            docker-compose:
+              - 'docker-compose.yml'
+
+  build:
+    needs: detect-changes
+    runs-on: ubuntu-8-cores
+    strategy:
+      matrix:
+        service: [explorer, node, signer, starknet-cashier, starknet-setup]
+    steps:
+      - name: Skip if no changes
+        if: needs.detect-changes.outputs[matrix.service] != 'true'
+        run: echo "No changes detected for ${{ matrix.service }}, skipping build"
+
+      - uses: actions/checkout@v4
+        if: needs.detect-changes.outputs[matrix.service] == 'true'
+
+      - name: Set up Docker Buildx
+        if: needs.detect-changes.outputs[matrix.service] == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: needs.detect-changes.outputs[matrix.service] == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: needs.detect-changes.outputs[matrix.service] == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+
+      - name: Build and push Docker image
+        if: needs.detect-changes.outputs[matrix.service] == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./dockerfiles/${{ matrix.service }}.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          build-args: |
+            CARGO_FEATURES=${{ matrix.service == 'node' && 'starknet' || '' }}
+
+  test:
+    needs: [detect-changes, build]
+    runs-on: ubuntu-latest
+    if: always() && (needs.detect-changes.outputs.docker-compose == 'true' || needs.build.result == 'success')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update docker-compose with built images
+        run: |
+          # Replace local image names with registry images for built services
+          if [[ "${{ needs.detect-changes.outputs.explorer }}" == "true" ]]; then
+            sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.yml
+          fi
+          if [[ "${{ needs.detect-changes.outputs.node }}" == "true" ]]; then
+            sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.yml
+          fi
+          if [[ "${{ needs.detect-changes.outputs.signer }}" == "true" ]]; then
+            sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.yml
+          fi
+          if [[ "${{ needs.detect-changes.outputs.starknet-cashier }}" == "true" ]]; then
+            sed -i "s|image: \"starknet-cashier\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-cashier:${{ github.sha }}|g" docker-compose.yml
+          fi
+          if [[ "${{ needs.detect-changes.outputs.starknet-setup }}" == "true" ]]; then
+            sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.yml
+          fi
+
+      - name: Start services
+        run: |
+          docker compose up -d
+          docker compose ps
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to be healthy..."
+          timeout 300 bash -c '
+            until docker compose ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "5"; do
+              echo "Waiting for all services to be ready..."
+              sleep 10
+              docker compose ps
+            done
+          '
+
+      - name: Run basic health checks
+        run: |
+          # Test database connection
+          docker compose exec -T db pg_isready -U postgres
+          
+          # Test starknet devnet
+          curl -f http://localhost:5050/is_alive
+          
+          # Test gRPC services
+          docker compose exec -T signer /bin/grpc_health_probe -addr=localhost:10001
+          docker compose exec -T starknet-cashier /bin/grpc_health_probe -addr=localhost:10002
+          docker compose exec -T node /bin/grpc_health_probe -addr=localhost:10003
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker compose logs ==="
+          docker compose logs
+          echo "=== Docker compose ps ==="
+          docker compose ps
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+          docker system prune -f
