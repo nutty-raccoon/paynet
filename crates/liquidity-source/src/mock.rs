@@ -89,11 +89,8 @@ impl WithdrawInterface for MockWithdrawer {
         _melt_payment_request: (),
         _amount: Self::Amount,
         _expiry: u64,
-    ) -> Result<(MeltQuoteState, MockInvoiceId), Self::Error> {
-        Ok((
-            MeltQuoteState::Paid,
-            MockInvoiceId(Sha256::hash(b"coffebabe")),
-        ))
+    ) -> Result<MeltQuoteState, Self::Error> {
+        Ok(MeltQuoteState::Paid)
     }
 }
 

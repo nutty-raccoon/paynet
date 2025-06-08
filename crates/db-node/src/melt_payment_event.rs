@@ -12,7 +12,7 @@ pub async fn insert_new_payment_event(
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT DO NOTHING"#,
         &payment_event.block_id,
-        &payment_event.tx_hash.to_string(),
+        &payment_event.tx_hash.to_hex_string(),
         i64::from_be_bytes(payment_event.event_idx.to_be_bytes()),
         &payment_event.payee.to_string(),
         &payment_event.asset.to_string(),

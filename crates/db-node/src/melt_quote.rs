@@ -13,7 +13,7 @@ use crate::Error;
 pub async fn insert_new<U: Unit>(
     conn: &mut PgConnection,
     quote_id: Uuid,
-    quote_hash: &[u8; 32],
+    invoice_id: &[u8; 32],
     unit: U,
     amount: Amount,
     fee: Amount,
@@ -27,15 +27,21 @@ pub async fn insert_new<U: Unit>(
         OffsetDateTime::from_unix_timestamp(expiry).map_err(|_| Error::RuntimeToDbConversion)?;
 
     sqlx::query!(
-        r#"INSERT INTO melt_quote (id, invoice_id, unit, amount, fee, request, expiry, state) VALUES ($1, $2, $3, $4, $5, $6, $7, 'UNPAID')"#,
+        r#"
+        INSERT INTO melt_quote
+            (id, invoice_id, unit, amount, fee, request, expiry, state)
+        VALUES
+            ($1, $2, $3, $4, $5, $6, $7, 'UNPAID')"#,
         quote_id,
-        quote_hash,
+        invoice_id,
         &unit.to_string(),
         amount.into_i64_repr(),
         fee.into_i64_repr(),
         request,
         expiry,
-    ).execute(conn).await?;
+    )
+    .execute(conn)
+    .await?;
 
     Ok(())
 }
@@ -45,12 +51,24 @@ pub async fn build_response_from_db(
     quote_id: Uuid,
 ) -> Result<MeltQuoteResponse<Uuid>, Error> {
     let record = sqlx::query!(
-        r#"SELECT amount, fee, state AS "state: MeltQuoteState", expiry, transfer_id AS "transfer_id!" FROM melt_quote where id = $1"#,
+        r#"
+        SELECT 
+            mq.amount, 
+            mq.fee, 
+            mq.state AS "state: MeltQuoteState", 
+            mq.expiry,
+            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS "tx_hashes"
+        FROM melt_quote mq
+        LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id
+        WHERE mq.id = $1
+        GROUP BY mq.amount, mq.fee, mq.state, mq.expiry;
+        "#,
         quote_id
     )
     .fetch_one(conn)
-    .await?;
+    .await;
 
+    let record = record?;
     let expiry = record
         .expiry
         .unix_timestamp()
@@ -65,7 +83,7 @@ pub async fn build_response_from_db(
         fee,
         state: record.state,
         expiry,
-        transfer_id: record.transfer_id,
+        transfer_ids: record.tx_hashes,
     })
 }
 
@@ -116,26 +134,6 @@ pub async fn set_state(
         "#,
         quote_id,
         state as MeltQuoteState,
-    )
-    .execute(conn)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn register_transfer_id(
-    conn: &mut PgConnection,
-    quote_id: Uuid,
-    transfer_id: &[u8],
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        r#"
-            UPDATE melt_quote
-            SET transfer_id = $2
-            WHERE id = $1
-        "#,
-        quote_id,
-        transfer_id,
     )
     .execute(conn)
     .await?;

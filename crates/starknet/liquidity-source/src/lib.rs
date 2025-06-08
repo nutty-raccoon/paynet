@@ -1,4 +1,3 @@
-mod cashier;
 mod deposit;
 mod indexer;
 mod withdraw;
@@ -6,13 +5,20 @@ mod withdraw;
 use std::{
     fmt::{LowerHex, UpperHex},
     path::PathBuf,
+    str::FromStr,
+    sync::Arc,
 };
 
 pub use deposit::{Depositer, Error as DepositError};
 use sqlx::PgPool;
-use starknet_types::ChainId;
+use starknet::{
+    accounts::{ExecutionEncoding, SingleOwnerAccount},
+    providers::{JsonRpcClient, jsonrpc::HttpTransport},
+    signers::{LocalWallet, SigningKey},
+};
+use starknet_types::{CairoShortStringToFeltError, ChainId, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::{felt::Felt, hash::Poseidon};
-use tracing::trace;
+use url::Url;
 pub use withdraw::{
     Error as WithdrawalError, MeltPaymentRequest, StarknetU256WithdrawAmount, Withdrawer,
 };
@@ -40,19 +46,21 @@ pub struct StarknetCliConfig {
     /// The address of the on-chain account managing deposited assets
     pub cashier_account_address: starknet_types_core::felt::Felt,
     /// The url of the starknet rpc node we want to use
-    pub node_url: Url,
+    pub starknet_rpc_node_url: Url,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Failed to read environment variable `{0}`: {1}")]
+    #[error("failed to read environment variable `{0}`: {1}")]
     Env(&'static str, #[source] std::env::VarError),
     #[error(transparent)]
     Config(#[from] ReadStarknetConfigError),
     #[error(transparent)]
-    Cashier(#[from] cashier::Error),
-    #[error(transparent)]
     Indexer(#[from] indexer::Error),
+    #[error("invalid private key value")]
+    PrivateKey,
+    #[error("invalid chain id value: {0}")]
+    ChainId(CairoShortStringToFeltError),
 }
 
 pub const CASHIER_PRIVATE_KEY_ENV_VAR: &str = "CASHIER_PRIVATE_KEY";
@@ -64,9 +72,10 @@ impl StarknetLiquiditySource {
     ) -> Result<StarknetLiquiditySource, Error> {
         let config = read_starknet_config(config_path)?;
         let private_key = Felt::from_str(
-            &std::env::var(SIGNER_PRIVATE_KEY_ENV_VAR)
-                .expect("env var `SIGNER_PRIVATE_KEY` should be set"),
-        )?;
+            &std::env::var(CASHIER_PRIVATE_KEY_ENV_VAR)
+                .map_err(|e| Error::Env(CASHIER_PRIVATE_KEY_ENV_VAR, e))?,
+        )
+        .map_err(|_| Error::PrivateKey)?;
 
         let apibara_token = match config.chain_id {
             // Not needed for local DNA service
@@ -75,24 +84,25 @@ impl StarknetLiquiditySource {
         };
 
         // Create provider
-        let provider = JsonRpcClient::new(HttpTransport::new(rpc_url));
+        let provider = JsonRpcClient::new(HttpTransport::new(config.starknet_rpc_node_url));
 
         // Create signer
         let signer = LocalWallet::from(SigningKey::from_secret_scalar(private_key));
 
-        let account = SingleOwnerAccount::new(
+        let account = Arc::new(SingleOwnerAccount::new(
             provider.clone(),
             signer,
-            address,
-            chain_id,
+            config.cashier_account_address,
+            config.chain_id.clone().try_into().map_err(Error::ChainId)?,
             ExecutionEncoding::New,
-        );
+        ));
 
         let cloned_chain_id = config.chain_id.clone();
         let cloned_cashier_account_address = config.cashier_account_address;
+        let cloned_pg_pool = pg_pool.clone();
         let _handle = tokio::spawn(async move {
             indexer::run_in_ctrl_c_cancellable_task(
-                pg_pool,
+                cloned_pg_pool,
                 apibara_token,
                 cloned_chain_id,
                 cloned_cashier_account_address,
@@ -100,9 +110,15 @@ impl StarknetLiquiditySource {
             .await
         });
 
+        let on_chain_constants = ON_CHAIN_CONSTANTS.get(config.chain_id.as_str()).unwrap();
+
         Ok(StarknetLiquiditySource {
-            depositer: Depositer::new(config.chain_id, config.cashier_account_address),
-            withdrawer: Withdrawer::new(account, invoice_payment_contract_address),
+            depositer: Depositer::new(config.chain_id.clone(), config.cashier_account_address),
+            withdrawer: Withdrawer::new(
+                config.chain_id,
+                account,
+                on_chain_constants.invoice_payment_contract_address,
+            ),
         })
     }
 }

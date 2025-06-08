@@ -15,3 +15,4 @@ CREATE TABLE IF NOT EXISTS melt_payment_event (
     PRIMARY KEY (tx_hash, event_index)
 );
 
+ALTER TABLE melt_quote DROP COLUMN transfer_id;

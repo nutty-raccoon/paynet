@@ -433,7 +433,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
-            transfer_id: response.transfer_id,
+            transfer_ids: response.transfer_ids.unwrap_or_default(),
         };
 
         // Store in cache
@@ -482,7 +482,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
-            transfer_id: response.transfer_id,
+            transfer_ids: response.transfer_ids.unwrap_or_default(),
         }))
     }
 

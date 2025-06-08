@@ -21,6 +21,7 @@ futures = { workspace = true }
 primitive-types = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+url = { workspace = true, features = ["serde"] }
 
 # OPTL
 http = { workspace = true }

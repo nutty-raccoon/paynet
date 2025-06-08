@@ -79,7 +79,7 @@ impl GrpcState {
             %quote_id,
         );
 
-        let (state, transfer_id) = withdrawer
+        let state = withdrawer
             .proceed_to_payment(
                 quote_id,
                 payment_request,
@@ -89,10 +89,7 @@ impl GrpcState {
             .await
             .map_err(|e| Error::LiquiditySource(e.into()))?;
 
-        // TODO: merge those in a single call
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;
-        db_node::melt_quote::register_transfer_id(&mut conn, quote_id, &transfer_id.clone().into())
-            .await?;
 
         event!(
             name: "melt",
@@ -100,7 +97,6 @@ impl GrpcState {
             name = "melt",
             %method,
             %quote_id,
-            transfer_id = format!("{:#x}", transfer_id),
         );
 
         let meter = opentelemetry::global::meter("business");
@@ -113,7 +109,7 @@ impl GrpcState {
             fee,
             state,
             expiry,
-            transfer_id: transfer_id.into().to_vec(),
+            transfer_ids: None,
         })
     }
 

@@ -19,11 +19,11 @@ const APPROVE_SELECTOR: Felt =
 
 #[derive(Debug, Clone)]
 pub struct WithdrawOrder {
-    quote_id_hash: Felt,
-    expiry: Felt,
-    amount: StarknetU256,
-    asset_contract_address: Felt,
-    payee: Felt,
+    pub quote_id_hash: Felt,
+    pub expiry: Felt,
+    pub amount: StarknetU256,
+    pub asset_contract_address: Felt,
+    pub payee: Felt,
 }
 
 impl WithdrawOrder {
@@ -146,9 +146,9 @@ pub async fn sign_and_send_payment_transactions<
         .inspect(|tx_result|
             info!(name: "send-payment-transaction", name = "send-payment-transaction", calls = calls_debug_string, ?tx_result)
         )
-        .inspect_err(|error|
-            error!(name: "send-payment-transaction", name = "send-payment-transaction", calls = calls_debug_string, %error),
-        )?;
+        .inspect_err(|error|{
+            error!(name: "send-payment-transaction", name = "send-payment-transaction", calls = calls_debug_string, ?error);
+        })?;
 
     Ok(tx_result.transaction_hash)
 }
@@ -159,7 +159,7 @@ pub async fn sign_and_send_single_payment_transactions<
     account: Arc<A>,
     invoice_payment_contract_address: Felt,
     withdrawal_order: WithdrawOrder,
-) -> Result<(Felt, Felt), Error<A>> {
+) -> Result<Felt, Error<A>> {
     let calls = generate_single_payment_transaction_calls(
         invoice_payment_contract_address,
         withdrawal_order.quote_id_hash,
@@ -170,7 +170,10 @@ pub async fn sign_and_send_single_payment_transactions<
     );
 
     let calls_debug_string = format!("{:?}", calls);
-    let nonce = account.get_nonce().await?;
+    let nonce = account
+        .provider()
+        .get_nonce(BlockId::Tag(BlockTag::Pending), account.address())
+        .await?;
     // Execute the transaction
     let tx_result = account
         .execute_v3(calls.to_vec())
@@ -181,11 +184,11 @@ pub async fn sign_and_send_single_payment_transactions<
         .inspect(|tx_result|
             info!(name: "send-payment-transaction", name = "send-payment-transaction", calls = calls_debug_string, ?tx_result)
         )
-        .inspect_err(|error|
-            error!(name: "send-payment-transaction", name = "send-payment-transaction", calls = calls_debug_string, %error),
-        )?;
+        .inspect_err(|error| {
+            error!(name: "send-payment-transaction", name = "send-payment-transaction", calls = calls_debug_string, ?error);
+        })?;
 
-    Ok((tx_result.transaction_hash, nonce))
+    Ok(tx_result.transaction_hash)
 }
 
 #[derive(Debug, thiserror::Error)]

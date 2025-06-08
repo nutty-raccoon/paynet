@@ -1,6 +1,6 @@
 use nuts::nut05::MeltQuoteState;
 use serde::{Deserialize, Serialize};
-use starknet_types::{Asset, STARKNET_STR, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
+use starknet_types::{Asset, ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
 
 use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use starknet_types::is_valid_starknet_address;
@@ -41,9 +41,13 @@ pub enum Error {
     #[error("failed to get nonce from node: {0}")]
     GetNonce(ProviderError),
     #[error("failed to send withdraw order through channel: {0}")]
-    SendWithdrawOrder(#[from] SendError<WithdrawOrder>),
+    SendWithdrawOrder(#[from] mpsc::error::SendError<WithdrawOrder>),
     #[error("asset {0} not found in on-chain constants")]
     AssetNotFound(Asset),
+    #[error("failed to acquire a conneciton from the pool: {0}")]
+    PgPool(sqlx::Error),
+    #[error("failed to register transaction hash in melt_quote table: {0}")]
+    RegisterTxHash(sqlx::Error),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,20 +74,30 @@ impl WithdrawAmount for StarknetU256WithdrawAmount {
 
 #[derive(Debug, Clone)]
 pub struct Withdrawer {
+    chain_id: ChainId,
     withdraw_order_sender: mpsc::UnboundedSender<WithdrawOrder>,
 }
 
 impl Withdrawer {
-    pub fn new(account: Arc<OurAccount>, invoice_payment_contract_address: Felt) -> Self {
+    pub fn new(
+        chain_id: ChainId,
+        account: Arc<OurAccount>,
+        invoice_payment_contract_address: Felt,
+    ) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
-        let _join_handle = tokio::spawn(process_withdraw_requests(
-            account,
-            rx,
-            invoice_payment_contract_address,
-        ));
+        let _join_handle = tokio::spawn(async move {
+            let res =
+                process_withdraw_requests(account, rx, invoice_payment_contract_address).await;
+
+            match res {
+                Ok(_) => error!(name: "cashier-worker", error = "returned"),
+                Err(err) => error!(name: "cashier-worker", error = %err),
+            }
+        });
 
         Self {
+            chain_id,
             withdraw_order_sender: tx,
         }
     }
@@ -103,6 +117,7 @@ impl WithdrawInterface for Withdrawer {
         if !is_valid_starknet_address(&pr.payee) {
             return Err(Error::InvalidStarknetAddress(pr.payee));
         }
+
         Ok(pr)
     }
 
@@ -116,23 +131,18 @@ impl WithdrawInterface for Withdrawer {
         let quote_id_hash =
             Felt::from_bytes_be(bitcoin_hashes::Sha256::hash(quote_id.as_bytes()).as_byte_array());
 
-        let on_chain_constants = ON_CHAIN_CONSTANTS.get(STARKNET_STR).unwrap();
+        let on_chain_constants = ON_CHAIN_CONSTANTS.get(self.chain_id.as_str()).unwrap();
         let asset_contract_address = on_chain_constants
             .assets_contract_address
             .get_contract_address_for_asset(melt_payment_request.asset)
-            .ok_or(Error::AssetNotFound(asset))?;
-
-        let payee_address = Felt::from_bytes_be_slice(&request.payee);
-        if !is_valid_starknet_address(&payee_address) {
-            return Err(Error::InvalidStarknetAddress(payee_address));
-        }
+            .ok_or(Error::AssetNotFound(melt_payment_request.asset))?;
 
         self.withdraw_order_sender.send(WithdrawOrder::new(
             quote_id_hash,
             expiry.into(),
             amount.0,
             asset_contract_address,
-            payee_address,
+            melt_payment_request.payee,
         ))?;
 
         Ok(MeltQuoteState::Pending)
@@ -169,6 +179,23 @@ async fn wait_for_tx_completion<A: Account + ConnectedAccount + Sync>(
             TransactionStatus::AcceptedOnL1(_) => unreachable!(),
         }
     }
+    loop {
+        if let starknet::core::types::ReceiptBlock::Block {
+            block_hash: _,
+            block_number: _,
+        } = account
+            .provider()
+            .get_transaction_receipt(tx_hash)
+            .await
+            .map_err(Error::GetTransactionStatus)?
+            .block
+        {
+            break;
+        } else {
+            sleep(Duration::from_secs(1)).await;
+            continue;
+        }
+    }
 
     Ok(())
 }
@@ -179,33 +206,49 @@ pub async fn process_withdraw_requests(
     invoice_payment_contract_address: Felt,
 ) -> Result<(), Error> {
     let mut orders = Vec::new();
+    let mut tx_handle: Option<tokio::task::JoinHandle<Result<(), Error>>> = None;
 
+    // TODO: retry logic
     loop {
-        let withdraw_order = withdraw_queue.recv().await.ok_or(Error::ChannelClosed)?;
-
-        let (tx_hash, tx_nonce) = sign_and_send_single_payment_transactions(
-            account.clone(),
-            invoice_payment_contract_address,
-            withdraw_order,
-        )
-        .await?;
-
-        let mut tx_handle = tokio::spawn(wait_for_tx_completion(account.clone(), tx_hash));
-
-        loop {
-            if !tx_handle.is_finished() {
+        match tx_handle.as_ref() {
+            None if orders.is_empty() => {
                 withdraw_queue.recv_many(&mut orders, 10).await;
-            } else if !orders.is_empty() {
+            }
+            Some(txh) => {
+                while !txh.is_finished() {
+                    let _ = tokio::time::timeout(
+                        Duration::from_secs(1),
+                        withdraw_queue.recv_many(&mut orders, 10),
+                    )
+                    .await;
+                }
+
+                tx_handle = None;
+            }
+            _ => {
                 let orders = std::mem::take(&mut orders);
-                let tx_hash = sign_and_send_payment_transactions(
+
+                let tx_hash = if orders.len() == 1 {
+                    let withdraw_order = orders.into_iter().next().unwrap();
+                    sign_and_send_single_payment_transactions(
+                        account.clone(),
+                        invoice_payment_contract_address,
+                        withdraw_order,
+                    )
+                    .await?
+                } else {
+                    sign_and_send_payment_transactions(
+                        account.clone(),
+                        invoice_payment_contract_address,
+                        orders.iter(),
+                    )
+                    .await?
+                };
+
+                tx_handle = Some(tokio::spawn(wait_for_tx_completion(
                     account.clone(),
-                    invoice_payment_contract_address,
-                    orders.iter(),
-                )
-                .await?;
-                tx_handle = tokio::spawn(wait_for_tx_completion(account.clone(), tx_hash));
-            } else {
-                break;
+                    tx_hash,
+                )));
             }
         }
     }
