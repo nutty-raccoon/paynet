@@ -1,15 +1,16 @@
-use bitcoin_hashes::Sha256;
 use nuts::Amount;
 use starknet_types::Unit;
+use uuid::Uuid;
 
 pub trait DepositInterface: Send {
     type Error: std::error::Error + Send + Sync + 'static;
+    type InvoiceId: Into<[u8; 32]> + Send + Sync + 'static;
 
     fn generate_deposit_payload(
         &self,
-        quote_hash: Sha256,
+        quote_id: Uuid,
         unit: Unit,
         amount: Amount,
         expiry: u64,
-    ) -> Result<([u8; 32], String), Self::Error>;
+    ) -> Result<(Self::InvoiceId, String), Self::Error>;
 }

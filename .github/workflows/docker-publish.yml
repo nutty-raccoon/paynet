@@ -12,7 +12,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [node, signer, starknet-cashier]
+        service: [node, signer]
 
     steps:
       - name: Checkout repository

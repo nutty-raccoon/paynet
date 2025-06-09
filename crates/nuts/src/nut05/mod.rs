@@ -99,7 +99,7 @@ pub struct MeltQuoteResponse<Q> {
     /// Unix timestamp until the quote is valid
     pub expiry: u64,
     /// The identifier of the transaction that will send back the funds to the user
-    pub transfer_id: Vec<u8>,
+    pub transfer_ids: Option<Vec<String>>,
 }
 
 /// Melt Request [NUT-05]

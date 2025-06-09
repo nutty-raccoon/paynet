@@ -36,10 +36,12 @@ For most local development use, you don't want to actually interact with the blo
 To run the node with its dependencies (postgres database and signer service) run:
 
 ```shell
-docker-compose -p paynet -f ./docker-compose.yml up -d
+$  docker compose -f docker-compose.observability.yml -f docker-compose.testnet.yml -f docker-compose.app.yml up -d
 ```
 
 It will automatically set up a functional dev environment.
+When working on a specific part of the infra, shut down the container you are debuging and run in localy instead.
+You just have to update the URLs accordingly (eg. `SIGNER_URL=http://signer:10001` becomes `SIGNER_URL=http://localhost:10001`).
 
 ## Test a Project 🧪
 

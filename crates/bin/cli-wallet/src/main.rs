@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
 use itertools::Itertools;
-use node::{MintQuoteState, NodeClient, hash_melt_request};
+use node::{MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
 use nuts::Amount;
 use primitive_types::U256;
 use rusqlite::Connection;
@@ -412,8 +412,26 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            let tx_hash = Felt::from_bytes_be_slice(&resp.transfer_id);
-            println!("Melt done. Withdrawal settled with tx: {:#x}", tx_hash);
+            loop {
+                let melt_quote_state_response = node_client
+                    .melt_quote_state(QuoteStateRequest {
+                        method: STARKNET_METHOD.to_string(),
+                        quote: resp.quote.clone(),
+                    })
+                    .await?
+                    .into_inner();
+
+                if !melt_quote_state_response.transfer_ids.is_empty() {
+                    println!(
+                        "{}",
+                        format_melt_transfers_id_into_term_message(
+                            melt_quote_state_response.transfer_ids
+                        )
+                    );
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
         }
         Commands::Send {
             amount,
@@ -575,4 +593,20 @@ pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
         U256::from_str_radix(amount, 10)
     }
     .map_err(std::io::Error::other)
+}
+
+fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
+    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
+    if transfer_ids.len() != 1 {
+        string_to_print.push('s');
+    }
+    string_to_print.push_str(": ");
+    let mut iterator = transfer_ids.into_iter();
+    string_to_print.push_str(&iterator.next().unwrap());
+    for tx_hash in iterator {
+        string_to_print.push_str(", ");
+        string_to_print.push_str(&tx_hash);
+    }
+
+    string_to_print
 }

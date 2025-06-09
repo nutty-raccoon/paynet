@@ -59,8 +59,6 @@ jobs:
             cache_key: "cli-wallet-default"
           - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
             cache_key: "cli-wallet-tls"
-          - test_cmd: "cargo test -p starknet-cashier --no-default-features"
-            cache_key: "starknet-cashier-default"
           - test_cmd: "cargo test -p db-node --no-default-features"
             cache_key: "db-node-default"
           - test_cmd: "cargo test -p nuts --no-default-features"
