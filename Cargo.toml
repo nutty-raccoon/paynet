@@ -6,6 +6,7 @@ members = [
   "crates/bin/cli-wallet",
   "crates/bin/starknet-cashier",
   "crates/bin/starknet-on-chain-setup",
+  "crates/bin/tests",
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
@@ -15,7 +16,7 @@ members = [
   "crates/starknet/types",
   # Integration tests
   "crates/tests/signer-tests",
-  "crates/tests/node-tests",
+  "crates/tests/node-tests", 
 ]
 default-members = [
   "crates/bin/node",
