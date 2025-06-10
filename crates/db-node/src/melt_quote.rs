@@ -72,9 +72,9 @@ pub async fn build_response_from_db(
 pub async fn get_data<U: Unit>(
     conn: &mut PgConnection,
     quote_id: Uuid,
-) -> Result<(U, Amount, Amount, MeltQuoteState, u64), Error> {
+) -> Result<(U, Amount, Amount, MeltQuoteState, u64, [u8; 32], String), Error> {
     let record = sqlx::query!(
-        r#"SELECT unit, amount, fee, state AS "state: MeltQuoteState", expiry FROM melt_quote where id = $1"#,
+        r#"SELECT unit, amount, fee, state AS "state: MeltQuoteState", invoice_id, expiry, request FROM melt_quote where id = $1"#,
         quote_id
     )
     .fetch_one(conn)
@@ -89,7 +89,20 @@ pub async fn get_data<U: Unit>(
         .try_into()
         .map_err(|_| Error::DbToRuntimeConversion)?;
 
-    Ok((unit, amount, fee, record.state, expiry))
+    let quote_hash: [u8; 32] = record
+        .invoice_id
+        .try_into()
+        .map_err(|_| Error::DbToRuntimeConversion)?;
+
+    Ok((
+        unit,
+        amount,
+        fee,
+        record.state,
+        expiry,
+        quote_hash,
+        record.request,
+    ))
 }
 
 pub async fn get_state(conn: &mut PgConnection, quote_id: Uuid) -> Result<MeltQuoteState, Error> {

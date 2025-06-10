@@ -23,11 +23,15 @@ pub enum Error {
 pub struct MeltPaymentRequest {
     pub payee: Felt,
     pub asset: Asset,
+    pub amount: nuts::Amount,
 }
 
 impl WithdrawRequest for MeltPaymentRequest {
     fn asset(&self) -> Asset {
         self.asset
+    }
+    fn amount(&self) -> nuts::Amount {
+        self.amount
     }
 }
 
@@ -70,7 +74,7 @@ impl WithdrawInterface for Withdrawer {
         &mut self,
         quote_hash: Sha256,
         melt_payment_request: MeltPaymentRequest,
-        amount: Self::Amount,
+        _: Self::Amount,
         expiry: u64,
     ) -> Result<(MeltQuoteState, Vec<u8>), Error> {
         let tx_hash = self
@@ -80,8 +84,7 @@ impl WithdrawInterface for Withdrawer {
                     .to_bytes_be()
                     .to_vec(),
                 asset: melt_payment_request.asset.to_string(),
-                amount: amount
-                    .0
+                amount: StarknetU256::from(melt_payment_request.amount)
                     .to_bytes_be()
                     .into_iter()
                     .skip_while(|&b| b == 0)

@@ -33,6 +33,9 @@ impl WithdrawRequest for () {
     fn asset(&self) -> starknet_types::Asset {
         Asset::Strk
     }
+    fn amount(&self) -> nuts::Amount {
+        nuts::Amount::from(0u64)
+    }
 }
 
 impl crate::WithdrawAmount for StarknetU256 {

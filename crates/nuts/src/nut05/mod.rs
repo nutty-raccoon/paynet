@@ -39,6 +39,16 @@ pub enum MeltQuoteState {
     Paid,
 }
 
+impl From<MeltQuoteState> for i32 {
+    fn from(state: MeltQuoteState) -> Self {
+        match state {
+            MeltQuoteState::Unpaid => 1,
+            MeltQuoteState::Pending => 2,
+            MeltQuoteState::Paid => 3,
+        }
+    }
+}
+
 impl core::fmt::Display for MeltQuoteState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

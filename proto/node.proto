@@ -15,9 +15,11 @@ service Node {
   rpc MintQuote (MintQuoteRequest) returns (MintQuoteResponse);
   rpc Mint (MintRequest) returns (MintResponse);
   rpc MintQuoteState (QuoteStateRequest) returns (MintQuoteResponse);
-  // Melt
+  
+  // Melt 
+  rpc MeltQuote (MeltQuoteRequest) returns (MeltResponse);
   rpc Melt (MeltRequest) returns (MeltResponse);
-  rpc MeltQuoteState (QuoteStateRequest) returns (MeltResponse);
+  rpc MeltQuoteState (MeltQuoteStateRequest) returns (MeltResponse);
   
   rpc GetNodeInfo (GetNodeInfoRequest) returns (NodeInfoResponse);
   
@@ -100,11 +102,16 @@ message MintResponse {
   repeated bdhke.BlindSignature signatures = 1;
 }
 
-message MeltRequest {
+message MeltQuoteRequest {
   string method = 1;
   string unit = 2;
   string request = 3;
-  repeated bdhke.Proof inputs = 4;
+}
+
+message MeltRequest {
+  string method = 1;
+  string quote = 2;  
+  repeated bdhke.Proof inputs = 3;
 }
 
 message MeltResponse {
@@ -113,7 +120,12 @@ message MeltResponse {
   uint64 fee = 3;
   MeltState state = 4;
   uint64 expiry = 5;
-  bytes transfer_id = 6;
+  optional bytes transfer_id = 6;  // only set if the melt was successful
+}
+
+message MeltQuoteStateRequest {
+  string method = 1;
+  string quote = 2;
 }
 
 enum MeltState {

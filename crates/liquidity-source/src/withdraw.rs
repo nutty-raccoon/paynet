@@ -4,6 +4,7 @@ use starknet_types::{Asset, Unit};
 
 pub trait WithdrawRequest {
     fn asset(&self) -> Asset;
+    fn amount(&self) -> Amount;
 }
 
 pub trait WithdrawAmount {
