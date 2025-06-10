@@ -74,7 +74,7 @@ pub async fn create_mint_quote(
     method: String,
     amount: Amount,
     unit: &str,
-) -> Result<MintQuoteResponse> {
+) -> Result<MintQuoteResponse, Error> {
     let response = node_client
         .mint_quote(MintQuoteRequest {
             method: method.clone(),
@@ -130,25 +130,6 @@ pub async fn get_mint_quote_state(
         }
         Err(e) => Err(e)?,
     }
-
-    MintQuoteState::try_from(response.state).map_err(|e| Error::Conversion(e.to_string()))
-}
-
-pub async fn mint(
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote: String,
-    outputs: &[BlindedMessage],
-) -> Result<MintResponse, Error> {
-    let req = MintRequest {
-        method,
-        quote,
-        outputs: convert_outputs(outputs),
-    };
-
-    let resp = node_client.mint(req).await?;
-
-    Ok(resp.into_inner())
 }
 
 pub async fn refresh_node_keysets(
@@ -436,7 +417,7 @@ pub async fn fetch_inputs_ids_from_db_or_node(
 pub async fn load_tokens_from_db(
     db_conn: &Connection,
     proofs_ids: Vec<PublicKey>,
-) -> Result<nut00::Proofs> {
+) -> Result<nut00::Proofs, Error> {
     let proofs = db::proof::get_proofs_by_ids(db_conn, &proofs_ids)?
         .into_iter()
         .map(
@@ -615,14 +596,14 @@ pub async fn receive_wad(
 
 pub async fn register_node(
     pool: Pool<SqliteConnectionManager>,
-    node_url: NodeUrl,
+    node_url: &NodeUrl,
 ) -> Result<(NodeClient<tonic::transport::Channel>, u32), Error> {
-    let mut node_client = NodeClient::connect(&node_url).await?;
+    let mut node_client = NodeClient::connect(node_url.to_string()).await?;
 
     let node_id = {
         let conn = pool.get()?;
-        db::node::insert(&conn, &node_url)?;
-        db::node::get_id_by_url(&conn, &node_url)?
+        db::node::insert(&conn, node_url)?;
+        db::node::get_id_by_url(&conn, node_url)?
     };
 
     refresh_node_keysets(pool, &mut node_client, node_id).await?;
@@ -645,7 +626,7 @@ pub enum TlsError {
     Connect(#[from] tonic_tls::Error),
 }
 
-pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>> {
+pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>, Error> {
     #[cfg(not(feature = "tls"))]
     let node_client = NodeClient::connect(node_url.0.to_string()).await?;
 
@@ -700,7 +681,7 @@ pub async fn acknowledge(
     node_client: &mut NodeClient<Channel>,
     route: Route,
     message_hash: u64,
-) -> Result<()> {
+) -> Result<(), Error> {
     node_client
         .acknowledge(Request::new(AcknowledgeRequest {
             path: route.to_string(),
