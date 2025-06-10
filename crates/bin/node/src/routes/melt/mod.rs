@@ -7,6 +7,7 @@ use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, Withd
 use nuts::Amount;
 use nuts::nut00::Proof;
 use starknet_types::Unit;
+use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::routes::melt;
@@ -41,8 +42,8 @@ impl GrpcState {
         let withdrawer = self
             .liquidity_sources
             .get_liquidity_source(method)
-            .ok_or(Error::MethodNotSupported(method))?
-            .withdrawer();
+            .ok_or(Error::MethodNotSupported(method))?;
+        let mut withdrawer = liquidity_source.withdrawer();
 
         // Validate the payment request format
         let payment_request = withdrawer

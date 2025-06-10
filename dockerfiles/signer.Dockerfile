@@ -35,7 +35,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     chmod +x /bin/grpc_health_probe
 
 #------------
-# Everything up to there is common with signer and starknet-cashier,
+# Everything up to there is common with signer
 # which mean common layers, cached together increasing speed.
 # What comes next is binary specific.
 #------------
@@ -45,6 +45,8 @@ RUN cargo build --release -p signer
 #------------
 
 FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y libssl3 && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
 COPY --from=builder /app/target/release/signer /usr/local/bin/signer

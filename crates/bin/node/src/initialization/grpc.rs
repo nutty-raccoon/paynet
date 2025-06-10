@@ -1,6 +1,9 @@
 #[cfg(feature = "keyset-rotation")]
 use node::KeysetRotationServiceServer;
 use std::net::SocketAddr;
+use tower::ServiceBuilder;
+use tower_otel::trace;
+use tracing::instrument;
 
 use futures::TryFutureExt;
 use node::NodeServer;
@@ -8,15 +11,16 @@ use nuts::QuoteTTLConfig;
 use signer::SignerClient;
 use sqlx::Postgres;
 use starknet_types::Unit;
-use tonic::transport::Channel;
+use tonic::{service::LayerExt, transport::Channel};
 
 use crate::{grpc_service::GrpcState, liquidity_sources::LiquiditySources};
 
 use super::{Error, env_variables::EnvVariables};
 
+#[instrument]
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
-    signer_client: SignerClient<Channel>,
+    signer_client: SignerClient<trace::Grpc<Channel>>,
     liquidity_sources: LiquiditySources,
     env_vars: EnvVariables,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
@@ -36,29 +40,44 @@ pub async fn launch_tonic_server_task(
         .parse()
         .map_err(Error::InvalidGrpcAddress)?;
 
-    // init health reporter service
-    let (health_reporter, health_service) = tonic_health::server::health_reporter();
-    health_reporter.set_serving::<NodeServer<GrpcState>>().await;
-    #[cfg(feature = "keyset-rotation")]
-    health_reporter
-        .set_serving::<KeysetRotationServiceServer<GrpcState>>()
-        .await;
-
+    // TODO: take into account past keyset rotations
     // init node shared
     grpc_state
         .init_first_keysets(&[Unit::MilliStrk], 0, 32)
         .await?;
 
-    let tonic_future = {
-        let mut tonic_server = tonic::transport::Server::builder();
-
-        // add services to router
+    // init health reporter service
+    let health_service = {
+        let (health_reporter, health_service) = tonic_health::server::health_reporter();
+        health_reporter.set_serving::<NodeServer<GrpcState>>().await;
         #[cfg(feature = "keyset-rotation")]
-        let tonic_server =
-            tonic_server.add_service(KeysetRotationServiceServer::new(grpc_state.clone()));
+        health_reporter
+            .set_serving::<KeysetRotationServiceServer<GrpcState>>()
+            .await;
+
+        health_service
+    };
+    let optl_layer = tower_otel::trace::GrpcLayer::server(tracing::Level::INFO);
+    let meter = opentelemetry::global::meter(env!("CARGO_PKG_NAME"));
+
+    #[cfg(feature = "keyset-rotation")]
+    let keyset_rotation_service = ServiceBuilder::new()
+        .layer(optl_layer.clone())
+        .named_layer(KeysetRotationServiceServer::new(grpc_state.clone()));
+
+    let node_service = ServiceBuilder::new()
+        .layer(optl_layer)
+        .named_layer(NodeServer::new(grpc_state.clone()));
+
+    let tonic_future = {
+        let mut tonic_server = tonic::transport::Server::builder()
+            .layer(tower_otel::metrics::HttpLayer::server(&meter));
+
         let router = tonic_server
-            .add_service(NodeServer::new(grpc_state))
-            .add_service(health_service);
+            .add_service(health_service)
+            .add_service(node_service);
+        #[cfg(feature = "keyset-rotation")]
+        let router = router.add_service(keyset_rotation_service);
 
         // create future
         #[cfg(not(feature = "tls"))]

@@ -1,6 +1,5 @@
 use bitcoin_hashes::Sha256;
 use num_bigint::BigUint;
-use nuts::Amount;
 use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 
@@ -92,15 +91,6 @@ impl core::fmt::Display for StarknetU256 {
     }
 }
 
-impl From<Amount> for StarknetU256 {
-    fn from(value: Amount) -> Self {
-        Self {
-            low: value.into(),
-            high: Felt::ZERO,
-        }
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum TryU256FromBigUintError {
     #[error("BigUint too big")]
@@ -161,7 +151,6 @@ impl From<&StarknetU256> for primitive_types::U256 {
 mod tests {
     use bitcoin_hashes::sha256::Hash as Sha256;
     use num_bigint::BigUint;
-    use nuts::Amount;
     use primitive_types::U256;
     use starknet_types_core::felt::Felt;
 
@@ -262,24 +251,6 @@ mod tests {
         // Verify the conversion preserves the hash bytes
         let bytes = value.to_bytes_be();
         assert_eq!(&bytes, hash.as_byte_array());
-    }
-
-    #[test]
-    fn test_from_amount() {
-        let amount = Amount::from(42u64);
-        let value = StarknetU256::from(amount);
-        assert_eq!(value.low, Felt::from(42u128));
-        assert_eq!(value.high, Felt::ZERO);
-
-        // Test number too big
-        let mut bytes = [0u8; 33];
-        // Set the most significant byte (index 32 for little-endian) to make the number exceed U256::MAX
-        bytes[32] = 1;
-        let biguint = BigUint::from_bytes_le(&bytes);
-        assert!(matches!(
-            StarknetU256::try_from(biguint),
-            Err(super::TryU256FromBigUintError::TooBig)
-        ));
     }
 
     #[test]

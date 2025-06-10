@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+starknet-types-core = { workspace = true }uuid = { workspace = true }
+
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bitcoin_hashes = { workspace = true }
-starknet-types-core = { workspace = true }
 # Local crate
 nuts = { workspace = true }
 # TODO: the trait should not be using starknet types
