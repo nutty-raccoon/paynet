@@ -21,8 +21,6 @@ service Node {
   
   rpc GetNodeInfo (GetNodeInfoRequest) returns (NodeInfoResponse);
   
-  // TODO: add Acknowledgment route
-  // for the client to say he successfully stored the quote_id
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
 
   rpc Restore (RestoreRequest) returns (RestoreResponse);

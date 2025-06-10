@@ -533,16 +533,14 @@ async fn main() -> Result<()> {
                 println!("Memo: {}", memo);
             }
 
-            let mut tx = db_conn.transaction()?;
             let amount_received = wallet::receive_wad(
-                &mut tx,
+                &mut db_conn,
                 &mut node_client,
                 node_id,
                 wad.unit.as_str(),
                 &wad.proofs,
             )
             .await?;
-            tx.commit()?;
 
             println!("Received:");
             println!("{} {}", amount_received, wad.unit.as_str());
