@@ -1,5 +1,7 @@
+export type NodeId = number;
+
 export type NodeBalances = {
-  id: number;
+  id: NodeId;
   url: string;
   balances: Balance[];
 };

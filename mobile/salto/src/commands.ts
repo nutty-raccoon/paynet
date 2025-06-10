@@ -1,5 +1,5 @@
-  import { invoke } from "@tauri-apps/api/core";
-import type { Balance, NodeBalances } from "./types";
+import { invoke } from "@tauri-apps/api/core";
+import type { Balance, NodeBalances, NodeId } from "./types";
 
 export async function getNodesBalance() {
      let n =  await invoke("get_nodes_balance")
@@ -9,7 +9,7 @@ export async function getNodesBalance() {
 
 export async function addNode(nodeUrl: string) {
      const res = await invoke("add_node", {nodeUrl})
-      .then((message) => message as [number, Balance] )
+      .then((message) => message as [NodeId, Balance[]] )
       .catch((error) => {
         console.error(`failed to add node with url '${nodeUrl}':`, error);
       });

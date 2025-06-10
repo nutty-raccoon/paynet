@@ -36,8 +36,9 @@
     const nodeAddress = formDataObject.get("node-address");
     if (!!nodeAddress) {
       let nodeAddressString = nodeAddress.toString();
-      addNode(nodeAddressString).then((nodeId) => {
-        if (!!nodeId) {
+      addNode(nodeAddressString).then((newNodeData) => {
+        if (!!newNodeData) {
+          const nodeId = newNodeData[0];
           // Check if node with this ID already exists in the nodes array
           const nodeAlreadyListed = nodes.some((node) => node.id === nodeId);
           if (!nodeAlreadyListed) {
