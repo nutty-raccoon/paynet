@@ -24,6 +24,8 @@ service Node {
   // TODO: add Acknowledgment route
   // for the client to say he successfully stored the quote_id
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
+
+  rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
 
 message GetNodeInfoRequest {} 
@@ -138,3 +140,12 @@ message AcknowledgeRequest {
 }
 
 message AcknowledgeResponse {}
+
+message RestoreRequest {
+  repeated bdhke.BlindedMessage outputs = 1;
+}
+
+message RestoreResponse {
+  repeated bdhke.BlindedMessage outputs = 1;
+  repeated bdhke.BlindSignature signatures = 2;
+}

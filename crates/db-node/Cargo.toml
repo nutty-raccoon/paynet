@@ -14,6 +14,7 @@ dotenvy = { workspace = true }
 sha2 = { workspace = true }
 starknet-payment-indexer = { workspace = true }
 tracing = { workspace = true }
+futures-util = { workspace = true }
 
 [dev-dependencies]
 sqlx = { workspace = true, features = ["runtime-tokio"] }

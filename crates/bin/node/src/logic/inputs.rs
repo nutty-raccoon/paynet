@@ -70,14 +70,14 @@ pub async fn run_verification_queries(
             .await
     };
 
-    // Parrallelize the two calls
+    // Parallelize the two calls
     let res = tokio::try_join!(
         // Make sure those proof are valid
         query_signer_future
             .map_ok(|r| r.get_ref().is_valid)
             .map_err(Error::Signer),
         // Make sure those inputs were not already used
-        db_node::is_any_proof_already_used(conn, secrets.into_iter()).map_err(Error::Db),
+        db_node::proof::is_any_already_spent(conn, secrets.into_iter()).map_err(Error::Db),
     );
 
     match res {
