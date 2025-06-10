@@ -129,7 +129,7 @@ impl WithdrawInterface for Withdrawer {
         &mut self,
         quote_id: Uuid,
         melt_payment_request: MeltPaymentRequest,
-        _: Self::Amount,
+        amount: Self::Amount,
         expiry: u64,
     ) -> Result<MeltQuoteState, Error> {
         let quote_id_hash =

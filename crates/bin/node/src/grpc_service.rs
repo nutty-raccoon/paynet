@@ -401,7 +401,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: response.state.into(),
             expiry: response.expiry,
-            transfer_ids: None,
+            transfer_ids: vec![],
         }))
     }
 

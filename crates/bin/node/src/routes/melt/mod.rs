@@ -39,7 +39,7 @@ impl GrpcState {
                 .ok_or(Error::UnitNotSupported(unit, method))?
         };
 
-        let withdrawer = self
+        let liquidity_source = self
             .liquidity_sources
             .get_liquidity_source(method)
             .ok_or(Error::MethodNotSupported(method))?;
@@ -160,9 +160,9 @@ impl GrpcState {
             .deserialize_payment_request(&payment_request)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
         // Process the actual payment
-        let (state, transfer_id) = withdrawer
+        let state = withdrawer
             .proceed_to_payment(
-                Sha256::from_byte_array(quote_hash),
+                quote_id,
                 payment_request,
                 WithdrawAmount::convert_from(settings.unit, amount),
                 expiry,
@@ -172,15 +172,24 @@ impl GrpcState {
 
         // Update quote state and transfer ID
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;
-        db_node::melt_quote::register_transfer_id(&mut conn, quote_id, &transfer_id).await?;
+        event!(
+            name: "melt",
+            Level::INFO,
+            name = "melt",
+            %method,
+            %quote_id,
+        );
+        let meter = opentelemetry::global::meter("business");
+        let n_melt_counter = meter.u64_counter("melt.operation.count").build();
+        n_melt_counter.add(1, &[]);
 
         Ok(nuts::nut05::MeltQuoteResponse {
             quote: quote_id,
-            amount: amount,
-            fee: fee,
+            amount: total_amount,
+            fee,
             state,
-            expiry: expiry,
-            transfer_ids: transfer_id.to_vec(),
+            expiry,
+            transfer_ids: None,
         })
     }
 }
