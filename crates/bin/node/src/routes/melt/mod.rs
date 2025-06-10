@@ -1,7 +1,6 @@
 mod errors;
 mod inputs;
 
-use bitcoin_hashes::Sha256;
 use inputs::process_melt_inputs;
 use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use nuts::Amount;
@@ -10,7 +9,6 @@ use starknet_types::Unit;
 use tracing::{Level, event};
 use uuid::Uuid;
 
-use crate::routes::melt;
 use crate::utils::unix_time;
 use crate::{grpc_service::GrpcState, methods::Method};
 
@@ -43,7 +41,7 @@ impl GrpcState {
             .liquidity_sources
             .get_liquidity_source(method)
             .ok_or(Error::MethodNotSupported(method))?;
-        let mut withdrawer = liquidity_source.withdrawer();
+        let withdrawer = liquidity_source.withdrawer();
 
         // Validate the payment request format
         let payment_request = withdrawer

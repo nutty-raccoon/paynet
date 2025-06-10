@@ -5,7 +5,7 @@ use crate::{
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
-    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
+    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset,
     MeltQuoteRequest, MeltQuoteStateRequest, MeltRequest, MeltResponse, MintQuoteRequest,
     MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest,
     RestoreRequest, RestoreResponse, SwapRequest, SwapResponse, hash_melt_request,
