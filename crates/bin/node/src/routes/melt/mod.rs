@@ -48,10 +48,8 @@ impl GrpcState {
         let payment_request = withdrawer
             .deserialize_payment_request(&melt_payment_request)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
-        println!("Payment request: {:?}", payment_request);
         let asset: starknet_types::Asset = payment_request.asset();
-        println!("Asset: {:?}", asset);
-        println!("Amount: {:?}", payment_request.amount());
+
         if !settings.unit.is_asset_supported(asset) {
             return Err(Error::InvalidAssetForUnit(asset, settings.unit));
         }
@@ -101,10 +99,7 @@ impl GrpcState {
         // Get the existing quote from database
         let (unit, amount, fee, state, expiry, quote_hash, payment_request) =
             db_node::melt_quote::get_data(&mut conn, quote_id).await?;
-        println!(
-            "Melt quote data: unit={}, amount={}, fee={}, state={:?}, expiry={}, quote_hash={:?}, payment_request={}",
-            unit, amount, fee, state, expiry, quote_hash, payment_request
-        );
+
         // Check if quote is still valid
         if expiry < unix_time() {
             return Err(Error::QuoteExpired(quote_id));
