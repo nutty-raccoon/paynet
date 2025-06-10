@@ -12,8 +12,11 @@ use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
 use wallet::{
     acknowledge,
-    types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
-    types::{NodeUrl, Wad},
+    db::balance::Balance,
+    types::{
+        NodeUrl, Wad,
+        compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
+    },
 };
 
 #[derive(Parser)]
@@ -207,7 +210,7 @@ async fn main() -> Result<()> {
 
             let tx = db_conn.transaction()?;
             let (mut _node_client, node_id) =
-                wallet::register_node(pool.clone(), node_url.clone()).await?;
+                wallet::register_node(pool.clone(), &node_url).await?;
             tx.commit()?;
             println!(
                 "Successfully registered {} as node with id `{}`",
@@ -226,7 +229,7 @@ async fn main() -> Result<()> {
             Some(node_id) => {
                 let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
                 println!("Balance for node {}:", node_id);
-                for (unit, amount) in balances {
+                for Balance { unit, amount } in balances {
                     println!("  {} {}", amount, unit);
                 }
             }
@@ -531,7 +534,7 @@ async fn main() -> Result<()> {
             let wad = args.read_wad()?;
 
             let (mut node_client, node_id) =
-                wallet::register_node(pool.clone(), wad.node_url).await?;
+                wallet::register_node(pool.clone(), &wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
             if let Some(memo) = wad.memo() {
                 println!("Memo: {}", memo);
