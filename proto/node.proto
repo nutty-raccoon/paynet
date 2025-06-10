@@ -120,7 +120,7 @@ message MeltResponse {
   uint64 fee = 3;
   MeltState state = 4;
   uint64 expiry = 5;
-  optional bytes transfer_id = 6;  // only set if the melt was successful
+  repeated string transfer_ids = 6;
 }
 
 message MeltQuoteStateRequest {

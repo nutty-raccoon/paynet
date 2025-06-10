@@ -1,5 +1,3 @@
-use std::os::linux::raw;
-
 use crate::DepositInterface;
 use std::fmt::{LowerHex, UpperHex};
 
@@ -7,9 +5,8 @@ use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
 use serde::{Deserialize, Serialize};
 use starknet_types::{Asset, StarknetU256};
+use starknet_types_core::felt::Felt;
 use uuid::Uuid;
-
-use crate::DepositInterface;
 
 use super::{LiquiditySource, WithdrawInterface, WithdrawRequest};
 

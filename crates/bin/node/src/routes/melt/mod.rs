@@ -83,7 +83,7 @@ impl GrpcState {
             fee,
             state: nuts::nut05::MeltQuoteState::Unpaid,
             expiry,
-            transfer_id: vec![],
+            transfer_ids: Some(vec![]),
         })
     }
 
@@ -180,7 +180,7 @@ impl GrpcState {
             fee: fee,
             state,
             expiry: expiry,
-            transfer_id: transfer_id.to_vec(),
+            transfer_ids: transfer_id.to_vec(),
         })
     }
 }

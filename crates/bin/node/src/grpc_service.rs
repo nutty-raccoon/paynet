@@ -401,30 +401,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: response.state.into(),
             expiry: response.expiry,
-            transfer_id: None, // Transfer ID is not part of MeltQuoteResponse
-        }))
-    }
-
-    async fn melt_quote(
-        &self,
-        melt_quote_request: Request<MeltQuoteRequest>,
-    ) -> Result<Response<MeltResponse>, Status> {
-        let melt_quote_request = melt_quote_request.into_inner();
-
-        let method =
-            Method::from_str(&melt_quote_request.method).map_err(ParseGrpcError::Method)?;
-        let unit = Unit::from_str(&melt_quote_request.unit).map_err(ParseGrpcError::Unit)?;
-        let payment_request = melt_quote_request.request;
-
-        let response = self.inner_melt_quote(method, unit, payment_request).await?;
-
-        Ok(Response::new(MeltResponse {
-            quote: response.quote.to_string(),
-            amount: response.amount.into(),
-            fee: response.fee.into(),
-            state: response.state.into(),
-            expiry: response.expiry,
-            transfer_id: None, // Transfer ID is not part of MeltQuoteResponse
+            transfer_ids: None,
         }))
     }
 
