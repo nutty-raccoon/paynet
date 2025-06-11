@@ -96,7 +96,7 @@ impl GrpcState {
         let mut conn = self.pg_pool.acquire().await?;
 
         // Get the existing quote from database
-        let (unit, amount, fee, state, expiry, quote_hash, payment_request) =
+        let (unit, amount, fee, state, expiry, _quote_hash, payment_request) =
             db_node::melt_quote::get_data(&mut conn, quote_id).await?;
 
         // Check if quote is still valid
