@@ -4645,7 +4645,7 @@ dependencies = [
  "starknet-types",
  "starknet-types-core",
  "tokio",
- "tonic 0.13.0",
+ "tonic 0.13.1",
  "tracing",
  "tracing-subscriber",
  "url",

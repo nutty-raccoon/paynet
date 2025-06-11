@@ -202,16 +202,14 @@ pub async fn receive(
     mut node_client: NodeClient<Channel>,
     wad: &CompactWad<Unit>,
 ) -> Result<()> {
-    let mut tx = db_conn.transaction()?;
     wallet::receive_wad(
-        &mut tx,
+        db_conn,
         &mut node_client,
         node_id,
         wad.unit.as_str(),
         &wad.proofs,
     )
     .await?;
-    tx.commit()?;
     Ok(())
 }
 
