@@ -21,12 +21,12 @@ service Node {
   
   rpc GetNodeInfo (GetNodeInfoRequest) returns (NodeInfoResponse);
   
-  // TODO: add Acknowledgment route
-  // for the client to say he successfully stored the quote_id
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
 
   // NUT07
   rpc PostCheckState (PostCheckStateRequest) returns (PostCheckStateResponse);
+
+  rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
 
 message GetNodeInfoRequest {} 
@@ -116,7 +116,7 @@ message MeltResponse {
   uint64 fee = 3;
   MeltState state = 4;
   uint64 expiry = 5;
-  bytes transfer_id = 6;
+  repeated string transfer_ids = 6;
 }
 
 enum MeltState {
@@ -141,6 +141,40 @@ message AcknowledgeRequest {
 }
 
 message AcknowledgeResponse {}
+message RestoreRequest {
+  repeated bdhke.BlindedMessage outputs = 1;
+}
+
+message RestoreResponse {
+  repeated bdhke.BlindedMessage outputs = 1;
+  repeated bdhke.BlindSignature signatures = 2;
+}
+
+message RestoreRequest {
+  repeated bdhke.BlindedMessage outputs = 1;
+}
+
+message RestoreResponse {
+  repeated bdhke.BlindedMessage outputs = 1;
+  repeated bdhke.BlindSignature signatures = 2;
+}
+
+message PostCheckStateRequest {
+  repeated string proofs = 1;
+}
+
+enum ProofState {
+  UNSPENT = 0;
+  SPENT = 1;
+}
+message ProofCheckState {
+  string proof = 1;
+  ProofState state = 2;
+  optional string witness = 3;
+}
+message PostCheckStateResponse {
+  repeated ProofCheckState states = 1;
+}
 
 message PostCheckStateRequest {
   repeated string proofs = 1;

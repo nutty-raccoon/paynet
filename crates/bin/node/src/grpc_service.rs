@@ -8,8 +8,8 @@ use node::{
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
     MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
     Node, NodeInfoResponse, PostCheckStateRequest, PostCheckStateResponse, ProofCheckState,
-    QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request, hash_mint_request,
-    hash_swap_request,
+    QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
+    hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -25,7 +25,8 @@ use starknet_types::Unit;
 use std::{str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
-use tonic::{Request, Response, Status, transport::Channel};
+use tonic::{Request, Response, Status};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -60,7 +61,7 @@ pub enum InitKeysetError {
 impl GrpcState {
     pub fn new(
         pg_pool: PgPool,
-        signer_client: signer::SignerClient<Channel>,
+        signer_client: SignerClient,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
         liquidity_sources: LiquiditySources,
@@ -170,6 +171,7 @@ impl From<ParseGrpcError> for Status {
 
 #[tonic::async_trait]
 impl Node for GrpcState {
+    #[instrument]
     async fn keysets(
         &self,
         _request: Request<GetKeysetsRequest>,
@@ -193,13 +195,14 @@ impl Node for GrpcState {
         Ok(Response::new(GetKeysetsResponse { keysets }))
     }
 
+    #[instrument]
     async fn keys(
         &self,
         request: Request<GetKeysRequest>,
     ) -> Result<Response<GetKeysResponse>, Status> {
         let request = request.into_inner();
 
-        let mut conn = self
+        let mut db_conn = self
             .pg_pool
             .acquire()
             .await
@@ -207,64 +210,16 @@ impl Node for GrpcState {
 
         let keysets = match request.keyset_id {
             Some(keyset_id) => {
-                let keyset_id = KeysetId::from_bytes(&keyset_id)
-                    .map_err(|e| Status::invalid_argument(e.to_string()))?;
-                let keyset_info = db_node::keyset::get_keyset(&mut conn, &keyset_id)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-                let keys = self
-                    .keyset_cache
-                    .get_keyset_keys(&mut conn, self.signer.clone(), keyset_id)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-
-                vec![KeysetKeys {
-                    id: keyset_id.to_bytes().to_vec(),
-                    unit: keyset_info.unit(),
-                    active: keyset_info.active(),
-                    keys: keys
-                        .into_iter()
-                        .map(|(a, pk)| Key {
-                            amount: a.into(),
-                            pubkey: pk.to_string(),
-                        })
-                        .collect(),
-                }]
+                self.inner_keys_for_keyset_id(&mut db_conn, keyset_id)
+                    .await?
             }
-            None => {
-                let keysets_info = db_node::keyset::get_active_keysets::<String>(&mut conn)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-
-                let mut keysets = Vec::with_capacity(keysets_info.len());
-                // TODO: add concurency
-                for (keyset_id, keyset_info) in keysets_info {
-                    let keys = self
-                        .keyset_cache
-                        .get_keyset_keys(&mut conn, self.signer.clone(), keyset_id)
-                        .await
-                        .map_err(|e| Status::internal(e.to_string()))?;
-
-                    keysets.push(KeysetKeys {
-                        id: keyset_id.to_bytes().to_vec(),
-                        unit: keyset_info.unit(),
-                        active: keyset_info.active(),
-                        keys: keys
-                            .into_iter()
-                            .map(|(a, pk)| Key {
-                                amount: a.into(),
-                                pubkey: pk.to_string(),
-                            })
-                            .collect(),
-                    })
-                }
-                keysets
-            }
+            None => self.inner_keys_no_keyset_id(&mut db_conn).await?,
         };
 
         Ok(Response::new(GetKeysResponse { keysets }))
     }
 
+    #[instrument]
     async fn swap(
         &self,
         swap_request: Request<SwapRequest>,
@@ -342,6 +297,7 @@ impl Node for GrpcState {
         Ok(Response::new(swap_response))
     }
 
+    #[instrument]
     async fn mint_quote(
         &self,
         mint_quote_request: Request<MintQuoteRequest>,
@@ -365,6 +321,7 @@ impl Node for GrpcState {
         Ok(Response::new(mint_quote_response))
     }
 
+    #[instrument]
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
@@ -425,6 +382,7 @@ impl Node for GrpcState {
         Ok(Response::new(mint_response))
     }
 
+    #[instrument]
     async fn melt(
         &self,
         melt_request: Request<MeltRequest>,
@@ -476,7 +434,7 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
-            transfer_id: response.transfer_id,
+            transfer_ids: response.transfer_ids.unwrap_or_default(),
         };
 
         // Store in cache
@@ -485,6 +443,7 @@ impl Node for GrpcState {
         Ok(Response::new(melt_response))
     }
 
+    #[instrument]
     async fn mint_quote_state(
         &self,
         mint_quote_state_request: Request<QuoteStateRequest>,
@@ -505,6 +464,7 @@ impl Node for GrpcState {
         }))
     }
 
+    #[instrument]
     async fn melt_quote_state(
         &self,
         melt_quote_state_request: Request<QuoteStateRequest>,
@@ -523,10 +483,11 @@ impl Node for GrpcState {
             fee: response.fee.into(),
             state: node::MeltState::from(response.state).into(),
             expiry: response.expiry,
-            transfer_id: response.transfer_id,
+            transfer_ids: response.transfer_ids.unwrap_or_default(),
         }))
     }
 
+    #[instrument]
     async fn get_node_info(
         &self,
         _node_info_request: Request<GetNodeInfoRequest>,
@@ -573,6 +534,7 @@ impl Node for GrpcState {
     }
 
     /// acknowledge is for the client to say he successfully stored the quote_id
+    #[instrument]
     async fn acknowledge(
         &self,
         ack_request: Request<AcknowledgeRequest>,
@@ -617,5 +579,43 @@ impl Node for GrpcState {
                 })
                 .collect::<Vec<_>>(),
         }))
+    }
+
+    async fn restore(
+        &self,
+        restore_signatures_request: Request<RestoreRequest>,
+    ) -> Result<Response<RestoreResponse>, Status> {
+        let restore_signatures_request = restore_signatures_request.into_inner();
+
+        let blind_messages = restore_signatures_request
+            .outputs
+            .iter()
+            .map(|bm| {
+                Ok(BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                        .map_err(ParseGrpcError::KeysetId)?,
+                    blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                        .map_err(ParseGrpcError::PublicKey)?,
+                })
+            })
+            .collect::<Result<Vec<BlindedMessage>, ParseGrpcError>>()
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
+        let signatures = self.inner_restore(blind_messages).await?;
+
+        let restore_response = RestoreResponse {
+            signatures: signatures
+                .into_iter()
+                .map(|p| BlindSignature {
+                    amount: p.amount.into(),
+                    keyset_id: p.keyset_id.to_bytes().to_vec(),
+                    blind_signature: p.c.to_bytes().to_vec(),
+                })
+                .collect::<Vec<_>>(),
+            outputs: restore_signatures_request.outputs,
+        };
+
+        Ok(Response::new(restore_response))
     }
 }
