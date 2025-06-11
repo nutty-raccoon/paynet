@@ -1,10 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Balance, NodeBalances, NodeId } from "./types";
+import type { Balance, NodeData, NodeId } from "./types";
 
 export async function getNodesBalance() {
-     let n =  await invoke("get_nodes_balance")
-       .then((message) => message as NodeBalances[] )
+     let res =  await invoke("get_nodes_balance")
+       .then((message) => message as NodeData[] )
       .catch((error) => console.error(error));
+
+      console.log("getNodesData", res);
+
+      return res;
   }
 
 export async function addNode(nodeUrl: string) {
@@ -16,3 +20,4 @@ export async function addNode(nodeUrl: string) {
 
       return res;
 }
+

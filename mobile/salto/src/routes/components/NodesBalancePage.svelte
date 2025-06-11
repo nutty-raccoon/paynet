@@ -1,30 +1,46 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import { type NodeBalances } from "../../types";
+  import { type NodeData } from "../../types";
   import { formatBalance } from "../../utils";
   import { onMount, onDestroy } from "svelte";
   import { addNode } from "../../commands";
 
   interface Props {
-    nodes: NodeBalances[];
-    onAddNode: (id: number, url: string) => void;
+    nodes: NodeData[];
+    onAddNode: (nodeData: NodeData) => void;
   }
 
   let { nodes, onAddNode }: Props = $props();
 
   // Modal state
-  let isModalOpen = $state(false);
+  let isAddNodeModalOpen = $state(false);
+  let selectedNodeForDeposit = $state<NodeData | null>(null);
+  let depositError = $state<string>("");
 
   // Show modal and push state to history
   function openAddNodeModal() {
-    isModalOpen = true;
+    isAddNodeModalOpen = true;
     // Add history entry to handle back button
     history.pushState({ modal: true }, "");
   }
 
   // Hide modal
-  function closeModal() {
-    isModalOpen = false;
+  function closeAddNodeModal() {
+    isAddNodeModalOpen = false;
+  }
+
+  // Show deposit modal
+  function openDepositModal(node: NodeData) {
+    selectedNodeForDeposit = node;
+    depositError = "";
+    // Add history entry to handle back button
+    history.pushState({ modal: true }, "");
+  }
+
+  // Hide deposit modal
+  function closeDepositModal() {
+    selectedNodeForDeposit = null;
+    depositError = "";
   }
 
   const handleAddNodeFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
@@ -42,20 +58,56 @@
           // Check if node with this ID already exists in the nodes array
           const nodeAlreadyListed = nodes.some((node) => node.id === nodeId);
           if (!nodeAlreadyListed) {
-            onAddNode(nodeId, nodeAddressString);
+            onAddNode({
+              id: nodeId,
+              url: nodeAddressString,
+              balances: newNodeData[1],
+            });
           } else {
             console.log(`node with url ${nodeAddress} already declared`);
           }
         }
       });
     }
-    closeModal();
+    closeAddNodeModal();
+  };
+
+  const handleDepositFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
+    event,
+  ) => {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const formDataObject = new FormData(form);
+    const amount = formDataObject.get("deposit-amount");
+    const token = formDataObject.get("deposit-token");
+
+    // Clear previous error
+    depositError = "";
+
+    if (selectedNodeForDeposit && amount && token) {
+      const amountValue = parseFloat(amount.toString());
+
+      if (amountValue <= 0) {
+        depositError = "Amount must be greater than 0";
+        return;
+      }
+
+      console.log(
+        `Depositing ${amountValue} ${token} to node ${selectedNodeForDeposit.url}`,
+      );
+      // TODO: Implement actual deposit logic here
+      // This would typically call a Tauri command to handle the deposit
+
+      closeDepositModal();
+    }
   };
 
   // Set up back button listener
   function handlePopState() {
-    if (isModalOpen) {
-      closeModal();
+    if (!!selectedNodeForDeposit) {
+      closeDepositModal();
+    } else if (isAddNodeModalOpen) {
+      closeAddNodeModal();
     }
   }
 
@@ -83,19 +135,22 @@
           {/each}
         </div>
       </div>
+      <button class="deposit-button" onclick={() => openDepositModal(node)}>
+        Deposit
+      </button>
     </div>
   {/each}
 
   <button class="add-node-button" onclick={openAddNodeModal}> Add Node </button>
 </div>
 
-<!-- Modal overlay -->
-{#if isModalOpen}
+<!-- Add Node Modal overlay -->
+{#if isAddNodeModalOpen}
   <div class="modal-overlay">
     <div class="modal-content">
       <div class="modal-header">
         <h3>Add Node</h3>
-        <button class="close-button" onclick={closeModal}>✕</button>
+        <button class="close-button" onclick={closeAddNodeModal}>✕</button>
       </div>
 
       <form onsubmit={handleAddNodeFormSubmit}>
@@ -111,6 +166,51 @@
         </div>
 
         <button type="submit" class="add-button">Add</button>
+      </form>
+    </div>
+  </div>
+{/if}
+
+<!-- Deposit Modal overlay -->
+{#if !!selectedNodeForDeposit}
+  <div class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Deposit Tokens</h3>
+        <button class="close-button" onclick={closeDepositModal}>✕</button>
+      </div>
+
+      <form onsubmit={handleDepositFormSubmit}>
+        <div class="form-group">
+          <label for="deposit-amount">Amount</label>
+          <div class="amount-input-group">
+            <input
+              type="number"
+              id="deposit-amount"
+              name="deposit-amount"
+              placeholder="0.0"
+              min="0"
+              step="any"
+              required
+            />
+            <select name="deposit-token" required>
+              <option value="strk">STRK</option>
+              <option value="eth">ETH</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="deposit-info">
+          <p>Depositing to: {selectedNodeForDeposit.url}</p>
+        </div>
+
+        {#if depositError}
+          <div class="error-message">
+            {depositError}
+          </div>
+        {/if}
+
+        <button type="submit" class="deposit-submit-button">Deposit</button>
       </form>
     </div>
   </div>
@@ -284,5 +384,89 @@
 
   .add-button:hover {
     background-color: #1976d2;
+  }
+
+  .deposit-button {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    background-color: #4caf50;
+    color: white;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+  }
+
+  .deposit-button:hover {
+    background-color: #45a049;
+  }
+
+  .amount-input-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .amount-input-group input {
+    flex: 2;
+  }
+
+  .amount-input-group select {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+    background-color: white;
+    cursor: pointer;
+  }
+
+  .amount-input-group select:focus {
+    border-color: #1e88e5;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+  }
+
+  .deposit-info {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #1e88e5;
+  }
+
+  .deposit-info p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+    word-break: break-all;
+  }
+
+  .deposit-submit-button {
+    padding: 0.8rem 2rem;
+    background-color: #4caf50;
+    color: white;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.2s;
+  }
+
+  .deposit-submit-button:hover {
+    background-color: #45a049;
+  }
+
+  .error-message {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: #ffebee;
+    border: 1px solid #f44336;
+    border-radius: 6px;
+    color: #c62828;
+    font-size: 0.9rem;
+    font-weight: 500;
   }
 </style>

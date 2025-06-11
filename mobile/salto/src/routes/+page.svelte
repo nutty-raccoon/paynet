@@ -1,20 +1,20 @@
 <script lang="ts">
-  import NodesBalancePages from "./components/NodesBalancePage.svelte";
   import PayButton from "./components/PayButton.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
-  import { type NodeBalances } from "../types";
+  import { type NodeData } from "../types";
   import NodesBalancePage from "./components/NodesBalancePage.svelte";
   import { formatBalance } from "../utils";
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
 
   // Sample data with multiple nodes to demonstrate the new card design
-  let nodes: NodeBalances[] = $state([]);
+  let nodes: NodeData[] = $state([]);
 
   let activeTab: Tab = $state("pay");
   // Calculate total balance across all nodes
   let totalBalance = $derived(
-    nodes.reduce((total, node) => total + node.balances[0].amount, 0),
+    0, // for now
+    // nodes.reduce((total, node) => total + node.balances[0].amount, 0),
   );
   let formattedTotalBalance = $derived(
     formatBalance({ unit: "strk", amount: totalBalance }),
@@ -29,12 +29,16 @@
     }
   });
 
-  const onAddNode = (id: number, url: string) => {
-    nodes.push({ id: id, url: url, balances: [{ unit: "strk", amount: 0 }] });
+  const onAddNode = (nodeData: NodeData) => {
+    nodes.push(nodeData);
   };
 
   onMount(() => {
-    getNodesBalance();
+    getNodesBalance().then((nodesData) => {
+      if (!!nodesData) {
+        nodesData.forEach(onAddNode);
+      }
+    });
   });
 
   // Clean up when component is destroyed

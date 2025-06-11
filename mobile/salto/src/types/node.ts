@@ -1,6 +1,6 @@
 export type NodeId = number;
 
-export type NodeBalances = {
+export type NodeData = {
   id: NodeId;
   url: string;
   balances: Balance[];
