@@ -4608,7 +4608,27 @@ dependencies = [
 name = "tests"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
+ "dirs",
+ "futures",
+ "itertools 0.14.0",
+ "log",
+ "node",
+ "nuts",
+ "primitive-types 0.13.1",
+ "rusqlite",
+ "serde_json",
+ "starknet 0.13.0",
+ "starknet-liquidity-source",
+ "starknet-types",
+ "starknet-types-core",
+ "tokio",
+ "tonic 0.13.0",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wallet",
 ]
 
 [[package]]
