@@ -7,8 +7,8 @@ use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
     GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset, MeltRequest, MeltResponse,
     MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
-    QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request, hash_mint_request,
-    hash_swap_request,
+    QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
+    hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -552,5 +552,43 @@ impl Node for GrpcState {
         }
 
         Ok(Response::new(AcknowledgeResponse {}))
+    }
+
+    async fn restore(
+        &self,
+        restore_signatures_request: Request<RestoreRequest>,
+    ) -> Result<Response<RestoreResponse>, Status> {
+        let restore_signatures_request = restore_signatures_request.into_inner();
+
+        let blind_messages = restore_signatures_request
+            .outputs
+            .iter()
+            .map(|bm| {
+                Ok(BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                        .map_err(ParseGrpcError::KeysetId)?,
+                    blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                        .map_err(ParseGrpcError::PublicKey)?,
+                })
+            })
+            .collect::<Result<Vec<BlindedMessage>, ParseGrpcError>>()
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
+        let signatures = self.inner_restore(blind_messages).await?;
+
+        let restore_response = RestoreResponse {
+            signatures: signatures
+                .into_iter()
+                .map(|p| BlindSignature {
+                    amount: p.amount.into(),
+                    keyset_id: p.keyset_id.to_bytes().to_vec(),
+                    blind_signature: p.c.to_bytes().to_vec(),
+                })
+                .collect::<Vec<_>>(),
+            outputs: restore_signatures_request.outputs,
+        };
+
+        Ok(Response::new(restore_response))
     }
 }

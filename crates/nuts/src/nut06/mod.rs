@@ -199,6 +199,8 @@ pub struct NutsSettings<M: Method, U> {
     // NUT05 Settings
     #[serde(rename = "5")]
     pub nut05: nut05::Settings<M, U>,
+    #[serde(rename = "9")]
+    pub nut09: SupportedSettings,
     #[cfg(feature = "nut19")]
     #[serde(rename = "19")]
     pub nut19: nut19::Settings,
@@ -208,6 +210,7 @@ pub struct NutsSettings<M: Method, U> {
 pub struct NutsSettingsBuilder<M: Method, U> {
     nut04: Option<nut04::Settings<M, U>>,
     nut05: Option<nut05::Settings<M, U>>,
+    nut09: Option<SupportedSettings>,
     #[cfg(feature = "nut19")]
     nut19: Option<nut19::Settings>,
 }
@@ -217,6 +220,7 @@ impl<M: Method, U> Default for NutsSettingsBuilder<M, U> {
         Self {
             nut04: None,
             nut05: None,
+            nut09: None,
             #[cfg(feature = "nut19")]
             nut19: None,
         }
@@ -232,16 +236,26 @@ impl<M: traits::Method, U> NutsSettingsBuilder<M, U> {
         self.nut04 = Some(nut04_settings);
         self
     }
+    pub fn nut_05(mut self, nut05_settings: nut05::Settings<M, U>) -> Self {
+        self.nut05 = Some(nut05_settings);
+        self
+    }
+    pub fn nut_09(mut self, nut09_settings: SupportedSettings) -> Self {
+        self.nut09 = Some(nut09_settings);
+        self
+    }
 
     pub fn build(self) -> Result<NutsSettings<M, U>, NutsBuilderError> {
         let nut04 = self.nut04.ok_or(NutsBuilderError::MissingConfig(4))?;
         let nut05 = self.nut05.ok_or(NutsBuilderError::MissingConfig(5))?;
+        let nut09 = self.nut09.ok_or(NutsBuilderError::MissingConfig(9))?;
         #[cfg(feature = "nut19")]
         let nut19 = self.nut19.ok_or(NutsBuilderError::MissingConfig(19))?;
 
         Ok(NutsSettings {
             nut04,
             nut05,
+            nut09,
             #[cfg(feature = "nut19")]
             nut19,
         })
@@ -257,7 +271,7 @@ pub enum NutsBuilderError {
 /// Check state Settings
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, Serialize, Deserialize)]
 pub struct SupportedSettings {
-    supported: bool,
+    pub supported: bool,
 }
 
 /// Contact Info

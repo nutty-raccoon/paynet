@@ -92,7 +92,7 @@ pub async fn get_data<U: Unit>(
     quote_id: Uuid,
 ) -> Result<(U, Amount, Amount, MeltQuoteState, u64), Error> {
     let record = sqlx::query!(
-        r#"SELECT unit, amount, fee, state AS "state: MeltQuoteState", expiry FROM melt_quote where id = $1"#,
+        r#"SELECT unit, amount, fee, state AS "state: MeltQuoteState", expiry FROM melt_quote WHERE id = $1"#,
         quote_id
     )
     .fetch_one(conn)
@@ -112,7 +112,7 @@ pub async fn get_data<U: Unit>(
 
 pub async fn get_state(conn: &mut PgConnection, quote_id: Uuid) -> Result<MeltQuoteState, Error> {
     let record = sqlx::query!(
-        r#"SELECT state AS "state: MeltQuoteState" FROM melt_quote where id = $1"#,
+        r#"SELECT state AS "state: MeltQuoteState" FROM melt_quote WHERE id = $1"#,
         quote_id
     )
     .fetch_one(conn)
