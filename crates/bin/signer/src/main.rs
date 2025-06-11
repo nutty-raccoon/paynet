@@ -103,6 +103,7 @@ impl signer::Signer for SignerState {
             let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id).map_err(|e| {
                 Error::BadKeysetId(MESSAGES_FIELD, idx, &blinded_message.keyset_id, e)
             })?;
+
             let keyset = keyset_cache_read_lock
                 .get(&keyset_id)
                 .ok_or(Error::KeysetNotFound(MESSAGES_FIELD, idx, keyset_id))?;
@@ -120,9 +121,6 @@ impl signer::Signer for SignerState {
             }
 
             let key_pair = {
-                let keyset = keyset_cache_read_lock
-                    .get(&keyset_id)
-                    .ok_or(Error::KeysetNotFound(MESSAGES_FIELD, idx, keyset_id))?;
                 keyset.get(&amount).ok_or(Error::AmountNotFound(
                     MESSAGES_FIELD,
                     idx,

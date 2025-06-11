@@ -24,7 +24,7 @@ service Node {
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
 
   // NUT07
-  rpc PostCheckState (PostCheckStateRequest) returns (PostCheckStateResponse);
+  rpc CheckState (CheckStateRequest) returns (CheckStateResponse);
 
   rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
@@ -141,14 +141,6 @@ message AcknowledgeRequest {
 }
 
 message AcknowledgeResponse {}
-message RestoreRequest {
-  repeated bdhke.BlindedMessage outputs = 1;
-}
-
-message RestoreResponse {
-  repeated bdhke.BlindedMessage outputs = 1;
-  repeated bdhke.BlindSignature signatures = 2;
-}
 
 message RestoreRequest {
   repeated bdhke.BlindedMessage outputs = 1;
@@ -159,36 +151,21 @@ message RestoreResponse {
   repeated bdhke.BlindSignature signatures = 2;
 }
 
-message PostCheckStateRequest {
-  repeated string proofs = 1;
+message CheckStateRequest {
+  repeated bytes ys = 1;
 }
 
 enum ProofState {
-  UNSPENT = 0;
-  SPENT = 1;
-}
-message ProofCheckState {
-  string proof = 1;
-  ProofState state = 2;
-  optional string witness = 3;
-}
-message PostCheckStateResponse {
-  repeated ProofCheckState states = 1;
+  PS_UNSPECIFIED = 0;
+  PS_UNSPENT = 1;
+  PS_PENDING = 2;
+  PS_SPENT = 3;
 }
 
-message PostCheckStateRequest {
-  repeated string proofs = 1;
-}
-
-enum ProofState {
-  UNSPENT = 0;
-  SPENT = 1;
-}
 message ProofCheckState {
-  string proof = 1;
+  bytes Y = 1;
   ProofState state = 2;
-  optional string witness = 3;
 }
-message PostCheckStateResponse {
+message CheckStateResponse {
   repeated ProofCheckState states = 1;
 }

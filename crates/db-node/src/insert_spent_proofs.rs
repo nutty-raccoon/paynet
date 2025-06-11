@@ -1,4 +1,4 @@
-use nuts::{nut00::Proof, nut01::PublicKey};
+use nuts::{nut00::Proof, nut01::PublicKey, nut07::ProofState};
 use sqlx::{PgConnection, Postgres, QueryBuilder};
 
 /// Generate a query following this model:
@@ -49,7 +49,7 @@ impl<'args> InsertSpentProofsQueryBuilder<'args> {
             .push(", ")
             .push_bind(c)
             .push(", ")
-            .push("1") // '1' is enum value for SPENT
+            .push("3") // '3' is enum value for SPENT
             .push(')');
     }
 
@@ -58,7 +58,11 @@ impl<'args> InsertSpentProofsQueryBuilder<'args> {
             .builder
             // 0 is enum for UNSPENT
             // 1 is enum for SPENT
-            .push(r#" ON CONFLICT (y) WHERE state = 0 DO UPDATE SET state = 1;"#) // TODO: make sure this is ok
+            .push(format!(
+                "ON CONFLICT (y) WHERE state = {} DO UPDATE SET state = {};",
+                ProofState::Unspent as i16,
+                ProofState::Spent as i16
+            )) // TODO: make sure this is ok
             .build()
             .execute(conn)
             .await?;

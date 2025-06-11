@@ -14,15 +14,16 @@ pub enum Error {
 impl GrpcState {
     pub async fn inner_check_state(
         &self,
-        ys: Vec<String>,
-    ) -> Result<nuts::nut07::PostCheckStateResponse, Error> {
-        let mut conn = self.pg_pool.acquire().await.map_err(Error::DbConnection)?;
+        ys: Vec<Vec<u8>>,
+    ) -> Result<nuts::nut07::CheckStateResponse, Error> {
+        let mut conn: sqlx::pool::PoolConnection<sqlx::Postgres> =
+            self.pg_pool.acquire().await.map_err(Error::DbConnection)?;
 
         let proof_check_states =
             db_node::check_proof_state::get_proofs_by_y(&mut conn, ys.into_iter())
                 .await
                 .map_err(Error::ProofStateRetrieval)?;
 
-        Ok(nuts::nut07::PostCheckStateResponse { proof_check_states })
+        Ok(nuts::nut07::CheckStateResponse { proof_check_states })
     }
 }

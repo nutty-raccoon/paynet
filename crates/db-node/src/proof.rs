@@ -1,4 +1,4 @@
-use nuts::nut01::PublicKey;
+use nuts::{nut00::secret::Secret, nut01::PublicKey, nut02::KeysetId, nut07::ProofState};
 use sqlx::PgConnection;
 
 /// Return true if one of the provided secret
@@ -13,12 +13,40 @@ pub async fn is_any_already_spent(
 
     let record = sqlx::query!(
         r#"SELECT EXISTS (
-            SELECT * FROM proof WHERE y = ANY($1) AND state = 1
+            SELECT * FROM proof WHERE y = ANY($1) AND state = $2
         ) AS "exists!";"#,
-        &ys
+        &ys,
+        ProofState::Spent as i16
     )
     .fetch_one(conn)
     .await?;
 
     Ok(record.exists)
+}
+
+pub async fn insert_proof(
+    conn: &mut PgConnection,
+    y: PublicKey,
+    keyset_id: KeysetId,
+    amount: i64,
+    secret: Secret,
+    unblind_signature: PublicKey,
+    state: ProofState,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO proof (y, amount, keyset_id, secret, c, state)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        &y.to_bytes(),
+        amount,
+        keyset_id.as_i64(),
+        secret.to_string(),
+        &unblind_signature.to_bytes(),
+        state as i16
+    )
+    .execute(conn)
+    .await?;
+
+    Ok(())
 }

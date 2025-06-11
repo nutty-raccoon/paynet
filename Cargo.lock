@@ -2320,10 +2320,13 @@ name = "node-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "db-node",
+ "dotenvy",
  "node",
  "nuts",
  "serde_json",
  "signer",
+ "sqlx",
  "starknet-liquidity-source",
  "starknet-types",
  "starknet-types-core",

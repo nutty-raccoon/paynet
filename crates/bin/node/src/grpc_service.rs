@@ -4,12 +4,12 @@ use crate::{
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
 };
 use node::{
-    AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
-    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Key, Keyset, KeysetKeys,
-    MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse,
-    Node, NodeInfoResponse, PostCheckStateRequest, PostCheckStateResponse, ProofCheckState,
-    QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
-    hash_melt_request, hash_mint_request, hash_swap_request,
+    AcknowledgeRequest, AcknowledgeResponse, BlindSignature, CheckStateRequest, CheckStateResponse,
+    GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest,
+    Key, Keyset, KeysetKeys, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
+    MintRequest, MintResponse, Node, NodeInfoResponse, ProofCheckState, QuoteStateRequest,
+    RestoreRequest, RestoreResponse, SwapRequest, SwapResponse, hash_melt_request,
+    hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -555,13 +555,13 @@ impl Node for GrpcState {
         Ok(Response::new(AcknowledgeResponse {}))
     }
 
-    async fn post_check_state(
+    async fn check_state(
         &self,
-        request: Request<PostCheckStateRequest>,
-    ) -> Result<Response<PostCheckStateResponse>, Status> {
+        request: Request<CheckStateRequest>,
+    ) -> Result<Response<CheckStateResponse>, Status> {
         let request = request.into_inner();
 
-        let ys = request.proofs;
+        let ys = request.ys;
 
         let proof_state = self
             .inner_check_state(ys)
@@ -569,13 +569,12 @@ impl Node for GrpcState {
             .map_err(|e| Status::internal(format!("Failed to check state: {}", e)))?
             .proof_check_states;
 
-        Ok(Response::new(PostCheckStateResponse {
+        Ok(Response::new(CheckStateResponse {
             states: proof_state
                 .iter()
                 .map(|state| ProofCheckState {
-                    proof: state.y.clone(),
+                    y: state.y.to_bytes().to_vec(),
                     state: state.state.clone().into(),
-                    witness: state.witness.clone(),
                 })
                 .collect::<Vec<_>>(),
         }))
