@@ -43,24 +43,23 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeBalances>> {
         LEFT JOIN proof p ON p.node_id = n.id AND p.state = ?
         LEFT JOIN keyset k ON p.keyset_id = k.id
         GROUP BY n.id, n.url, k.unit
-        HAVING amount > 0
         ORDER BY n.id
     "#;
 
     let mut stmt = conn.prepare(sql)?;
     let rows = stmt.query_map(params![ProofState::Unspent], |row| {
         Ok((
-            row.get(0)?, // node_id
-            row.get(1)?, // url
-            row.get(2)?, // unit
-            row.get(3)?, // amount
+            row.get(0)?,                      // node_id
+            row.get(1)?,                      // url
+            row.get::<_, Option<String>>(2)?, // unit
+            row.get::<_, Option<i64>>(3)?,    // amount
         ))
     })?;
 
     let mut result: Vec<NodeBalances> = Vec::new();
 
     for row in rows {
-        let (node_id, url, unit, amount) = row?;
+        let (node_id, url, opt_unit, opt_amount) = row?;
 
         match result.last_mut() {
             Some(NodeBalances {
@@ -68,13 +67,22 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeBalances>> {
                 url: _,
                 balances,
             }) if &node_id == id => {
-                balances.push(Balance { unit, amount });
+                if let (Some(unit), Some(amount)) = (opt_unit, opt_amount) {
+                    balances.push(Balance { unit, amount });
+                }
             }
-            Some(_) | None => result.push(NodeBalances {
-                node_id,
-                url,
-                balances: vec![Balance { unit, amount }],
-            }),
+            Some(_) | None => {
+                let mut node_balances = NodeBalances {
+                    node_id,
+                    url,
+                    balances: vec![],
+                };
+                if let (Some(unit), Some(amount)) = (opt_unit, opt_amount) {
+                    node_balances.balances.push(Balance { unit, amount });
+                }
+
+                result.push(node_balances);
+            }
         }
     }
 
