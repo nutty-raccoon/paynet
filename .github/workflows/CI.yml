@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feat-CI ]
   pull_request:
     branches: [ main ]
 
@@ -154,7 +154,6 @@ jobs:
       explorer: ${{ steps.changes.outputs.explorer }}
       node: ${{ steps.changes.outputs.node }}
       signer: ${{ steps.changes.outputs.signer }}
-      starknet-cashier: ${{ steps.changes.outputs.starknet-cashier }}
       starknet-setup: ${{ steps.changes.outputs.starknet-setup }}
       docker-compose: ${{ steps.changes.outputs.docker-compose }}
     steps:
@@ -181,25 +180,21 @@ jobs:
               - 'crates/**'
               - 'Cargo.toml'
               - 'rust-toolchain.toml'
-            starknet-cashier:
-              - 'dockerfiles/starknet-cashier.Dockerfile'
-              - 'crates/**'
-              - 'Cargo.toml'
-              - 'rust-toolchain.toml'
             starknet-setup:
               - 'dockerfiles/starknet-setup.Dockerfile'
               - 'crates/**'
               - 'Cargo.toml'
               - 'rust-toolchain.toml'
             docker-compose:
-              - 'docker-compose.yml'
+              - 'docker-compose.app.yml'
+              - 'docker-compose.testnet.yml'
 
   build:
     needs: detect-changes
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [explorer, node, signer, starknet-cashier, starknet-setup]
+        service: [explorer, node, signer, starknet-setup]
     steps:
       - name: Skip if no changes
         if: needs.detect-changes.outputs[matrix.service] != 'true'
@@ -248,6 +243,9 @@ jobs:
   test:
     needs: [detect-changes, build]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [app, testnet]
     if: always() && (needs.detect-changes.outputs.docker-compose == 'true' || needs.build.result == 'success')
     steps:
       - uses: actions/checkout@v4
@@ -266,60 +264,63 @@ jobs:
         run: |
           # Replace local image names with registry images for built services
           if [[ "${{ needs.detect-changes.outputs.explorer }}" == "true" ]]; then
-            sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.yml
+            sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
           fi
           if [[ "${{ needs.detect-changes.outputs.node }}" == "true" ]]; then
-            sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.yml
+            sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
           fi
           if [[ "${{ needs.detect-changes.outputs.signer }}" == "true" ]]; then
-            sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.yml
-          fi
-          if [[ "${{ needs.detect-changes.outputs.starknet-cashier }}" == "true" ]]; then
-            sed -i "s|image: \"starknet-cashier\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-cashier:${{ github.sha }}|g" docker-compose.yml
+            sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
           fi
           if [[ "${{ needs.detect-changes.outputs.starknet-setup }}" == "true" ]]; then
-            sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.yml
+            sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
           fi
 
       - name: Start services
         run: |
-          docker compose up -d
-          docker compose ps
+          docker compose -f docker-compose.${{ matrix.environment }}.yml up -d
+          docker compose -f docker-compose.${{ matrix.environment }}.yml ps
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to be healthy..."
+          if [[ "${{ matrix.environment }}" == "app" ]]; then
+            EXPECTED_SERVICES=2
+          else
+            EXPECTED_SERVICES=3
+          fi
           timeout 300 bash -c '
-            until docker compose ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "5"; do
+            until docker compose -f docker-compose.${{ matrix.environment }}.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "'$EXPECTED_SERVICES'"; do
               echo "Waiting for all services to be ready..."
               sleep 10
-              docker compose ps
+              docker compose -f docker-compose.${{ matrix.environment }}.yml ps
             done
           '
 
       - name: Run basic health checks
         run: |
-          # Test database connection
-          docker compose exec -T db pg_isready -U postgres
+          if [[ "${{ matrix.environment }}" == "app" ]]; then
+            # Test database connection
+            docker compose -f docker-compose.${{ matrix.environment }}.yml exec -T db pg_isready -U postgres
+            
+            # Test gRPC services
+            docker compose -f docker-compose.${{ matrix.environment }}.yml exec -T signer /bin/grpc_health_probe -addr=localhost:10001
+            docker compose -f docker-compose.${{ matrix.environment }}.yml exec -T node /bin/grpc_health_probe -addr=localhost:10003
+          fi
           
-          # Test starknet devnet
+          # Test starknet devnet (available in both environments)
           curl -f http://localhost:5050/is_alive
-          
-          # Test gRPC services
-          docker compose exec -T signer /bin/grpc_health_probe -addr=localhost:10001
-          docker compose exec -T starknet-cashier /bin/grpc_health_probe -addr=localhost:10002
-          docker compose exec -T node /bin/grpc_health_probe -addr=localhost:10003
 
       - name: Show logs on failure
         if: failure()
         run: |
           echo "=== Docker compose logs ==="
-          docker compose logs
+          docker compose -f docker-compose.${{ matrix.environment }}.yml logs
           echo "=== Docker compose ps ==="
-          docker compose ps
+          docker compose -f docker-compose.${{ matrix.environment }}.yml ps
 
       - name: Cleanup
         if: always()
         run: |
-          docker compose down -v
+          docker compose -f docker-compose.${{ matrix.environment }}.yml down -v
           docker system prune -f
