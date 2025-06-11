@@ -6,7 +6,10 @@ use tonic_health::pb::health_client::HealthClient;
 use tonic::transport::Channel;
 
 fn ensure_env_variables() -> Result<()> {
-    if env::var("GRPC_PORT").is_ok() && env::var("ROOT_KEY").is_ok() {
+    if env::var("GRPC_PORT").is_ok()
+        && env::var("NODE_GRPC_PORT").is_ok()
+        && env::var("ROOT_KEY").is_ok()
+    {
         return Ok(());
     }
 
@@ -17,7 +20,14 @@ fn ensure_env_variables() -> Result<()> {
                 "Environment variables not set and failed to load signer.env: {}",
                 e
             )
-        })
+        })?;
+
+    dotenvy::from_filename("node.env").map(|_| ()).map_err(|e| {
+        anyhow!(
+            "Environment variables not set and failed to load node.env: {}",
+            e
+        )
+    })
 }
 
 async fn get_signer_channel() -> Result<Channel> {

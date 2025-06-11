@@ -1,8 +1,9 @@
 use anyhow::Result;
+use liquidity_source::mock::MockMeltPaymentRequest;
 use node::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltRequest,
-    MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request, hash_mint_request,
-    hash_swap_request,
+    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltQuoteRequest,
+    MeltRequest, MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request,
+    hash_mint_request, hash_swap_request,
 };
 use node_tests::init_node_client;
 use nuts::Amount;
@@ -10,6 +11,7 @@ use nuts::dhke::{blind_message, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut01::PublicKey;
 use starknet_types::Unit;
+use starknet_types_core::felt::Felt;
 
 // This tests check that the route that we want to cache are indeed cached.
 //
@@ -30,6 +32,7 @@ use starknet_types::Unit;
 // - call it again and check the response is an error
 //
 // Melt (cache):
+// - call melt_quote to get a quote (not cached)
 // - call melt with a request
 // - call it again and check the response is the same
 // - call acknowledge on the response
@@ -167,10 +170,28 @@ async fn works() -> Result<()> {
         secret: secret.to_string(),
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
-    let melt_request = MeltRequest {
+
+    let payment_request = MockMeltPaymentRequest {
+        payee: Felt::from_hex_unchecked(
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        ),
+        asset: starknet_types::Asset::Strk,
+        amount: Amount::from_i64_repr(31), // 31 + fixed 1 fee, input will need to be 32
+    };
+
+    let melt_quote_request = MeltQuoteRequest {
         method: "starknet".to_string(),
         unit: Unit::MilliStrk.to_string(),
-        request: "".to_string(),
+        request: serde_json::to_string(&payment_request)
+            .expect("it has been deserialized it should be serializable"),
+    };
+
+    let melt_quote_response = client.melt_quote(melt_quote_request).await?.into_inner();
+
+    // Now test melt operation with the quote (this should be cached)
+    let melt_request = MeltRequest {
+        quote: melt_quote_response.quote,
+        method: "starknet".to_string(),
         inputs: vec![proof],
     };
     let original_melt_response = client.melt(melt_request.clone()).await?.into_inner();

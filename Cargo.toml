@@ -35,7 +35,7 @@ default-members = [
 
 [workspace.dependencies]
 axum = "0.8.1"
-tonic = "0.13.0"
+tonic = "0.13.1"
 tonic-types = "0.13.0"
 tonic-health = "0.13.0"
 hyper = "1.6.0"
@@ -87,7 +87,7 @@ sha2 = "0.10"
 rustainers = "0.15.1"
 assert_matches = "1.5.0"
 starknet = "0.13.0"
-phf = { version = "0.11.3"}
+phf = { version = "0.11.3" }
 async-trait = "0.1.88"
 itertools = "0.14"
 dashmap = "6.1.0"
@@ -114,7 +114,7 @@ starknet-types = { path = "crates/starknet/types" }
 starknet-payment-indexer = { path = "crates/starknet/payment-indexer" }
 starknet-liquidity-source = { path = "crates/starknet/liquidity-source" }
 # Tracing
-open-telemetry-tracing = { path = "crates/open-telemetry-tracing"}
+open-telemetry-tracing = { path = "crates/open-telemetry-tracing" }
 # Others
 nuts = { path = "crates/nuts" }
 db-node = { path = "crates/db-node" }

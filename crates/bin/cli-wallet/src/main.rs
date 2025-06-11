@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
 use itertools::Itertools;
-use node::{MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
+use node::{MeltQuoteStateRequest, MintQuoteState, NodeClient, hash_melt_request};
 use nuts::Amount;
 use primitive_types::U256;
 use rusqlite::Connection;
@@ -389,13 +389,24 @@ async fn main() -> Result<()> {
                 return Err(anyhow!("Invalid starknet address: {}", payee_address));
             }
 
-            let melt_request = node::MeltRequest {
+            let melt_quote_request = node::MeltQuoteRequest {
                 method: STARKNET_METHOD.to_string(),
                 unit: unit.to_string(),
                 request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
                     payee: payee_address,
+                    amount: Amount::from_i64_repr(amount.into_i64_repr() - 1),
                     asset: starknet_types::Asset::Strk,
                 })?,
+            };
+
+            let melt_quote_response = node_client
+                .melt_quote(melt_quote_request)
+                .await?
+                .into_inner();
+
+            let melt_request = node::MeltRequest {
+                method: STARKNET_METHOD.to_string(),
+                quote: melt_quote_response.quote,
                 inputs: wallet::convert_inputs(&inputs),
             };
             let melt_request_hash = hash_melt_request(&melt_request);
@@ -414,7 +425,7 @@ async fn main() -> Result<()> {
 
             loop {
                 let melt_quote_state_response = node_client
-                    .melt_quote_state(QuoteStateRequest {
+                    .melt_quote_state(MeltQuoteStateRequest {
                         method: STARKNET_METHOD.to_string(),
                         quote: resp.quote.clone(),
                     })

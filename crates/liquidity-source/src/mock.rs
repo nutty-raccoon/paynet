@@ -1,11 +1,12 @@
+use crate::DepositInterface;
 use std::fmt::{LowerHex, UpperHex};
 
 use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
+use serde::{Deserialize, Serialize};
 use starknet_types::{Asset, StarknetU256};
+use starknet_types_core::felt::Felt;
 use uuid::Uuid;
-
-use crate::DepositInterface;
 
 use super::{LiquiditySource, WithdrawInterface, WithdrawRequest};
 
@@ -41,6 +42,9 @@ impl WithdrawRequest for () {
     fn asset(&self) -> starknet_types::Asset {
         Asset::Strk
     }
+    fn amount(&self) -> nuts::Amount {
+        nuts::Amount::from(0u64)
+    }
 }
 
 impl crate::WithdrawAmount for StarknetU256 {
@@ -69,24 +73,49 @@ impl UpperHex for MockInvoiceId {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MockMeltPaymentRequest {
+    pub payee: Felt,
+    pub asset: Asset,
+    pub amount: nuts::Amount,
+}
+
+impl WithdrawRequest for MockMeltPaymentRequest {
+    fn asset(&self) -> Asset {
+        self.asset
+    }
+    fn amount(&self) -> nuts::Amount {
+        self.amount
+    }
+}
+
 #[async_trait::async_trait]
 impl WithdrawInterface for MockWithdrawer {
     type Error = Error;
-    type Request = ();
+    type Request = MockMeltPaymentRequest;
     type Amount = StarknetU256;
     type InvoiceId = MockInvoiceId;
 
     fn deserialize_payment_request(
         &self,
-        _raw_json_string: &str,
+        raw_json_string: &str,
     ) -> Result<Self::Request, Self::Error> {
-        Ok(())
+        if raw_json_string.is_empty() {
+            return Ok(MockMeltPaymentRequest {
+                payee: Felt::default(),
+                asset: Asset::Strk,
+                amount: nuts::Amount::from(32u64),
+            });
+        }
+        let pr = serde_json::from_str::<Self::Request>(raw_json_string).unwrap();
+
+        Ok(pr)
     }
 
     async fn proceed_to_payment(
         &mut self,
         _invoice_id: Uuid,
-        _melt_payment_request: (),
+        _melt_payment_request: Self::Request,
         _amount: Self::Amount,
         _expiry: u64,
     ) -> Result<MeltQuoteState, Self::Error> {

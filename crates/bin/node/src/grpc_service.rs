@@ -5,10 +5,11 @@ use crate::{
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
-    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset, MeltRequest, MeltResponse,
-    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
-    QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
-    hash_melt_request, hash_mint_request, hash_swap_request,
+    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset, MeltQuoteRequest,
+    MeltQuoteStateRequest, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
+    MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest, RestoreRequest,
+    RestoreResponse, SwapRequest, SwapResponse, hash_melt_request, hash_mint_request,
+    hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -381,6 +382,29 @@ impl Node for GrpcState {
         Ok(Response::new(mint_response))
     }
 
+    async fn melt_quote(
+        &self,
+        melt_quote_request: Request<MeltQuoteRequest>,
+    ) -> Result<Response<MeltResponse>, Status> {
+        let melt_quote_request = melt_quote_request.into_inner();
+
+        let method =
+            Method::from_str(&melt_quote_request.method).map_err(ParseGrpcError::Method)?;
+        let unit = Unit::from_str(&melt_quote_request.unit).map_err(ParseGrpcError::Unit)?;
+        let payment_request = melt_quote_request.request;
+
+        let response = self.inner_melt_quote(method, unit, payment_request).await?;
+
+        Ok(Response::new(MeltResponse {
+            quote: response.quote.to_string(),
+            amount: response.amount.into(),
+            fee: response.fee.into(),
+            state: response.state.into(),
+            expiry: response.expiry,
+            transfer_ids: vec![],
+        }))
+    }
+
     #[instrument]
     async fn melt(
         &self,
@@ -406,7 +430,7 @@ impl Node for GrpcState {
         }
 
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
-        let unit = Unit::from_str(&melt_request.unit).map_err(ParseGrpcError::Unit)?;
+        let quote_id = Uuid::from_str(&melt_request.quote).map_err(ParseGrpcError::Uuid)?;
         let inputs = melt_request
             .clone()
             .inputs
@@ -423,9 +447,7 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let response = self
-            .inner_melt(method, unit, melt_request.request, &inputs)
-            .await?;
+        let response = self.inner_melt(method, quote_id, &inputs).await?;
 
         let melt_response = MeltResponse {
             quote: response.quote.to_string(),
@@ -466,7 +488,7 @@ impl Node for GrpcState {
     #[instrument]
     async fn melt_quote_state(
         &self,
-        melt_quote_state_request: Request<QuoteStateRequest>,
+        melt_quote_state_request: Request<MeltQuoteStateRequest>,
     ) -> Result<Response<MeltResponse>, Status> {
         let melt_quote_state_request = melt_quote_state_request.into_inner();
         let method =

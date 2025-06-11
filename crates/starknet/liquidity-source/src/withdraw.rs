@@ -54,11 +54,15 @@ pub enum Error {
 pub struct MeltPaymentRequest {
     pub payee: Felt,
     pub asset: Asset,
+    pub amount: nuts::Amount,
 }
 
 impl WithdrawRequest for MeltPaymentRequest {
     fn asset(&self) -> Asset {
         self.asset
+    }
+    fn amount(&self) -> nuts::Amount {
+        self.amount
     }
 }
 
