@@ -3,8 +3,6 @@ use sqlx::{Connection, PgConnection, Pool, Postgres, Transaction};
 use thiserror::Error;
 
 pub mod gauge;
-mod insert_spent_proofs;
-pub use insert_spent_proofs::InsertSpentProofsQueryBuilder;
 mod insert_blind_signatures;
 pub use insert_blind_signatures::InsertBlindSignaturesQueryBuilder;
 mod insert_keysets;
@@ -17,6 +15,7 @@ pub mod melt_quote;
 pub mod mint_payment_event;
 pub mod mint_quote;
 pub mod proof;
+pub use proof::InsertSpentProofsQueryBuilder;
 
 #[derive(Debug, Error)]
 pub enum Error {
