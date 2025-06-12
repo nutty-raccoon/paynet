@@ -1,18 +1,16 @@
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::str::FromStr;
+use sqlx::postgres::PgPoolOptions;
 
 use anyhow::Result;
 use node::{
-    AcknowledgeRequest, BlindedMessage, CheckStateRequest, GetKeysRequest, GetKeysetsRequest,
-    MeltRequest, MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+    BlindedMessage, CheckStateRequest, GetKeysRequest, GetKeysetsRequest, MintQuoteRequest,
+    MintRequest, Proof, SwapRequest,
 };
 
 use node_tests::init_node_client;
 use nuts::Amount;
 use nuts::dhke::{blind_message, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
-use nuts::nut01::{PublicKey, SecretKey};
+use nuts::nut01::PublicKey;
 use nuts::nut07::ProofState;
 use starknet_types::Unit;
 
