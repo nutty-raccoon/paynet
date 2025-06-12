@@ -106,9 +106,14 @@ mod query_builder {
         builder.add_row(&y, &proof);
         builder.add_row(&y, &proof);
         let query = builder.builder.sql();
+
+        let spent_as_i16 = nuts::nut07::ProofState::Spent as i16;
         assert_eq!(
             query,
-            "INSERT INTO proof (y, amount, keyset_id, secret, c, state) VALUES ($1, $2, $3, $4, $5, 1), ($6, $7, $8, $9, $10, 1)"
+            format!(
+                "INSERT INTO proof (y, amount, keyset_id, secret, c, state) VALUES ($1, $2, $3, $4, $5, {}), ($6, $7, $8, $9, $10, {})",
+                spent_as_i16, spent_as_i16
+            )
         );
     }
 }
