@@ -7,7 +7,6 @@ use node::{
     MeltRequest, MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request,
     hash_mint_request, hash_swap_request,
 };
-use nuts::nut02::KeysetId;
 
 use node_tests::init_node_client;
 use nuts::Amount;
@@ -58,15 +57,19 @@ async fn works() -> Result<()> {
     };
 
     let original_mint_response = client.mint(mint_request.clone()).await?.into_inner();
-    let alice_keyset_id = nuts::nut02::KeysetId::from_bytes(&active_keyset.id)?;
+
+    // Insert the proof into the database after minting
     let _ = dotenvy::from_filename("node.env")
         .inspect_err(|e| eprintln!("Failed to load .env file: {}", e));
+
     let pg_pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(std::env::var("PG_URL").unwrap().as_str())
         .await?;
 
     let mut conn = pg_pool.acquire().await?;
+
+    let alice_keyset_id = nuts::nut02::KeysetId::from_bytes(&active_keyset.id)?;
 
     db_node::proof::insert_proof(
         &mut conn,
@@ -105,15 +108,13 @@ async fn works() -> Result<()> {
     .await?;
 
     // check token state, now is unspent
-    let ys = hash_to_curve(secret.as_bytes()).expect("hash to curve failed");
+    let ys = vec![hash_to_curve(secret.as_bytes())?.to_bytes().to_vec()];
+
     let state = client
-        .check_state(CheckStateRequest {
-            ys: vec![ys.to_bytes().to_vec()],
-        })
+        .check_state(CheckStateRequest { ys: ys.clone() })
         .await?
         .into_inner();
 
-    println!("State: {:?}", state);
     assert_eq!(
         ProofState::Unspent,
         state.states.first().unwrap().state.into()
@@ -136,6 +137,7 @@ async fn works() -> Result<()> {
             .unwrap()
             .pubkey,
     )?;
+
     let blind_signature = PublicKey::from_slice(
         &original_mint_response
             .signatures
@@ -145,6 +147,7 @@ async fn works() -> Result<()> {
     )
     .unwrap();
     let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)?;
+
     let proof = Proof {
         amount: amount.into(),
         keyset_id: active_keyset.id.clone(),
@@ -153,30 +156,28 @@ async fn works() -> Result<()> {
     };
 
     let new_secret = Secret::generate();
-    let (blinded_secret, r) = blind_message(new_secret.as_bytes(), None)?;
-    let blind_message = BlindedMessage {
-        amount: amount.into(),
-        keyset_id: active_keyset.id.clone(),
-        blinded_secret: blinded_secret.to_bytes().to_vec(),
-    };
+    let (blinded_secret, _) = blind_message(new_secret.as_bytes(), None)?;
 
     let swap_request = SwapRequest {
         inputs: vec![proof],
-        outputs: vec![blind_message],
+        outputs: vec![BlindedMessage {
+            amount: amount.into(),
+            keyset_id: active_keyset.id.clone(),
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        }],
     };
+
     let _ = client.swap(swap_request.clone()).await?.into_inner();
-    // check token state, now is spent
-    let ys = hash_to_curve(secret.as_bytes()).expect("hash to curve failed");
+
+    // check token state, now is spent after swap
     let state = client
-        .check_state(CheckStateRequest {
-            ys: vec![ys.to_bytes().to_vec()],
-        })
+        .check_state(CheckStateRequest { ys })
         .await?
         .into_inner();
-
     assert_eq!(
         ProofState::Spent,
         state.states.first().unwrap().state.into()
     );
+
     Ok(())
 }
