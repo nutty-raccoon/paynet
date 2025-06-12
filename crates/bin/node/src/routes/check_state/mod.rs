@@ -7,9 +7,6 @@ pub enum Error {
     DbConnection(#[source] sqlx::Error),
     #[error("failed to retrieve proof state: {0}")]
     ProofStateRetrieval(#[source] sqlx::Error),
-    // Other errors
-    #[error("invalid input: {0}")]
-    InvalidInput(String),
 }
 impl GrpcState {
     pub async fn inner_check_state(
