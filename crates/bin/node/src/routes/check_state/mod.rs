@@ -34,7 +34,6 @@ impl GrpcState {
             .await
             .map_err(Error::ProofStateRetrieval)?;
 
-        // Handle PublicKey conversion errors properly
         let proof_states: Result<Vec<nuts::nut07::ProofCheckState>, Error> = ys
             .iter()
             .map(|y| {
