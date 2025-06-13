@@ -23,6 +23,9 @@ service Node {
   
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
 
+  // NUT07
+  rpc CheckState (CheckStateRequest) returns (CheckStateResponse);
+
   rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
 
@@ -146,4 +149,23 @@ message RestoreRequest {
 message RestoreResponse {
   repeated bdhke.BlindedMessage outputs = 1;
   repeated bdhke.BlindSignature signatures = 2;
+}
+
+message CheckStateRequest {
+  repeated bytes ys = 1;
+}
+
+enum ProofState {
+  PS_UNSPECIFIED = 0;
+  PS_UNSPENT = 1;
+  PS_PENDING = 2;
+  PS_SPENT = 3;
+}
+
+message ProofCheckState {
+  bytes Y = 1;
+  ProofState state = 2;
+}
+message CheckStateResponse {
+  repeated ProofCheckState states = 1;
 }
