@@ -559,9 +559,7 @@ impl Node for GrpcState {
         &self,
         request: Request<CheckStateRequest>,
     ) -> Result<Response<CheckStateResponse>, Status> {
-        let request = request.into_inner();
-
-        let ys = request.ys;
+        let ys: Vec<Vec<u8>> = request.into_inner().ys;
 
         let proof_state = self.inner_check_state(ys).await?.proof_check_states;
 

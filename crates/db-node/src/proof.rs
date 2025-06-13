@@ -58,7 +58,7 @@ pub async fn insert_proof(
 
 // / Retrieve proofs by their public keys (y).
 /// Returns a vector of `ProofCheckState` containing the public key and its state.
-pub async fn get_proofs_by_ys(
+pub async fn get_proofs_by_ids(
     conn: &mut PgConnection,
     ys: impl Iterator<Item = Vec<u8>>,
 ) -> Result<Vec<ProofCheckState>, sqlx::Error> {

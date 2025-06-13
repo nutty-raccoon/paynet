@@ -30,7 +30,7 @@ impl GrpcState {
     ) -> Result<nuts::nut07::CheckStateResponse, Error> {
         let mut conn = self.pg_pool.acquire().await.map_err(Error::DbConnection)?;
 
-        let existing_proofs = db_node::proof::get_proofs_by_ys(&mut conn, ys.clone().into_iter())
+        let existing_proofs = db_node::proof::get_proofs_by_ids(&mut conn, ys.clone().into_iter())
             .await
             .map_err(Error::ProofStateRetrieval)?;
 
