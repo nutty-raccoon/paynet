@@ -19,9 +19,9 @@ node = { default-features = false, path = "../../bin/node", features = [
     "keyset-rotation",
 ] }
 
-starknet-liquidity-source = { path = "../../starknet/liquidity-source" }
+starknet-liquidity-source = { workspace = true }
 starknet-types = { workspace = true }
-db-node = { path = "../../db-node" }
+db-node = { workspace = true }
 
 [[test]]
 name = "keyset_rotation"

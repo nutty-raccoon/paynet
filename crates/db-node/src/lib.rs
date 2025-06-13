@@ -8,7 +8,6 @@ pub use insert_blind_signatures::InsertBlindSignaturesQueryBuilder;
 mod insert_keysets;
 pub use insert_keysets::InsertKeysetsQueryBuilder;
 pub mod blind_signature;
-pub mod check_proof_state;
 pub mod keyset;
 pub mod melt_payment_event;
 pub mod melt_quote;

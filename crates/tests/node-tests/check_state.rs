@@ -56,55 +56,6 @@ async fn works() -> Result<()> {
 
     let original_mint_response = client.mint(mint_request.clone()).await?.into_inner();
 
-    // Insert the proof into the database after minting
-    let _ = dotenvy::from_filename("node.env")
-        .inspect_err(|e| eprintln!("Failed to load .env file: {}", e));
-
-    let pg_pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(std::env::var("PG_URL").unwrap().as_str())
-        .await?;
-
-    let mut conn = pg_pool.acquire().await?;
-
-    let alice_keyset_id = nuts::nut02::KeysetId::from_bytes(&active_keyset.id)?;
-
-    db_node::proof::insert_proof(
-        &mut conn,
-        hash_to_curve(secret.as_bytes())?,
-        alice_keyset_id,
-        amount.into_i64_repr(),
-        secret.clone(),
-        unblind_message(
-            &PublicKey::from_slice(
-                &original_mint_response
-                    .signatures
-                    .first()
-                    .unwrap()
-                    .blind_signature,
-            )?,
-            &r,
-            &PublicKey::from_hex(
-                &client
-                    .keys(GetKeysRequest {
-                        keyset_id: Some(active_keyset.id.clone()),
-                    })
-                    .await?
-                    .into_inner()
-                    .keysets
-                    .first()
-                    .unwrap()
-                    .keys
-                    .iter()
-                    .find(|key| Amount::from(key.amount) == amount)
-                    .unwrap()
-                    .pubkey,
-            )?,
-        )?,
-        ProofState::Unspent,
-    )
-    .await?;
-
     // check token state, now is unspent
     let ys = vec![hash_to_curve(secret.as_bytes())?.to_bytes().to_vec()];
 

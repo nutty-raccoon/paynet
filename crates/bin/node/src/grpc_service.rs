@@ -563,11 +563,7 @@ impl Node for GrpcState {
 
         let ys = request.ys;
 
-        let proof_state = self
-            .inner_check_state(ys)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to check state: {}", e)))?
-            .proof_check_states;
+        let proof_state = self.inner_check_state(ys).await?.proof_check_states;
 
         Ok(Response::new(CheckStateResponse {
             states: proof_state
