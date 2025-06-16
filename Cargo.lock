@@ -5456,17 +5456,22 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "log",
+ "num-traits",
+ "nuts",
+ "primitive-types 0.13.1",
  "r2d2",
  "r2d2_sqlite",
  "rusqlite",
  "serde",
  "serde_json",
+ "starknet-types",
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
  "tauri-plugin-opener",
  "tauri-plugin-sql",
  "thiserror 2.0.12",
+ "uint 0.10.0",
  "wallet",
 ]
 

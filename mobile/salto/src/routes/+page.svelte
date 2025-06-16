@@ -1,9 +1,9 @@
 <script lang="ts">
   import PayButton from "./components/PayButton.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
-  import { type NodeData } from "../types";
-  import NodesBalancePage from "./components/NodesBalancePage.svelte";
-  import { formatBalance } from "../utils";
+  import { type BalanceIncrease, type NodeData } from "../types";
+  import NodesBalancePage from "./balances/NodesBalancePage.svelte";
+  import { formatBalance, increaseNodeBalance } from "../utils";
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
 
@@ -33,6 +33,10 @@
     nodes.push(nodeData);
   };
 
+  const onNodeBalanceIncrease = (balanceIncrease: BalanceIncrease) => {
+    increaseNodeBalance(nodes, balanceIncrease);
+  };
+
   onMount(() => {
     getNodesBalance().then((nodesData) => {
       if (!!nodesData) {
@@ -58,7 +62,7 @@
     </div>
   {:else if activeTab === "balances"}
     <div class="balances-container">
-      <NodesBalancePage {nodes} {onAddNode} />
+      <NodesBalancePage {nodes} {onAddNode} {onNodeBalanceIncrease} />
     </div>
   {/if}
 </main>

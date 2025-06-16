@@ -24,8 +24,8 @@ pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<Balance>> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct NodeBalances {
-    pub node_id: i64,
+pub struct NodeData {
+    pub id: i64,
     pub url: String,
     pub balances: Vec<Balance>,
 }
@@ -36,7 +36,7 @@ pub struct Balance {
     pub amount: i64,
 }
 
-pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeBalances>> {
+pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeData>> {
     let sql = r#"
         SELECT n.id, n.url, k.unit, SUM(p.amount) as amount
         FROM node n
@@ -56,14 +56,14 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeBalances>> {
         ))
     })?;
 
-    let mut result: Vec<NodeBalances> = Vec::new();
+    let mut result: Vec<NodeData> = Vec::new();
 
     for row in rows {
         let (node_id, url, opt_unit, opt_amount) = row?;
 
         match result.last_mut() {
-            Some(NodeBalances {
-                node_id: id,
+            Some(NodeData {
+                id,
                 url: _,
                 balances,
             }) if &node_id == id => {
@@ -72,8 +72,8 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeBalances>> {
                 }
             }
             Some(_) | None => {
-                let mut node_balances = NodeBalances {
-                    node_id,
+                let mut node_balances = NodeData {
+                    id: node_id,
                     url,
                     balances: vec![],
                 };

@@ -1,19 +1,16 @@
 pub mod db;
 pub mod errors;
+pub mod mint;
 mod outputs;
 pub mod types;
 
 use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::proof::get_max_order_for_keyset;
 
 use errors::Error;
 use futures::StreamExt;
-use node::{
-    AcknowledgeRequest, GetKeysetsRequest, MintQuoteRequest, MintQuoteResponse, MintQuoteState,
-    NodeClient, QuoteStateRequest, hash_mint_request, hash_swap_request,
-};
+use node::{AcknowledgeRequest, GetKeysetsRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -65,71 +62,6 @@ pub fn build_outputs_from_premints(
             blinded_secret: pm.blinded_secret.to_bytes().to_vec(),
         })
         .collect()
-}
-
-pub async fn create_mint_quote(
-    db_conn: &Connection,
-    node_client: &mut NodeClient<Channel>,
-    node_id: u32,
-    method: String,
-    amount: Amount,
-    unit: &str,
-) -> Result<MintQuoteResponse, Error> {
-    let response = node_client
-        .mint_quote(MintQuoteRequest {
-            method: method.clone(),
-            amount: amount.into(),
-            unit: unit.to_string(),
-            description: None,
-        })
-        .await?
-        .into_inner();
-
-    db::store_mint_quote(db_conn, node_id, method, amount, unit, &response)?;
-
-    Ok(response)
-}
-
-pub async fn get_mint_quote_state(
-    db_conn: &Connection,
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote_id: String,
-) -> Result<Option<MintQuoteState>, Error> {
-    let response = node_client
-        .mint_quote_state(QuoteStateRequest {
-            method,
-            quote: quote_id.clone(),
-        })
-        .await;
-
-    match response {
-        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
-            db::delete_mint_quote(db_conn, &quote_id)?;
-            Ok(None)
-        }
-        Ok(response) => {
-            let response = response.into_inner();
-            let state = MintQuoteState::try_from(response.state)
-                .map_err(|e| Error::Conversion(e.to_string()))?;
-
-            if state == MintQuoteState::MnqsUnpaid {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
-                if now >= response.expiry {
-                    db::delete_mint_quote(db_conn, &quote_id)?;
-                    return Ok(None);
-                }
-            }
-            db::set_mint_quote_state(db_conn, response.quote, response.state)?;
-            let state = MintQuoteState::try_from(response.state)
-                .map_err(|e| Error::Conversion(e.to_string()))?;
-            Ok(Some(state))
-        }
-        Err(e) => Err(e)?,
-    }
 }
 
 pub async fn refresh_node_keysets(
@@ -229,43 +161,6 @@ pub fn get_active_keyset_for_unit(
         .ok_or(Error::NoMatchingKeyset)?;
 
     Ok(keyset_id)
-}
-
-pub async fn mint_and_store_new_tokens(
-    db_conn: &Connection,
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote_id: String,
-    node_id: u32,
-    unit: &str,
-    total_amount: Amount,
-) -> Result<(), Error> {
-    let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
-
-    let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
-
-    let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
-
-    let mint_request = node::MintRequest {
-        method,
-        quote: quote_id,
-        outputs,
-    };
-
-    let mint_request_hash = hash_mint_request(&mint_request);
-    let mint_response = node_client.mint(mint_request).await?.into_inner();
-
-    let _ = store_new_tokens(
-        db_conn,
-        node_id,
-        keyset_id,
-        pre_mints.into_iter(),
-        mint_response.signatures.into_iter(),
-    );
-
-    acknowledge(node_client, Route::Mint, mint_request_hash).await?;
-
-    Ok(())
 }
 
 pub fn store_new_tokens(

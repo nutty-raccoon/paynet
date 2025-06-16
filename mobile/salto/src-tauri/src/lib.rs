@@ -1,38 +1,12 @@
+mod commands;
 mod errors;
 mod migrations;
 
-use std::str::FromStr;
-
-use errors::{AddNodeError, GetNodesBalanceError};
+use commands::{add_node, create_mint_quote, get_nodes_balance, redeem_quote};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tauri::{Manager, State};
+use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
-use wallet::{
-    db::balance::{Balance, NodeBalances},
-    types::NodeUrl,
-};
-
-#[tauri::command]
-fn get_nodes_balance(
-    state: State<'_, AppState>,
-) -> Result<Vec<NodeBalances>, GetNodesBalanceError> {
-    let db_conn = state.pool.get()?;
-    let nodes_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
-    Ok(nodes_balances)
-}
-
-#[tauri::command]
-async fn add_node(
-    state: State<'_, AppState>,
-    node_url: String,
-) -> Result<(u32, Vec<Balance>), AddNodeError> {
-    let node_url = NodeUrl::from_str(&node_url)?;
-    let (_client, id) = wallet::register_node(state.pool.clone(), &node_url).await?;
-    let db_conn = state.pool.get()?;
-    let balances = wallet::db::balance::get_for_node(&db_conn, id)?;
-    Ok((id, balances))
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -72,7 +46,12 @@ pub fn run() {
 
                 Ok(())
             })
-            .invoke_handler(tauri::generate_handler![get_nodes_balance, add_node])
+            .invoke_handler(tauri::generate_handler![
+                get_nodes_balance,
+                add_node,
+                create_mint_quote,
+                redeem_quote,
+            ])
     };
 
     app.run(tauri::generate_context!())

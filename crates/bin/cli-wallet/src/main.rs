@@ -6,7 +6,7 @@ use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
-use starknet_types::{Asset, Unit, is_valid_starknet_address};
+use starknet_types::{Asset, STARKNET_STR, Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use tracing_subscriber::EnvFilter;
@@ -174,8 +174,6 @@ impl WadArgs {
     }
 }
 
-const STARKNET_METHOD: &str = "starknet";
-
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -238,7 +236,7 @@ async fn main() -> Result<()> {
                 for node_balances in nodes_with_balances {
                     println!(
                         "Balance for node {} ({}):",
-                        node_balances.node_id, node_balances.url
+                        node_balances.id, node_balances.url
                     );
                     for balance in node_balances.balances {
                         println!("  {} {}", balance.amount, balance.unit);
@@ -254,23 +252,20 @@ async fn main() -> Result<()> {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Requesting {} to mint {} {}", &node_url, amount, asset);
 
-            let tx = db_conn.transaction()?;
-
             let amount = amount
-                .checked_mul(asset.precision())
+                .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            let mint_quote_response = wallet::create_mint_quote(
-                &tx,
+            let mint_quote_response = wallet::mint::create_quote(
+                pool.clone(),
                 &mut node_client,
                 node_id,
-                STARKNET_METHOD.to_string(),
+                STARKNET_STR.to_string(),
                 amount,
                 unit.as_str(),
             )
             .await?;
-            tx.commit()?;
 
             println!(
                 "MintQuote created with id: {}\nProceed to payment:\n{}",
@@ -281,10 +276,10 @@ async fn main() -> Result<()> {
                 // Wait a bit
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                let state = match wallet::get_mint_quote_state(
+                let state = match wallet::mint::get_quote_state(
                     &db_conn,
                     &mut node_client,
-                    STARKNET_METHOD.to_string(),
+                    STARKNET_STR.to_string(),
                     mint_quote_response.quote.clone(),
                 )
                 .await?
@@ -302,29 +297,27 @@ async fn main() -> Result<()> {
                 }
             }
 
-            let tx = db_conn.transaction()?;
-            wallet::mint_and_store_new_tokens(
-                &tx,
+            wallet::mint::redeem_quote(
+                &db_conn,
                 &mut node_client,
-                STARKNET_METHOD.to_string(),
+                STARKNET_STR.to_string(),
                 mint_quote_response.quote,
                 node_id,
                 unit.as_str(),
                 amount,
             )
             .await?;
-            tx.commit()?;
 
             // TODO: remove mint_quote
             println!("Token stored. Finished.");
         }
         Commands::Mint(MintCommands::Sync {}) => {
-            let pending_quotes = wallet::db::get_pending_mint_quotes(&db_conn)?;
+            let pending_quotes = wallet::db::mint_quote::get_pendings(&db_conn)?;
             for (node_id, quotes) in pending_quotes {
                 let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
                 for (method, quote_id, previous_state, unit, amount) in quotes {
                     let tx = db_conn.transaction()?;
-                    let new_state = match wallet::get_mint_quote_state(
+                    let new_state = match wallet::mint::get_quote_state(
                         &tx,
                         &mut node_client,
                         method,
@@ -344,10 +337,10 @@ async fn main() -> Result<()> {
                         && new_state == MintQuoteState::MnqsPaid
                     {
                         println!("On-chain deposit received for quote {}", quote_id);
-                        wallet::mint_and_store_new_tokens(
+                        wallet::mint::redeem_quote(
                             &tx,
                             &mut node_client,
-                            STARKNET_METHOD.to_string(),
+                            STARKNET_STR.to_string(),
                             quote_id,
                             node_id,
                             unit.as_str(),
@@ -371,7 +364,7 @@ async fn main() -> Result<()> {
             println!("Melting {} {} tokens", amount, asset);
 
             let amount = amount
-                .checked_mul(asset.precision())
+                .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
@@ -397,7 +390,7 @@ async fn main() -> Result<()> {
             }
 
             let melt_request = node::MeltRequest {
-                method: STARKNET_METHOD.to_string(),
+                method: STARKNET_STR.to_string(),
                 unit: unit.to_string(),
                 request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
                     payee: payee_address,
@@ -422,7 +415,7 @@ async fn main() -> Result<()> {
             loop {
                 let melt_quote_state_response = node_client
                     .melt_quote_state(QuoteStateRequest {
-                        method: STARKNET_METHOD.to_string(),
+                        method: STARKNET_STR.to_string(),
                         quote: resp.quote.clone(),
                     })
                     .await?
@@ -465,7 +458,7 @@ async fn main() -> Result<()> {
             println!("Sending {} {} using node {}", amount, asset, &node_url);
 
             let amount = amount
-                .checked_mul(asset.precision())
+                .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
