@@ -3,7 +3,11 @@
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceIncrease, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
-  import { formatBalance, increaseNodeBalance } from "../utils";
+  import {
+    computeTotalBalancePerUnit,
+    formatBalance,
+    increaseNodeBalance,
+  } from "../utils";
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
 
@@ -12,12 +16,14 @@
 
   let activeTab: Tab = $state("pay");
   // Calculate total balance across all nodes
-  let totalBalance = $derived(
-    0, // for now
-    // nodes.reduce((total, node) => total + node.balances[0].amount, 0),
+  let totalBalance: Map<string, number> = $derived(
+    computeTotalBalancePerUnit(nodes),
   );
-  let formattedTotalBalance = $derived(
-    formatBalance({ unit: "strk", amount: totalBalance }),
+  let formattedTotalBalance: string[] = $derived(
+    totalBalance
+      .entries()
+      .map(([unit, amount]) => formatBalance({ unit, amount }))
+      .toArray(),
   );
 
   // Effect to manage scrolling based on active tab
