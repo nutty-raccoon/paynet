@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main, new-ci ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -43,57 +43,6 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run clippy
         run: cargo clippy -- -D warnings
-
-  integration-test:
-    name: Integration Test
-    runs-on: ubuntu-latest
-    services:
-      db:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 'password'
-          POSTGRES_DB: node
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
-      - uses: dtolnay/rust-toolchain@1.86.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "rust-cache-integration-${{ hashFiles('**/Cargo.lock') }}"
-          cache-on-failure: true
-      - uses: arduino/setup-protoc@v3
-        with:
-          version: "28.x"
-      - name: Build services for integration tests
-        run: |
-          cargo build -p signer --bin signer -p node --no-default-features --features=mock,keyset-rotation --bin node
-          cargo test --no-run -p signer-tests
-          cargo test --no-run -p node-tests
-      - name: Run integration tests
-        timeout-minutes: 1
-        run: |
-          # Signer
-          GRPC_PORT=$SIGNER_GRPC_PORT ./target/debug/signer &
-          SIGNER_RUN_PID=$!
-          while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
-          GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
-          # Node
-          GRPC_PORT=$NODE_GRPC_PORT ./target/debug/node --config ./crates/bin/node/config/local.toml &
-          NODE_RUN_PID=$!
-          while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
-          GRPC_PORT=$NODE_GRPC_PORT cargo test -p node-tests
-          # Cleanup
-          kill $SIGNER_RUN_PID
-          kill $NODE_RUN_PID
 
   build:
     runs-on: ubuntu-latest
@@ -139,14 +88,16 @@ jobs:
   test:
     needs: [ build]
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: [app, testnet]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -157,58 +108,77 @@ jobs:
 
       - name: Update docker-compose with built images
         run: |
-          # Replace local image names with registry images for built services
-            sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
-            sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
-            sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
-            sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.${{ matrix.environment }}.yml
+          sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.app.yml
+          sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.app.yml
+          sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.app.yml
+          sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.app.yml
+
+          sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.testnet.yml
 
       - name: Build test binary
         run: cargo build -p tests --bin tests
 
+      - name: Start integration services (mock)
+        run: |
+          docker compose -f docker-compose.app-mock.yml up -d
+          docker compose -f docker-compose.app-mock.yml ps
+
+      - name: Wait for integration services to be healthy
+        run: |
+          echo "Waiting for services to be healthy..."
+          timeout 300 bash -c '
+            until docker compose -f docker-compose.app-mock.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
+              echo "Waiting for mock services to be ready..."
+              sleep 10
+              docker compose -f docker-compose.app-mock.yml ps
+            done
+          '
+
+      - name: Run node integration tests
+        env:
+          GRPC_PORT: 10003
+        run: cargo test -p node-tests
+
+      - name: Run signer integration tests
+        env:
+          GRPC_PORT: 10001
+          ROOT_KEY: "${{ env.ROOT_KEY }}"
+        run: cargo test -p signer-tests
+
       - name: Start services
         run: |
-          docker compose -f docker-compose.${{ matrix.environment }}.yml up -d
-          docker compose -f docker-compose.${{ matrix.environment }}.yml ps
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml up -d
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to be healthy..."
-          if [[ "${{ matrix.environment }}" == "app" ]]; then
-            EXPECTED_SERVICES=3
-          else
-            EXPECTED_SERVICES=1
-          fi
           timeout 300 bash -c '
-            until docker compose -f docker-compose.${{ matrix.environment }}.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "'$EXPECTED_SERVICES'"; do
+            until docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "4"; do
               echo "Waiting for all services to be ready..."
               sleep 10
-              docker compose -f docker-compose.${{ matrix.environment }}.yml ps
+              docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
             done
           '
 
       - name: Run basic health checks
         run: |
-          if [[ "${{ matrix.environment }}" == "app" ]]; then
-            # Test database connection
-            docker compose -f docker-compose.${{ matrix.environment }}.yml exec -T db pg_isready -U postgres
-            
-            # Test gRPC services
-            docker compose -f docker-compose.${{ matrix.environment }}.yml exec -T signer /bin/grpc_health_probe -addr=localhost:10001
-            docker compose -f docker-compose.${{ matrix.environment }}.yml exec -T node /bin/grpc_health_probe -addr=localhost:10003
-          fi
-          
-          # Test starknet devnet (available in both environments)
-          if [[ "${{ matrix.environment }}" == "testnet" ]]; then
-            curl -f http://localhost:5050/is_alive
-          fi
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T db pg_isready -U postgres
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T signer /bin/grpc_health_probe -addr=localhost:10001
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T node /bin/grpc_health_probe -addr=localhost:10003
+          curl -f http://localhost:5050/is_alive
+
+      - name: Cleanup CLI wallet DB
+        if: always()
+        run: rm -rf /home/runner/.local/share
 
       - name: Run E2E and concurrency tests
         env:
           NODE_URL: http://localhost:10003
           RPC_URL: http://localhost:5050
-          PRIVATE_KEY: 0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9
-          ACCOUNT_ADDRESS: 0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691
+          PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+          ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+          WALLET_DB_PATH: /tmp/cli-wallet.sqlite3
         run: |
           ./target/debug/tests e2e
           ./target/debug/tests concurrency
@@ -217,12 +187,14 @@ jobs:
         if: failure()
         run: |
           echo "=== Docker compose logs ==="
-          docker compose -f docker-compose.${{ matrix.environment }}.yml logs
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml logs
           echo "=== Docker compose ps ==="
-          docker compose -f docker-compose.${{ matrix.environment }}.yml ps
-
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+  
       - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.${{ matrix.environment }}.yml down -v
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml down -v
+          docker compose -f docker-compose.app-mock.yml down -v
           docker system prune -f
+          rm -rf /home/runner/.local/share

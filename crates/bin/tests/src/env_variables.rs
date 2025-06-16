@@ -1,12 +1,10 @@
-use std::env::VarError;
+use crate::errors::Result;
 
-use super::Error;
-
-pub fn read_env_variables() -> Result<EnvVariables, Error> {
-    let node_url = std::env::var("NODE_URL").map_err(|_e| VarError::NotPresent)?;
-    let rpc_url = std::env::var("RPC_URL").map_err(|_e| VarError::NotPresent)?;
-    let private_key = std::env::var("PRIVATE_KEY").map_err(|_e| VarError::NotPresent)?;
-    let account_address = std::env::var("ACCOUNT_ADDRESS").map_err(|_e| VarError::NotPresent)?;
+pub fn read_env_variables() -> Result<EnvVariables> {
+    let node_url = std::env::var("NODE_URL")?;
+    let rpc_url = std::env::var("RPC_URL")?;
+    let private_key = std::env::var("PRIVATE_KEY")?;
+    let account_address = std::env::var("ACCOUNT_ADDRESS")?;
 
     Ok(EnvVariables {
         node_url,
@@ -16,7 +14,7 @@ pub fn read_env_variables() -> Result<EnvVariables, Error> {
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EnvVariables {
     pub node_url: String,
     pub rpc_url: String,
