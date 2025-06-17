@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use itertools::Itertools;
 use node::{MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
 use nuts::Amount;
 use primitive_types::U256;
@@ -13,10 +12,7 @@ use tracing_subscriber::EnvFilter;
 use wallet::{
     acknowledge,
     db::balance::Balance,
-    types::{
-        NodeUrl, Wad,
-        compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
-    },
+    types::{NodeUrl, Wad, compact_wad::CompactWad},
 };
 
 #[derive(Parser)]
@@ -298,7 +294,7 @@ async fn main() -> Result<()> {
             }
 
             wallet::mint::redeem_quote(
-                &db_conn,
+                pool,
                 &mut node_client,
                 STARKNET_STR.to_string(),
                 mint_quote_response.quote,
@@ -338,7 +334,7 @@ async fn main() -> Result<()> {
                     {
                         println!("On-chain deposit received for quote {}", quote_id);
                         wallet::mint::redeem_quote(
-                            &tx,
+                            pool.clone(),
                             &mut node_client,
                             STARKNET_STR.to_string(),
                             quote_id,
@@ -368,9 +364,8 @@ async fn main() -> Result<()> {
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            let tx = db_conn.transaction()?;
             let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                &tx,
+                pool,
                 &mut node_client,
                 node_id,
                 amount,
@@ -378,11 +373,10 @@ async fn main() -> Result<()> {
             )
             .await?
             .ok_or(anyhow!("not enough funds"))?;
-            tx.commit()?;
 
             let tx = db_conn.transaction()?;
 
-            let inputs = wallet::load_tokens_from_db(&tx, proofs_ids).await?;
+            let inputs = wallet::load_tokens_from_db(&tx, proofs_ids)?;
 
             let payee_address = Felt::from_hex(&to)?;
             if !is_valid_starknet_address(&payee_address) {
@@ -462,9 +456,8 @@ async fn main() -> Result<()> {
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            let tx = db_conn.transaction()?;
             let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                &tx,
+                pool,
                 &mut node_client,
                 node_id,
                 amount,
@@ -472,33 +465,11 @@ async fn main() -> Result<()> {
             )
             .await?
             .ok_or(anyhow!("not enough funds"))?;
-            tx.commit()?;
 
             let tx = db_conn.transaction()?;
 
-            let proofs = wallet::load_tokens_from_db(&tx, proofs_ids).await?;
-
-            let compact_proofs = proofs
-                .into_iter()
-                .chunk_by(|p| p.keyset_id)
-                .into_iter()
-                .map(|(keyset_id, proofs)| CompactKeysetProofs {
-                    keyset_id,
-                    proofs: proofs
-                        .map(|p| CompactProof {
-                            amount: p.amount,
-                            secret: p.secret,
-                            c: p.c,
-                        })
-                        .collect(),
-                })
-                .collect();
-            let wad = CompactWad {
-                node_url,
-                unit,
-                memo,
-                proofs: compact_proofs,
-            };
+            let proofs = wallet::load_tokens_from_db(&tx, proofs_ids)?;
+            let wad = wallet::create_wad_from_proofs(node_url, unit, memo, proofs);
 
             match output {
                 Some(output_path) => {
@@ -534,11 +505,11 @@ async fn main() -> Result<()> {
             }
 
             let amount_received = wallet::receive_wad(
-                &mut db_conn,
+                pool,
                 &mut node_client,
                 node_id,
                 wad.unit.as_str(),
-                &wad.proofs,
+                wad.proofs,
             )
             .await?;
 
