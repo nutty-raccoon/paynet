@@ -6,10 +6,9 @@ pub mod types;
 
 use std::str::FromStr;
 
-use crate::db::proof::get_max_order_for_keyset;
-
 use errors::Error;
 use futures::StreamExt;
+use itertools::Itertools;
 use node::{AcknowledgeRequest, GetKeysetsRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{hash_to_curve, unblind_message};
@@ -18,13 +17,14 @@ use nuts::nut00::{self, BlindedMessage, Proof};
 use nuts::nut01::{PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
 use nuts::nut19::Route;
+use nuts::traits::Unit;
 use nuts::{Amount, SplitTarget};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, params};
 use tonic::Request;
 use tonic::transport::Channel;
-use types::compact_wad::CompactKeysetProofs;
+use types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
 use types::{NodeUrl, PreMint, ProofState};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
@@ -93,7 +93,6 @@ pub async fn refresh_node_keysets(
         })
     }
 
-    let db_conn = pool.get()?;
     while let Some(res) = futures.next().await {
         match res {
             // Save the keys in db
@@ -102,6 +101,7 @@ pub async fn refresh_node_keysets(
                 let keyset = resp.keysets;
                 let id = KeysetId::from_bytes(&keyset[0].id)
                     .map_err(|e| Error::Conversion(format!("Invalid keyset ID length: {:?}", e)))?;
+                let db_conn = pool.get()?;
                 db::insert_keyset_keys(
                     &db_conn,
                     id,
@@ -118,14 +118,19 @@ pub async fn refresh_node_keysets(
 }
 
 pub async fn read_or_import_node_keyset(
-    db_conn: &Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     keyset_id: KeysetId,
-) -> Result<String, Error> {
+) -> Result<(String, u64), Error> {
     // Happy path, it is in DB
-    if let Some(unit) = db::get_keyset_unit(db_conn, keyset_id)? {
-        return Ok(unit);
+    {
+        let db_conn = pool.get()?;
+        if let Some(unit) = db::get_keyset_unit(&db_conn, keyset_id)? {
+            // Should be safe to unwrap unless someone manually tamper with the database to remove keys
+            let max_order = db::proof::get_max_order_for_keyset(&db_conn, keyset_id)?.unwrap();
+            return Ok((unit, max_order));
+        }
     }
 
     let keyset_id_as_bytes = keyset_id.to_bytes();
@@ -137,19 +142,21 @@ pub async fn read_or_import_node_keyset(
         .await?
         .into_inner();
     let keyset = resp.keysets.first().unwrap();
+    let max_order = keyset.keys.iter().map(|k| k.amount).max().unwrap();
 
+    let db_conn = pool.get()?;
     db_conn.execute(
         "INSERT INTO keyset (id, node_id, unit, active) VALUES (?1, ?2, ?3, ?4)",
         params![keyset_id_as_bytes, node_id, &keyset.unit, keyset.active],
     )?;
 
     db::insert_keyset_keys(
-        db_conn,
+        &db_conn,
         keyset_id,
         keyset.keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
     )?;
 
-    Ok(keyset.unit.clone())
+    Ok((keyset.unit.clone(), max_order))
 }
 
 pub fn get_active_keyset_for_unit(
@@ -230,45 +237,48 @@ pub fn store_new_proofs_from_blind_signatures(
 }
 
 pub async fn fetch_inputs_ids_from_db_or_node(
-    db_conn: &Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     target_amount: Amount,
     unit: &str,
 ) -> Result<Option<Vec<PublicKey>>, Error> {
-    let total_amount_available =
-        db::proof::compute_total_amount_of_available_proofs(db_conn, node_id)?;
-
-    if total_amount_available < target_amount {
-        return Ok(None);
-    }
-
-    let mut stmt = db_conn.prepare(
-        "SELECT y, amount FROM proof WHERE node_id = ?1 AND state = ?2 ORDER BY amount DESC;",
-    )?;
-    let proofs_res_iterator = stmt.query_map(params![node_id, ProofState::Unspent], |r| {
-        Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
-    })?;
-
     let mut proofs_ids = Vec::new();
     let mut proofs_not_used = Vec::new();
     let mut remaining_amount = target_amount;
-    for proof_res in proofs_res_iterator {
-        let (y, proof_amount) = proof_res?;
-        match remaining_amount.cmp(&proof_amount) {
-            std::cmp::Ordering::Less => proofs_not_used.push((y, proof_amount)),
-            std::cmp::Ordering::Equal => {
-                proofs_ids.push(y);
-                remaining_amount -= proof_amount;
-                break;
-            }
-            std::cmp::Ordering::Greater => {
-                proofs_ids.push(y);
-                remaining_amount -= proof_amount;
+
+    {
+        let db_conn = pool.get()?;
+        let total_amount_available =
+            db::proof::compute_total_amount_of_available_proofs(&db_conn, node_id)?;
+
+        if total_amount_available < target_amount {
+            return Ok(None);
+        }
+
+        let mut stmt = db_conn.prepare(
+            "SELECT y, amount FROM proof WHERE node_id = ?1 AND state = ?2 ORDER BY amount DESC;",
+        )?;
+        let proofs_res_iterator = stmt.query_map(params![node_id, ProofState::Unspent], |r| {
+            Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
+        })?;
+
+        for proof_res in proofs_res_iterator {
+            let (y, proof_amount) = proof_res?;
+            match remaining_amount.cmp(&proof_amount) {
+                std::cmp::Ordering::Less => proofs_not_used.push((y, proof_amount)),
+                std::cmp::Ordering::Equal => {
+                    proofs_ids.push(y);
+                    remaining_amount -= proof_amount;
+                    break;
+                }
+                std::cmp::Ordering::Greater => {
+                    proofs_ids.push(y);
+                    remaining_amount -= proof_amount;
+                }
             }
         }
     }
-    drop(stmt);
 
     if !remaining_amount.is_zero() {
         let proof_to_swap = proofs_not_used
@@ -281,7 +291,7 @@ pub async fn fetch_inputs_ids_from_db_or_node(
             .unwrap();
 
         let new_tokens = swap_to_have_target_amount(
-            db_conn,
+            pool.clone(),
             node_client,
             node_id,
             unit,
@@ -309,7 +319,7 @@ pub async fn fetch_inputs_ids_from_db_or_node(
     Ok(Some(proofs_ids))
 }
 
-pub async fn load_tokens_from_db(
+pub fn load_tokens_from_db(
     db_conn: &Connection,
     proofs_ids: Vec<PublicKey>,
 ) -> Result<nut00::Proofs, Error> {
@@ -333,18 +343,22 @@ pub async fn load_tokens_from_db(
 }
 
 pub async fn swap_to_have_target_amount(
-    db_conn: &Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     unit: &str,
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
 ) -> Result<Vec<(PublicKey, Amount)>, Error> {
-    let keyset_id = get_active_keyset_for_unit(db_conn, node_id, unit)?;
+    let (keyset_id, input_unblind_signature) = {
+        let db_conn = pool.get()?;
+        let keyset_id = get_active_keyset_for_unit(&db_conn, node_id, unit)?;
 
-    let input_unblind_signature =
-        db::proof::get_proof_and_set_state_pending(db_conn, proof_to_swap.0)?
-            .ok_or(Error::ProofNotAvailable)?;
+        let input_unblind_signature =
+            db::proof::get_proof_and_set_state_pending(&db_conn, proof_to_swap.0)?
+                .ok_or(Error::ProofNotAvailable)?;
+        (keyset_id, input_unblind_signature)
+    };
 
     let pre_mints =
         PreMint::generate_for_amount(proof_to_swap.1, &SplitTarget::Value(target_amount))?;
@@ -360,25 +374,29 @@ pub async fn swap_to_have_target_amount(
 
     let swap_request = node::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
-    let swap_response = match node_client.swap(swap_request).await {
+    let swap_result = node_client.swap(swap_request).await;
+
+    let db_conn = pool.get()?;
+    let swap_response = match swap_result {
         Ok(r) => {
-            db::proof::set_proof_to_state(db_conn, proof_to_swap.0, ProofState::Spent)?;
+            db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Spent)?;
             r.into_inner()
         }
         Err(e) => {
             // TODO: delete instead when invalid input
-            db::proof::set_proof_to_state(db_conn, proof_to_swap.0, ProofState::Unspent)?;
+            db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Unspent)?;
             return Err(e.into());
         }
     };
 
     let new_tokens = store_new_tokens(
-        db_conn,
+        &db_conn,
         node_id,
         keyset_id,
         pre_mints.into_iter(),
         swap_response.signatures.into_iter(),
     )?;
+    drop(db_conn);
 
     acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
 
@@ -386,11 +404,11 @@ pub async fn swap_to_have_target_amount(
 }
 
 pub async fn receive_wad(
-    conn: &mut Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     unit: &str,
-    compact_keyset_proofs: &[CompactKeysetProofs],
+    compact_keyset_proofs: Vec<CompactKeysetProofs>,
 ) -> Result<Amount, Error> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
@@ -400,24 +418,24 @@ pub async fn receive_wad(
         ON CONFLICT DO UPDATE
             SET state = excluded.state
     "#;
-    let tx = conn.transaction()?;
-    let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
     let mut ys = Vec::with_capacity(compact_keyset_proofs.len());
     let mut total_amount = Amount::ZERO;
     let mut inputs = Vec::with_capacity(compact_keyset_proofs.len());
+    let mut stmt_params = Vec::with_capacity(compact_keyset_proofs.len());
 
-    for compact_keyset_proof in compact_keyset_proofs.iter() {
-        let keyset_unit =
-            read_or_import_node_keyset(&tx, node_client, node_id, compact_keyset_proof.keyset_id)
-                .await?;
+    for compact_keyset_proof in compact_keyset_proofs.into_iter() {
+        let (keyset_unit, max_order) = read_or_import_node_keyset(
+            pool.clone(),
+            node_client,
+            node_id,
+            compact_keyset_proof.keyset_id,
+        )
+        .await?;
         if keyset_unit != unit {
             return Err(Error::UnitMissmatch(keyset_unit, unit.to_string()));
         }
-        // Safe to unwrap as we just updated our db with this keyset
-        let max_order: u64 =
-            get_max_order_for_keyset(&tx, compact_keyset_proof.keyset_id)?.unwrap();
 
-        for compact_proof in compact_keyset_proof.proofs.iter() {
+        for compact_proof in compact_keyset_proof.proofs.into_iter() {
             let amount = u64::from(compact_proof.amount);
             if !amount.is_power_of_two() || amount == 0 {
                 return Err(Error::Protocol(
@@ -433,16 +451,6 @@ pub async fn receive_wad(
             let y = hash_to_curve(compact_proof.secret.as_ref())?;
             ys.push(y);
 
-            insert_proof_stmt.execute(params![
-                y,
-                node_id,
-                compact_keyset_proof.keyset_id,
-                compact_proof.amount,
-                compact_proof.secret,
-                compact_proof.c,
-                ProofState::Pending
-            ])?;
-
             total_amount = total_amount
                 .checked_add(&compact_proof.amount)
                 .ok_or(Error::AmountOverflow)?;
@@ -453,36 +461,54 @@ pub async fn receive_wad(
                 secret: compact_proof.secret.to_string(),
                 unblind_signature: compact_proof.c.to_bytes().to_vec(),
             });
+            stmt_params.push((
+                y,
+                node_id,
+                compact_keyset_proof.keyset_id,
+                compact_proof.amount,
+                compact_proof.secret,
+                compact_proof.c,
+                ProofState::Pending,
+            ));
         }
     }
-    drop(insert_proof_stmt);
-    tx.commit()?;
+    let keyset_id = {
+        let db_conn = pool.get()?;
+        let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
+        for params in stmt_params {
+            insert_proof_stmt.execute(params)?;
+        }
+        get_active_keyset_for_unit(&db_conn, node_id, unit)?
+    };
 
     let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
-    let keyset_id = get_active_keyset_for_unit(conn, node_id, unit)?;
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
     let swap_request = node::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
+    let swap_result = node_client.swap(swap_request).await;
 
-    let swap_response = match node_client.swap(swap_request).await {
-        Ok(r) => r.into_inner(),
-        Err(e) => {
-            db::proof::delete_proofs(conn, &ys)?;
-            return Err(e.into());
-        }
-    };
+    {
+        let mut db_conn = pool.get()?;
+        let swap_response = match swap_result {
+            Ok(r) => r.into_inner(),
+            Err(e) => {
+                db::proof::delete_proofs(&db_conn, &ys)?;
+                return Err(e.into());
+            }
+        };
 
-    let tx = conn.transaction()?;
-    db::proof::set_proofs_to_state(&tx, &ys, ProofState::Spent)?;
-    let _new_tokens = store_new_tokens(
-        &tx,
-        node_id,
-        keyset_id,
-        pre_mints.into_iter(),
-        swap_response.signatures.into_iter(),
-    )?;
-    tx.commit()?;
+        let tx = db_conn.transaction()?;
+        db::proof::set_proofs_to_state(&tx, &ys, ProofState::Spent)?;
+        let _new_tokens = store_new_tokens(
+            &tx,
+            node_id,
+            keyset_id,
+            pre_mints.into_iter(),
+            swap_response.signatures.into_iter(),
+        )?;
+        tx.commit()?;
+    }
 
     acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
 
@@ -496,9 +522,9 @@ pub async fn register_node(
     let mut node_client = NodeClient::connect(node_url.to_string()).await?;
 
     let node_id = {
-        let conn = pool.get()?;
-        db::node::insert(&conn, node_url)?;
-        db::node::get_id_by_url(&conn, node_url)?
+        let db_conn = pool.get()?;
+        db::node::insert(&db_conn, node_url)?;
+        db::node::get_id_by_url(&db_conn, node_url)?
     };
 
     refresh_node_keysets(pool, &mut node_client, node_id).await?;
@@ -585,4 +611,33 @@ pub async fn acknowledge(
         .await?;
 
     Ok(())
+}
+
+pub fn create_wad_from_proofs<U: Unit>(
+    node_url: NodeUrl,
+    unit: U,
+    memo: Option<String>,
+    proofs: Vec<Proof>,
+) -> CompactWad<U> {
+    let compact_proofs = proofs
+        .into_iter()
+        .chunk_by(|p| p.keyset_id)
+        .into_iter()
+        .map(|(keyset_id, proofs)| CompactKeysetProofs {
+            keyset_id,
+            proofs: proofs
+                .map(|p| CompactProof {
+                    amount: p.amount,
+                    secret: p.secret,
+                    c: p.c,
+                })
+                .collect(),
+        })
+        .collect();
+    CompactWad {
+        node_url,
+        unit,
+        memo,
+        proofs: compact_proofs,
+    }
 }

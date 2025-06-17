@@ -1,8 +1,11 @@
 mod commands;
 mod errors;
 mod migrations;
+mod parse_asset_amount;
 
-use commands::{add_node, create_mint_quote, get_nodes_balance, redeem_quote};
+use commands::{
+    add_node, create_mint_quote, create_wad, get_nodes_balance, receive_wad, redeem_quote,
+};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tauri::Manager;
@@ -51,6 +54,8 @@ pub fn run() {
                 add_node,
                 create_mint_quote,
                 redeem_quote,
+                create_wad,
+                receive_wad,
             ])
     };
 

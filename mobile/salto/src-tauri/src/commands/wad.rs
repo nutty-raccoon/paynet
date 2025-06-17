@@ -1,17 +1,18 @@
 use std::str::FromStr;
 
-use nuts::nut04::MintQuoteState;
-use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR};
+use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, Unit};
 use tauri::State;
+use wallet::types::compact_wad::{self, CompactWad};
 
 use crate::{
-    commands::BalanceIncrease,
     parse_asset_amount::{parse_asset_amount, ParseAmountStringError},
     AppState,
 };
 
+use super::BalanceIncrease;
+
 #[derive(Debug, thiserror::Error)]
-pub enum CreateMintQuoteError {
+pub enum CreateWadError {
     #[error(transparent)]
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
@@ -26,9 +27,11 @@ pub enum CreateMintQuoteError {
     Amount(#[from] ParseAmountStringError),
     #[error(transparent)]
     AssetToUnitConversion(#[from] AssetToUnitConversionError),
+    #[error("not enough funds")]
+    NotEnoughFunds,
 }
 
-impl serde::Serialize for CreateMintQuoteError {
+impl serde::Serialize for CreateWadError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -37,63 +40,59 @@ impl serde::Serialize for CreateMintQuoteError {
     }
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateMintQuoteResponse {
-    quote_id: String,
-    payment_request: String,
-}
-
 #[tauri::command]
-pub async fn create_mint_quote(
+pub async fn create_wad(
     state: State<'_, AppState>,
     node_id: u32,
     amount: String,
     asset: String,
-) -> Result<CreateMintQuoteResponse, CreateMintQuoteError> {
+) -> Result<CompactWad<Unit>, CreateWadError> {
     let asset = Asset::from_str(&asset)?;
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
     let node_url = {
         let db_conn = state.pool.get()?;
-        wallet::db::get_node_url(&db_conn, node_id)?.ok_or(CreateMintQuoteError::NodeId(node_id))?
+        wallet::db::get_node_url(&db_conn, node_id)?.ok_or(CreateWadError::NodeId(node_id))?
     };
     let mut node_client = wallet::connect_to_node(&node_url).await?;
 
-    let response = wallet::mint::create_quote(
+    let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
         state.pool.clone(),
         &mut node_client,
         node_id,
-        STARKNET_STR.to_string(),
         amount,
         unit.as_str(),
     )
-    .await?;
+    .await?
+    .ok_or(CreateWadError::NotEnoughFunds)?;
 
-    Ok(CreateMintQuoteResponse {
-        quote_id: response.quote,
-        payment_request: response.request,
-    })
+    let db_conn = state.pool.get()?;
+    let proofs = wallet::load_tokens_from_db(&db_conn, proofs_ids)?;
+    let wad = wallet::create_wad_from_proofs(node_url, unit, None, proofs);
+
+    Ok(wad)
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum RedeemQuoteError {
+pub enum ReceiveWadError {
     #[error(transparent)]
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
     Rusqlite(#[from] rusqlite::Error),
     #[error(transparent)]
     Wallet(#[from] wallet::errors::Error),
-    #[error("unknown node_id: {0}")]
-    NodeId(u32),
-    #[error("quote not paid")]
-    QuoteNotPaid,
     #[error(transparent)]
-    Tauri(#[from] tauri::Error),
+    Asset(#[from] AssetFromStrError),
+    #[error("invalid amount: {0}")]
+    Amount(#[from] ParseAmountStringError),
+    #[error(transparent)]
+    AssetToUnitConversion(#[from] AssetToUnitConversionError),
+    #[error("invalid string for compacted wad")]
+    WadString(#[from] compact_wad::Error),
 }
 
-impl serde::Serialize for RedeemQuoteError {
+impl serde::Serialize for ReceiveWadError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -103,40 +102,27 @@ impl serde::Serialize for RedeemQuoteError {
 }
 
 #[tauri::command]
-pub async fn redeem_quote(
+pub async fn receive_wad(
     state: State<'_, AppState>,
-    node_id: u32,
-    quote_id: String,
-) -> Result<BalanceIncrease, RedeemQuoteError> {
-    let node_url = {
-        let db_conn = state.pool.get()?;
-        wallet::db::get_node_url(&db_conn, node_id)?.ok_or(RedeemQuoteError::NodeId(node_id))?
-    };
-    let mut node_client = wallet::connect_to_node(&node_url).await?;
+    wad_string: String,
+) -> Result<BalanceIncrease, ReceiveWadError> {
+    let wad: CompactWad<Unit> = wad_string.parse()?;
 
-    let mint_quote = {
-        let db_conn = state.pool.get()?;
-        wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)?
-    };
+    let (mut node_client, node_id) =
+        wallet::register_node(state.pool.clone(), &wad.node_url).await?;
 
-    if mint_quote.state != MintQuoteState::Paid {
-        return Err(RedeemQuoteError::QuoteNotPaid);
-    }
-
-    wallet::mint::redeem_quote(
+    let amount_received = wallet::receive_wad(
         state.pool.clone(),
         &mut node_client,
-        STARKNET_STR.to_string(),
-        mint_quote.id,
         node_id,
-        mint_quote.unit.as_str(),
-        mint_quote.amount,
+        wad.unit.as_str(),
+        wad.proofs,
     )
     .await?;
 
     Ok(BalanceIncrease {
         node_id,
-        unit: mint_quote.unit.as_str().to_string(),
-        amount: mint_quote.amount.into(),
+        unit: wad.unit.as_str().to_string(),
+        amount: amount_received.into(),
     })
 }
