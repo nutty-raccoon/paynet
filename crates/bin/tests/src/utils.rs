@@ -34,10 +34,9 @@ pub fn init_account(
     Ok(account)
 }
 
-pub async fn pay_invoice(invoice_json: String, env: EnvVariables) -> Result<()> {
+pub async fn pay_invoices(calls: Vec<starknet_types::Call>, env: EnvVariables) -> Result<()> {
     let account = init_account(env)?;
 
-    let calls: [starknet_types::Call; 2] = serde_json::from_str(&invoice_json)?;
     let tx_hash = account
         .execute_v3(calls.into_iter().map(Into::into).collect())
         .send()
@@ -51,16 +50,16 @@ pub async fn pay_invoice(invoice_json: String, env: EnvVariables) -> Result<()> 
     Ok(())
 }
 
-pub async fn watch_tx<P>(provider: P, transaction_hash: Felt) -> Result<()>
+pub async fn watch_tx<P>(provider: P, tx_hash: Felt) -> Result<()>
 where
     P: starknet::providers::Provider,
 {
     loop {
         use starknet::core::types::{StarknetError, TransactionExecutionStatus, TransactionStatus};
         use starknet::providers::ProviderError;
-        match provider.get_transaction_status(transaction_hash).await {
+        match provider.get_transaction_status(tx_hash).await {
             Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded)) => {
-                return Ok(());
+                break;
             }
             Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted)) => {
                 return Err(Error::Other(anyhow!("tx reverted")));
@@ -71,6 +70,21 @@ where
             Err(err) => return Err(err.into()),
             Ok(TransactionStatus::AcceptedOnL1(_)) => unreachable!(),
         }
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
+    // Wait for block to not be pending anymore
+    loop {
+        if let starknet::core::types::ReceiptBlock::Block {
+            block_hash: _,
+            block_number: _,
+        } = provider.get_transaction_receipt(tx_hash).await?.block
+        {
+            break;
+        } else {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            continue;
+        }
+    }
+
+    Ok(())
 }

@@ -1,12 +1,11 @@
 use crate::env_variables::EnvVariables;
 use crate::errors::{Error, Result};
-use crate::utils::pay_invoice;
+use crate::utils::pay_invoices;
 use anyhow::anyhow;
 use itertools::Itertools;
 use node::{MeltRequest, MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
 use primitive_types::U256;
 use rusqlite::Connection;
-use serde_json;
 use starknet_types::{Asset, STARKNET_STR, Unit};
 use starknet_types_core::felt::Felt;
 use std::time::Duration;
@@ -52,7 +51,8 @@ impl WalletOps {
         .await?;
         tx.commit()?;
 
-        pay_invoice(quote.request, env).await?;
+        let calls: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
+        pay_invoices(calls.to_vec(), env).await?;
 
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;

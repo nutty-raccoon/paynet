@@ -11,19 +11,21 @@ use nuts::{
     nut01::PublicKey,
 };
 use starknet_types::Unit;
+use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 
 use crate::{
     env_variables::EnvVariables,
     errors::{Error, Result},
-    utils::pay_invoice,
+    utils::pay_invoices,
 };
 
 pub async fn blind_message_concurrence(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    let amount = Amount::from_i64_repr(10);
+    println!("running mint concurency test");
+    let amount = Amount::from_i64_repr(8);
 
     let mint_quote_request = MintQuoteRequest {
         method: "starknet".to_string(),
@@ -41,13 +43,40 @@ pub async fn blind_message_concurrence(
         })
     }
 
-    for quote in &mints_quote_response {
-        pay_invoice(quote.request.clone(), env.clone()).await?;
+    let mut calls = Vec::with_capacity(51);
+    let mut mint_quote_response_iterator = mints_quote_response.iter();
+
+    // Edit the allow call so that one call is enough to cover all invoices
+    // Then we only push the payment_invoice call. This reduce by half the number of calls.
+    // It is important because something break in DNA when there is too many calls, or events
+    // in a single transaction.
+    // That is the reason why we use `50` as the size of a batch, 100 was breaking it
+    let mut c: [starknet_types::Call; 2] =
+        serde_json::from_str(&mint_quote_response_iterator.next().unwrap().request)?;
+    c[0].calldata[1] *= Felt::from(100);
+    calls.push(c[0].clone());
+    calls.push(c[1].clone());
+    let mut i = 0;
+    for quote in mint_quote_response_iterator {
+        let c: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
+        calls.push(c[1].clone());
+        i += 1;
+
+        // Every 50 quote, we send a transaction
+        if i == 50 {
+            i = 0;
+            pay_invoices(calls.clone(), env.clone()).await?;
+            calls.clear();
+        }
+    }
+    // Won't be called by protect us agains regression
+    // if we change the number of concurrent calls in the future
+    if !calls.is_empty() {
+        pay_invoices(calls, env.clone()).await?;
     }
 
     for quote in &mints_quote_response {
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             let response = node_client
                 .mint_quote_state(QuoteStateRequest {
                     method: "starknet".to_string(),
@@ -68,6 +97,7 @@ pub async fn blind_message_concurrence(
                     println!("{e}")
                 }
             }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     }
 
@@ -100,10 +130,12 @@ pub async fn blind_message_concurrence(
         mints.push(make_mint(req, node_client.clone()));
     }
 
+    println!("minting all");
     let res = join_all(mints).await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
-    println!("{}", ok_vec.len());
+    println!("{} success", ok_vec.len());
+    assert_eq!(ok_vec.len(), 1);
 
     Ok(())
 }
@@ -124,6 +156,7 @@ pub async fn swap_concurrence(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
+    println!("running mint concurency test");
     let amount = Amount::from_i64_repr(32);
 
     let mint_quote_request = MintQuoteRequest {
@@ -137,10 +170,11 @@ pub async fn swap_concurrence(
         .await?
         .into_inner();
 
-    pay_invoice(original_mint_quote_response.request, env).await?;
+    let calls: [starknet_types::Call; 2] =
+        serde_json::from_str(&original_mint_quote_response.request)?;
+    pay_invoices(calls.to_vec(), env).await?;
 
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         let response = node_client
             .mint_quote_state(QuoteStateRequest {
                 method: "starknet".to_string(),
@@ -161,6 +195,7 @@ pub async fn swap_concurrence(
                 println!("{e}")
             }
         }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
     let keysets = node_client
@@ -228,25 +263,26 @@ pub async fn swap_concurrence(
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
 
-    let secret = Secret::generate();
-    let (blinded_secret, _r) =
-        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
-    let blind_message = BlindedMessage {
-        amount: amount.into(),
-        keyset_id: active_keyset.id.clone(),
-        blinded_secret: blinded_secret.to_bytes().to_vec(),
-    };
-
-    let swap_request = SwapRequest {
-        inputs: vec![proof],
-        outputs: vec![blind_message],
-    };
     let mut multi_swap = Vec::new();
     for _ in 0..100 {
+        let secret = Secret::generate();
+        let (blinded_secret, _r) =
+            blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+        let blind_message = BlindedMessage {
+            amount: amount.into(),
+            keyset_id: active_keyset.id.clone(),
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        };
+        let swap_request = SwapRequest {
+            inputs: vec![proof.clone()],
+            outputs: vec![blind_message],
+        };
         multi_swap.push(make_swap(node_client.clone(), swap_request.clone()))
     }
+    println!("swapping all");
     let res = join_all(multi_swap).await;
     let ok_vec: Vec<&SwapResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+    println!("{} success", ok_vec.len());
     assert_eq!(ok_vec.len(), 1);
     Ok(())
 }
