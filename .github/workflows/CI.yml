@@ -51,7 +51,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [explorer, node, signer, starknet-setup]
+        service: [node, signer, starknet-setup]
     steps:
       - uses: actions/checkout@v4
 
@@ -89,10 +89,13 @@ jobs:
             CARGO_FEATURES=${{ matrix.service == 'node' && 'starknet' || '' }}
         
   test:
-    needs: [ build]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
