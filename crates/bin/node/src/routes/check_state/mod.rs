@@ -30,32 +30,26 @@ impl GrpcState {
     ) -> Result<nuts::nut07::CheckStateResponse, Error> {
         let mut conn = self.pg_pool.acquire().await.map_err(Error::DbConnection)?;
 
-        let existing_proofs = db_node::proof::get_proofs_by_ids(&mut conn, ys.clone().into_iter())
+        let proof_data = db_node::proof::get_proofs_by_ids(&mut conn, &ys)
             .await
             .map_err(Error::ProofStateRetrieval)?;
 
-        let proof_states: Result<Vec<nuts::nut07::ProofCheckState>, Error> = ys
-            .iter()
-            .map(|y| {
-                let public_key = PublicKey::from_slice(y).map_err(Error::InvalidPublicKey)?;
-                let state = existing_proofs
-                    .iter()
-                    .find(|proof| proof.y.serialize() == *y.as_slice())
-                    .map_or(nuts::nut07::ProofState::Unspent, |proof| {
-                        proof.state.clone()
-                    });
+        let proof_states: Result<Vec<_>, _> = proof_data
+            .into_iter()
+            .map(|(y_bytes, state)| {
+                let public_key =
+                    PublicKey::from_slice(&y_bytes).map_err(Error::InvalidPublicKey)?;
+                let final_state = state.unwrap_or(nuts::nut07::ProofState::Unspent);
 
                 Ok(ProofCheckState {
                     y: public_key,
-                    state,
+                    state: final_state,
                 })
             })
             .collect();
 
-        let proof_states = proof_states?;
-
         Ok(nuts::nut07::CheckStateResponse {
-            proof_check_states: proof_states,
+            proof_check_states: proof_states?,
         })
     }
 }

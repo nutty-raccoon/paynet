@@ -5,7 +5,7 @@ use nuts::{
     nut07::{ProofCheckState, ProofState},
 };
 
-use sqlx::{PgConnection, Postgres, QueryBuilder};
+use sqlx::{PgConnection, Postgres, QueryBuilder, Row};
 /// Return true if one of the provided secret
 /// is already in db with state = SPENT
 pub async fn is_any_already_spent(
@@ -60,24 +60,48 @@ pub async fn insert_proof(
 /// Returns a vector of `ProofCheckState` containing the public key and its state.
 pub async fn get_proofs_by_ids(
     conn: &mut PgConnection,
-    ys: impl Iterator<Item = Vec<u8>>,
-) -> Result<Vec<ProofCheckState>, sqlx::Error> {
-    let records = sqlx::query!(
-        r#"SELECT y, state FROM proof WHERE y = ANY($1);"#,
-        &ys.collect::<Vec<_>>()
-    )
-    .fetch_all(conn)
-    .await?;
+    ys: &[Vec<u8>],
+) -> Result<Vec<(Vec<u8>, Option<ProofState>)>, sqlx::Error> {
+    if ys.is_empty() {
+        return Ok(vec![]);
+    }
 
-    let proofs = records
+    let placeholders: String = (0..ys.len())
+        .map(|i| format!("(${}, {})", i + 1, i))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let sql = format!(
+        r#"
+        SELECT v.y, v.position, proof.state 
+        FROM (
+          VALUES ({})
+        ) AS v(y, position) 
+        LEFT JOIN proof ON proof.y = v.y
+        ORDER BY v.position;"#,
+        placeholders
+    );
+
+    let mut query = sqlx::query(&sql);
+
+    // Bind all the y values
+    for y in ys {
+        query = query.bind(y.as_slice());
+    }
+
+    let records = query.fetch_all(conn).await?;
+
+    let results = records
         .into_iter()
-        .map(|record| ProofCheckState {
-            y: PublicKey::from_slice(&record.y).expect("Invalid public key format"),
-            state: ProofState::from(record.state as i32),
+        .map(|record| {
+            let y: Vec<u8> = record.get("y");
+            let state: Option<i32> = record.get("state");
+            let proof_state = state.map(ProofState::from);
+            (y, proof_state)
         })
-        .collect::<Vec<_>>();
+        .collect();
 
-    Ok(proofs)
+    Ok(results)
 }
 
 /// Generate a query following this model:
