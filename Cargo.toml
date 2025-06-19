@@ -21,7 +21,7 @@ members = [
   "crates/tests/signer-tests",
   "crates/tests/node-tests",
   # Mobile
-  "mobile/salto/src-tauri"
+  "mobile/salto/src-tauri",
 ]
 default-members = [
   # Bins
@@ -41,7 +41,7 @@ default-members = [
   "crates/starknet/liquidity-source",
   "crates/starknet/types",
   # Mobile
-  "mobile/salto/src-tauri"
+  "mobile/salto/src-tauri",
 ]
 
 

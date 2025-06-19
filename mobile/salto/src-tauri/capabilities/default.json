@@ -6,10 +6,10 @@
     "main"
   ],
   "permissions": [
+    "log:default",
     "core:default",
     "opener:default",
     "sql:default",
-    "sql:allow-execute",
-    "log:default"
+    "sql:allow-execute"
   ]
 }
