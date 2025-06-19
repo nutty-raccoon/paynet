@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 serde = { workspace = true }
-node = { workspace = true }
+node-client = { workspace = true }
 futures = { workspace = true }
 nuts = { workspace = true, features = ["rusqlite"] }
 tonic = { workspace = true }

@@ -19,7 +19,7 @@ pub fn store(
     method: String,
     amount: Amount,
     unit: &str,
-    response: &::node::MintQuoteResponse,
+    response: &node_client::MintQuoteResponse,
 ) -> Result<()> {
     const INSERT_NEW_MINT_QUOTE: &str = r#"
         INSERT INTO mint_quote

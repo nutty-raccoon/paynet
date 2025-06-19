@@ -1,8 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use node::{
-    MintQuoteRequest, MintQuoteResponse, MintQuoteState, NodeClient, QuoteStateRequest,
-    hash_mint_request,
+use node_client::{
+    MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest, NodeClient,
+    QuoteStateRequest, hash_mint_request,
 };
 use nuts::{Amount, SplitTarget, nut19::Route};
 use r2d2::Pool;
@@ -99,7 +99,7 @@ pub async fn redeem_quote(
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
-    let mint_request = node::MintRequest {
+    let mint_request = MintRequest {
         method,
         quote: quote_id,
         outputs,

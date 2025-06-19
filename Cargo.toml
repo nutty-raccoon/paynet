@@ -7,6 +7,7 @@ members = [
   "crates/bin/cli-wallet",
   "crates/bin/starknet-on-chain-setup",
   # Libs
+  "crates/node-client",
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
@@ -29,6 +30,7 @@ default-members = [
   "crates/bin/cli-wallet",
   "crates/bin/starknet-on-chain-setup",
   # Libs
+  "crates/node-client",
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
@@ -118,7 +120,7 @@ openssl-sys = "0.9.108"
 # Those libs depend on the dynlib `libsqlite3-sys`,
 # wich create conflict if they are not all referencing the exact same version.
 # Be carefull when updating any of those
-sqlx = { version = "0.8.3", default-features = false}
+sqlx = { version = "0.8.3", default-features = false }
 rusqlite = "0.32.0"
 r2d2_sqlite = "0.25.0"
 r2d2 = "0.8.10"
@@ -126,7 +128,7 @@ r2d2 = "0.8.10"
 # Local crates
 # Clients
 signer = { path = "crates/bin/signer" }
-node = { path = "crates/bin/node" }
+node-client = { path = "crates/node-client" }
 # Starknet
 starknet-types = { path = "crates/starknet/types" }
 starknet-payment-indexer = { path = "crates/starknet/payment-indexer" }

@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node::{MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
+use node_client::{MeltRequest, MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
 use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -383,7 +383,7 @@ async fn main() -> Result<()> {
                 return Err(anyhow!("Invalid starknet address: {}", payee_address));
             }
 
-            let melt_request = node::MeltRequest {
+            let melt_request = MeltRequest {
                 method: STARKNET_STR.to_string(),
                 unit: unit.to_string(),
                 request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {

@@ -1131,7 +1131,7 @@ dependencies = [
  "clap",
  "dirs",
  "itertools 0.14.0",
- "node",
+ "node-client",
  "nuts",
  "primitive-types 0.13.1",
  "r2d2",
@@ -3625,13 +3625,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "node-client"
+version = "0.1.0"
+dependencies = [
+ "nuts",
+ "prost 0.13.5",
+ "thiserror 2.0.12",
+ "tonic 0.13.1",
+ "tonic-build 0.13.1",
+]
+
+[[package]]
 name = "node-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "db-node",
  "dotenvy",
- "node",
+ "node-client",
  "nuts",
  "serde_json",
  "signer",
@@ -8134,7 +8145,7 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "log",
- "node",
+ "node-client",
  "num-traits",
  "nuts",
  "openssl",

@@ -1,12 +1,10 @@
 use nuts::{nut04, nut05};
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
 #[cfg(feature = "keyset-rotation")]
-pub use proto::keyset_rotation::keyset_rotation_service_server::{
-    KeysetRotationService, KeysetRotationServiceServer,
-};
+pub use proto::keyset_rotation::keyset_rotation_service_client::KeysetRotationServiceClient;
 #[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::*;
-pub use proto::node::node_server::{Node, NodeServer};
+pub use proto::node::node_client::NodeClient;
 pub use proto::node::*;
 
 mod proto {
@@ -48,6 +46,7 @@ impl From<nut05::MeltQuoteState> for MeltState {
         }
     }
 }
+
 impl TryFrom<MintQuoteState> for nut04::MintQuoteState {
     type Error = UnspecifiedEnum;
 

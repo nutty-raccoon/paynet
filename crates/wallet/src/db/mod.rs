@@ -68,7 +68,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
 pub fn upsert_node_keysets(
     conn: &Connection,
     node_id: u32,
-    keysets: Vec<::node::Keyset>,
+    keysets: Vec<node_client::Keyset>,
 ) -> Result<Vec<KeysetId>> {
     conn.execute(
         r#"
@@ -169,7 +169,7 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: KeysetId) -> Result<Option<
 pub fn register_melt_quote(
     conn: &Connection,
     node_id: u32,
-    response: &::node::MeltResponse,
+    response: &node_client::MeltResponse,
 ) -> Result<()> {
     const INSERT_MELT_RESPONSE: &str = r#"
             INSERT INTO melt_response (

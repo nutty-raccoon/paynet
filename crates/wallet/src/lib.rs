@@ -9,7 +9,7 @@ use std::str::FromStr;
 use errors::Error;
 use futures::StreamExt;
 use itertools::Itertools;
-use node::{AcknowledgeRequest, GetKeysetsRequest, NodeClient, hash_swap_request};
+use node_client::{AcknowledgeRequest, GetKeysetsRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -27,10 +27,10 @@ use tonic::transport::Channel;
 use types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
 use types::{NodeUrl, PreMint, ProofState};
 
-pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
+pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
         .iter()
-        .map(|p| node::Proof {
+        .map(|p| node_client::Proof {
             amount: p.amount.into(),
             keyset_id: p.keyset_id.to_bytes().to_vec(),
             secret: p.secret.to_string(),
@@ -39,10 +39,10 @@ pub fn convert_inputs(inputs: &[Proof]) -> Vec<node::Proof> {
         .collect()
 }
 
-pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node::BlindedMessage> {
+pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node_client::BlindedMessage> {
     outputs
         .iter()
-        .map(|o| node::BlindedMessage {
+        .map(|o| node_client::BlindedMessage {
             amount: o.amount.into(),
             keyset_id: o.keyset_id.to_bytes().to_vec(),
             blinded_secret: o.blinded_secret.to_bytes().to_vec(),
@@ -53,10 +53,10 @@ pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node::BlindedMessage> 
 pub fn build_outputs_from_premints(
     keyset_id: [u8; 8],
     pre_mints: &[PreMint],
-) -> Vec<node::BlindedMessage> {
+) -> Vec<node_client::BlindedMessage> {
     pre_mints
         .iter()
-        .map(|pm| node::BlindedMessage {
+        .map(|pm| node_client::BlindedMessage {
             amount: pm.amount.into(),
             keyset_id: keyset_id.to_vec(),
             blinded_secret: pm.blinded_secret.to_bytes().to_vec(),
@@ -86,7 +86,7 @@ pub async fn refresh_node_keysets(
         let mut cloned_node_client = node_client.clone();
         futures.push(async move {
             cloned_node_client
-                .keys(node::GetKeysRequest {
+                .keys(node_client::GetKeysRequest {
                     keyset_id: Some(new_keyset_id.to_bytes().to_vec()),
                 })
                 .await
@@ -136,7 +136,7 @@ pub async fn read_or_import_node_keyset(
     let keyset_id_as_bytes = keyset_id.to_bytes();
 
     let resp = node_client
-        .keys(node::GetKeysRequest {
+        .keys(node_client::GetKeysRequest {
             keyset_id: Some(keyset_id_as_bytes.to_vec()),
         })
         .await?
@@ -175,7 +175,7 @@ pub fn store_new_tokens(
     node_id: u32,
     keyset_id: KeysetId,
     pre_mints: impl Iterator<Item = PreMint>,
-    signatures: impl Iterator<Item = node::BlindSignature>,
+    signatures: impl Iterator<Item = node_client::BlindSignature>,
 ) -> Result<Vec<(PublicKey, Amount)>, Error> {
     let signatures_iterator = signatures
         .into_iter()
@@ -363,7 +363,7 @@ pub async fn swap_to_have_target_amount(
     let pre_mints =
         PreMint::generate_for_amount(proof_to_swap.1, &SplitTarget::Value(target_amount))?;
 
-    let inputs = vec![node::Proof {
+    let inputs = vec![node_client::Proof {
         amount: proof_to_swap.1.into(),
         keyset_id: input_unblind_signature.0.to_bytes().to_vec(),
         secret: input_unblind_signature.2.to_string(),
@@ -372,7 +372,7 @@ pub async fn swap_to_have_target_amount(
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
-    let swap_request = node::SwapRequest { inputs, outputs };
+    let swap_request = node_client::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
 
@@ -455,7 +455,7 @@ pub async fn receive_wad(
                 .checked_add(&compact_proof.amount)
                 .ok_or(Error::AmountOverflow)?;
 
-            inputs.push(node::Proof {
+            inputs.push(node_client::Proof {
                 amount,
                 keyset_id: compact_keyset_proof.keyset_id.to_bytes().to_vec(),
                 secret: compact_proof.secret.to_string(),
@@ -484,7 +484,7 @@ pub async fn receive_wad(
     let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
-    let swap_request = node::SwapRequest { inputs, outputs };
+    let swap_request = node_client::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
 

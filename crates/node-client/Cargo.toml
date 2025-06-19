@@ -1,0 +1,19 @@
+[package]
+name = "node-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = { workspace = true }
+nuts = { workspace = true, features = ["nut19"] }
+
+# gRPC
+prost = { workspace = true }
+tonic = { workspace = true }
+
+[features]
+default = []
+keyset-rotation = []
+
+[build-dependencies]
+tonic-build = "0.13.0"

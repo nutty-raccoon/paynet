@@ -14,9 +14,8 @@ starknet-types-core = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 dotenvy = { workspace = true }
-node = { default-features = false, path = "../../bin/node", features = [
-    "mock",
-    "keyset-rotation",
+node-client = { default-features = false, path = "../../node-client", features = [
+    "keyset-rotation"
 ] }
 
 starknet-liquidity-source = { workspace = true }
