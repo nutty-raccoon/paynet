@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT y, state FROM proof WHERE y = ANY($1);",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "y",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "state",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "999df0417f3c7d8081a097e635742fc6a06828ab9d2126d7b576ac929f154e19"
+}
