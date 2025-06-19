@@ -35,5 +35,6 @@ pub async fn add_node(
     let (_client, id) = wallet::register_node(state.pool.clone(), &node_url).await?;
     let db_conn = state.pool.get()?;
     let balances = wallet::db::balance::get_for_node(&db_conn, id)?;
+
     Ok((id, balances))
 }

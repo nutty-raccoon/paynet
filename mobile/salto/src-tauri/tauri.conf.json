@@ -36,7 +36,7 @@
   "plugins": {
     "sql": {
       "preload": [
-        "sqlite:/Users/tdelabro/Library/Application Support/salto-wallet.sqlite3"
+        "sqlite:salto-wallet.sqlite3"
       ]
     }
   }
