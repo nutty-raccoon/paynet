@@ -1,84 +1,39 @@
 use futures::future::join_all;
 use node::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltRequest,
-    MeltResponse, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest, MintResponse,
-    NodeClient, Proof, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+    AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltRequest, MeltResponse,
+    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, NodeClient, Proof, SwapRequest,
+    SwapResponse, hash_mint_request,
 };
 use nuts::{
     Amount,
     dhke::{blind_message, unblind_message},
     nut00::secret::Secret,
     nut01::PublicKey,
-    nut05::MeltQuoteState,
 };
 use starknet_types::Unit;
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 
 use crate::{
+    concurrency::utils::{
+        get_active_keyset, make_melt, make_mint, make_swap, mint_and_wait, wait_transac,
+    },
     env_variables::EnvVariables,
     errors::{Error, Result},
     utils::pay_invoices,
 };
 
-pub async fn mint_same_quote(
-    mut node_client: NodeClient<Channel>,
-    env: EnvVariables,
-) -> Result<()> {
+pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables) -> Result<()> {
     println!("  * running mint concurency test");
     let amount = Amount::from_i64_repr(32);
 
-    let mint_quote_request = MintQuoteRequest {
-        method: "starknet".to_string(),
-        amount: amount.into(),
-        unit: Unit::MilliStrk.to_string(),
-        description: None,
-    };
-    let original_mint_quote_response = node_client
-        .mint_quote(mint_quote_request.clone())
-        .await?
-        .into_inner();
+    let original_mint_quote_response =
+        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
 
-    let calls: [starknet_types::Call; 2] =
-        serde_json::from_str(&original_mint_quote_response.request)?;
-    pay_invoices(calls.to_vec(), env).await?;
-
-    loop {
-        let response = node_client
-            .mint_quote_state(QuoteStateRequest {
-                method: "starknet".to_string(),
-                quote: original_mint_quote_response.quote.clone(),
-            })
-            .await;
-
-        match response {
-            Ok(response) => {
-                let response = response.into_inner();
-                let state =
-                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
-                if state == MintQuoteState::MnqsPaid {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("{e}")
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
     let mut mints_requests: Vec<MintRequest> = Vec::new();
-
     for _ in 0..100 {
-        let keysets = node_client
-            .keysets(GetKeysetsRequest {})
-            .await?
-            .into_inner()
-            .keysets;
-        let active_keyset = keysets
-            .iter()
-            .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
-            .unwrap();
+        let active_keyset =
+            get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
         let secret = Secret::generate();
         let (blinded_secret, _r) =
             blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
@@ -165,40 +120,11 @@ pub async fn mint_same_output(
     }
 
     for quote in &mints_quote_response {
-        loop {
-            let response = node_client
-                .mint_quote_state(QuoteStateRequest {
-                    method: "starknet".to_string(),
-                    quote: quote.quote.clone(),
-                })
-                .await;
-
-            match response {
-                Ok(response) => {
-                    let response = response.into_inner();
-                    let state = MintQuoteState::try_from(response.state)
-                        .map_err(|e| Error::Other(e.into()))?;
-                    if state == MintQuoteState::MnqsPaid {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    println!("{e}")
-                }
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
+        wait_transac(node_client.clone(), quote).await?;
     }
 
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
-    let active_keyset = keysets
-        .iter()
-        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
-        .unwrap();
+    let active_keyset =
+        get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
     let secret = Secret::generate();
     let (blinded_secret, _r) =
         blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
@@ -229,18 +155,6 @@ pub async fn mint_same_output(
     Ok(())
 }
 
-async fn make_mint(req: MintRequest, mut node_client: NodeClient<Channel>) -> Result<MintResponse> {
-    let mint_response = node_client.mint(req.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&req);
-    node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "mint".to_string(),
-            request_hash,
-        })
-        .await?;
-    Ok(mint_response)
-}
-
 pub async fn swap_same_output(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
@@ -248,54 +162,11 @@ pub async fn swap_same_output(
     println!("  * running swap_same_output test");
     let amount = Amount::from_i64_repr(128);
 
-    let mint_quote_request = MintQuoteRequest {
-        method: "starknet".to_string(),
-        amount: amount.into(),
-        unit: Unit::MilliStrk.to_string(),
-        description: None,
-    };
-    let original_mint_quote_response = node_client
-        .mint_quote(mint_quote_request.clone())
-        .await?
-        .into_inner();
+    let original_mint_quote_response =
+        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
 
-    let calls: [starknet_types::Call; 2] =
-        serde_json::from_str(&original_mint_quote_response.request)?;
-    pay_invoices(calls.to_vec(), env).await?;
-
-    loop {
-        let response = node_client
-            .mint_quote_state(QuoteStateRequest {
-                method: "starknet".to_string(),
-                quote: original_mint_quote_response.quote.clone(),
-            })
-            .await;
-
-        match response {
-            Ok(response) => {
-                let response = response.into_inner();
-                let state =
-                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
-                if state == MintQuoteState::MnqsPaid {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("{e}")
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
-    let active_keyset = keysets
-        .iter()
-        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
-        .unwrap();
+    let active_keyset =
+        get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
 
     let secret = Secret::generate();
     let (blinded_secret, r) =
@@ -390,54 +261,11 @@ pub async fn swap_same_input(
     println!("  * running swap_same_input test");
     let amount = Amount::from_i64_repr(32);
 
-    let mint_quote_request = MintQuoteRequest {
-        method: "starknet".to_string(),
-        amount: amount.into(),
-        unit: Unit::MilliStrk.to_string(),
-        description: None,
-    };
-    let original_mint_quote_response = node_client
-        .mint_quote(mint_quote_request.clone())
-        .await?
-        .into_inner();
+    let original_mint_quote_response =
+        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
 
-    let calls: [starknet_types::Call; 2] =
-        serde_json::from_str(&original_mint_quote_response.request)?;
-    pay_invoices(calls.to_vec(), env).await?;
-
-    loop {
-        let response = node_client
-            .mint_quote_state(QuoteStateRequest {
-                method: "starknet".to_string(),
-                quote: original_mint_quote_response.quote.clone(),
-            })
-            .await;
-
-        match response {
-            Ok(response) => {
-                let response = response.into_inner();
-                let state =
-                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
-                if state == MintQuoteState::MnqsPaid {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("{e}")
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
-    let active_keyset = keysets
-        .iter()
-        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
-        .unwrap();
+    let active_keyset =
+        get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
     let secret = Secret::generate();
     let (blinded_secret, r) =
         blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
@@ -518,21 +346,6 @@ pub async fn swap_same_input(
     Ok(())
 }
 
-async fn make_swap(
-    mut node_client: NodeClient<Channel>,
-    swap_request: SwapRequest,
-) -> Result<SwapResponse> {
-    let original_swap_response = node_client.swap(swap_request.clone()).await?.into_inner();
-    let request_hash = hash_swap_request(&swap_request);
-    node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "swap".to_string(),
-            request_hash,
-        })
-        .await?;
-    Ok(original_swap_response)
-}
-
 pub async fn melt_same_input(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
@@ -544,54 +357,17 @@ pub async fn melt_same_input(
 
     let amount = Amount::from_i64_repr(32);
 
-    let mint_quote_request = MintQuoteRequest {
-        method: "starknet".to_string(),
-        amount: amount.into(),
-        unit: Unit::MilliStrk.to_string(),
-        description: None,
-    };
-    let original_mint_quote_response = node_client
-        .mint_quote(mint_quote_request.clone())
-        .await?
-        .into_inner();
+    let original_mint_quote_response =
+        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
 
     let calls: [starknet_types::Call; 2] =
         serde_json::from_str(&original_mint_quote_response.request)?;
     pay_invoices(calls.to_vec(), env).await?;
 
-    loop {
-        let response = node_client
-            .mint_quote_state(QuoteStateRequest {
-                method: "starknet".to_string(),
-                quote: original_mint_quote_response.quote.clone(),
-            })
-            .await;
+    wait_transac(node_client.clone(), &original_mint_quote_response).await?;
 
-        match response {
-            Ok(response) => {
-                let response = response.into_inner();
-                let state =
-                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
-                if state == MintQuoteState::MnqsPaid {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("{e}")
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
-    let active_keyset = keysets
-        .iter()
-        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
-        .unwrap();
+    let active_keyset =
+        get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
     let secret = Secret::generate();
     let (blinded_secret, r) =
         blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
@@ -668,43 +444,4 @@ pub async fn melt_same_input(
     println!("{} success", ok_vec.len());
     assert_eq!(ok_vec.len(), 1);
     Ok(())
-}
-
-async fn make_melt(
-    mut node_client: NodeClient<Channel>,
-    melt_request: MeltRequest,
-) -> Result<MeltResponse> {
-    let original_melt_response = node_client.melt(melt_request.clone()).await?.into_inner();
-    let request_hash = hash_melt_request(&melt_request);
-    node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "melt".to_string(),
-            request_hash,
-        })
-        .await?;
-
-    loop {
-        let response = node_client
-            .melt_quote_state(QuoteStateRequest {
-                method: "starknet".into(),
-                quote: original_melt_response.quote.clone(),
-            })
-            .await;
-
-        match response {
-            Ok(response) => {
-                let response = response.into_inner();
-                let state = MeltQuoteState::try_from(response.state())
-                    .map_err(|e| Error::Other(e.into()))?;
-                if state == MeltQuoteState::Paid {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("{e}")
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-    Ok(original_melt_response)
 }
