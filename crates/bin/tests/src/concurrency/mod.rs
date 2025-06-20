@@ -11,6 +11,7 @@ use crate::{
 };
 
 mod concurrence_ops;
+mod utils;
 
 pub async fn run_concurrency(env: EnvVariables) -> Result<()> {
     println!("[CONCURRENCY] Launching concurrency tests");
