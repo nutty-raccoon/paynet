@@ -20,11 +20,98 @@ use crate::{
     utils::pay_invoices,
 };
 
-pub async fn blind_message_concurrence(
+pub async fn mint_same_quote(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    println!("running mint concurency test");
+    println!("  * running mint concurency test");
+    let amount = Amount::from_i64_repr(32);
+
+    let mint_quote_request = MintQuoteRequest {
+        method: "starknet".to_string(),
+        amount: amount.into(),
+        unit: Unit::MilliStrk.to_string(),
+        description: None,
+    };
+    let original_mint_quote_response = node_client
+        .mint_quote(mint_quote_request.clone())
+        .await?
+        .into_inner();
+
+    let calls: [starknet_types::Call; 2] =
+        serde_json::from_str(&original_mint_quote_response.request)?;
+    pay_invoices(calls.to_vec(), env).await?;
+
+    loop {
+        let response = node_client
+            .mint_quote_state(QuoteStateRequest {
+                method: "starknet".to_string(),
+                quote: original_mint_quote_response.quote.clone(),
+            })
+            .await;
+
+        match response {
+            Ok(response) => {
+                let response = response.into_inner();
+                let state =
+                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
+                if state == MintQuoteState::MnqsPaid {
+                    break;
+                }
+            }
+            Err(e) => {
+                println!("{e}")
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+    let mut mints_requests: Vec<MintRequest> = Vec::new();
+
+    for _ in 0..100 {
+        let keysets = node_client
+            .keysets(GetKeysetsRequest {})
+            .await?
+            .into_inner()
+            .keysets;
+        let active_keyset = keysets
+            .iter()
+            .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
+            .unwrap();
+        let secret = Secret::generate();
+        let (blinded_secret, _r) =
+            blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+        let mint_request = MintRequest {
+            method: "starknet".to_string(),
+            quote: original_mint_quote_response.clone().quote,
+            outputs: vec![BlindedMessage {
+                amount: amount.into(),
+                keyset_id: active_keyset.id.clone(),
+                blinded_secret: blinded_secret.to_bytes().to_vec(),
+            }],
+        };
+        mints_requests.push(mint_request);
+    }
+
+    let mut mints = Vec::new();
+    for req in mints_requests {
+        mints.push(make_mint(req, node_client.clone()));
+    }
+
+    println!("minting all");
+    let res = join_all(mints).await;
+
+    let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+    println!("{} success", ok_vec.len());
+    assert_eq!(ok_vec.len(), 1);
+
+    Ok(())
+}
+
+pub async fn mint_same_output(
+    mut node_client: NodeClient<Channel>,
+    env: EnvVariables,
+) -> Result<()> {
+    println!("  * running mint_same_output test");
     let amount = Amount::from_i64_repr(8);
 
     let mint_quote_request = MintQuoteRequest {
@@ -152,11 +239,153 @@ async fn make_mint(req: MintRequest, mut node_client: NodeClient<Channel>) -> Re
     Ok(mint_response)
 }
 
-pub async fn swap_concurrence(
+pub async fn swap_same_output(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    println!("running mint concurency test");
+    println!("  * running swap_same_output test");
+    let amount = Amount::from_i64_repr(128);
+
+    let mint_quote_request = MintQuoteRequest {
+        method: "starknet".to_string(),
+        amount: amount.into(),
+        unit: Unit::MilliStrk.to_string(),
+        description: None,
+    };
+    let original_mint_quote_response = node_client
+        .mint_quote(mint_quote_request.clone())
+        .await?
+        .into_inner();
+
+    let calls: [starknet_types::Call; 2] =
+        serde_json::from_str(&original_mint_quote_response.request)?;
+    pay_invoices(calls.to_vec(), env).await?;
+
+    loop {
+        let response = node_client
+            .mint_quote_state(QuoteStateRequest {
+                method: "starknet".to_string(),
+                quote: original_mint_quote_response.quote.clone(),
+            })
+            .await;
+
+        match response {
+            Ok(response) => {
+                let response = response.into_inner();
+                let state =
+                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
+                if state == MintQuoteState::MnqsPaid {
+                    break;
+                }
+            }
+            Err(e) => {
+                println!("{e}")
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    let keysets = node_client
+        .keysets(GetKeysetsRequest {})
+        .await?
+        .into_inner()
+        .keysets;
+    let active_keyset = keysets
+        .iter()
+        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
+        .unwrap();
+
+    let secret = Secret::generate();
+    let (blinded_secret, r) =
+        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+    let mint_request = MintRequest {
+        method: "starknet".to_string(),
+        quote: original_mint_quote_response.quote,
+        outputs: vec![BlindedMessage {
+            amount: amount.into(),
+            keyset_id: active_keyset.id.clone(),
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        }],
+    };
+
+    let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
+    let request_hash = hash_mint_request(&mint_request);
+    node_client
+        .acknowledge(AcknowledgeRequest {
+            path: "mint".to_string(),
+            request_hash,
+        })
+        .await?;
+
+    let node_pubkey_for_amount = PublicKey::from_hex(
+        &node_client
+            .keys(GetKeysRequest {
+                keyset_id: Some(active_keyset.id.clone()),
+            })
+            .await?
+            .into_inner()
+            .keysets
+            .first()
+            .unwrap()
+            .keys
+            .iter()
+            .find(|key| Amount::from(key.amount) == amount)
+            .unwrap()
+            .pubkey,
+    )
+    .map_err(|e| Error::Other(e.into()))?;
+    let blind_signature = PublicKey::from_slice(
+        &original_mint_response
+            .signatures
+            .first()
+            .unwrap()
+            .blind_signature,
+    )
+    .unwrap();
+    let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)
+        .map_err(|e| Error::Other(e.into()))?;
+
+    let mut multi_proof = Vec::new();
+    for _ in 0..100 {
+        let proof = Proof {
+            amount: amount.into(),
+            keyset_id: active_keyset.id.clone(),
+            secret: secret.to_string(),
+            unblind_signature: unblinded_signature.to_bytes().to_vec(),
+        };
+        multi_proof.push(proof);
+    }
+
+    let secret = Secret::generate();
+    let (blinded_secret, _r) =
+        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+    let blinded_message = BlindedMessage {
+        amount: amount.into(),
+        keyset_id: active_keyset.id.clone(),
+        blinded_secret: blinded_secret.to_bytes().to_vec(),
+    };
+
+    let mut multi_swap = Vec::new();
+    for proof in multi_proof {
+        let swap_request = SwapRequest {
+            inputs: vec![proof],
+            outputs: vec![blinded_message.clone()],
+        };
+        multi_swap.push(make_swap(node_client.clone(), swap_request));
+    }
+    println!("swapping all");
+    let res = join_all(multi_swap).await;
+    let ok_vec: Vec<&SwapResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+    println!("{} success", ok_vec.len());
+    assert_eq!(ok_vec.len(), 1);
+    Ok(())
+}
+
+pub async fn swap_same_input(
+    mut node_client: NodeClient<Channel>,
+    env: EnvVariables,
+) -> Result<()> {
+    println!("  * running swap_same_input test");
     let amount = Amount::from_i64_repr(32);
 
     let mint_quote_request = MintQuoteRequest {
