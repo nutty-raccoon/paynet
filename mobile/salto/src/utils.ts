@@ -1,13 +1,25 @@
 import type { Balance, BalanceIncrease, NodeData } from "./types";
 
 /**
- * Format a number as USD currency
- * @param balance The number to format as currency
- * @returns Formatted currency string
+ * Format a balance into separate amount and unit strings
+ * @param balance The balance to format
+ * @returns Object with formatted amount and unit strings
  */
-export function formatBalance(balance: Balance): string {
-  return `${balance.unit}: ${balance.amount}`
+export function formatBalance(balance: Balance): {amount: number, unit: string} {
+  const {unit, amount} = balance.unit == "millistrk" ? {unit: "strk", amount: balance.amount / 1000} :   {unit: balance.unit, amount: balance.amount};
+   return {amount: amount, unit: unit.toUpperCase()};
 }
+
+export function unitPrecision(unit: string): number {
+  switch(unit) {
+  case "millistrk":
+    return 1000;
+  default:
+    console.log("unknown unit:", unit);
+    return 1;
+  } 
+}
+
 
 export function increaseNodeBalance(nodes: NodeData[], balanceChange: BalanceIncrease) {
       let nodeToUpdate = nodes.find((n) => {

@@ -67,7 +67,8 @@
         <div class="node-balance-container">
           <span class="node-balance-label">Balance</span>
           {#each node.balances as balance}
-            <span class="node-balance">{formatBalance(balance)}</span>
+            {@const formatted = formatBalance(balance)}
+            <span class="node-balance">{formatted.unit}: {formatted.amount}</span>
           {/each}
         </div>
       </div>

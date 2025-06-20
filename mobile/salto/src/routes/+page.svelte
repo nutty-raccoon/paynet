@@ -1,5 +1,6 @@
 <script lang="ts">
   import PayButton from "./components/PayButton.svelte";
+  import PayModal from "./components/PayModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceIncrease, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
@@ -15,6 +16,8 @@
   let nodes: NodeData[] = $state([]);
 
   let activeTab: Tab = $state("pay");
+  let isPayModalOpen = $state(false);
+  
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
     computeTotalBalancePerUnit(nodes),
@@ -22,7 +25,10 @@
   let formattedTotalBalance: string[] = $derived(
     totalBalance
       .entries()
-      .map(([unit, amount]) => formatBalance({ unit, amount }))
+      .map(([unit, amount]) => {
+        const formatted = formatBalance({ unit, amount });
+        return `${formatted.unit}: ${formatted.amount}`;
+      })
       .toArray(),
   );
 
@@ -43,12 +49,48 @@
     increaseNodeBalance(nodes, balanceIncrease);
   };
 
+  // PayModal control functions
+  function openPayModal() {
+    isPayModalOpen = true;
+    // Add history entry to handle back button
+    history.pushState({ modal: true }, "");
+  }
+
+  function closePayModal() {
+    isPayModalOpen = false;
+  }
+
+  function handlePayment(unit: string, amount: number) {
+    // TODO: Implement actual payment logic
+    console.log(`Payment request: ${amount} ${unit}`);
+    // For now, just log the payment. In a real app, this would:
+    // 1. Create a payment request
+    // 2. Process the payment
+    // 3. Update balances accordingly
+  }
+
+  // Set up back button listener for PayModal
+  function handlePopState() {
+    if (isPayModalOpen) {
+      closePayModal();
+    }
+  }
+
   onMount(() => {
     getNodesBalance().then((nodesData) => {
       if (!!nodesData) {
         nodesData.forEach(onAddNode);
       }
     });
+    
+    // Add popstate listener for back button handling
+    window.addEventListener("popstate", handlePopState);
+  });
+
+  // Clean up when component is destroyed
+  onDestroy(() => {
+    document.body.classList.remove("no-scroll");
+    window.removeEventListener("popstate", handlePopState);
   });
 
   // Clean up when component is destroyed
@@ -64,7 +106,7 @@
         <h2 class="balance-title">TOTAL BALANCE</h2>
         <p class="total-balance-amount">{formattedTotalBalance}</p>
       </div>
-      <PayButton />
+      <PayButton onClick={openPayModal} />
     </div>
   {:else if activeTab === "balances"}
     <div class="balances-container">
@@ -78,6 +120,13 @@
   onTabChange={(tab: Tab) => {
     activeTab = tab;
   }}
+/>
+
+<PayModal
+  isOpen={isPayModalOpen}
+  availableBalances={totalBalance}
+  onClose={closePayModal}
+  onPay={handlePayment}
 />
 
 <style>

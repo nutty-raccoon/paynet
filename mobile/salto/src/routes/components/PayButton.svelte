@@ -1,11 +1,12 @@
 <script lang="ts">
-  function handlePayClick() {
-    // In a real app, this would navigate to a payment page or open a modal
-    alert('Payment functionality would go here');
+  interface Props {
+    onClick: () => void;
   }
+
+  let { onClick }: Props = $props();
 </script>
 
-<button class="pay-button" on:click={handlePayClick}>
+<button class="pay-button" onclick={onClick}>
   Pay
 </button>
 
