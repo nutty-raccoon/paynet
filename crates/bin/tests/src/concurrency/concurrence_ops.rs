@@ -1,14 +1,16 @@
 use futures::future::join_all;
 use node::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MintQuoteRequest,
-    MintQuoteResponse, MintQuoteState, MintRequest, MintResponse, NodeClient, Proof,
-    QuoteStateRequest, SwapRequest, SwapResponse, hash_mint_request, hash_swap_request,
+    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltRequest,
+    MeltResponse, MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest, MintResponse,
+    NodeClient, Proof, QuoteStateRequest, SwapRequest, SwapResponse, hash_melt_request,
+    hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount,
     dhke::{blind_message, unblind_message},
     nut00::secret::Secret,
     nut01::PublicKey,
+    nut05::MeltQuoteState,
 };
 use starknet_types::Unit;
 use starknet_types_core::felt::Felt;
@@ -529,4 +531,180 @@ async fn make_swap(
         })
         .await?;
     Ok(original_swap_response)
+}
+
+pub async fn melt_same_input(
+    mut node_client: NodeClient<Channel>,
+    env: EnvVariables,
+) -> Result<()> {
+    println!("  * running melt_same_input test");
+    let payee =
+        Felt::from_hex(&"0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691")
+            .map_err(|e| Error::Other(e.into()))?;
+
+    let amount = Amount::from_i64_repr(32);
+
+    let mint_quote_request = MintQuoteRequest {
+        method: "starknet".to_string(),
+        amount: amount.into(),
+        unit: Unit::MilliStrk.to_string(),
+        description: None,
+    };
+    let original_mint_quote_response = node_client
+        .mint_quote(mint_quote_request.clone())
+        .await?
+        .into_inner();
+
+    let calls: [starknet_types::Call; 2] =
+        serde_json::from_str(&original_mint_quote_response.request)?;
+    pay_invoices(calls.to_vec(), env).await?;
+
+    loop {
+        let response = node_client
+            .mint_quote_state(QuoteStateRequest {
+                method: "starknet".to_string(),
+                quote: original_mint_quote_response.quote.clone(),
+            })
+            .await;
+
+        match response {
+            Ok(response) => {
+                let response = response.into_inner();
+                let state =
+                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
+                if state == MintQuoteState::MnqsPaid {
+                    break;
+                }
+            }
+            Err(e) => {
+                println!("{e}")
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    let keysets = node_client
+        .keysets(GetKeysetsRequest {})
+        .await?
+        .into_inner()
+        .keysets;
+    let active_keyset = keysets
+        .iter()
+        .find(|ks| ks.active && ks.unit == Unit::MilliStrk.as_str())
+        .unwrap();
+    let secret = Secret::generate();
+    let (blinded_secret, r) =
+        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+    let mint_request = MintRequest {
+        method: "starknet".to_string(),
+        quote: original_mint_quote_response.quote,
+        outputs: vec![BlindedMessage {
+            amount: amount.into(),
+            keyset_id: active_keyset.id.clone(),
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        }],
+    };
+
+    let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
+    let request_hash = hash_mint_request(&mint_request);
+    node_client
+        .acknowledge(AcknowledgeRequest {
+            path: "mint".to_string(),
+            request_hash,
+        })
+        .await?;
+
+    let node_pubkey_for_amount = PublicKey::from_hex(
+        &node_client
+            .keys(GetKeysRequest {
+                keyset_id: Some(active_keyset.id.clone()),
+            })
+            .await?
+            .into_inner()
+            .keysets
+            .first()
+            .unwrap()
+            .keys
+            .iter()
+            .find(|key| Amount::from(key.amount) == amount)
+            .unwrap()
+            .pubkey,
+    )
+    .map_err(|e| Error::Other(e.into()))?;
+    let blind_signature = PublicKey::from_slice(
+        &original_mint_response
+            .signatures
+            .first()
+            .unwrap()
+            .blind_signature,
+    )
+    .unwrap();
+    let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)
+        .map_err(|e| Error::Other(e.into()))?;
+    let proof = Proof {
+        amount: amount.into(),
+        keyset_id: active_keyset.id.clone(),
+        secret: secret.to_string(),
+        unblind_signature: unblinded_signature.to_bytes().to_vec(),
+    };
+
+    let melt_request = MeltRequest {
+        method: "starknet".to_string(),
+        unit: Unit::MilliStrk.to_string(),
+        request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+            payee,
+            asset: starknet_types::Asset::Strk,
+        })?,
+        inputs: vec![proof],
+    };
+
+    let mut multi_melt = Vec::new();
+    for _ in 0..100 {
+        multi_melt.push(make_melt(node_client.clone(), melt_request.clone()));
+    }
+    println!("melting all");
+    let res = join_all(multi_melt).await;
+    let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+    println!("{} success", ok_vec.len());
+    assert_eq!(ok_vec.len(), 1);
+    Ok(())
+}
+
+async fn make_melt(
+    mut node_client: NodeClient<Channel>,
+    melt_request: MeltRequest,
+) -> Result<MeltResponse> {
+    let original_melt_response = node_client.melt(melt_request.clone()).await?.into_inner();
+    let request_hash = hash_melt_request(&melt_request);
+    node_client
+        .acknowledge(AcknowledgeRequest {
+            path: "melt".to_string(),
+            request_hash,
+        })
+        .await?;
+
+    loop {
+        let response = node_client
+            .melt_quote_state(QuoteStateRequest {
+                method: "starknet".into(),
+                quote: original_melt_response.quote.clone(),
+            })
+            .await;
+
+        match response {
+            Ok(response) => {
+                let response = response.into_inner();
+                let state = MeltQuoteState::try_from(response.state())
+                    .map_err(|e| Error::Other(e.into()))?;
+                if state == MeltQuoteState::Paid {
+                    break;
+                }
+            }
+            Err(e) => {
+                println!("{e}")
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+    Ok(original_melt_response)
 }
