@@ -56,7 +56,7 @@ async fn works() -> Result<()> {
 
     let original_mint_response = client.mint(mint_request.clone()).await?.into_inner();
 
-    // check token state, now is unspent
+    // check token state, now is unspent because node doesn't know about it yet
     let ys = vec![hash_to_curve(secret.as_bytes())?.to_bytes().to_vec()];
 
     let state = client

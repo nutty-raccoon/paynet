@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use nuts::{
     nut00::{Proof, secret::Secret},
     nut01::PublicKey,
@@ -6,6 +8,7 @@ use nuts::{
 };
 
 use sqlx::{PgConnection, Postgres, QueryBuilder, Row};
+use tracing::debug;
 /// Return true if one of the provided secret
 /// is already in db with state = SPENT
 pub async fn is_any_already_spent(
@@ -56,50 +59,39 @@ pub async fn insert_proof(
     Ok(())
 }
 
-// / Retrieve proofs by their public keys (y).
-/// Returns a vector of `ProofCheckState` containing the public key and its state.
 pub async fn get_proofs_by_ids(
     conn: &mut PgConnection,
     ys: &[Vec<u8>],
-) -> Result<Vec<(Vec<u8>, Option<ProofState>)>, sqlx::Error> {
+) -> Result<HashMap<Vec<u8>, ProofState>, sqlx::Error> {
     if ys.is_empty() {
-        return Ok(vec![]);
+        return Ok(HashMap::new());
     }
 
-    let placeholders: String = (0..ys.len())
-        .map(|i| format!("(${}, {})", i + 1, i))
+    let placeholders: String = (1..=ys.len())
+        .map(|i| format!("${}", i))
         .collect::<Vec<_>>()
         .join(", ");
 
     let sql = format!(
-        r#"
-        SELECT v.y, v.position, proof.state 
-        FROM (
-          VALUES ({})
-        ) AS v(y, position) 
-        LEFT JOIN proof ON proof.y = v.y
-        ORDER BY v.position;"#,
+        "SELECT y, state FROM proof WHERE y = ANY(ARRAY[{}])",
         placeholders
     );
 
     let mut query = sqlx::query(&sql);
-
-    // Bind all the y values
     for y in ys {
         query = query.bind(y.as_slice());
     }
 
     let records = query.fetch_all(conn).await?;
 
-    let results = records
-        .into_iter()
-        .map(|record| {
-            let y: Vec<u8> = record.get("y");
-            let state: Option<i32> = record.get("state");
-            let proof_state = state.map(ProofState::from);
-            (y, proof_state)
-        })
-        .collect();
+    // Build HashMap from results
+    let mut results: HashMap<Vec<u8>, ProofState> = HashMap::new();
+
+    for record in records {
+        let y: Vec<u8> = record.get("y");
+        let state: i16 = record.get("state");
+        results.insert(y, (state as i32).into());
+    }
 
     Ok(results)
 }

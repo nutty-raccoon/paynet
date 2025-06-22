@@ -32,19 +32,18 @@ impl GrpcState {
 
         let proof_data = db_node::proof::get_proofs_by_ids(&mut conn, &ys)
             .await
-            .map_err(Error::ProofStateRetrieval)?;
+            .unwrap();
 
-        let proof_states: Result<Vec<_>, _> = proof_data
-            .into_iter()
-            .map(|(y_bytes, state)| {
-                let public_key =
-                    PublicKey::from_slice(&y_bytes).map_err(Error::InvalidPublicKey)?;
-                let final_state = state.unwrap_or(nuts::nut07::ProofState::Unspent);
+        let proof_states: Result<Vec<_>, _> = ys
+            .iter()
+            .map(|y| {
+                let y = PublicKey::from_slice(y).map_err(Error::InvalidPublicKey)?;
+                let state = proof_data
+                    .get(y.to_bytes().as_slice())
+                    .unwrap_or(&nuts::nut07::ProofState::Unspent)
+                    .clone();
 
-                Ok(ProofCheckState {
-                    y: public_key,
-                    state: final_state,
-                })
+                Ok(nuts::nut07::ProofCheckState { y, state })
             })
             .collect();
 
