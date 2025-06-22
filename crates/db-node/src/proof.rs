@@ -4,11 +4,10 @@ use nuts::{
     nut00::{Proof, secret::Secret},
     nut01::PublicKey,
     nut02::KeysetId,
-    nut07::{ProofCheckState, ProofState},
+    nut07::ProofState,
 };
 
 use sqlx::{PgConnection, Postgres, QueryBuilder, Row};
-use tracing::debug;
 /// Return true if one of the provided secret
 /// is already in db with state = SPENT
 pub async fn is_any_already_spent(

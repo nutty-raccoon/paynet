@@ -1,4 +1,4 @@
-use nuts::{nut01::PublicKey, nut07::ProofCheckState};
+use nuts::nut01::PublicKey;
 use tonic::Status;
 
 use crate::grpc_service::GrpcState;
