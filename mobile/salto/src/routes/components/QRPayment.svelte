@@ -23,7 +23,6 @@
     const updateQRCode = () => {
       if (!active) return;
 
-      console.log("update qrcode");
       const part = encoder.nextPart().toString();
       partToDisplay = part;
 

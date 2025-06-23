@@ -1,6 +1,7 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
   import PayButton from "./components/PayButton.svelte";
+  import ReceiveButton from "./components/ReceiveButton.svelte";
   import PayModal from "./components/PayModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceChange, type NodeData } from "../types";
@@ -12,13 +13,18 @@
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import { create_wads, getNodesBalance } from "../commands";
+  import { getNodesBalance } from "../commands";
+  import { platform } from "@tauri-apps/plugin-os";
+
+  const currentPlatform = platform();
+  const isMobile = currentPlatform == "ios" || currentPlatform == "android";
 
   // Sample data with multiple nodes to demonstrate the new card design
   let nodes: NodeData[] = $state([]);
 
   let activeTab: Tab = $state("pay");
   let isPayModalOpen = $state(false);
+  let errorMessage = $state("");
 
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
@@ -52,6 +58,10 @@
   };
   const onNodeBalanceDecrease = (balanceIncrease: BalanceChange) => {
     decreaseNodeBalance(nodes, balanceIncrease);
+  };
+
+  const onReceiveError = (error: string) => {
+    errorMessage = error;
   };
 
   // PayModal control functions
@@ -108,7 +118,13 @@
         <h2 class="balance-title">TOTAL BALANCE</h2>
         <p class="total-balance-amount">{formattedTotalBalance}</p>
       </div>
+      {#if errorMessage}
+        <div class="error-message">
+          {errorMessage}
+        </div>
+      {/if}
       <PayButton onClick={openPayModal} />
+      <ReceiveButton {isMobile} onError={onReceiveError} />
     </div>
   {:else if activeTab === "balances"}
     <div class="balances-container">
@@ -197,6 +213,20 @@
     font-weight: 700;
     color: #0f0f0f;
     margin: 0;
+  }
+
+  .error-message {
+    background-color: #fee2e2;
+    color: #dc2626;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: center;
+    border: 1px solid #fecaca;
+    width: 80%;
+    max-width: 400px;
   }
 
   @media (prefers-color-scheme: dark) {

@@ -17,8 +17,10 @@
     "@gandlaf21/bc-ur": "^1.1.12",
     "@ngraveio/bc-ur": "^1.1.13",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-barcode-scanner": "~2",
     "@tauri-apps/plugin-log": "~2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-os": "~2",
     "@tauri-apps/plugin-sql": "~2",
     "buffer": "^6.0.3"
   },
