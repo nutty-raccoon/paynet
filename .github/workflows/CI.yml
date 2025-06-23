@@ -45,7 +45,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-8-cores
     permissions:
       contents: read
       packages: write
