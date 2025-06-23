@@ -1,15 +1,14 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { BalanceIncrease, NodeData } from "../../types";
+  import type { NodeData } from "../../types";
   import { create_mint_quote, redeem_quote } from "../../commands";
 
   interface Props {
     selectedNode: NodeData | null;
     onClose: () => void;
-    onNodeBalanceIncrease: (balanceIncrease: BalanceIncrease) => void;
   }
 
-  let { selectedNode, onClose, onNodeBalanceIncrease }: Props = $props();
+  let { selectedNode, onClose }: Props = $props();
   let depositError = $state<string>("");
 
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
@@ -38,13 +37,7 @@
         (createMintQuoteResponse) => {
           if (!!createMintQuoteResponse) {
             if (createMintQuoteResponse.paymentRequest.length === 0) {
-              redeem_quote(nodeId, createMintQuoteResponse.quoteId).then(
-                (balanceIncrease) => {
-                  if (!!balanceIncrease) {
-                    onNodeBalanceIncrease(balanceIncrease);
-                  }
-                },
-              );
+              redeem_quote(nodeId, createMintQuoteResponse.quoteId);
             } else {
               console.log("todo: proceed to payment");
             }

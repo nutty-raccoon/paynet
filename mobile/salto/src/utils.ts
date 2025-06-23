@@ -1,13 +1,13 @@
-import type { Balance, BalanceIncrease, NodeData } from "./types";
+import type { Balance, BalanceChange, NodeData } from "./types";
 
 /**
  * Format a balance into separate amount and unit strings
  * @param balance The balance to format
  * @returns Object with formatted amount and unit strings
  */
-export function formatBalance(balance: Balance): {amount: number, unit: string} {
-  const {unit, amount} = balance.unit == "millistrk" ? {unit: "strk", amount: balance.amount / 1000} :   {unit: balance.unit, amount: balance.amount};
-   return {amount: amount, unit: unit.toUpperCase()};
+export function formatBalance(balance: Balance): {amount: number, asset: string} {
+  const {asset, amount} = balance.unit == "millistrk" ? {asset: "strk", amount: balance.amount / 1000} :   {asset: balance.unit, amount: balance.amount};
+   return {amount, asset: asset.toUpperCase()};
 }
 
 export function unitPrecision(unit: string): number {
@@ -21,7 +21,7 @@ export function unitPrecision(unit: string): number {
 }
 
 
-export function increaseNodeBalance(nodes: NodeData[], balanceChange: BalanceIncrease) {
+export function increaseNodeBalance(nodes: NodeData[], balanceChange: BalanceChange) {
       let nodeToUpdate = nodes.find((n) => {
         return n.id == balanceChange.nodeId;
       });
@@ -38,6 +38,30 @@ export function increaseNodeBalance(nodes: NodeData[], balanceChange: BalanceInc
             amount: balanceChange.amount, 
           };
           nodeToUpdate.balances.push(newBalance);
+        }
+       } else {
+        console.log("error: deposited on a node not registered in the state");
+      }
+}
+
+export function decreaseNodeBalance(nodes: NodeData[], balanceChange: BalanceChange) {
+      let nodeToUpdate = nodes.find((n) => {
+        return n.id == balanceChange.nodeId;
+      });
+
+      if (nodeToUpdate !== undefined) {
+        const balanceToUpdate = nodeToUpdate.balances.find((b) => {
+          return b.unit == balanceChange.unit;
+        });
+        if (!!balanceToUpdate) {
+          if (balanceChange.amount > balanceToUpdate.amount) {
+            console.log("error: balance decreased by more that its amount");
+            balanceToUpdate.amount = 0;
+          } else {
+            balanceToUpdate.amount = balanceToUpdate.amount - balanceChange.amount;
+          }
+        } else {
+        console.log("error: cannot decrease a balance not registered in the state");
         }
        } else {
         console.log("error: deposited on a node not registered in the state");

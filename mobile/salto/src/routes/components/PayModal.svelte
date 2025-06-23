@@ -1,19 +1,22 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
   import { formatBalance, unitPrecision } from "../../utils";
+  import { create_wads } from "../../commands";
+  import QRPayment from "./QRPayment.svelte";
+  import { Buffer } from "buffer";
 
   interface Props {
     isOpen: boolean;
     availableBalances: Map<string, number>;
     onClose: () => void;
-    onPay: (unit: string, amount: number) => void;
   }
 
-  let { isOpen, availableBalances, onClose, onPay }: Props = $props();
+  let { isOpen, availableBalances, onClose }: Props = $props();
 
   let selectedUnit = $state<string>("millistrk");
   let amount = $state<number>(0);
   let paymentError = $state<string>("");
+  let paymentData = $state<any>(null);
 
   // Get available units (those with balance > 0)
   let availableUnits = $derived(
@@ -28,42 +31,68 @@
       selectedUnit = availableUnits.length > 0 ? availableUnits[0] : "";
       amount = 0;
       paymentError = "";
+      paymentData = null;
     }
   });
 
-  let { unit: formattedUnit, amount: formattedAmount } = $derived(
+  let { asset, amount: assetAmount } = $derived(
     formatBalance({
       unit: selectedUnit,
       amount: availableBalances.get(selectedUnit) || 0,
     }),
   );
 
+  const onQRCodeClose = () => {
+    paymentData = null;
+  };
+
+  const handleModalClose = () => {
+    if (!!paymentData) {
+      onQRCodeClose();
+    }
+    onClose();
+  };
+
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
     event,
   ) => {
     event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const formDataObject = new FormData(form);
+    const token = formDataObject.get("payment-token");
+    const amount = formDataObject.get("payment-amount");
 
     // Clear previous error
     paymentError = "";
 
-    if (!selectedUnit) {
-      paymentError = "Please select a unit";
-      return;
-    }
+    if (amount && token) {
+      const amountString = amount.toString();
+      const amountValue = parseFloat(amountString);
 
-    if (amount <= 0) {
-      paymentError = "Amount must be greater than 0";
-      return;
-    }
+      if (amountValue <= 0) {
+        paymentError = "Amount must be greater than 0";
+        return;
+      }
+      if (amountValue > assetAmount) {
+        paymentError = `Amount cannot exceed ${assetAmount} ${selectedUnit}`;
+        return;
+      }
 
-    if (amount > formattedAmount) {
-      paymentError = `Amount cannot exceed ${formattedAmount} ${selectedUnit}`;
-      return;
+      create_wads(amountString, asset).then((val) => {
+        if (!!val) {
+          const messageBuffer = Buffer.from(JSON.stringify(val));
+          paymentData = messageBuffer;
+        }
+      });
     }
-
-    onPay(selectedUnit, amount);
-    onClose();
   };
+
+  $effect(() => {
+    if (!isOpen) {
+      paymentError = "";
+      paymentData = null; // Ensure QR component is properly cleaned up
+    }
+  });
 
   const handleUnitChange = (event: Event) => {
     const target = event.target as HTMLSelectElement;
@@ -78,7 +107,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>Make Payment</h3>
-        <button class="close-button" onclick={onClose}>✕</button>
+        <button class="close-button" onclick={handleModalClose}>✕</button>
       </div>
 
       {#if availableUnits.length === 0}
@@ -86,26 +115,28 @@
           <p>No funds available for payment. Please deposit tokens first.</p>
           <button class="close-button-alt" onclick={onClose}>Close</button>
         </div>
+      {:else if paymentData}
+        <QRPayment {paymentData} onClose={onQRCodeClose} />
       {:else}
         <form onsubmit={handleFormSubmit}>
           <div class="form-group">
-            <label for="payment-unit">Currency</label>
+            <label for="payment-token">Currency</label>
             <select
-              id="payment-unit"
-              name="payment-unit"
+              id="payment-token"
+              name="payment-token"
               bind:value={selectedUnit}
               onchange={handleUnitChange}
               required
             >
               {#each availableUnits as unit}
                 {@const formatted = formatBalance({ unit, amount: 0 })}
-                <option value={unit}>{formatted.unit}</option>
+                <option value={unit}>{formatted.asset}</option>
               {/each}
             </select>
             {#if selectedUnit}
               <span class="balance-info">
-                Available: {formattedAmount}
-                {formattedUnit}
+                Available: {assetAmount}
+                {asset}
               </span>
             {/if}
           </div>
@@ -119,7 +150,7 @@
               bind:value={amount}
               placeholder="0.0"
               min="0"
-              max={formattedAmount}
+              max={assetAmount}
               step={1 / unitPrecision(selectedUnit)}
               required
             />

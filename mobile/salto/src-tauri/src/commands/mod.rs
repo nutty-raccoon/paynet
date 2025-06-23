@@ -6,11 +6,11 @@ mod wad;
 pub use add_node::add_node;
 pub use deposit::{create_mint_quote, redeem_quote};
 pub use get_nodes_balance::get_nodes_balance;
-pub use wad::{create_wad, receive_wad};
+pub use wad::{create_wads, receive_wad};
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BalanceIncrease {
+pub struct BalanceChange {
     node_id: u32,
     unit: String,
     amount: u64,

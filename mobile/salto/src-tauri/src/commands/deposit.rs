@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use nuts::nut04::MintQuoteState;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::{
-    commands::BalanceIncrease,
+    commands::BalanceChange,
     parse_asset_amount::{parse_asset_amount, ParseAmountStringError},
     AppState,
 };
@@ -104,10 +104,11 @@ impl serde::Serialize for RedeemQuoteError {
 
 #[tauri::command]
 pub async fn redeem_quote(
+    app: AppHandle,
     state: State<'_, AppState>,
     node_id: u32,
     quote_id: String,
-) -> Result<BalanceIncrease, RedeemQuoteError> {
+) -> Result<(), RedeemQuoteError> {
     let node_url = {
         let db_conn = state.pool.get()?;
         wallet::db::get_node_url(&db_conn, node_id)?.ok_or(RedeemQuoteError::NodeId(node_id))?
@@ -134,9 +135,14 @@ pub async fn redeem_quote(
     )
     .await?;
 
-    Ok(BalanceIncrease {
-        node_id,
-        unit: mint_quote.unit.as_str().to_string(),
-        amount: mint_quote.amount.into(),
-    })
+    app.emit(
+        "balance-increase",
+        BalanceChange {
+            node_id,
+            unit: mint_quote.unit.as_str().to_string(),
+            amount: mint_quote.amount.into(),
+        },
+    )?;
+
+    Ok(())
 }

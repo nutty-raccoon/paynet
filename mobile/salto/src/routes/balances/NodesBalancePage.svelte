@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type BalanceIncrease, type NodeData } from "../../types";
+  import { type NodeData } from "../../types";
   import { formatBalance } from "../../utils";
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
@@ -8,10 +8,9 @@
   interface Props {
     nodes: NodeData[];
     onAddNode: (nodeData: NodeData) => void;
-    onNodeBalanceIncrease: (balanceIncrease: BalanceIncrease) => void;
   }
 
-  let { nodes, onAddNode, onNodeBalanceIncrease }: Props = $props();
+  let { nodes, onAddNode }: Props = $props();
 
   // Modal state
   let isAddNodeModalOpen = $state(false);
@@ -68,7 +67,9 @@
           <span class="node-balance-label">Balance</span>
           {#each node.balances as balance}
             {@const formatted = formatBalance(balance)}
-            <span class="node-balance">{formatted.unit}: {formatted.amount}</span>
+            <span class="node-balance"
+              >{formatted.asset}: {formatted.amount}</span
+            >
           {/each}
         </div>
       </div>
@@ -91,7 +92,6 @@
 <DepositModal
   selectedNode={selectedNodeForDeposit}
   onClose={closeDepositModal}
-  {onNodeBalanceIncrease}
 />
 
 <style>

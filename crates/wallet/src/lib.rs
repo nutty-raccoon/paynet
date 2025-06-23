@@ -323,6 +323,10 @@ pub fn load_tokens_from_db(
     db_conn: &Connection,
     proofs_ids: Vec<PublicKey>,
 ) -> Result<nut00::Proofs, Error> {
+    if proofs_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
     let proofs = db::proof::get_proofs_by_ids(db_conn, &proofs_ids)?
         .into_iter()
         .map(

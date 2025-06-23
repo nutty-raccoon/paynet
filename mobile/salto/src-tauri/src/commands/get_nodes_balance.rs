@@ -1,5 +1,5 @@
 use tauri::State;
-use wallet::db::balance::NodeData;
+use wallet::db::balance::GetForAllNodesData;
 
 use crate::AppState;
 
@@ -21,7 +21,7 @@ impl serde::Serialize for Error {
 }
 
 #[tauri::command]
-pub fn get_nodes_balance(state: State<'_, AppState>) -> Result<Vec<NodeData>, Error> {
+pub fn get_nodes_balance(state: State<'_, AppState>) -> Result<Vec<GetForAllNodesData>, Error> {
     let db_conn = state.pool.get()?;
     let nodes_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
     Ok(nodes_balances)

@@ -1,23 +1,25 @@
 <script lang="ts">
+  import { listen } from "@tauri-apps/api/event";
   import PayButton from "./components/PayButton.svelte";
   import PayModal from "./components/PayModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
-  import { type BalanceIncrease, type NodeData } from "../types";
+  import { type BalanceChange, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
   import {
     computeTotalBalancePerUnit,
+    decreaseNodeBalance,
     formatBalance,
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import { getNodesBalance } from "../commands";
+  import { create_wads, getNodesBalance } from "../commands";
 
   // Sample data with multiple nodes to demonstrate the new card design
   let nodes: NodeData[] = $state([]);
 
   let activeTab: Tab = $state("pay");
   let isPayModalOpen = $state(false);
-  
+
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
     computeTotalBalancePerUnit(nodes),
@@ -27,7 +29,7 @@
       .entries()
       .map(([unit, amount]) => {
         const formatted = formatBalance({ unit, amount });
-        return `${formatted.unit}: ${formatted.amount}`;
+        return `${formatted.asset}: ${formatted.amount}`;
       })
       .toArray(),
   );
@@ -45,8 +47,11 @@
     nodes.push(nodeData);
   };
 
-  const onNodeBalanceIncrease = (balanceIncrease: BalanceIncrease) => {
+  const onNodeBalanceIncrease = (balanceIncrease: BalanceChange) => {
     increaseNodeBalance(nodes, balanceIncrease);
+  };
+  const onNodeBalanceDecrease = (balanceIncrease: BalanceChange) => {
+    decreaseNodeBalance(nodes, balanceIncrease);
   };
 
   // PayModal control functions
@@ -58,15 +63,6 @@
 
   function closePayModal() {
     isPayModalOpen = false;
-  }
-
-  function handlePayment(unit: string, amount: number) {
-    // TODO: Implement actual payment logic
-    console.log(`Payment request: ${amount} ${unit}`);
-    // For now, just log the payment. In a real app, this would:
-    // 1. Create a payment request
-    // 2. Process the payment
-    // 3. Update balances accordingly
   }
 
   // Set up back button listener for PayModal
@@ -82,7 +78,13 @@
         nodesData.forEach(onAddNode);
       }
     });
-    
+
+    listen<BalanceChange>("balance-increase", (event) => {
+      onNodeBalanceIncrease(event.payload);
+    });
+    listen<BalanceChange>("balance-decrease", (event) => {
+      onNodeBalanceDecrease(event.payload);
+    });
     // Add popstate listener for back button handling
     window.addEventListener("popstate", handlePopState);
   });
@@ -110,7 +112,7 @@
     </div>
   {:else if activeTab === "balances"}
     <div class="balances-container">
-      <NodesBalancePage {nodes} {onAddNode} {onNodeBalanceIncrease} />
+      <NodesBalancePage {nodes} {onAddNode} />
     </div>
   {/if}
 </main>
@@ -126,7 +128,6 @@
   isOpen={isPayModalOpen}
   availableBalances={totalBalance}
   onClose={closePayModal}
-  onPay={handlePayment}
 />
 
 <style>

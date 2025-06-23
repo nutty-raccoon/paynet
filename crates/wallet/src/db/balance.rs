@@ -1,4 +1,5 @@
-use crate::types::ProofState;
+use crate::types::{NodeUrl, ProofState};
+use nuts::{Amount, traits::Unit};
 use rusqlite::{Connection, Result, params};
 use serde::{Deserialize, Serialize};
 
@@ -23,20 +24,20 @@ pub fn get_for_node(conn: &Connection, node_id: u32) -> Result<Vec<Balance>> {
     .collect()
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct NodeData {
-    pub id: i64,
-    pub url: String,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetForAllNodesData {
+    pub id: u32,
+    pub url: NodeUrl,
     pub balances: Vec<Balance>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Balance {
     pub unit: String,
-    pub amount: i64,
+    pub amount: Amount,
 }
 
-pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeData>> {
+pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<GetForAllNodesData>> {
     let sql = r#"
         SELECT n.id, n.url, k.unit, SUM(p.amount) as amount
         FROM node n
@@ -52,17 +53,17 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeData>> {
             row.get(0)?,                      // node_id
             row.get(1)?,                      // url
             row.get::<_, Option<String>>(2)?, // unit
-            row.get::<_, Option<i64>>(3)?,    // amount
+            row.get::<_, Option<Amount>>(3)?, // amount
         ))
     })?;
 
-    let mut result: Vec<NodeData> = Vec::new();
+    let mut result: Vec<GetForAllNodesData> = Vec::new();
 
     for row in rows {
         let (node_id, url, opt_unit, opt_amount) = row?;
 
         match result.last_mut() {
-            Some(NodeData {
+            Some(GetForAllNodesData {
                 id,
                 url: _,
                 balances,
@@ -72,7 +73,7 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeData>> {
                 }
             }
             Some(_) | None => {
-                let mut node_balances = NodeData {
+                let mut node_balances = GetForAllNodesData {
                     id: node_id,
                     url,
                     balances: vec![],
@@ -83,6 +84,52 @@ pub fn get_for_all_nodes(conn: &Connection) -> Result<Vec<NodeData>> {
 
                 result.push(node_balances);
             }
+        }
+    }
+
+    Ok(result)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetForAllNodesByUnitData {
+    pub id: u32,
+    pub url: NodeUrl,
+    pub amount: Amount,
+}
+
+pub fn get_for_all_nodes_by_unit<U: Unit>(
+    conn: &Connection,
+    unit: U,
+) -> Result<Vec<GetForAllNodesByUnitData>> {
+    let sql = r#"
+        SELECT n.id, n.url, SUM(p.amount) as amount
+        FROM node n
+        LEFT JOIN proof p ON p.node_id = n.id AND p.state = $1
+        LEFT JOIN keyset k ON p.keyset_id = k.id
+        WHERE unit = $2
+        GROUP BY n.id, n.url, k.unit
+        ORDER BY amount
+    "#;
+
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt.query_map(params![ProofState::Unspent, unit.to_string()], |row| {
+        Ok((
+            row.get(0)?,                      // node_id
+            row.get(1)?,                      // url
+            row.get::<_, Option<Amount>>(2)?, // amount
+        ))
+    })?;
+
+    let mut result: Vec<GetForAllNodesByUnitData> = Vec::new();
+
+    for row in rows {
+        let (node_id, url, opt_amount) = row?;
+        if let Some(amount) = opt_amount {
+            result.push(GetForAllNodesByUnitData {
+                id: node_id,
+                url,
+                amount,
+            });
         }
     }
 

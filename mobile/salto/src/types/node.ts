@@ -11,7 +11,7 @@ export type Balance = {
   amount: number;
 }
 
-export type BalanceIncrease = {
+export type BalanceChange = {
   nodeId: NodeId,
   unit: string,
   amount: number
