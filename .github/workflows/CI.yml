@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main, feat-concurrence ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
