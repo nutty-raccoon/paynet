@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feat-concurrence ]
   pull_request:
     branches: [ main ]
 
@@ -145,7 +145,7 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test -p node-tests
+        run: cargo test -p node-tests --no-default-features --features=mock,keyset-rotation,tls
 
       - name: Run signer integration tests
         env:
