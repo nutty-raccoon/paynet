@@ -124,7 +124,7 @@ jobs:
           sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.testnet.yml
 
       - name: Build test binary
-        run: cargo build -p tests --bin tests
+        run: cargo build -p signer --bin signer -p node --no-default-features --features=mock,keyset-rotation --bin node
 
       - name: Start integration services (mock)
         run: |
@@ -145,13 +145,13 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test -p node-tests --no-default-features --features=mock,keyset-rotation,tls
+        run: cargo test --no-run -p signer-node
 
       - name: Run signer integration tests
         env:
           GRPC_PORT: 10001
           ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test -p signer-tests
+        run: cargo test --no-run -p signer-tests
 
       - name: Start services
         run: |
