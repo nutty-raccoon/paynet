@@ -1,4 +1,3 @@
-
 use nuts::{
     nut00::{Proof, secret::Secret},
     nut01::PublicKey,
