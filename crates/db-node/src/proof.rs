@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use nuts::{
     nut00::{Proof, secret::Secret},
