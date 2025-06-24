@@ -32,6 +32,7 @@ jobs:
           components: rustfmt, clippy
       - uses: arduino/setup-protoc@v3
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
       - uses: Swatinem/rust-cache@v2
         with:
@@ -91,6 +92,7 @@ jobs:
           cache-on-failure: true
       - uses: arduino/setup-protoc@v3
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
       - name: Run test
         run: ${{ matrix.test_cmd }}
@@ -124,6 +126,7 @@ jobs:
           cache-on-failure: true
       - uses: arduino/setup-protoc@v3
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
       - name: Build services for integration tests
         run: |
