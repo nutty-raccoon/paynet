@@ -26,7 +26,7 @@ impl From<Error> for Status {
 impl GrpcState {
     pub async fn inner_check_state(
         &self,
-        ys: Vec<Vec<u8>>,
+        ys: Vec<PublicKey>,
     ) -> Result<nuts::nut07::CheckStateResponse, Error> {
         let mut conn = self.pg_pool.acquire().await.map_err(Error::DbConnection)?;
 
@@ -34,16 +34,14 @@ impl GrpcState {
             .await
             .unwrap();
 
-        let proof_states: Result<Vec<_>, _> = ys
+        let proof_states: Result<Vec<_>, Error> = proof_data
             .iter()
-            .map(|y| {
-                let y = PublicKey::from_slice(y).map_err(Error::InvalidPublicKey)?;
-                let state = proof_data
-                    .get(y.to_bytes().as_slice())
-                    .unwrap_or(&nuts::nut07::ProofState::Unspent)
-                    .clone();
-
-                Ok(nuts::nut07::ProofCheckState { y, state })
+            .zip(ys.iter())
+            .map(|(state, y)| {
+                Ok(nuts::nut07::ProofCheckState {
+                    y: y.clone(),
+                    state: state.clone(),
+                })
             })
             .collect();
 

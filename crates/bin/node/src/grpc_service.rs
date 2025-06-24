@@ -559,8 +559,13 @@ impl Node for GrpcState {
         &self,
         request: Request<CheckStateRequest>,
     ) -> Result<Response<CheckStateResponse>, Status> {
-        let ys: Vec<Vec<u8>> = request.into_inner().ys;
-
+        let ys: Vec<PublicKey> = request
+            .into_inner()
+            .ys
+            .iter()
+            .map(|y| PublicKey::from_slice(y).map_err(ParseGrpcError::PublicKey))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
         let proof_state = self.inner_check_state(ys).await?.proof_check_states;
 
         Ok(Response::new(CheckStateResponse {

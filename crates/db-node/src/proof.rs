@@ -60,41 +60,47 @@ pub async fn insert_proof(
 
 pub async fn get_proofs_by_ids(
     conn: &mut PgConnection,
-    ys: &[Vec<u8>],
-) -> Result<HashMap<Vec<u8>, ProofState>, sqlx::Error> {
+    ys: &[PublicKey],
+) -> Result<Vec<ProofState>, sqlx::Error> {
     if ys.is_empty() {
-        return Ok(HashMap::new());
+        return Ok(Vec::new());
     }
 
     let placeholders: String = (1..=ys.len())
-        .map(|i| format!("${}", i))
+        .map(|i| format!("${}, {}", i, i))
         .collect::<Vec<_>>()
         .join(", ");
 
     let sql = format!(
-        "SELECT y, state FROM proof WHERE y = ANY(ARRAY[{}])",
+        r#"
+    SELECT v.y, proof.state FROM (
+        VALUES ({})
+    ) AS v(y, position) 
+    LEFT JOIN proof ON proof.y = v.y
+    ORDER BY v.position
+    "#,
         placeholders
     );
 
     let mut query = sqlx::query(&sql);
-    for y in ys {
-        query = query.bind(y.as_slice());
+    for y in ys.iter() {
+        query = query.bind(y.to_bytes());
     }
 
-    let records = query.fetch_all(conn).await?;
-
-    // Build HashMap from results
-    let mut results: HashMap<Vec<u8>, ProofState> = HashMap::new();
-
-    for record in records {
-        let y: Vec<u8> = record.get("y");
-        let state: i16 = record.get("state");
-        results.insert(y, (state as i32).into());
+    let mut ret = Vec::with_capacity(ys.len());
+    let rows = query.fetch_all(conn).await?;
+    for row in rows {
+        let state: Option<i16> = row.try_get("state")?;
+        let proof_state = match state {
+            Some(state_val) => ProofState::from_i32(state_val as i32)
+                .ok_or_else(|| sqlx::Error::Decode("Invalid proof state".into()))?,
+            None => ProofState::Unspent,
+        };
+        ret.push(proof_state);
     }
 
-    Ok(results)
+    Ok(ret)
 }
-
 /// Generate a query following this model:
 /// INSERT INTO proof (y, amount, keyset_id, secret, c, state)
 /// VALUES  ($1, $2, $3, $4, $5, 1), ($6, $7, $8, $9, $10, 1)
