@@ -145,7 +145,7 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test --no-run -p signer-node
+        run: cargo test --no-run -p node-tests
 
       - name: Run signer integration tests
         env:
