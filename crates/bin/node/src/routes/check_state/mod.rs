@@ -39,7 +39,7 @@ impl GrpcState {
             .zip(ys.iter())
             .map(|(state, y)| {
                 Ok(nuts::nut07::ProofCheckState {
-                    y: y.clone(),
+                    y: *y,
                     state: state.clone(),
                 })
             })
