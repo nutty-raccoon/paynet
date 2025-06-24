@@ -23,6 +23,9 @@ use crate::{
     utils::pay_invoices,
 };
 
+/// Concurrency tests for mint, swap, and melt operations.
+
+/// Verifies double-spending protection by attempting to reuse a single quote across multiple concurrent mint operations
 pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables) -> Result<()> {
     println!("  * running mint concurency test");
     let amount = Amount::from_i64_repr(32);
@@ -49,13 +52,13 @@ pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables
         mints_requests.push(mint_request);
     }
 
-    let mut mints = Vec::new();
-    for req in mints_requests {
-        mints.push(make_mint(req, node_client.clone()));
-    }
-
     println!("minting all");
-    let res = join_all(mints).await;
+    let res = join_all(
+        mints_requests
+            .iter()
+            .map(|req| make_mint(req.clone(), node_client.clone())),
+    )
+    .await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     println!("{} success", ok_vec.len());
@@ -64,6 +67,7 @@ pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables
     Ok(())
 }
 
+/// Tests output collision detection by using identical blinded secrets across multiple concurrent mint operations
 pub async fn mint_same_output(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
@@ -140,13 +144,14 @@ pub async fn mint_same_output(
             }],
         });
     }
-    let mut mints = Vec::new();
-    for req in mints_requests {
-        mints.push(make_mint(req, node_client.clone()));
-    }
 
     println!("minting all");
-    let res = join_all(mints).await;
+    let res = join_all(
+        mints_requests
+            .iter()
+            .map(|req| make_mint(req.clone(), node_client.clone())),
+    )
+    .await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     println!("{} success", ok_vec.len());
@@ -155,6 +160,7 @@ pub async fn mint_same_output(
     Ok(())
 }
 
+/// Ensures swap atomicity by attempting to generate identical output tokens from different inputs concurrently
 pub async fn swap_same_output(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
@@ -254,6 +260,7 @@ pub async fn swap_same_output(
     Ok(())
 }
 
+/// Validates double-spending prevention by reusing the same proof across multiple concurrent swap operations
 pub async fn swap_same_input(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
@@ -346,6 +353,7 @@ pub async fn swap_same_input(
     Ok(())
 }
 
+/// Tests melt operation integrity by attempting to spend the same proof multiple times concurrently
 pub async fn melt_same_input(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
