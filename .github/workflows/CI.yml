@@ -124,7 +124,7 @@ jobs:
           sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.testnet.yml
 
       - name: Build test binary
-        run: cargo build -p signer --bin signer -p node --no-default-features --features=mock,keyset-rotation --bin node
+        run: cargo build -p tests --bin tests
 
       - name: Start integration services (mock)
         run: |
@@ -145,13 +145,17 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test --no-run -p node-tests
+        run: cargo test -p node-tests
 
       - name: Run signer integration tests
         env:
           GRPC_PORT: 10001
           ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test --no-run -p signer-tests
+        run: cargo test -p signer-tests
+
+      - name: Cleanup integration tests
+        run: |
+          docker compose -f docker-compose.app-mock.yml down -v
 
       - name: Start services
         run: |
@@ -203,6 +207,5 @@ jobs:
         if: always()
         run: |
           docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml down -v
-          docker compose -f docker-compose.app-mock.yml down -v
           docker system prune -f
           rm -rf /home/runner/.local/share
