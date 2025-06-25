@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package starknet.v1;
+
+message PaymentEvent {
+  uint64 index = 1;
+  string payee = 2;
+  string asset = 3;
+  string invoice_id = 4;
+  string payer = 5;
+  string amount_low = 6;
+  string amount_high = 7;
+}
+
+message Events {
+  repeated PaymentEvent events = 1;
+}

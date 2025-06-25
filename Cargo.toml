@@ -19,6 +19,7 @@ members = [
   "crates/libs/starknet/payment-indexer",
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
+  "crates/libs/starknet/substream",
   # Tests
   "crates/tests/test-utils",
   # Integration tests
@@ -47,6 +48,7 @@ default-members = [
   "crates/libs/starknet/payment-indexer",
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
+  "crates/libs/starknet/substream",
 ]
 
 
@@ -147,3 +149,4 @@ db-node = { path = "crates/libs/db-node" }
 wallet = { path = "crates/libs/wallet" }
 liquidity-source = { path = "crates/libs/liquidity-source" }
 test-utils = { path = "crates/tests/test-utils" }
+substream = { path = "crates/libs/starknet/substream" }
