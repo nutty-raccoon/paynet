@@ -22,7 +22,7 @@ COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
 
 #------------
-# Everything up to there is common with node, signer and starknet-cashier,
+# Everything up to there is common with node, signer
 # which mean common layers, cached together increasing speed.
 # What comes next is binary specific.
 #------------

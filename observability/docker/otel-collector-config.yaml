@@ -1,0 +1,93 @@
+# OpenTelemetry Collector Configuration
+# ====================================
+# The OpenTelemetry Collector is a central component that receives, processes,
+# and exports telemetry data (metrics, logs, and traces) from applications.
+#
+# Key Concepts:
+# - Receivers: How data comes INTO the collector
+# - Processors: How data is MODIFIED/ENHANCED inside the collector
+# - Exporters: Where data GOES OUT from the collector
+# - Pipelines: Connect receivers → processors → exporters for each data type
+
+# RECEIVERS: Define how telemetry data enters the collector
+receivers:
+  # OTLP (OpenTelemetry Protocol) receiver - the standard way applications send telemetry data
+  otlp:
+    protocols:
+      # gRPC protocol on port 4317 (binary, more efficient)
+      grpc:
+        endpoint: 0.0.0.0:4317
+      # HTTP protocol on port 4318 (text-based, easier to debug)
+      http:
+        endpoint: 0.0.0.0:4318
+
+# PROCESSORS: Transform, filter, or batch the telemetry data
+processors:
+  # Batching processor: Groups individual telemetry items together for efficiency
+  # Instead of sending data one-by-one, it collects multiple items and sends them together
+  batch:
+    timeout: 10s              # Send batch after 10 seconds even if not full
+    send_batch_size: 100      # Send batch when it reaches 100 items
+
+  # Memory limiter: Prevents the collector from using too much memory
+  # Important for production environments to avoid out-of-memory crashes
+  memory_limiter:
+    check_interval: 1s        # Check memory usage every second
+    limit_mib: 1000          # Start dropping data if using more than 1GB
+    spike_limit_mib: 200     # Allow temporary spikes up to 200MB above limit
+
+# EXPORTERS: Define where processed telemetry data gets sent
+exporters:
+  # Prometheus exporter: Converts metrics to Prometheus format for storage
+  prometheus:
+    endpoint: "0.0.0.0:8889"    # Prometheus will scrape metrics from this endpoint
+    namespace: "paynet"         # All metrics will be prefixed with "paynet_"
+    send_timestamps: true       # Include timestamp information with metrics
+    metric_expiration: 180m     # Remove metrics not updated for 3 hours
+
+  # Jaeger exporter: Sends distributed traces to Jaeger for trace visualization
+  otlp/jaeger:
+    endpoint: "jaeger:4317"     # Send traces to Jaeger service
+    tls:
+      insecure: true           # No TLS encryption (OK for local development)
+
+  # Loki exporter: Sends logs to Loki for log aggregation and search
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+  # Debug exporter: Outputs telemetry data to console (useful for troubleshooting)
+  debug:
+    verbosity: detailed        # Show detailed information in logs
+
+# EXTENSIONS: Additional features that enhance the collector's functionality
+extensions:
+  # Health check: Provides an endpoint to check if the collector is running properly
+  health_check:
+    endpoint: 0.0.0.0:13133   # Access health status at http://localhost:13133
+
+# SERVICE: Defines how all the components work together
+service:
+  extensions: [health_check]   # Enable the health check extension
+
+  # PIPELINES: Define the flow of data for each telemetry type
+  # Each pipeline connects: receivers → processors → exporters
+  
+  pipelines:
+    # TRACES PIPELINE: Handles distributed tracing data
+    # Traces show how requests flow through different services
+    traces:
+      receivers: [otlp]                          # Receive traces via OTLP
+      processors: [batch, memory_limiter]        # Batch and limit memory usage
+      exporters: [otlp/jaeger]                  # Send to Jaeger for visualization
+
+    # LOGS PIPELINE: Handles application log messages
+    logs:
+      receivers: [otlp]                          # Receive logs via OTLP
+      processors: [batch, memory_limiter]        # Batch and limit memory usage
+      exporters: [loki]                         # Send to Loki for storage and search
+
+    # METRICS PIPELINE: Handles numerical measurements (counters, gauges, histograms)
+    metrics:
+      receivers: [otlp]                          # Receive metrics via OTLP
+      processors: [batch, memory_limiter]        # Batch and limit memory usage
+      exporters: [prometheus]                   # Convert to Prometheus format

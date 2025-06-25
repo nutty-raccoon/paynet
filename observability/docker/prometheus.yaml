@@ -1,0 +1,49 @@
+# Prometheus Configuration
+# ========================
+# Prometheus is a monitoring system that collects and stores metrics (numerical data)
+# from applications and infrastructure. It works by "scraping" (pulling) metrics
+# from configured endpoints at regular intervals.
+#
+# Key Concepts:
+# - Scraping: Prometheus actively pulls metrics from target endpoints
+# - Jobs: Groups of similar targets (e.g., all web servers)
+# - Targets: Individual endpoints that expose metrics
+# - Labels: Key-value pairs that help identify and filter metrics
+
+# GLOBAL SETTINGS: Apply to all scraping jobs unless overridden
+global:
+  # How often Prometheus collects metrics from all targets
+  scrape_interval: 15s
+  # How often Prometheus evaluates alerting rules (if any)
+  evaluation_interval: 15s
+
+# SCRAPE CONFIGURATIONS: Define what endpoints Prometheus should collect metrics from
+scrape_configs:
+  # JOB 1: Collect Paynet-specific metrics from OpenTelemetry Collector
+  # This captures metrics from our Paynet application
+  - job_name: 'paynet-metrics'
+    static_configs:
+      # The OpenTelemetry Collector exposes Prometheus-format metrics on port 8889
+      - targets: ['otel-collector:8889']
+    
+    # METRIC FILTERING: Only keep metrics that start with "paynet_"
+    # This ensures we only store metrics relevant to our application
+    metric_relabel_configs:
+      - source_labels: [__name__]        # Look at the metric name
+        regex: 'paynet_.*'               # Match names starting with "paynet_"
+        action: keep                     # Keep matching metrics, drop everything else
+
+  # JOB 2: Collect other OpenTelemetry metrics (system metrics, collector metrics, etc.)
+  # This captures infrastructure and collector performance metrics
+  - job_name: 'other-opentelemetry'
+    static_configs:
+      # Same endpoint as above, but different filtering rules
+      - targets: ['otel-collector:8889']
+    
+    # METRIC FILTERING: Drop Paynet metrics (we already collect them in job 1)
+    # This prevents duplicate storage of the same metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]        # Look at the metric name
+        regex: 'paynet_.*'               # Match names starting with "paynet_"
+        action: drop                     # Drop matching metrics, keep everything else
+

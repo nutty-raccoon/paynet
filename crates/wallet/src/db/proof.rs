@@ -65,15 +65,20 @@ pub fn get_proof_and_set_state_pending(
 }
 
 pub fn set_proof_to_state(conn: &Connection, y: PublicKey, state: ProofState) -> Result<()> {
-    let _ = conn.execute("UPDATE proof SET state = ?2 WHERE y = ?1", (y, state));
+    conn.execute("UPDATE proof SET state = ?2 WHERE y = ?1", (y, state))?;
 
     Ok(())
 }
 
-pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofState) -> Result<()> {
+fn build_ys_placeholder_string_for_in_statement(len: usize) -> String {
     // Build placeholder string like "?,?,?" based on number of items
-    let mut placeholders = "?,".repeat(ys.len() - 1);
+    let mut placeholders = "?,".repeat(len - 1);
     placeholders.push('?');
+    placeholders
+}
+
+pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofState) -> Result<()> {
+    let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
 
     // Prepare the statement with dynamic placeholders
     let sql = format!("UPDATE proof SET state = ?1 WHERE y IN ({})", placeholders);
@@ -97,15 +102,13 @@ pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofStat
 #[allow(clippy::type_complexity)]
 pub fn get_proofs_by_ids(
     conn: &Connection,
-    proof_ids: &[PublicKey],
+    ys: &[PublicKey],
 ) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>> {
-    if proof_ids.is_empty() {
+    if ys.is_empty() {
         return Ok(Vec::new());
     }
 
-    // Dynamically create the placeholders (?, ?, ...)
-    let mut placeholders = "?,".repeat(proof_ids.len() - 1);
-    placeholders.push('?');
+    let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
     let sql = format!(
         "SELECT amount, keyset_id, unblind_signature, secret FROM proof WHERE y IN ({})",
         placeholders
@@ -113,8 +116,7 @@ pub fn get_proofs_by_ids(
 
     let mut stmt = conn.prepare(&sql)?;
 
-    // Create a slice of references to ToSql-compatible types
-    for (i, y) in proof_ids.iter().enumerate() {
+    for (i, y) in ys.iter().enumerate() {
         stmt.raw_bind_parameter(i + 1, y)?;
     }
 
@@ -144,4 +146,17 @@ pub fn get_max_order_for_keyset(
     let max_order = stmt.query_row([keyset_id], |row| row.get::<_, Option<u64>>(0))?;
 
     Ok(max_order)
+}
+
+pub fn delete_proofs(conn: &Connection, ys: &[PublicKey]) -> Result<()> {
+    let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
+    let sql = format!("DELETE FROM proof WHERE y IN ({})", placeholders);
+    let mut stmt = conn.prepare(&sql)?;
+    for (i, y) in ys.iter().enumerate() {
+        stmt.raw_bind_parameter(i + 1, y)?;
+    }
+
+    stmt.raw_execute()?;
+
+    Ok(())
 }

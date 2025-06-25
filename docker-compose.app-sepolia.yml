@@ -24,6 +24,8 @@ services:
     environment:
       - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
       - GRPC_PORT=10001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=signer
     ports:
       - "10001:10001"
     build:
@@ -36,17 +38,26 @@ services:
       retries: 3
 
   node:
-    image: "node.mock"
+    image: "node"
     restart: always
     build:
       context: .
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
-        - CARGO_FEATURES="mock"
+        - CARGO_FEATURES=starknet
+    volumes:
+      - ./crates/bin/node/config/sepolia.toml:/etc/paynet/config.toml
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
       - GRPC_PORT=10003
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
+    # export the APIBARA_TOKEN && CASHIER_PRIVATE_KEY env var in this file
+    env_file: .env.sepolia.node
+    command:
+      - --config
+      - /etc/paynet/config.toml
     ports:
       - "10003:10003"
     depends_on:
@@ -63,3 +74,4 @@ services:
 volumes:
   database_data:
     driver: local
+

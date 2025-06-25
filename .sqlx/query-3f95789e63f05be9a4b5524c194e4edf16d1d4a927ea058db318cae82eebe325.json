@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": " INSERT INTO melt_payment_event\n                (block_id, tx_hash, event_index, payee, asset, invoice_id, payer, amount_low, amount_high)\n            VALUES\n                ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3f95789e63f05be9a4b5524c194e4edf16d1d4a927ea058db318cae82eebe325"
+}

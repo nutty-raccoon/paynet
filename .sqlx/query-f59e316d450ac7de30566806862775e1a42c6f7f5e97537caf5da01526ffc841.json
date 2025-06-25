@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT amount, fee, state AS \"state: MeltQuoteState\", expiry, transfer_id AS \"transfer_id!\" FROM melt_quote where id = $1",
+  "query": "\n        SELECT \n            mq.amount, \n            mq.fee, \n            mq.state AS \"state: MeltQuoteState\", \n            mq.expiry,\n            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS \"tx_hashes\"\n        FROM melt_quote mq\n        LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id\n        WHERE mq.id = $1\n        GROUP BY mq.amount, mq.fee, mq.state, mq.expiry;\n        ",
   "describe": {
     "columns": [
       {
@@ -36,8 +36,8 @@
       },
       {
         "ordinal": 4,
-        "name": "transfer_id!",
-        "type_info": "Bytea"
+        "name": "tx_hashes",
+        "type_info": "TextArray"
       }
     ],
     "parameters": {
@@ -50,8 +50,8 @@
       false,
       false,
       false,
-      true
+      null
     ]
   },
-  "hash": "14f64343ddb8482e6ef2b4efccc0b09eecd61e3ba46bf2dc28529a9cb15c432e"
+  "hash": "f59e316d450ac7de30566806862775e1a42c6f7f5e97537caf5da01526ffc841"
 }

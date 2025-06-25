@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::CairoShortStringToFeltError;
+use crate::{CairoShortStringToFeltError, felt_from_short_string};
 
 // Constants representing predefined Starknet networks
 // These network identifiers are used by the Starknet protocol
@@ -72,6 +72,14 @@ impl FromStr for ChainId {
             SN_DEVNET => Ok(ChainId::Devnet),
             s => ChainId::new_custom(s.to_string()),
         }
+    }
+}
+
+impl TryFrom<ChainId> for starknet_crypto::Felt {
+    type Error = CairoShortStringToFeltError;
+
+    fn try_from(value: ChainId) -> Result<Self, Self::Error> {
+        felt_from_short_string(value.as_str())
     }
 }
 

@@ -8,6 +8,7 @@ use nuts::{
 use outputs::check_outputs_allow_single_unit;
 use thiserror::Error;
 use tonic::Status;
+use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::{
@@ -107,6 +108,18 @@ impl GrpcState {
         db_node::mint_quote::set_state(&mut tx, quote, MintQuoteState::Issued).await?;
 
         tx.commit().await?;
+
+        event!(
+            name: "mint",
+            Level::INFO,
+            name = "mint",
+            %method,
+            quote_id = %quote,
+        );
+
+        let meter = opentelemetry::global::meter("business");
+        let n_mint_counter = meter.u64_counter("mint.operation.count").build();
+        n_mint_counter.add(1, &[]);
 
         Ok(blind_signatures)
     }

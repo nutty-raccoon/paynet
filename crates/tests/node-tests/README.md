@@ -48,7 +48,7 @@ cargo run --release --bin signer
 #### Start the Node Server
 
 ```bash
-cargo run --release --bin node --no-default-features -- --config ./config/local.toml
+cargo run --release --bin node --no-default-features --features=mock -- --config ./config/local.toml
 ```
 
 > The node server requires the environment variables above to run properly.
@@ -60,7 +60,7 @@ cargo run --release --bin node --no-default-features -- --config ./config/local.
 To start everything at once:
 
 ```bash
-docker-compose -p paynet -f ./docker-compose.yml up -d
+$  docker compose -f docker-compose.app.mock.yml up -d
 ```
 
 This will launch PostgreSQL, Signer, and Node with the proper environment variables already set.
