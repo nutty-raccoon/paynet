@@ -29,7 +29,6 @@ fn map_invoice_events(transactions: Transactions) -> Result<Events, substreams::
                 continue;
             }
 
-            // Convert raw event data to PaymentEvent using the same pattern as Apibara
             if event.keys.len() < 3 || event.data.len() < 4 {
                 log::info!("Skipping event with insufficient keys or data");
                 continue;
