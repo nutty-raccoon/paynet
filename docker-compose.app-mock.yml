@@ -42,7 +42,7 @@ services:
       context: .
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
-        - CARGO_FEATURES=mock,keyset-rotations
+        - CARGO_FEATURES=mock,keyset-rotation
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
