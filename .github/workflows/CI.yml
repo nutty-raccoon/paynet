@@ -151,6 +151,10 @@ jobs:
           ROOT_KEY: "${{ env.ROOT_KEY }}"
         run: cargo test -p signer-tests
 
+      - name: Cleanup integration tests
+        run: |
+          docker compose -f docker-compose.app-mock.yml down -v
+
       - name: Start services
         run: |
           docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml up -d
@@ -201,6 +205,5 @@ jobs:
         if: always()
         run: |
           docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml down -v
-          docker compose -f docker-compose.app-mock.yml down -v
           docker system prune -f
           rm -rf /home/runner/.local/share
