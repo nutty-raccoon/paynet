@@ -81,14 +81,15 @@ async fn test_multiple_tokens() -> Result<()> {
 
     let mint_response = client.mint(mint_request.clone()).await?.into_inner();
 
-    // Check all tokens are unspent
+    // Check all tokens are unspent and in correct order as input ys
     let state = client
         .check_state(CheckStateRequest { ys: ys.clone() })
         .await?
         .into_inner();
 
-    for state_info in &state.states {
+    for (i, state_info) in state.states.iter().enumerate() {
         assert_eq!(ProofState::Unspent, state_info.state.into());
+        assert_eq!(ys[i], state_info.y);
     }
 
     // Get node public keys for all amounts
@@ -164,6 +165,7 @@ async fn test_multiple_tokens() -> Result<()> {
         } else {
             assert_eq!(ProofState::Unspent, state_info.state.into());
         }
+        assert_eq!(ys[i], state_info.y);
     }
 
     Ok(())
