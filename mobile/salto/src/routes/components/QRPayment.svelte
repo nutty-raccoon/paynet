@@ -17,7 +17,7 @@
     if (!paymentData) return;
 
     const ur = UR.fromBuffer(paymentData);
-    const encoder = new UREncoder(ur, 100, 0);
+    const encoder = new UREncoder(ur, 200, 0);
     let active = true;
 
     const updateQRCode = () => {
@@ -27,7 +27,7 @@
       partToDisplay = part;
 
       // Schedule next update
-      setTimeout(updateQRCode, 1000);
+      setTimeout(updateQRCode, 100);
     };
 
     // Start the QR code updates
@@ -46,7 +46,7 @@
   <div class="qr-code-wrapper">
     {#if partToDisplay}
       {#key partToDisplay}
-        <QRCode data={partToDisplay} size={200} />
+        <QRCode data={partToDisplay} size={300} />
       {/key}
     {:else}
       <div class="loading-placeholder">

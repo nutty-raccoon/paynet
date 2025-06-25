@@ -1,64 +1,51 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { beforeNavigate, goto } from "$app/navigation";
+  import { goto } from "$app/navigation";
   import {
-    scan,
-    Format,
     checkPermissions,
     requestPermissions,
     cancel,
   } from "@tauri-apps/plugin-barcode-scanner";
   import { URDecoder } from "@gandlaf21/bc-ur";
-  import jsQR from "jsqr";
+  import QrCodeScanner from "./components/QrCodeScanner.svelte";
 
   let scanningInProgress = $state(false);
-  let scanResult = $state("");
+  let percentageEstimate = $state("");
   let originalHtmlStyle = "";
+  let decoder = $state(new URDecoder());
+  let paused = $state(true);
 
-  //  async function startScaningCodes() {
-  //    const decoder = new URDecoder();
-  //
-  //    do {
-  //      // Scan the part from a QRCode
-  //      // the part should look like this:
-  //      // ur:bytes/1-9/lpadascfadaxcywenbpljkhdcahkadaemejtswhhylkepmykhhtsytsnoyoyaxaedsuttydmmhhpktpmsrjtdkgslpgh
-  //      const part = await uncheckedScanQrCode();
-  //
-  //      // register the new part with the decoder
-  //      decoder.receivePart(part);
-  //
-  //      const x = decoder.estimatedPercentComplete();
-  //      scanResult = x.toString();
-  //      // check if all the necessary parts have been received to successfully decode the message
-  //    } while (!decoder.isComplete());
-  //
-  //    // If no error has been found
-  //    if (decoder.isSuccess()) {
-  //      // Get the UR representation of the message
-  //      const ur = decoder.resultUR();
-  //
-  //      // Decode the CBOR message to a Buffer
-  //      const decoded = ur.decodeCBOR();
-  //
-  //      // get the original message, assuming it was a JSON object
-  //      const originalMessage = JSON.parse(decoded.toString());
-  //      scanResult = originalMessage;
-  //    } else {
-  //      // log and handle the error
-  //      const error = decoder.resultError();
-  //      console.log("Error found while decoding", error);
-  //    }
-  //  }
+  function onCodeDetected(decodedText: string) {
+    decoder.receivePart(decodedText);
+    const estimatedPercentComplete = decoder.estimatedPercentComplete();
+    percentageEstimate = (estimatedPercentComplete * 100).toFixed(0) + "%";
+
+    if (decoder.isComplete()) {
+      paused = true;
+      if (decoder.isSuccess()) {
+        // Get the UR representation of the message
+        const ur = decoder.resultUR();
+        // Decode the CBOR message to a Buffer
+        const decoded = ur.decodeCBOR();
+        // get the original message, assuming it was a JSON object
+        const originalMessage = JSON.parse(decoded.toString());
+      } else {
+        // log and handle the error
+        const error = decoder.resultError();
+        console.log("Error found while decoding", error);
+      }
+    }
+  }
 
   async function scanQRCode() {
     try {
       const permission = await checkPermissions();
       if (permission == "granted") {
-        return await uncheckedScanQrCode();
+        paused = false;
       } else {
         const permission = await requestPermissions();
         if (permission == "granted") {
-          return await uncheckedScanQrCode();
+          paused = false;
         } else {
           return "Permission denied";
         }
@@ -68,52 +55,6 @@
       return JSON.stringify(error);
     }
   }
-
-  async function uncheckedScanQrCode() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", focusDistance: 0.5 },
-      });
-      const track = stream.getVideoTracks()[0];
-      var video = document.getElementById("video") as HTMLVideoElement;
-      var canvas = document.getElementById("canvas") as HTMLCanvasElement;
-      var context = canvas.getContext("2d") as CanvasRenderingContext2D;
-
-      video.srcObject = stream;
-      video.play();
-
-      setInterval(function () {
-        context.drawImage(video, 0, 0, 900, 900);
-        var imageData = context.getImageData(0, 0, 900, 900);
-        var code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (code) {
-          alert(code.data);
-        } else {
-          //   result.textContent = "waitting";
-        }
-      }, 500);
-    } catch (e) {
-      console.log(e);
-    }
-  }
-
-  // Reactive statement to handle background color changes
-  $effect(() => {
-    if (typeof document !== "undefined") {
-      const html = document.documentElement;
-
-      if (scanningInProgress) {
-        // Store original style
-        originalHtmlStyle = html.style.backgroundColor || "";
-
-        // Set it to transparent
-        html.style.backgroundColor = "transparent";
-      } else {
-        // Restore original style
-        html.style.backgroundColor = originalHtmlStyle;
-      }
-    }
-  });
 
   async function cancelScanning() {
     if (scanningInProgress) {
@@ -154,14 +95,12 @@
   <div class="scan-overlay">
     <h1>Scanning QR Code...</h1>
     <p>Point your camera at a QR code</p>
-    <video id="video" width="300" height="300" autoplay></video>
-    <canvas id="canvas" width="1200" height="1200" style="display:none;"
-    ></canvas>
+    <QrCodeScanner {onCodeDetected} {paused} width={320} height={320} />
 
-    {#if scanResult}
+    {#if percentageEstimate}
       <div class="scan-result">
         <h2>Scanned:</h2>
-        <p>{scanResult}</p>
+        <p>{percentageEstimate}</p>
       </div>
     {/if}
 
