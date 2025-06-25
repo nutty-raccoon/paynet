@@ -155,7 +155,7 @@ async fn test_multiple_tokens() -> Result<()> {
 
     // Check final state: some spent, some unspent
     let final_state = client
-        .check_state(CheckStateRequest { ys })
+        .check_state(CheckStateRequest { ys: ys.clone() })
         .await?
         .into_inner();
 
