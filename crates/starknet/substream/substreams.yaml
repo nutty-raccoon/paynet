@@ -1,6 +1,6 @@
 specVersion: v0.1.0
 package:
-  name: substream
+  name: substream_paynet
   version: v0.1.0
 
 imports:
@@ -9,6 +9,7 @@ imports:
 protobuf:
   files:
     - events.proto
+
   importPaths:
     - ./proto
 
@@ -22,7 +23,7 @@ protobuf:
 binaries:
   default:
     type: wasm/rust-v1+wasm-bindgen-shims
-    file: ../../../target/wasm32-unknown-unknown/release/substreams.wasm
+    file: ../../../target/wasm32-unknown-unknown/release/substream_paynet.wasm
 
 modules:
 - name: map_invoice_events
@@ -34,6 +35,13 @@ modules:
    type: proto:starknet.v1.Events
 
 network: starknet-testnet
+
+# sink:
+#   module: map_invoice_events
+#   type: sf.substreams.sink.sql.v1.Service
+#   config:
+#     engine: postgres
+
 
 params:
   starknet:filtered_transactions: ev:from_address:0x076bc499fc0e3f3559cb0a8506e53f313b38a9009dac4356248ea8ae1e5f21ad

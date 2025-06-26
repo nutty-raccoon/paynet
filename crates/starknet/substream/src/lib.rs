@@ -1,14 +1,11 @@
-mod abi;
-mod pb;
+pub mod abi;
+pub mod pb;
 
 use crate::abi::invoice_contract::Event as InvoiceEvent;
 use pb::starknet::v1::*;
 
+use crate::pb::sf::starknet::r#type::v1::Block;
 use crate::pb::sf::substreams::starknet::r#type::v1::Transactions;
-use cainome::cairo_serde::CairoSerde;
-use num_traits::cast::ToPrimitive;
-use starknet::core::types::EmittedEvent;
-use starknet::core::types::Felt;
 use substreams::log;
 use substreams::Hex;
 
@@ -50,3 +47,14 @@ fn map_invoice_events(transactions: Transactions) -> Result<Events, substreams::
 
     Ok(proto_events)
 }
+
+// #[substreams::handlers::map]
+// fn map_block_meta(blk: Block) -> Result<BlockMeta, substreams::errors::Error> {
+//     let header = blk.header.as_ref().unwrap();
+
+//     Ok(BlockMeta {
+//         number: blk.number,
+//         hash: Hex::encode(&blk.hash),
+//         parent_hash: Hex::encode(&header.parent_hash),
+//     })
+// }

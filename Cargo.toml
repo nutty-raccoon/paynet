@@ -1,5 +1,4 @@
 [workspace]
-resolver = "3"
 members = [
   "crates/bin/node",
   "crates/bin/signer",
@@ -14,6 +13,7 @@ members = [
   "crates/starknet/liquidity-source",
   "crates/starknet/types",
   "crates/starknet/substream",
+  "crates/starknet/substream-sql",
   # Integration tests
   "crates/tests/signer-tests",
   "crates/tests/node-tests",
@@ -31,6 +31,7 @@ default-members = [
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
   "crates/starknet/substream",
+  "crates/starknet/substream-sql",
   "crates/starknet/types",
 ]
 
@@ -84,6 +85,7 @@ toml = "0.8.20"
 clap = "4.5.29"
 tokio-stream = "0.1.17"
 prost = "0.13.5"
+prost-types = "0.13.5"
 dirs = "6.0.0"
 sha2 = "0.10"
 rustainers = "0.15.1"
@@ -94,6 +96,7 @@ async-trait = "0.1.88"
 itertools = "0.14"
 dashmap = "6.1.0"
 bytes = "1.10.1"
+substreams = "0.6.0"
 
 # OPTL
 opentelemetry = "0.29.1"
@@ -122,4 +125,5 @@ nuts = { path = "crates/nuts" }
 db-node = { path = "crates/db-node" }
 wallet = { path = "crates/wallet" }
 liquidity-source = { path = "crates/liquidity-source" }
-substream = { path = "crates/starknet/substream" }
+substream-paynet = { path = "crates/starknet/substream" }
+substream-paynet-sql = { path = "crates/starknet/substream-sql" }
