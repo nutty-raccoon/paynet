@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import {
     Html5QrcodeScanner,
     type Html5QrcodeResult,
@@ -26,8 +26,11 @@
   // usually better to ignore and keep scanning
   function onScanFailure(message: string) {}
 
-  let scanner: Html5QrcodeScanner;
-  onMount(() => {
+  let scanner: Html5QrcodeScanner | null = null;
+
+  function initializeScanner(): void {
+    if (scanner) return;
+
     scanner = new Html5QrcodeScanner(
       "qr-scanner",
       {
@@ -40,19 +43,42 @@
       false, // non-verbose
     );
     scanner.render(onScanSuccess, onScanFailure);
+  }
+
+  function cleanupScanner(): void {
+    if (scanner) {
+      try {
+        scanner.clear();
+      } catch (error) {
+        console.warn("Error clearing scanner:", error);
+      }
+      scanner = null;
+    }
+  }
+
+  onMount(() => {
+    if (!paused) {
+      initializeScanner();
+    }
+  });
+
+  onDestroy(() => {
+    cleanupScanner();
   });
 
   $effect(() => {
-    togglePause(paused);
-  });
-
-  function togglePause(paused: boolean): void {
-    if (paused && scanner?.getState() === Html5QrcodeScannerState.SCANNING) {
-      scanner?.pause();
-    } else if (scanner?.getState() === Html5QrcodeScannerState.PAUSED) {
-      scanner?.resume();
+    if (paused) {
+      if (scanner?.getState() === Html5QrcodeScannerState.SCANNING) {
+        scanner?.pause();
+      }
+    } else {
+      if (!scanner) {
+        initializeScanner();
+      } else if (scanner?.getState() === Html5QrcodeScannerState.PAUSED) {
+        scanner?.resume();
+      }
     }
-  }
+  });
 </script>
 
 <div id="qr-scanner" class="w-full max-w-sm"></div>
