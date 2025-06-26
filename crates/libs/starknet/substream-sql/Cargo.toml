@@ -1,0 +1,23 @@
+[package]
+name = "substream_paynet_sql"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+substreams-database-change = "2.1.2"
+hex = "0.4.3"
+prost = { workspace = true }
+prost-types = { workspace = true }
+substreams = { workspace = true }
+
+anyhow = "1.0"
+sha2 = "0.10.8"
+substream-paynet = { workspace = true }
+
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }

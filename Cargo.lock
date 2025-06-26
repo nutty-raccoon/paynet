@@ -5099,8 +5099,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
-name = "substream"
-version = "0.0.1"
+name = "substream-paynet"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "cainome",
@@ -5116,6 +5116,21 @@ dependencies = [
  "starknet 0.11.0",
  "starknet-types-core 0.1.5",
  "substreams",
+]
+
+[[package]]
+name = "substream_paynet_sql"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "getrandom 0.2.16",
+ "hex",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "sha2",
+ "substream-paynet",
+ "substreams",
+ "substreams-database-change",
 ]
 
 [[package]]
@@ -5139,6 +5154,17 @@ dependencies = [
  "prost-types 0.13.5",
  "substreams-macro",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "substreams-database-change"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a93bcd1a0cda40746b8c3a3d64b0945986722b2ca3b686595cfbb3f295246d7d"
+dependencies = [
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "substreams",
 ]
 
 [[package]]

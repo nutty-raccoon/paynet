@@ -20,6 +20,7 @@ members = [
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substream",
+  "crates/libs/starknet/substream-sql",
   # Tests
   "crates/tests/test-utils",
   # Integration tests
@@ -49,6 +50,7 @@ default-members = [
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substream",
+  "crates/libs/starknet/substream-sql",
 ]
 
 
@@ -100,6 +102,7 @@ toml = "0.8.20"
 clap = "4.5.29"
 tokio-stream = "0.1.17"
 prost = "0.13.5"
+prost-types = "0.13.5"
 dirs = "6.0.0"
 sha2 = "0.10"
 rustainers = "0.15.1"
@@ -111,6 +114,7 @@ itertools = "0.14"
 dashmap = "6.1.0"
 bytes = "1.10.1"
 uint = "0.10.0"
+substreams = "0.6.0"
 
 # OPTL
 opentelemetry = "0.29.1"
@@ -149,4 +153,5 @@ db-node = { path = "crates/libs/db-node" }
 wallet = { path = "crates/libs/wallet" }
 liquidity-source = { path = "crates/libs/liquidity-source" }
 test-utils = { path = "crates/tests/test-utils" }
-substream = { path = "crates/libs/starknet/substream" }
+substream-paynet = { path = "crates/libs/starknet/substream" }
+substream-paynet-sql = { path = "crates/libs/starknet/substream-sql" }

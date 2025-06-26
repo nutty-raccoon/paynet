@@ -2,14 +2,18 @@ syntax = "proto3";
 
 package starknet.v1;
 
+message BlockMeta {
+  uint64 height = 2; 
+}
+
 message PaymentEvent {
-  uint64 index = 1;
-  string payee = 2;
-  string asset = 3;
-  string invoice_id = 4;
-  string payer = 5;
-  string amount_low = 6;
-  string amount_high = 7;
+  uint64 index = 2;
+  string payee = 3;
+  string asset = 4;
+  string invoice_id = 5;
+  string payer = 6;
+  string amount_low = 7;
+  string amount_high = 8;
 }
 
 message Events {
