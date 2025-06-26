@@ -2,7 +2,7 @@
   import type { EventHandler } from "svelte/elements";
   import { formatBalance, unitPrecision } from "../../utils";
   import { create_wads } from "../../commands";
-  import QRPayment from "./QRPayment.svelte";
+  import QRPaymentPortal from "./QRPaymentPortal.svelte";
   import { Buffer } from "buffer";
 
   interface Props {
@@ -116,7 +116,7 @@
           <button class="close-button-alt" onclick={onClose}>Close</button>
         </div>
       {:else if paymentData}
-        <QRPayment {paymentData} onClose={onQRCodeClose} />
+        <QRPaymentPortal {paymentData} onClose={onQRCodeClose} />
       {:else}
         <form onsubmit={handleFormSubmit}>
           <div class="form-group">

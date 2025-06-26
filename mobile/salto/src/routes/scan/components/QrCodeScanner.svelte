@@ -31,7 +31,7 @@
     scanner = new Html5QrcodeScanner(
       "qr-scanner",
       {
-        fps: 50,
+        fps: 24,
         qrbox: { width, height },
         aspectRatio: 1,
         supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
