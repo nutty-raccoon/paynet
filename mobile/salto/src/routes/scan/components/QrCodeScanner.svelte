@@ -9,12 +9,10 @@
   } from "html5-qrcode";
 
   interface Props {
-    width: number;
-    height: number;
     paused: boolean;
     onCodeDetected: (decodedText: string) => void;
   }
-  let { width, height, paused, onCodeDetected }: Props = $props();
+  let { paused, onCodeDetected }: Props = $props();
 
   function onScanSuccess(
     decodedText: string,
@@ -35,7 +33,7 @@
       "qr-scanner",
       {
         fps: 24,
-        qrbox: { width, height },
+        qrbox: { width: 220, height: 220 },
         aspectRatio: 1,
         supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
@@ -81,4 +79,4 @@
   });
 </script>
 
-<div id="qr-scanner" class="w-full max-w-sm"></div>
+<div id="qr-scanner"></div>

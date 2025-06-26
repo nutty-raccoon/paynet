@@ -8,12 +8,14 @@
   } from "@tauri-apps/plugin-barcode-scanner";
   import { URDecoder } from "@gandlaf21/bc-ur";
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
+  import Portal from "../components/Portal.svelte";
 
   let scanningInProgress = $state(false);
   let percentageEstimate = $state("");
   let originalHtmlStyle = "";
   let decoder = $state(new URDecoder());
   let paused = $state(true);
+  let isPortalOpen = $state(false);
 
   function onCodeDetected(decodedText: string) {
     decoder.receivePart(decodedText);
@@ -76,7 +78,12 @@
     goto("/");
   }
 
+  const handlePortalClose = () => {
+    goto("/");
+  };
+
   onMount(() => {
+    isPortalOpen = true;
     // Start scanning immediately when page loads
     scanQRCode();
   });
@@ -91,53 +98,34 @@
   });
 </script>
 
-<div class="scan-container">
-  <div class="scan-overlay">
-    <h1>Scanning QR Code...</h1>
-    <p>Point your camera at a QR code</p>
-    <QrCodeScanner {onCodeDetected} {paused} width={320} height={320} />
+<Portal
+  isOpen={isPortalOpen}
+  onClose={handlePortalClose}
+  backgroundColor="rgba(0, 0, 0, 0.95)"
+>
+  <div class="scan-content">
+    <p class="scan-instructions">Point your camera at a QR code</p>
+
+    <QrCodeScanner {onCodeDetected} {paused} />
 
     {#if percentageEstimate}
       <div class="scan-result">
-        <h2>Scanned:</h2>
+        <h3>Scanned:</h3>
         <p>{percentageEstimate}</p>
       </div>
     {/if}
 
-    <button class="cancel-button" onclick={handleCancel}> Cancel </button>
+    <button class="cancel-button" onclick={handleCancel}>Cancel</button>
   </div>
-</div>
+</Portal>
 
 <style>
-  .scan-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .scan-overlay {
-    background-color: rgba(0, 0, 0, 0.8);
+  .scan-content {
     color: white;
-    padding: 2rem;
-    border-radius: 12px;
     text-align: center;
-    max-width: 320px;
-    width: 90%;
   }
 
-  .scan-overlay h1 {
-    margin: 0 0 1rem 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-  }
-
-  .scan-overlay p {
+  .scan-instructions {
     margin: 0 0 2rem 0;
     font-size: 1rem;
     opacity: 0.8;
@@ -150,7 +138,7 @@
     margin-bottom: 2rem;
   }
 
-  .scan-result h2 {
+  .scan-result h3 {
     margin: 0 0 0.5rem 0;
     font-size: 1.2rem;
     color: #4caf50;
@@ -176,6 +164,7 @@
       background-color 0.2s,
       transform 0.1s;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    width: 100%;
   }
 
   .cancel-button:hover {

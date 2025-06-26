@@ -3,6 +3,7 @@
   import QRCode from "@castlenine/svelte-qrcode";
   import { UR, UREncoder } from "@gandlaf21/bc-ur";
   import { Buffer } from "buffer";
+  import Portal from "./Portal.svelte";
 
   interface Props {
     paymentData: Buffer;
@@ -12,7 +13,6 @@
   let { paymentData, onClose }: Props = $props();
 
   let partToDisplay = $state<string>();
-  let showPortal = $state(false);
   let windowWidth = $state(0);
   let windowHeight = $state(0);
   let qrSize = $state(280); // Default size
@@ -70,10 +70,6 @@
   });
 
   onMount(() => {
-    showPortal = true;
-    // Prevent body scroll
-    document.body.style.overflow = "hidden";
-
     // Set initial dimensions
     updateDimensions();
 
@@ -82,9 +78,6 @@
   });
 
   onDestroy(() => {
-    // Restore body scroll
-    document.body.style.overflow = "";
-
     // Remove resize listener
     window.removeEventListener("resize", updateDimensions);
   });
@@ -94,99 +87,36 @@
   };
 </script>
 
-{#if showPortal}
-  <div class="qr-payment-overlay">
-    <div class="qr-payment-content">
-      <div class="qr-payment-header">
-        <h2>Payment QR Code</h2>
-        <button class="close-button" onclick={handleClose}>✕</button>
+<Portal isOpen={true} onClose={handleClose} title="Payment QR Code">
+  <div class="qr-code-section">
+    {#if partToDisplay}
+      {#key partToDisplay}
+        <QRCode data={partToDisplay} size={qrSize} />
+      {/key}
+    {:else}
+      <div
+        class="loading-placeholder"
+        style="width: {qrSize}px; height: {qrSize}px;"
+      >
+        <p>Generating QR code...</p>
       </div>
-
-      <div class="qr-code-section">
-        {#if partToDisplay}
-          {#key partToDisplay}
-            <QRCode data={partToDisplay} size={qrSize} />
-          {/key}
-        {:else}
-          <div
-            class="loading-placeholder"
-            style="width: {qrSize}px; height: {qrSize}px;"
-          >
-            <p>Generating QR code...</p>
-          </div>
-        {/if}
-        <p class="qr-instructions">Scan this QR code to complete the payment</p>
-      </div>
-
-      <div class="actions">
-        <button class="done-button" onclick={handleClose}>Done</button>
-      </div>
-    </div>
+    {/if}
+    <p class="qr-instructions">Scan this QR code to complete the payment</p>
   </div>
-{/if}
+
+  <div class="actions">
+    <button class="done-button" onclick={handleClose}>Done</button>
+  </div>
+</Portal>
 
 <style>
-  .qr-payment-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    z-index: 9999;
-  }
-
-  .qr-payment-content {
-    background: white;
-    border-radius: 16px;
-    width: 100%;
-    max-width: 400px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .qr-payment-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem 1.5rem 0;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 1.5rem;
-  }
-
-  .qr-payment-header h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #333;
-    font-weight: 600;
-  }
-
-  .close-button {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #666;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-    line-height: 1;
-  }
-
-  .close-button:hover {
-    background-color: #f0f0f0;
-  }
-
   .qr-code-section {
     text-align: center;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
   }
 
   .loading-placeholder {
@@ -209,8 +139,9 @@
   }
 
   .actions {
-    padding: 1.5rem;
+    padding-top: 1rem;
     border-top: 1px solid #eee;
+    margin: 0;
   }
 
   .done-button {
