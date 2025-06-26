@@ -98,9 +98,11 @@
   .nodes-container {
     display: flex;
     flex-direction: column;
-    width: 80%;
+    width: 90%;
     max-width: 400px;
     gap: 1rem;
+    margin: 0 auto;
+    align-items: center;
   }
 
   .node-card {
@@ -165,6 +167,8 @@
     border-radius: 8px;
     cursor: pointer;
     transition: background-color 0.2s;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .add-node-button:hover {

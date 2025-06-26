@@ -42,11 +42,7 @@
 
   // Effect to manage scrolling based on active tab
   $effect(() => {
-    if (activeTab === "pay") {
-      document.body.classList.add("no-scroll");
-    } else {
-      document.body.classList.remove("no-scroll");
-    }
+    document.body.classList.add("no-scroll");
   });
 
   const onAddNode = (nodeData: NodeData) => {
@@ -161,6 +157,17 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  :global(*) {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :global(body) {
+    margin: 0;
+    padding: 0;
+  }
+
   /* Global style to disable scrolling - will be applied to body when needed */
   :global(body.no-scroll) {
     overflow: hidden;
@@ -171,7 +178,7 @@
 
   .container {
     margin: 0;
-    padding-top: 10vh;
+    padding-top: 2rem;
     padding-bottom: 70px; /* Add space for the navigation bar */
     display: flex;
     flex-direction: column;
@@ -187,6 +194,16 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .balances-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin-top: 1rem;
   }
 
   .total-balance-card {
@@ -220,13 +237,13 @@
     color: #dc2626;
     padding: 0.75rem 1rem;
     border-radius: 8px;
-    margin: 1rem 0;
     font-size: 0.875rem;
     font-weight: 500;
     text-align: center;
     border: 1px solid #fecaca;
-    width: 80%;
+    width: 90%;
     max-width: 400px;
+    margin: 0 auto;
   }
 
   @media (prefers-color-scheme: dark) {
