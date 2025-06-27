@@ -56,7 +56,16 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [explorer, node, signer, starknet-setup]
+        include:
+        - service: explorer
+        - service: signer
+        - service: starknet-setup
+        - service: node
+          features: starknet
+          image_name: node
+        - service: node
+          features: mock,keyset-rotation
+          image_name: node-mock
     steps:
       - uses: actions/checkout@v4
 
@@ -86,12 +95,12 @@ jobs:
           context: .
           file: ./dockerfiles/${{ matrix.service }}.Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image_name || matrix.service }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          cache-from: type=gha,scope=${{ matrix.image_name || matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.image_name || matrix.service }},mode=max
           build-args: |
-            CARGO_FEATURES=${{ matrix.service == 'node' && 'starknet' || '' }}
+            CARGO_FEATURES=${{ matrix.features || '' }}
         
   test:
     needs: [ build]
@@ -116,7 +125,8 @@ jobs:
 
       - name: Set image environment variables
         run: |
-          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}" >> $GITHUB_ENV
+          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
           echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
           echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
         

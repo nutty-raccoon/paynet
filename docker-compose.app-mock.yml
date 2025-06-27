@@ -35,7 +35,7 @@ services:
       interval: 3s
       retries: 3
 
-  node:
+  node-mock:
     image: "node.mock"
     restart: always
     build:

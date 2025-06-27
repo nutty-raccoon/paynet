@@ -1,8 +1,9 @@
 services:
   signer:
     image: ${SIGNER_IMAGE}
-    # Don't include build section
     
   node:
     image: ${NODE_IMAGE}
-    # Don't include build section
+  
+  node-moock:
+    image: ${NODE_MOCK_IMAGE}
