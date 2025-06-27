@@ -114,22 +114,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update docker-compose with built images
+      - name: Set image environment variables
         run: |
-          sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.app.yml
-          sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.app.yml
-          sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.app.yml
-          sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.app.yml
-
-          sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.testnet.yml
+          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}" >> $GITHUB_ENV
+          echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
+          echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
+        
 
       - name: Build test binary
         run: cargo build -p tests --bin tests
 
       - name: Start integration services (mock)
         run: |
-          docker compose -f docker-compose.app-mock.yml up -d
-          docker compose -f docker-compose.app-mock.yml ps
+          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml up -d
 
       - name: Wait for integration services to be healthy
         run: |
@@ -155,12 +152,11 @@ jobs:
 
       - name: Cleanup integration tests
         run: |
-          docker compose -f docker-compose.app-mock.yml down -v
+          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml down -v
 
-      - name: Start services
+      - name: Start services  
         run: |
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml up -d
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml -f docker-compose.ci.yml up -d
 
       - name: Wait for services to be healthy
         run: |
