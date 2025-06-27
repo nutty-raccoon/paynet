@@ -46,13 +46,6 @@ enum MintCommands {
         #[arg(long)]
         node_id: u32,
     },
-
-    /// Sync
-    #[command(
-        about = "Sync ongoing mint operation",
-        long_about = "Sync ongoing mint operation. Inspect the database for pending quote and ask the node about updates. Finalize the mint if possible."
-    )]
-    Sync {},
 }
 
 #[derive(Subcommand)]
@@ -109,6 +102,25 @@ enum Commands {
         node_id: u32,
         #[arg(long)]
         to: String,
+        /// Polling interval in seconds (default: 1)
+        #[arg(long, default_value = "1")]
+        poll_interval: u64,
+        /// Timeout for melt operation in seconds (default: 300)
+        #[arg(long, default_value = "300")]
+        timeout: u64,
+    },
+    /// Sync all pending operations
+    #[command(
+        about = "Sync all pending operations",
+        long_about = "Sync all pending mint and melt operations. Inspect the database for pending quotes and ask the nodes about updates. Finalize operations if possible."
+    )]
+    Sync {
+        /// Polling interval in seconds (default: 1)
+        #[arg(long, default_value = "1")]
+        poll_interval: u64,
+        /// Timeout for sync operations in seconds (default: 30)
+        #[arg(long, default_value = "30")]
+        timeout: u64,
     },
     /// Send tokens
     #[command(
@@ -311,53 +323,19 @@ async fn main() -> Result<()> {
             // TODO: remove mint_quote
             println!("Token stored. Finished.");
         }
-        Commands::Mint(MintCommands::Sync {}) => {
-            let pending_quotes = wallet::db::get_pending_mint_quotes(&db_conn)?;
-            for (node_id, quotes) in pending_quotes {
-                let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
-                for (method, quote_id, previous_state, unit, amount) in quotes {
-                    let tx = db_conn.transaction()?;
-                    let new_state = match wallet::get_mint_quote_state(
-                        &tx,
-                        &mut node_client,
-                        method,
-                        quote_id.clone(),
-                    )
-                    .await?
-                    {
-                        Some(new_state) => new_state,
-                        None => {
-                            println!("quote {} has expired", quote_id);
-                            continue;
-                        }
-                    };
-
-                    let previous_state = MintQuoteState::try_from(previous_state).unwrap();
-                    if previous_state == MintQuoteState::MnqsUnpaid
-                        && new_state == MintQuoteState::MnqsPaid
-                    {
-                        println!("On-chain deposit received for quote {}", quote_id);
-                        wallet::mint_and_store_new_tokens(
-                            &tx,
-                            &mut node_client,
-                            STARKNET_METHOD.to_string(),
-                            quote_id,
-                            node_id,
-                            unit.as_str(),
-                            Amount::from(amount),
-                        )
-                        .await?;
-                        println!("Token stored.");
-                    }
-                    tx.commit()?;
-                }
-            }
+        Commands::Sync {
+            poll_interval,
+            timeout,
+        } => {
+            sync_all_pending_operations(&mut db_conn, poll_interval, timeout).await?;
         }
         Commands::Melt {
             amount,
             asset,
             node_id,
             to,
+            poll_interval,
+            timeout,
         } => {
             let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
 
@@ -412,25 +390,78 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            loop {
-                let melt_quote_state_response = node_client
-                    .melt_quote_state(QuoteStateRequest {
-                        method: STARKNET_METHOD.to_string(),
-                        quote: resp.quote.clone(),
-                    })
-                    .await?
-                    .into_inner();
+            // Use timeout for the entire melt polling operation
+            let melt_result = tokio::time::timeout(Duration::from_secs(timeout), async {
+                loop {
+                    let melt_quote_state_response = node_client
+                        .melt_quote_state(QuoteStateRequest {
+                            method: STARKNET_METHOD.to_string(),
+                            quote: resp.quote.clone(),
+                        })
+                        .await?
+                        .into_inner();
 
-                if !melt_quote_state_response.transfer_ids.is_empty() {
-                    println!(
-                        "{}",
-                        format_melt_transfers_id_into_term_message(
-                            melt_quote_state_response.transfer_ids
-                        )
-                    );
-                    break;
+                    let melt_state = node::MeltState::try_from(melt_quote_state_response.state)
+                        .map_err(|_| anyhow!("Invalid melt state received"))?;
+
+                    match melt_state {
+                        node::MeltState::MlqsPaid => {
+                            // Update database state
+                            wallet::db::update_melt_quote_state(
+                                &db_conn,
+                                &resp.quote,
+                                melt_state as i32,
+                            )?;
+
+                            println!(
+                                "{}",
+                                format_melt_transfers_id_into_term_message(
+                                    melt_quote_state_response.transfer_ids
+                                )
+                            );
+                            break;
+                        }
+                        node::MeltState::MlqsUnpaid => {
+                            // Check if expired
+                            let now = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs();
+                            if now >= melt_quote_state_response.expiry {
+                                wallet::db::delete_expired_melt_quote(&db_conn, &resp.quote)?;
+                                println!("Melt quote expired and removed");
+                                break;
+                            }
+                            // Continue polling with configurable interval
+                            tokio::time::sleep(Duration::from_secs(poll_interval)).await;
+                        }
+                        node::MeltState::MlqsPending => {
+                            // Continue polling with configurable interval
+                            tokio::time::sleep(Duration::from_secs(poll_interval)).await;
+                        }
+                        _ => {
+                            // Handle unknown states - continue polling with configurable interval
+                            tokio::time::sleep(Duration::from_secs(poll_interval)).await;
+                        }
+                    }
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                Ok::<(), anyhow::Error>(())
+            })
+            .await;
+
+            match melt_result {
+                Ok(Ok(())) => {
+                    // Melt completed successfully
+                }
+                Ok(Err(e)) => {
+                    return Err(e);
+                }
+                Err(_) => {
+                    return Err(anyhow!(
+                        "Melt operation timed out after {} seconds",
+                        timeout
+                    ));
+                }
             }
         }
         Commands::Send {
@@ -568,6 +599,183 @@ async fn main() -> Result<()> {
             println!("Total Value: {} {}", wad.value()?, wad.unit());
             println!("\nDetailed Contents:");
             println!("{}", serde_json::to_string_pretty(&regular_wad)?);
+        }
+    }
+
+    Ok(())
+}
+
+async fn sync_all_pending_operations(
+    db_conn: &mut Connection,
+    poll_interval: u64,
+    timeout: u64,
+) -> Result<()> {
+    println!("Starting sync of all pending operations...");
+    println!(
+        "Using poll interval: {}s, timeout: {}s",
+        poll_interval, timeout
+    );
+
+    // Get all nodes
+    let nodes = wallet::db::node::fetch_all(db_conn)?;
+
+    for (node_id, node_url) in nodes {
+        println!("Syncing operations for node {} ({})", node_id, node_url);
+
+        let (mut node_client, _) = connect_to_node(db_conn, node_id).await?;
+
+        // Set timeout for node client operations
+        let sync_result = tokio::time::timeout(Duration::from_secs(timeout), async {
+            // Sync mint quotes
+            sync_mint_quotes_for_node(db_conn, &mut node_client, node_id, poll_interval).await?;
+
+            // Sync melt quotes
+            sync_melt_quotes_for_node(db_conn, &mut node_client, node_id, poll_interval).await?;
+
+            Ok::<(), anyhow::Error>(())
+        })
+        .await;
+
+        match sync_result {
+            Ok(Ok(())) => {
+                println!("Successfully synced node {}", node_id);
+            }
+            Ok(Err(e)) => {
+                println!("Error syncing node {}: {}", node_id, e);
+                // Continue with other nodes
+            }
+            Err(_) => {
+                println!("Timeout syncing node {} after {}s", node_id, timeout);
+                // Continue with other nodes
+            }
+        }
+    }
+
+    println!("Sync completed.");
+    Ok(())
+}
+
+async fn sync_mint_quotes_for_node(
+    db_conn: &mut Connection,
+    node_client: &mut NodeClient<tonic::transport::Channel>,
+    node_id: u32,
+    poll_interval: u64,
+) -> Result<()> {
+    let pending_quotes = wallet::db::get_pending_mint_quotes(db_conn)?;
+
+    // Find quotes for this node
+    let node_quotes = pending_quotes
+        .into_iter()
+        .find(|(id, _)| *id == node_id)
+        .map(|(_, quotes)| quotes)
+        .unwrap_or_default();
+
+    let quotes_count = node_quotes.len();
+
+    for (method, quote_id, previous_state, unit, amount) in node_quotes {
+        let new_state =
+            match wallet::get_mint_quote_state(db_conn, node_client, method, quote_id.clone())
+                .await?
+            {
+                Some(new_state) => new_state,
+                None => {
+                    println!("Mint quote {} has expired", quote_id);
+                    continue;
+                }
+            };
+
+        let previous_state = MintQuoteState::try_from(previous_state).unwrap();
+        if previous_state == MintQuoteState::MnqsUnpaid && new_state == MintQuoteState::MnqsPaid {
+            println!("On-chain deposit received for mint quote {}", quote_id);
+            let tx = db_conn.transaction()?;
+            wallet::mint_and_store_new_tokens(
+                &tx,
+                node_client,
+                STARKNET_METHOD.to_string(),
+                quote_id,
+                node_id,
+                unit.as_str(),
+                Amount::from(amount),
+            )
+            .await?;
+            tx.commit()?;
+            println!("Tokens stored for mint quote.");
+        }
+
+        // Small delay between quote processing to avoid overwhelming the node
+        if quotes_count > 0 {
+            tokio::time::sleep(Duration::from_millis(poll_interval * 100)).await;
+        }
+    }
+
+    Ok(())
+}
+
+async fn sync_melt_quotes_for_node(
+    db_conn: &mut Connection,
+    node_client: &mut NodeClient<tonic::transport::Channel>,
+    node_id: u32,
+    poll_interval: u64,
+) -> Result<()> {
+    let pending_quotes = wallet::db::get_pending_melt_quotes(db_conn)?;
+
+    // Find quotes for this node
+    let node_quotes = pending_quotes
+        .into_iter()
+        .find(|(id, _)| *id == node_id)
+        .map(|(_, quotes)| quotes)
+        .unwrap_or_default();
+
+    let quotes_count = node_quotes.len();
+
+    for (quote_id, previous_state, expiry) in node_quotes {
+        let new_state = match wallet::get_melt_quote_state(
+            db_conn,
+            node_client,
+            STARKNET_METHOD.to_string(),
+            quote_id.clone(),
+        )
+        .await?
+        {
+            Some(new_state) => new_state,
+            None => {
+                println!("Melt quote {} has expired", quote_id);
+                continue;
+            }
+        };
+
+        let previous_state_enum = match previous_state {
+            1 => node::MeltState::MlqsUnpaid,
+            2 => node::MeltState::MlqsPending,
+            3 => node::MeltState::MlqsPaid,
+            _ => continue, // Skip unknown states
+        };
+
+        match new_state {
+            node::MeltState::MlqsPaid if previous_state_enum != node::MeltState::MlqsPaid => {
+                println!("Melt quote {} completed successfully", quote_id);
+                wallet::db::update_melt_quote_state(db_conn, &quote_id, new_state as i32)?;
+            }
+            node::MeltState::MlqsUnpaid => {
+                // Check if expired
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                if now >= expiry {
+                    println!("Melt quote {} expired and will be removed", quote_id);
+                    wallet::db::delete_expired_melt_quote(db_conn, &quote_id)?;
+                }
+            }
+            _ => {
+                // Update state in database for pending or other states
+                wallet::db::update_melt_quote_state(db_conn, &quote_id, new_state as i32)?;
+            }
+        }
+
+        // Small delay between quote processing to avoid overwhelming the node
+        if quotes_count > 0 {
+            tokio::time::sleep(Duration::from_millis(poll_interval * 100)).await;
         }
     }
 

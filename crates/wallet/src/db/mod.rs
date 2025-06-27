@@ -279,3 +279,51 @@ pub fn get_pending_mint_quotes(
 
     Ok(quote_per_node)
 }
+
+#[allow(clippy::type_complexity)]
+pub fn get_pending_melt_quotes(conn: &Connection) -> Result<Vec<(u32, Vec<(String, i32, u64)>)>> {
+    const GET_PENDING_MELT_QUOTES: &str = r#"
+        SELECT node_id, id, state, expiry FROM melt_response WHERE state = 1 OR state = 2;
+    "#;
+
+    let mut stmt = conn.prepare(GET_PENDING_MELT_QUOTES)?;
+    let mut rows = stmt.query([])?;
+
+    let mut quote_per_node: Vec<(u32, Vec<(String, i32, u64)>)> = Vec::new();
+    while let Some(row) = rows.next()? {
+        let node_id = row.get::<_, u32>(0)?;
+        let id = row.get::<_, String>(1)?;
+        let state = row.get::<_, i32>(2)?;
+        let expiry = row.get::<_, u64>(3)?;
+
+        match quote_per_node.iter().position(|v| v.0 == node_id) {
+            Some(p) => quote_per_node[p].1.push((id, state, expiry)),
+            None => quote_per_node.push((node_id, vec![(id, state, expiry)])),
+        }
+    }
+
+    Ok(quote_per_node)
+}
+
+pub fn update_melt_quote_state(conn: &Connection, quote_id: &str, state: i32) -> Result<()> {
+    const UPDATE_MELT_QUOTE_STATE: &str = r#"
+        UPDATE melt_response
+        SET state = ?2
+        WHERE id = ?1;
+    "#;
+
+    conn.execute(UPDATE_MELT_QUOTE_STATE, (quote_id, state))?;
+
+    Ok(())
+}
+
+pub fn delete_expired_melt_quote(conn: &Connection, quote_id: &str) -> Result<()> {
+    const DELETE_MELT_QUOTE: &str = r#"
+        DELETE FROM melt_response
+        WHERE id = ?1;
+    "#;
+
+    conn.execute(DELETE_MELT_QUOTE, [quote_id])?;
+
+    Ok(())
+}

@@ -130,6 +130,48 @@ pub async fn get_mint_quote_state(
     }
 }
 
+pub async fn get_melt_quote_state(
+    db_conn: &Connection,
+    node_client: &mut NodeClient<Channel>,
+    method: String,
+    quote_id: String,
+) -> Result<Option<node::MeltState>> {
+    let response = node_client
+        .melt_quote_state(QuoteStateRequest {
+            method,
+            quote: quote_id.clone(),
+        })
+        .await;
+
+    match response {
+        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
+            db::delete_expired_melt_quote(db_conn, &quote_id)?;
+            Ok(None)
+        }
+        Ok(response) => {
+            let response = response.into_inner();
+            let state = node::MeltState::try_from(response.state)
+                .map_err(|e| Error::Conversion(e.to_string()))?;
+
+            if state == node::MeltState::MlqsUnpaid {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                if now >= response.expiry {
+                    db::delete_expired_melt_quote(db_conn, &quote_id)?;
+                    return Ok(None);
+                }
+            }
+            db::update_melt_quote_state(db_conn, &quote_id, response.state)?;
+            let state = node::MeltState::try_from(response.state)
+                .map_err(|e| Error::Conversion(e.to_string()))?;
+            Ok(Some(state))
+        }
+        Err(e) => Err(e)?,
+    }
+}
+
 pub async fn refresh_node_keysets(
     db_conn: &Connection,
     node_client: &mut NodeClient<Channel>,
