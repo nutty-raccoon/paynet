@@ -257,15 +257,6 @@ jobs:
         if: always()
         run: rm -rf /home/runner/.local/share
 
-      - name: Download test binary
-        uses: actions/download-artifact@v4
-        with:
-          name: test-binary
-          path: ./target/debug
-
-      - name: Make test binary executable
-        run: chmod +x ./target/debug/tests
-
       - name: Run E2E and concurrency tests
         env:
           NODE_URL: http://localhost:10003
