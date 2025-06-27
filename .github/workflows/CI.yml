@@ -49,7 +49,7 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-  build:
+  build-images:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,9 +101,28 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.image_name || matrix.service }},mode=max
           build-args: |
             CARGO_FEATURES=${{ matrix.features || '' }}
-        
+
+  build-binary:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+
+      - name: Build test binary
+        run: cargo build -p tests --bin tests
+
   test:
-    needs: [ build]
+    needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,10 +148,6 @@ jobs:
           echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
           echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
           echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
-        
-
-      - name: Build test binary
-        run: cargo build -p tests --bin tests
 
       - name: Start integration services (mock)
         run: |

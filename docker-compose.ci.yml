@@ -5,5 +5,5 @@ services:
   node:
     image: ${NODE_IMAGE}
   
-  node-moock:
+  node-mock:
     image: ${NODE_MOCK_IMAGE}
