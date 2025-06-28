@@ -131,25 +131,11 @@ jobs:
       - name: Compile signer-tests without running
         run: cargo test --no-run -p signer-tests
   
-      - name: Upload tests binary
+      - name: Upload target directory
         uses: actions/upload-artifact@v4
         with:
           name: tests-bin
-          path: ./target/debug/tests
-  
-      - name: Upload node-tests test binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-tests-bin
-          path: |
-            ./target/debug/deps/node_tests-*
-  
-      - name: Upload signer-tests test binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: signer-tests-bin
-          path: |
-            ./target/debug/deps/signer_tests-*
+          path: ./target/
 
   test:
     needs: [ build-images, build-binary ]
@@ -179,24 +165,12 @@ jobs:
           echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
           echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
           echo "EXPLORER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}" >> $GITHUB_ENV
-      
-      - name: Download node-tests binary
-        uses: actions/download-artifact@v4
-        with:
-          name: node-tests-bin
-          path: ./target/debug/deps
         
-      - name: Download signer-tests binary
-        uses: actions/download-artifact@v4
-        with:
-          name: signer-tests-bin
-          path: ./target/debug/deps
-        
-      - name: Download tests binary
+      - name: Download target directory
         uses: actions/download-artifact@v4
         with:
           name: tests-bin
-          path: ./target/debug
+          path: ./target/
         
       - name: Make test binaries executable
         run: chmod +x ./target/debug/tests ./target/debug/deps/node_tests-* ./target/debug/deps/signer_tests-*
@@ -219,13 +193,13 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: ./target/debug/deps/node_tests-*
+        run: cargo test -p node-tests
 
       - name: Run signer integration tests
         env:
           GRPC_PORT: 10001
           ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: ./target/debug/deps/signer_tests-*
+        run: cargo test -p signer-tests
 
       - name: Cleanup integration tests
         run: |
