@@ -167,9 +167,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-        
-      - name: Make test binaries executable
-        run: chmod +x ./target/debug/tests ./target/debug/deps/node_tests-* ./target/debug/deps/signer_tests-*
 
       - name: Start integration services (mock)
         run: |
