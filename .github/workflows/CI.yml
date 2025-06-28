@@ -118,6 +118,8 @@ jobs:
         with:
           version: "28.x"
       
+      - uses: Swatinem/rust-cache@v2
+
       - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: rustfmt, clippy
@@ -131,15 +133,18 @@ jobs:
       - name: Compile signer-tests without running
         run: cargo test --no-run -p signer-tests
   
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache test binaries for other jobs
+        uses: actions/cache/save@v3
         with:
-          shared-key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
 
   test:
     needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -164,9 +169,12 @@ jobs:
           echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
           echo "EXPLORER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}" >> $GITHUB_ENV
         
-      - uses: Swatinem/rust-cache@v2
+      - name: Restore test binaries
+        uses: actions/cache/restore@v3
         with:
-          shared-key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
 
       - name: Start integration services (mock)
         run: |
