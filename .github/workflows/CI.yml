@@ -57,7 +57,6 @@ jobs:
     strategy:
       matrix:
         include:
-        - service: explorer
         - service: signer
         - service: starknet-setup
         - service: node
@@ -167,7 +166,6 @@ jobs:
           echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
           echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
           echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
-          echo "EXPLORER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}" >> $GITHUB_ENV
         
       - name: Restore test binaries
         uses: actions/cache/restore@v3
@@ -208,7 +206,7 @@ jobs:
 
       - name: Start services  
         run: |
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml -f docker-compose.ci.yml up -d
+          docker compose -f docker-compose.app.yml -f docker-compose.ci-testnet.yml -f docker-compose.ci.yml up -d
 
       - name: Wait for services to be healthy
         run: |

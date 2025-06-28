@@ -1,0 +1,59 @@
+services:
+  starknet-devnet:
+    image: "docker.io/shardlabs/starknet-devnet-rs:0.2.4-seed0"
+    environment:
+      - SEED=0
+      - BLOCK_GENERATION_ON=5
+      - CHAIN_ID=SN_DEVNET
+    ports:
+      - "5050:5050"
+    restart: always
+    healthcheck:
+      # Doing http calls without having to install curl or wget
+      # https://github.com/dart-lang/dart-docker/issues/58#issuecomment-1410663799
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/localhost/5050;echo -e "GET /is_alive HTTP/1.1\r\nHost: localhost:5050\r\nConnection: close\r\n\r\n" >&3; grep "200 OK" <&3']
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  dna:
+    image: quay.io/apibara/starknet:1.6.2
+    command:
+      - start
+      - --rpc=http://starknet-devnet:5050/rpc
+      - --name=devnet
+      - --head-refresh-interval-ms=1000
+      - --wait-for-rpc
+      - --address=0.0.0.0:7171
+    environment:
+      - XDG_DATA_HOME=/data
+    volumes:
+      - dna:/data
+    ports:
+      - 7171:7171
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+  
+  starknet-setup:
+    image: "starknet-setup"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/starknet-setup.Dockerfile
+    command:
+      - "--chain-id=SN_DEVNET"
+      - "--url=http://starknet-devnet:5050"
+      - "--private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+      - "--account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+    # This is a one shot service
+    restart: "no"
+    stdin_open: false
+    tty: false
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+      dna:
+        condition: service_started
+
+volumes:
+  dna:

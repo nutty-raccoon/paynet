@@ -7,9 +7,8 @@ services:
   
   starknet-setup:
     image: ${STARKNET_SETUP_IMAGE}
-
-  explorer:
-    image: ${EXPLORER_IMAGE}
   
   node-mock:
     image: ${NODE_MOCK_IMAGE}
+
+  
