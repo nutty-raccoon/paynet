@@ -176,7 +176,7 @@ jobs:
           key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
           fail-on-cache-miss: true
 
-      - name: Start integration services (mock)
+      - name: Start integration service (mock)
         run: |
           docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml up -d
 
