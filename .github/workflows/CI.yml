@@ -131,11 +131,9 @@ jobs:
       - name: Compile signer-tests without running
         run: cargo test --no-run -p signer-tests
   
-      - name: Upload target directory
-        uses: actions/upload-artifact@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          name: tests-bin
-          path: ./target/
+          shared-key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
   test:
     needs: [ build-images, build-binary ]
@@ -166,11 +164,9 @@ jobs:
           echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
           echo "EXPLORER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}" >> $GITHUB_ENV
         
-      - name: Download target directory
-        uses: actions/download-artifact@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          name: tests-bin
-          path: ./target/
+          shared-key: rust-cache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
         
       - name: Make test binaries executable
         run: chmod +x ./target/debug/tests ./target/debug/deps/node_tests-* ./target/debug/deps/signer_tests-*
