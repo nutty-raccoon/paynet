@@ -219,13 +219,13 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test -p node-tests
+        run: ./target/debug/deps/node_tests-*
 
       - name: Run signer integration tests
         env:
           GRPC_PORT: 10001
           ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test -p signer-tests
+        run: ./target/debug/deps/signer_tests-*
 
       - name: Cleanup integration tests
         run: |
