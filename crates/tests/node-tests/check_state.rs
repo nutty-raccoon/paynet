@@ -1,7 +1,7 @@
 use std::vec;
 
 use anyhow::Result;
-use node::{
+use node_client::{
     BlindedMessage, CheckStateRequest, GetKeysRequest, GetKeysetsRequest, MintQuoteRequest,
     MintRequest, Proof, SwapRequest,
 };

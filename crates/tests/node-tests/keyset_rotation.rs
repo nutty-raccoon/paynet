@@ -1,5 +1,5 @@
 use anyhow::Result;
-use node::{
+use node_client::{
     GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, RotateKeysetsRequest,
 };
 use node_tests::{init_keyset_client, init_node_client};

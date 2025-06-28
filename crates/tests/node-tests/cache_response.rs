@@ -1,5 +1,5 @@
 use anyhow::Result;
-use node::{
+use node_client::{
     AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltRequest,
     MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request, hash_mint_request,
     hash_swap_request,
