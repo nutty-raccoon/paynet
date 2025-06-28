@@ -1,4 +1,10 @@
 services:
+  signer:
+    image: ${SIGNER_IMAGE}
+    
+  node:
+    image: ${NODE_IMAGE}
+
   starknet-devnet:
     image: "docker.io/shardlabs/starknet-devnet-rs:0.2.4-seed0"
     environment:
@@ -36,7 +42,7 @@ services:
         condition: service_healthy
   
   starknet-setup:
-    image: "starknet-setup"
+    image: ${STARKNET_SETUP_IMAGE}
     build:
       context: .
       dockerfile: ./dockerfiles/starknet-setup.Dockerfile

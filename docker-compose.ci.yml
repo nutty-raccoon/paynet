@@ -1,12 +1,6 @@
 services:
   signer:
     image: ${SIGNER_IMAGE}
-    
-  node:
-    image: ${NODE_IMAGE}
-  
-  starknet-setup:
-    image: ${STARKNET_SETUP_IMAGE}
   
   node-mock:
     image: ${NODE_MOCK_IMAGE}
