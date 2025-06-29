@@ -46,6 +46,3 @@ dirs = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
 tauri-plugin-os = "2"
-
-[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
-tauri-plugin-barcode-scanner = "2"

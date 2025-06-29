@@ -7,7 +7,5 @@
   "windows": [
     "main"
   ],
-  "permissions": [
-    "barcode-scanner:default"
-  ]
+  "permissions": []
 }

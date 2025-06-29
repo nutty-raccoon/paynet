@@ -1,21 +1,14 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
-  import {
-    checkPermissions,
-    requestPermissions,
-    cancel,
-  } from "@tauri-apps/plugin-barcode-scanner";
   import { URDecoder } from "@gandlaf21/bc-ur";
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
   import Portal from "../components/Portal.svelte";
 
   let scanningInProgress = $state(false);
   let percentageEstimate = $state("");
-  let originalHtmlStyle = "";
   let decoder = $state(new URDecoder());
-  let paused = $state(true);
-  let isPortalOpen = $state(false);
+  let paused = $state(false);
+  let isPortalOpen = $state(true);
 
   function onCodeDetected(decodedText: string) {
     decoder.receivePart(decodedText);
@@ -39,63 +32,20 @@
     }
   }
 
-  async function scanQRCode() {
-    try {
-      const permission = await checkPermissions();
-      if (permission == "granted") {
-        paused = false;
-      } else {
-        const permission = await requestPermissions();
-        if (permission == "granted") {
-          paused = false;
-        } else {
-          return "Permission denied";
-        }
-      }
-    } catch (error) {
-      console.error("QR code scanning failed:", error);
-      return JSON.stringify(error);
-    }
-  }
-
-  async function cancelScanning() {
+  function cancelScanning() {
     if (scanningInProgress) {
-      try {
-        await cancel();
-        scanningInProgress = false;
-        return "Scanning cancelled";
-      } catch (error) {
-        console.error("Failed to cancel scanning:", error);
-        scanningInProgress = false;
-        return "Cancel failed";
-      }
+      scanningInProgress = false;
     }
-    return "No scanning in progress";
   }
 
-  async function handleCancel() {
-    await cancelScanning();
+  function handleCancel() {
+    cancelScanning();
     goto("/");
   }
 
   const handlePortalClose = () => {
     goto("/");
   };
-
-  onMount(() => {
-    isPortalOpen = true;
-    // Start scanning immediately when page loads
-    scanQRCode();
-  });
-
-  onDestroy(() => {
-    // Restore original styles if component is destroyed during scanning
-    if (typeof document !== "undefined") {
-      const html = document.documentElement;
-
-      html.style.backgroundColor = originalHtmlStyle;
-    }
-  });
 </script>
 
 <Portal
@@ -103,20 +53,22 @@
   onClose={handlePortalClose}
   backgroundColor="rgba(0, 0, 0, 0.95)"
 >
-  <div class="scan-content">
-    <p class="scan-instructions">Point your camera at a QR code</p>
+  {#snippet children()}
+    <div class="scan-content">
+      <p class="scan-instructions">Point your camera at a QR code</p>
 
-    <QrCodeScanner {onCodeDetected} {paused} />
+      <QrCodeScanner {onCodeDetected} {paused} />
 
-    {#if percentageEstimate}
-      <div class="scan-result">
-        <h3>Scanned:</h3>
-        <p>{percentageEstimate}</p>
-      </div>
-    {/if}
+      {#if percentageEstimate}
+        <div class="scan-result">
+          <h3>Scanned:</h3>
+          <p>{percentageEstimate}</p>
+        </div>
+      {/if}
 
-    <button class="cancel-button" onclick={handleCancel}>Cancel</button>
-  </div>
+      <button class="cancel-button" onclick={handleCancel}>Cancel</button>
+    </div>
+  {/snippet}
 </Portal>
 
 <style>

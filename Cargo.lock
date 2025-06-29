@@ -5500,7 +5500,6 @@ dependencies = [
  "starknet-types",
  "tauri",
  "tauri-build",
- "tauri-plugin-barcode-scanner",
  "tauri-plugin-log",
  "tauri-plugin-opener",
  "tauri-plugin-os",
@@ -7098,20 +7097,6 @@ dependencies = [
  "tauri-utils",
  "toml",
  "walkdir",
-]
-
-[[package]]
-name = "tauri-plugin-barcode-scanner"
-version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a07076e8cfaad4ad53a1ec78c3d8d3321c1432d4151076eb7b91e1e465d1206"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.12",
 ]
 
 [[package]]

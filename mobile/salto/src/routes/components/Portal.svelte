@@ -8,6 +8,7 @@
     showCloseButton?: boolean;
     maxWidth?: string;
     backgroundColor?: string;
+    children: import("svelte").Snippet;
   }
 
   let {
@@ -17,6 +18,7 @@
     showCloseButton = true,
     maxWidth = "400px",
     backgroundColor = "white",
+    children,
   }: Props = $props();
 
   let showPortal = $state(false);
@@ -48,16 +50,10 @@
   const handleClose = () => {
     onClose();
   };
-
-  const handleOverlayClick = (event: MouseEvent) => {
-    if (event.target === event.currentTarget) {
-      handleClose();
-    }
-  };
 </script>
 
 {#if showPortal}
-  <div class="portal-overlay" onclick={handleOverlayClick}>
+  <div class="portal-overlay">
     <div
       class="portal-content"
       style="max-width: {maxWidth}; background-color: {backgroundColor};"
@@ -74,7 +70,7 @@
       {/if}
 
       <div class="portal-body">
-        <slot />
+        {@render children()}
       </div>
     </div>
   </div>
