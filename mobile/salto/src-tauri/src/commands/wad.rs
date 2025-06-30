@@ -55,7 +55,6 @@ pub async fn create_wads(
     let asset = Asset::from_str(&asset)?;
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
-    println!("amount {:?} unit {:?}", amount, unit);
 
     let amount_to_use_per_node = {
         let db_conn = state.pool.get()?;
@@ -123,7 +122,7 @@ pub async fn create_wads(
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ReceiveWadError {
+pub enum ReceiveWadsError {
     #[error(transparent)]
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
@@ -138,9 +137,13 @@ pub enum ReceiveWadError {
     AssetToUnitConversion(#[from] AssetToUnitConversionError),
     #[error("invalid string for compacted wad")]
     WadString(#[from] compact_wad::Error),
+    #[error(transparent)]
+    Tauri(#[from] tauri::Error),
+    #[error("this is a json error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
-impl serde::Serialize for ReceiveWadError {
+impl serde::Serialize for ReceiveWadsError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -150,27 +153,35 @@ impl serde::Serialize for ReceiveWadError {
 }
 
 #[tauri::command]
-pub async fn receive_wad(
+pub async fn receive_wads(
+    app: AppHandle,
     state: State<'_, AppState>,
-    wad_string: String,
-) -> Result<BalanceChange, ReceiveWadError> {
-    let wad: CompactWad<Unit> = wad_string.parse()?;
+    wads: String,
+) -> Result<(), ReceiveWadsError> {
+    let deserialized_wads: Vec<CompactWad<Unit>> = serde_json::from_str(&wads)?;
 
-    let (mut node_client, node_id) =
-        wallet::register_node(state.pool.clone(), &wad.node_url).await?;
+    for wad in deserialized_wads {
+        let (mut node_client, node_id) =
+            wallet::register_node(state.pool.clone(), &wad.node_url).await?;
 
-    let amount_received = wallet::receive_wad(
-        state.pool.clone(),
-        &mut node_client,
-        node_id,
-        wad.unit.as_str(),
-        wad.proofs,
-    )
-    .await?;
+        let amount_received = wallet::receive_wad(
+            state.pool.clone(),
+            &mut node_client,
+            node_id,
+            wad.unit.as_str(),
+            wad.proofs,
+        )
+        .await?;
 
-    Ok(BalanceChange {
-        node_id,
-        unit: wad.unit.as_str().to_string(),
-        amount: amount_received.into(),
-    })
+        app.emit(
+            "balance-increase",
+            BalanceChange {
+                node_id,
+                unit: wad.unit.as_str().to_string(),
+                amount: amount_received.into(),
+            },
+        )?;
+    }
+
+    Ok(())
 }

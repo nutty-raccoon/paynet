@@ -6,7 +6,7 @@ mod wad;
 pub use add_node::add_node;
 pub use deposit::{create_mint_quote, redeem_quote};
 pub use get_nodes_balance::get_nodes_balance;
-pub use wad::{create_wads, receive_wad};
+pub use wad::{create_wads, receive_wads};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

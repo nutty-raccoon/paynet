@@ -55,3 +55,12 @@ export async function create_wads(amount: string, asset: string) {
   
 } 
 
+export async function receive_wads(wads: string) {
+      const res = await invoke("receive_wads", {wads})
+      .catch((error) => {
+        console.error("failed to receive wads:", error);
+      });
+
+      return res;
+} 
+

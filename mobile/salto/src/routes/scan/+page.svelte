@@ -3,6 +3,7 @@
   import { URDecoder } from "@gandlaf21/bc-ur";
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
   import Portal from "../components/Portal.svelte";
+  import { receive_wads } from "../../commands";
 
   let scanningInProgress = $state(false);
   let percentageEstimate = $state("");
@@ -22,14 +23,15 @@
         const ur = decoder.resultUR();
         // Decode the CBOR message to a Buffer
         const decoded = ur.decodeCBOR();
-        // get the original message, assuming it was a JSON object
-        const originalMessage = JSON.parse(decoded.toString());
+        receive_wads(decoded.toString());
       } else {
         // log and handle the error
         const error = decoder.resultError();
         console.log("Error found while decoding", error);
       }
     }
+
+    scanningInProgress = false;
   }
 
   function cancelScanning() {

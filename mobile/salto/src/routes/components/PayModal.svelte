@@ -80,7 +80,7 @@
 
       create_wads(amountString, asset).then((val) => {
         if (!!val) {
-          const messageBuffer = Buffer.from(JSON.stringify(val));
+          const messageBuffer = Buffer.from(val);
           paymentData = messageBuffer;
         }
       });
