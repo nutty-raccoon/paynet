@@ -2,14 +2,14 @@ use std::{path::PathBuf, str::FromStr};
 
 use crate::errors::{Error, Result};
 use anyhow::anyhow;
-use rusqlite::Connection;
+use r2d2_sqlite::SqliteConnectionManager;
 use wallet::types::NodeUrl;
 
 use crate::{e2e::wallet_ops::WalletOps, env_variables::EnvVariables};
 
 mod wallet_ops;
 
-fn db_connection() -> Result<(Connection, PathBuf)> {
+fn db_connection() -> Result<(r2d2::Pool<SqliteConnectionManager>, PathBuf)> {
     let db_path = if let Ok(env_path) = std::env::var("WALLET_DB_PATH") {
         PathBuf::from(env_path)
     } else {
@@ -31,19 +31,19 @@ fn db_connection() -> Result<(Connection, PathBuf)> {
     let mut db_conn = rusqlite::Connection::open(db_path.clone())?;
 
     wallet::db::create_tables(&mut db_conn)?;
-    Ok((db_conn, db_path))
+    let manager = SqliteConnectionManager::file(db_path.clone());
+    let pool = r2d2::Pool::new(manager)?;
+
+    Ok((pool, db_path))
 }
 
 pub async fn run_e2e(env: EnvVariables) -> Result<()> {
-    let (mut db_conn, _db_path) = db_connection()?;
+    let (db_pool, _db_path) = db_connection()?;
     let node_url = NodeUrl::from_str(&env.node_url).map_err(|e| Error::Other(e.into()))?;
 
-    let tx = db_conn.transaction()?;
+    let (node_client, node_id) = wallet::register_node(db_pool.clone(), &node_url).await?;
 
-    let (node_client, node_id) = wallet::register_node(&tx, node_url.clone()).await?;
-    tx.commit()?;
-
-    let mut wallet_ops = WalletOps::new(db_conn, node_id, node_client);
+    let mut wallet_ops = WalletOps::new(db_pool.clone(), node_id, node_client);
 
     wallet_ops
         .mint(10.into(), starknet_types::Asset::Strk, env)

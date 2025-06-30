@@ -16,14 +16,18 @@ serde = { workspace = true }
 starknet-types-core = { workspace = true }
 starknet = { workspace = true }
 url = { workspace = true }
-rusqlite = { workspace = true }
 primitive-types = { workspace = true }
 log = { workspace = true }
-itertools = {workspace = true}
-wallet = { path = "../../wallet" }
-node = { path = "../../bin/node" }
-starknet-types = { path = "../../starknet/types" }
+itertools = { workspace = true }
+wallet = { workspace = true  }
+node-client = { workspace = true  }
+starknet-types = { workspace = true  }
 starknet-liquidity-source = { workspace = true }
 nuts = { workspace = true }
-futures = {workspace = true}
-thiserror = {workspace = true}
+futures = { workspace = true }
+thiserror = { workspace = true }
+
+# Db
+r2d2_sqlite = { workspace = true }
+r2d2 = { workspace = true }
+rusqlite = { workspace = true }

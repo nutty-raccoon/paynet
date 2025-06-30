@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use futures::future::join_all;
-use node::{
+use node_client::{
     AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltRequest, MeltResponse,
     MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, NodeClient, Proof, SwapRequest,
     SwapResponse, hash_mint_request,

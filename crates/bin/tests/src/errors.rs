@@ -37,6 +37,8 @@ pub enum Error {
     Concurrence(#[from] ConcurrenceError),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+    #[error(transparent)]
+    R2d2(#[from] r2d2::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

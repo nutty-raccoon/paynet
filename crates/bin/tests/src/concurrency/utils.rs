@@ -1,4 +1,4 @@
-use node::{
+use node_client::{
     AcknowledgeRequest, GetKeysetsRequest, MeltRequest, MeltResponse, MintQuoteRequest,
     MintQuoteResponse, MintQuoteState, MintRequest, MintResponse, NodeClient, QuoteStateRequest,
     SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
@@ -92,7 +92,7 @@ pub async fn wait_transac(
 pub async fn get_active_keyset(
     node_client: &mut NodeClient<Channel>,
     unit: &str,
-) -> Result<node::Keyset> {
+) -> Result<node_client::Keyset> {
     let keysets = node_client
         .keysets(GetKeysetsRequest {})
         .await?
