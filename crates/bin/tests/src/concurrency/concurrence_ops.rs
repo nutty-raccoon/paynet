@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use futures::future::join_all;
 use node::{
     AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltRequest, MeltResponse,
@@ -28,7 +30,7 @@ pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
-        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
+        mint_and_wait(node_client.clone(), env.clone(), amount).await?;
 
     let mut mints_requests: Vec<MintRequest> = Vec::new();
     for _ in 0..100 {
@@ -58,8 +60,9 @@ pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables
     let res = join_all(mints).await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
-    println!("{} success", ok_vec.len());
-    assert_eq!(ok_vec.len(), 1);
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Mint));
+    }
 
     Ok(())
 }
@@ -149,8 +152,9 @@ pub async fn mint_same_output(
     let res = join_all(mints).await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
-    println!("{} success", ok_vec.len());
-    assert_eq!(ok_vec.len(), 1);
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Mint));
+    }
 
     Ok(())
 }
@@ -162,64 +166,57 @@ pub async fn swap_same_output(
     println!("  * running swap_same_output test");
     let amount = Amount::from_i64_repr(128);
 
-    let original_mint_quote_response =
-        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
-
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
 
-    let secret = Secret::generate();
-    let (blinded_secret, r) =
-        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
-    let mint_request = MintRequest {
-        method: "starknet".to_string(),
-        quote: original_mint_quote_response.quote,
-        outputs: vec![BlindedMessage {
-            amount: amount.into(),
-            keyset_id: active_keyset.id.clone(),
-            blinded_secret: blinded_secret.to_bytes().to_vec(),
-        }],
-    };
-
-    let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&mint_request);
-    node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "mint".to_string(),
-            request_hash,
-        })
-        .await?;
-
-    let node_pubkey_for_amount = PublicKey::from_hex(
-        &node_client
-            .keys(GetKeysRequest {
-                keyset_id: Some(active_keyset.id.clone()),
-            })
-            .await?
-            .into_inner()
-            .keysets
-            .first()
-            .unwrap()
-            .keys
-            .iter()
-            .find(|key| Amount::from(key.amount) == amount)
-            .unwrap()
-            .pubkey,
-    )
-    .map_err(|e| Error::Other(e.into()))?;
-    let blind_signature = PublicKey::from_slice(
-        &original_mint_response
-            .signatures
-            .first()
-            .unwrap()
-            .blind_signature,
-    )
-    .unwrap();
-    let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)
-        .map_err(|e| Error::Other(e.into()))?;
-
     let mut multi_proof = Vec::new();
     for _ in 0..100 {
+        let secret = Secret::generate();
+        let original_mint_quote_response =
+            mint_and_wait(node_client.clone(), env.clone(), amount.clone()).await?;
+
+        let (blinded_secret, r) =
+            blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+        let mint_request = MintRequest {
+            method: "starknet".to_string(),
+            quote: original_mint_quote_response.clone().quote,
+            outputs: vec![BlindedMessage {
+                amount: amount.into(),
+                keyset_id: active_keyset.id.clone(),
+                blinded_secret: blinded_secret.to_bytes().to_vec(),
+            }],
+        };
+
+        let original_mint_response = make_mint(mint_request, node_client.clone()).await?;
+
+        let node_pubkey_for_amount = PublicKey::from_hex(
+            &node_client
+                .keys(GetKeysRequest {
+                    keyset_id: Some(active_keyset.id.clone()),
+                })
+                .await?
+                .into_inner()
+                .keysets
+                .first()
+                .unwrap()
+                .keys
+                .iter()
+                .find(|key| Amount::from(key.amount) == amount)
+                .unwrap()
+                .pubkey,
+        )
+        .map_err(|e| Error::Other(e.into()))?;
+        let blind_signature = PublicKey::from_slice(
+            &original_mint_response
+                .signatures
+                .first()
+                .unwrap()
+                .blind_signature,
+        )
+        .unwrap();
+        let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)
+            .map_err(|e| Error::Other(e.into()))?;
+
         let proof = Proof {
             amount: amount.into(),
             keyset_id: active_keyset.id.clone(),
@@ -249,8 +246,9 @@ pub async fn swap_same_output(
     println!("swapping all");
     let res = join_all(multi_swap).await;
     let ok_vec: Vec<&SwapResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
-    println!("{} success", ok_vec.len());
-    assert_eq!(ok_vec.len(), 1);
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Swap));
+    }
     Ok(())
 }
 
@@ -262,7 +260,7 @@ pub async fn swap_same_input(
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
-        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
+        mint_and_wait(node_client.clone(), env.clone(), amount).await?;
 
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
@@ -341,8 +339,9 @@ pub async fn swap_same_input(
     println!("swapping all");
     let res = join_all(multi_swap).await;
     let ok_vec: Vec<&SwapResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
-    println!("{} success", ok_vec.len());
-    assert_eq!(ok_vec.len(), 1);
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Swap));
+    }
     Ok(())
 }
 
@@ -351,14 +350,17 @@ pub async fn melt_same_input(
     env: EnvVariables,
 ) -> Result<()> {
     println!("  * running melt_same_input test");
-    let payee =
-        Felt::from_hex(&"0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691")
-            .map_err(|e| Error::Other(e.into()))?;
+    let mut payees: HashSet<Felt> = HashSet::new();
+    for i in 0..100 {
+        // we at 0x02 because the first two address is not valid
+        let addr = "0x02".to_string() + &i.to_string();
+        payees.insert(Felt::from_hex(&addr).map_err(|e| Error::Other(e.into()))?);
+    }
 
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
-        mint_and_wait(&mut node_client.clone(), &env.clone(), amount).await?;
+        mint_and_wait(node_client.clone(), env.clone(), amount).await?;
 
     let calls: [starknet_types::Call; 2] =
         serde_json::from_str(&original_mint_quote_response.request)?;
@@ -424,24 +426,28 @@ pub async fn melt_same_input(
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
 
-    let melt_request = MeltRequest {
-        method: "starknet".to_string(),
-        unit: Unit::MilliStrk.to_string(),
-        request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-            payee,
-            asset: starknet_types::Asset::Strk,
-        })?,
-        inputs: vec![proof],
-    };
+    let mut melt_requests: Vec<MeltRequest> = Vec::new();
+    for payee in payees.iter() {
+        melt_requests.push(MeltRequest {
+            method: "starknet".to_string(),
+            unit: Unit::MilliStrk.to_string(),
+            request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                payee: *payee,
+                asset: starknet_types::Asset::Strk,
+            })?,
+            inputs: vec![proof.clone()],
+        });
+    }
 
     let mut multi_melt = Vec::new();
-    for _ in 0..100 {
+    for melt_request in melt_requests.iter() {
         multi_melt.push(make_melt(node_client.clone(), melt_request.clone()));
     }
     println!("melting all");
     let res = join_all(multi_melt).await;
     let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
-    println!("{} success", ok_vec.len());
-    assert_eq!(ok_vec.len(), 1);
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Melt));
+    }
     Ok(())
 }

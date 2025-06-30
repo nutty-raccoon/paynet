@@ -3,7 +3,7 @@ use node::{
     MintQuoteResponse, MintQuoteState, MintRequest, MintResponse, NodeClient, QuoteStateRequest,
     SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
 };
-use nuts::{Amount, nut05::MeltQuoteState};
+use nuts::Amount;
 use starknet_types::Unit;
 use tonic::transport::Channel;
 
@@ -56,29 +56,6 @@ pub async fn make_melt(
         })
         .await?;
 
-    loop {
-        let response = node_client
-            .melt_quote_state(QuoteStateRequest {
-                method: "starknet".into(),
-                quote: original_melt_response.quote.clone(),
-            })
-            .await;
-
-        match response {
-            Ok(response) => {
-                let response = response.into_inner();
-                let state = MeltQuoteState::try_from(response.state())
-                    .map_err(|e| Error::Other(e.into()))?;
-                if state == MeltQuoteState::Paid {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("{e}")
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
     Ok(original_melt_response)
 }
 
@@ -128,8 +105,8 @@ pub async fn get_active_keyset(
 }
 
 pub async fn mint_and_wait(
-    node_client: &mut NodeClient<Channel>,
-    env: &EnvVariables,
+    mut node_client: NodeClient<Channel>,
+    env: EnvVariables,
     amount: Amount,
 ) -> Result<MintQuoteResponse> {
     let mint_quote_request = MintQuoteRequest {

@@ -23,7 +23,10 @@ pub enum TestType {
     /// End-to-end tests
     E2e,
     /// Concurrency tests
-    Concurrency,
+    Concurrency {
+        #[arg(long, default_value_t = 1)]
+        times: u64,
+    },
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -37,7 +40,7 @@ async fn main() -> Result<()> {
 
     match cli.test_type {
         TestType::E2e => run_e2e(env).await?,
-        TestType::Concurrency => run_concurrency(env).await?,
+        TestType::Concurrency { times } => run_concurrency(env, times).await?,
     }
 
     Ok(())

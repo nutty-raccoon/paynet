@@ -1,4 +1,23 @@
+use core::fmt;
+
 use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ConcurrenceError {
+    Melt,
+    Mint,
+    Swap,
+}
+
+impl fmt::Display for ConcurrenceError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ConcurrenceError::Melt => write!(f, "Melt"),
+            ConcurrenceError::Mint => write!(f, "Mint"),
+            ConcurrenceError::Swap => write!(f, "Swap"),
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -14,6 +33,8 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     EnvVar(#[from] std::env::VarError),
+    #[error(transparent)]
+    Concurrence(#[from] ConcurrenceError),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
