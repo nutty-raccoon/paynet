@@ -18,7 +18,8 @@ use tonic::transport::Channel;
 
 use crate::{
     concurrency::utils::{
-        get_active_keyset, make_melt, make_mint, make_swap, mint_and_wait, wait_transac,
+        get_active_keyset, make_melt, make_mint, make_swap, mint_quote_and_deposit_and_wait,
+        wait_transac,
     },
     env_variables::EnvVariables,
     errors::{Error, Result},
@@ -30,7 +31,7 @@ pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
-        mint_and_wait(node_client.clone(), env.clone(), amount).await?;
+        mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
 
     let mut mints_requests: Vec<MintRequest> = Vec::new();
     for _ in 0..100 {
@@ -111,12 +112,12 @@ pub async fn mint_same_output(
 
         // Every 50 quote, we send a transaction
         if i == 50 {
-            i = 0;
             pay_invoices(calls.clone(), env.clone()).await?;
+            i = 0;
             calls.clear();
         }
     }
-    // Won't be called by protect us agains regression
+    // Won't be called with current values but protect us agains regression
     // if we change the number of concurrent calls in the future
     if !calls.is_empty() {
         pay_invoices(calls, env.clone()).await?;
@@ -164,79 +165,85 @@ pub async fn swap_same_output(
     env: EnvVariables,
 ) -> Result<()> {
     println!("  * running swap_same_output test");
-    let amount = Amount::from_i64_repr(128);
+    let swap_amount = 128u64;
+    let n_concurent = 64;
+    let total_amount_to_mint = Amount::from(swap_amount * n_concurent);
 
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
+    let node_pubkey_for_amount = PublicKey::from_hex(
+        &node_client
+            .keys(GetKeysRequest {
+                keyset_id: Some(active_keyset.id.clone()),
+            })
+            .await?
+            .into_inner()
+            .keysets
+            .first()
+            .unwrap()
+            .keys
+            .iter()
+            .find(|key| key.amount == swap_amount)
+            .unwrap()
+            .pubkey,
+    )
+    .map_err(|e| Error::Other(e.into()))?;
+    let original_mint_quote_response =
+        mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), total_amount_to_mint)
+            .await?;
 
-    let mut multi_proof = Vec::new();
-    for _ in 0..100 {
+    let mut blind_messages = Vec::with_capacity(n_concurent as usize);
+    let mut rs = Vec::with_capacity(n_concurent as usize);
+    let mut secrets = Vec::with_capacity(n_concurent as usize);
+    for _ in 0..n_concurent {
         let secret = Secret::generate();
-        let original_mint_quote_response =
-            mint_and_wait(node_client.clone(), env.clone(), amount.clone()).await?;
-
         let (blinded_secret, r) =
             blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
-        let mint_request = MintRequest {
-            method: "starknet".to_string(),
-            quote: original_mint_quote_response.clone().quote,
-            outputs: vec![BlindedMessage {
-                amount: amount.into(),
-                keyset_id: active_keyset.id.clone(),
-                blinded_secret: blinded_secret.to_bytes().to_vec(),
-            }],
-        };
-
-        let original_mint_response = make_mint(mint_request, node_client.clone()).await?;
-
-        let node_pubkey_for_amount = PublicKey::from_hex(
-            &node_client
-                .keys(GetKeysRequest {
-                    keyset_id: Some(active_keyset.id.clone()),
-                })
-                .await?
-                .into_inner()
-                .keysets
-                .first()
-                .unwrap()
-                .keys
-                .iter()
-                .find(|key| Amount::from(key.amount) == amount)
-                .unwrap()
-                .pubkey,
-        )
-        .map_err(|e| Error::Other(e.into()))?;
-        let blind_signature = PublicKey::from_slice(
-            &original_mint_response
-                .signatures
-                .first()
-                .unwrap()
-                .blind_signature,
-        )
-        .unwrap();
-        let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)
-            .map_err(|e| Error::Other(e.into()))?;
-
-        let proof = Proof {
-            amount: amount.into(),
+        blind_messages.push(BlindedMessage {
+            amount: swap_amount,
             keyset_id: active_keyset.id.clone(),
-            secret: secret.to_string(),
-            unblind_signature: unblinded_signature.to_bytes().to_vec(),
-        };
-        multi_proof.push(proof);
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        });
+        rs.push(r);
+        secrets.push(secret);
     }
+
+    let mint_request = MintRequest {
+        method: "starknet".to_string(),
+        quote: original_mint_quote_response.clone().quote,
+        outputs: blind_messages,
+    };
+    let mint_response = make_mint(mint_request, node_client.clone()).await?;
+    let proofs: Vec<_> = mint_response
+        .signatures
+        .into_iter()
+        .enumerate()
+        .map(|(i, s)| Proof {
+            amount: Amount::from(swap_amount).into(),
+            keyset_id: active_keyset.id.clone(),
+            secret: secrets[i].to_string(),
+            unblind_signature: unblind_message(
+                &PublicKey::from_slice(&s.blind_signature).unwrap(),
+                &rs[i],
+                &node_pubkey_for_amount,
+            )
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+        })
+        .collect();
 
     let secret = Secret::generate();
     let (blinded_secret, _r) =
         blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
     let blinded_message = BlindedMessage {
-        amount: amount.into(),
+        amount: swap_amount,
         keyset_id: active_keyset.id.clone(),
         blinded_secret: blinded_secret.to_bytes().to_vec(),
     };
 
     let mut multi_swap = Vec::new();
-    for proof in multi_proof {
+    for proof in proofs {
         let swap_request = SwapRequest {
             inputs: vec![proof],
             outputs: vec![blinded_message.clone()],
@@ -260,7 +267,7 @@ pub async fn swap_same_input(
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
-        mint_and_wait(node_client.clone(), env.clone(), amount).await?;
+        mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
 
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
@@ -360,7 +367,7 @@ pub async fn melt_same_input(
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
-        mint_and_wait(node_client.clone(), env.clone(), amount).await?;
+        mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
 
     let calls: [starknet_types::Call; 2] =
         serde_json::from_str(&original_mint_quote_response.request)?;

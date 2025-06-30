@@ -104,7 +104,7 @@ pub async fn get_active_keyset(
         .ok_or_else(|| Error::Other(anyhow::Error::msg("No active keyset found")))
 }
 
-pub async fn mint_and_wait(
+pub async fn mint_quote_and_deposit_and_wait(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
     amount: Amount,
