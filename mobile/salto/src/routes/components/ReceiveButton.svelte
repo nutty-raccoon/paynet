@@ -1,16 +1,15 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
-
   interface Props {
     isMobile: boolean;
     onError: (error: string) => void;
+    onClick: () => void;
   }
 
-  let { isMobile, onError }: Props = $props();
+  let { isMobile, onError, onClick }: Props = $props();
 
   function handleClick() {
     if (isMobile) {
-      goto("/scan");
+      onClick();
     } else {
       onError("qrcode scan only available on mobile");
     }

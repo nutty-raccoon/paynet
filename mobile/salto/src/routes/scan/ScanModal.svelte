@@ -1,15 +1,20 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import { URDecoder } from "@gandlaf21/bc-ur";
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
   import Portal from "../components/Portal.svelte";
   import { receive_wads } from "../../commands";
 
-  let scanningInProgress = $state(false);
+  interface Props {
+    isOpen: boolean;
+    onSuccess: () => void;
+    onCancell: () => void;
+  }
+
+  let { isOpen, onCancell, onSuccess }: Props = $props();
+
   let percentageEstimate = $state("");
   let decoder = $state(new URDecoder());
   let paused = $state(false);
-  let isPortalOpen = $state(true);
 
   function onCodeDetected(decodedText: string) {
     decoder.receivePart(decodedText);
@@ -24,37 +29,17 @@
         // Decode the CBOR message to a Buffer
         const decoded = ur.decodeCBOR();
         receive_wads(decoded.toString());
+        onSuccess();
       } else {
         // log and handle the error
         const error = decoder.resultError();
         console.log("Error found while decoding", error);
       }
     }
-
-    scanningInProgress = false;
   }
-
-  function cancelScanning() {
-    if (scanningInProgress) {
-      scanningInProgress = false;
-    }
-  }
-
-  function handleCancel() {
-    cancelScanning();
-    goto("/");
-  }
-
-  const handlePortalClose = () => {
-    goto("/");
-  };
 </script>
 
-<Portal
-  isOpen={isPortalOpen}
-  onClose={handlePortalClose}
-  backgroundColor="rgba(0, 0, 0, 0.95)"
->
+<Portal {isOpen} onClose={onCancell} backgroundColor="rgba(0, 0, 0, 0.95)">
   {#snippet children()}
     <div class="scan-content">
       <p class="scan-instructions">Point your camera at a QR code</p>
@@ -68,7 +53,7 @@
         </div>
       {/if}
 
-      <button class="cancel-button" onclick={handleCancel}>Cancel</button>
+      <button class="cancel-button" onclick={onCancell}>Cancel</button>
     </div>
   {/snippet}
 </Portal>

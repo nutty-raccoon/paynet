@@ -15,6 +15,7 @@
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
   import { platform } from "@tauri-apps/plugin-os";
+  import ScanModal from "./scan/ScanModal.svelte";
 
   const currentPlatform = platform();
   const isMobile = currentPlatform == "ios" || currentPlatform == "android";
@@ -24,6 +25,7 @@
 
   let activeTab: Tab = $state("pay");
   let isPayModalOpen = $state(false);
+  let isReceiveModalOpen = $state(false);
   let errorMessage = $state("");
 
   // Calculate total balance across all nodes
@@ -71,10 +73,22 @@
     isPayModalOpen = false;
   }
 
+  function openReceiveModal() {
+    isReceiveModalOpen = true;
+    // Add history entry to handle back button
+    history.pushState({ modal: true }, "");
+  }
+
+  function closeReceiveModal() {
+    isReceiveModalOpen = false;
+  }
+
   // Set up back button listener for PayModal
   function handlePopState() {
     if (isPayModalOpen) {
       closePayModal();
+    } else if (isReceiveModalOpen) {
+      closeReceiveModal();
     }
   }
 
@@ -120,7 +134,11 @@
         </div>
       {/if}
       <PayButton onClick={openPayModal} />
-      <ReceiveButton {isMobile} onError={onReceiveError} />
+      <ReceiveButton
+        {isMobile}
+        onClick={openReceiveModal}
+        onError={onReceiveError}
+      />
     </div>
   {:else if activeTab === "balances"}
     <div class="balances-container">
@@ -140,6 +158,12 @@
   isOpen={isPayModalOpen}
   availableBalances={totalBalance}
   onClose={closePayModal}
+/>
+
+<ScanModal
+  isOpen={isReceiveModalOpen}
+  onCancell={closeReceiveModal}
+  onSuccess={closeReceiveModal}
 />
 
 <style>
