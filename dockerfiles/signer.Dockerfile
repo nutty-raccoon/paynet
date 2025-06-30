@@ -7,7 +7,6 @@ WORKDIR app
 FROM chef AS planner
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
-COPY ./mobile/ ./mobile/
 RUN cargo chef prepare --recipe-path recipe.json
 
 #------------
