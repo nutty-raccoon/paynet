@@ -77,6 +77,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 pub fn hash_mint_request(request: &MintRequest) -> u64 {
     let mut hasher = DefaultHasher::new();
 
+    request.method.hash(&mut hasher);
+    request.quote.hash(&mut hasher);
     for output in &request.outputs {
         output.amount.hash(&mut hasher);
         output.keyset_id.hash(&mut hasher);
