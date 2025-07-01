@@ -1,10 +1,13 @@
 mod errors;
 mod inputs;
 
+use std::time::Duration;
+
 use inputs::process_melt_inputs;
 use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, WithdrawRequest};
 use nuts::Amount;
 use nuts::nut00::Proof;
+use nuts::nut05::MeltQuoteState;
 use starknet_types::Unit;
 use tracing::{Level, event};
 use uuid::Uuid;
@@ -22,7 +25,7 @@ impl GrpcState {
         method: Method,
         unit: Unit,
         melt_payment_request: String,
-    ) -> Result<nuts::nut05::MeltQuoteResponse<Uuid>, Error> {
+    ) -> Result<nuts::nut05::MeltQuoteResponse<Uuid, Unit>, Error> {
         // Release the lock asap
         let settings = {
             let read_nuts_settings_lock = self.nuts.read().await;
@@ -77,11 +80,11 @@ impl GrpcState {
 
         Ok(nuts::nut05::MeltQuoteResponse {
             quote: quote_id,
+            unit,
             amount,
             fee,
             state: nuts::nut05::MeltQuoteState::Unpaid,
             expiry,
-            transfer_ids: Some(vec![]),
         })
     }
 
@@ -92,7 +95,7 @@ impl GrpcState {
         method: Method,
         quote_id: Uuid,
         inputs: &[Proof],
-    ) -> Result<nuts::nut05::MeltQuoteResponse<Uuid>, Error> {
+    ) -> Result<Vec<String>, Error> {
         let mut conn = self.pg_pool.acquire().await?;
 
         // Get the existing quote from database
@@ -170,6 +173,11 @@ impl GrpcState {
 
         // Update quote state and transfer ID
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;
+
+        let meter = opentelemetry::global::meter("business");
+        let n_melt_counter = meter.u64_counter("melt.operation.count").build();
+        n_melt_counter.add(1, &[]);
+
         event!(
             name: "melt",
             Level::INFO,
@@ -177,17 +185,17 @@ impl GrpcState {
             %method,
             %quote_id,
         );
-        let meter = opentelemetry::global::meter("business");
-        let n_melt_counter = meter.u64_counter("melt.operation.count").build();
-        n_melt_counter.add(1, &[]);
 
-        Ok(nuts::nut05::MeltQuoteResponse {
-            quote: quote_id,
-            amount: total_amount,
-            fee,
-            state,
-            expiry,
-            transfer_ids: None,
-        })
+        // Wait until the paiment events have been indexed
+        loop {
+            if let (MeltQuoteState::Paid, transfer_ids) =
+                db_node::melt_quote::get_state_and_transfer_ids(&mut conn, quote_id).await?
+            {
+                // Safe to unwrap, as it should only be set to paid when transfers ids have been registed
+                return Ok(transfer_ids.unwrap());
+            } else {
+                let _ = tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
     }
 }

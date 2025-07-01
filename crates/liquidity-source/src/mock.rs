@@ -3,9 +3,7 @@ use std::fmt::{LowerHex, UpperHex};
 
 use bitcoin_hashes::Sha256;
 use nuts::nut05::MeltQuoteState;
-use serde::{Deserialize, Serialize};
 use starknet_types::{Asset, StarknetU256};
-use starknet_types_core::felt::Felt;
 use uuid::Uuid;
 
 use super::{LiquiditySource, WithdrawInterface, WithdrawRequest};
@@ -70,22 +68,6 @@ impl LowerHex for MockInvoiceId {
 impl UpperHex for MockInvoiceId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         UpperHex::fmt(&self.0, f)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MockMeltPaymentRequest {
-    pub payee: Felt,
-    pub asset: Asset,
-    pub amount: nuts::Amount,
-}
-
-impl WithdrawRequest for MockMeltPaymentRequest {
-    fn asset(&self) -> Asset {
-        self.asset
-    }
-    fn amount(&self) -> nuts::Amount {
-        self.amount
     }
 }
 

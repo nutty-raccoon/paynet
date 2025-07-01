@@ -97,19 +97,19 @@ pub struct MeltQuoteRequest<U: Unit> {
 
 /// Melt quote response [NUT-05]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct MeltQuoteResponse<Q> {
+pub struct MeltQuoteResponse<Q, U: Unit> {
     /// Quote Id
     pub quote: Q,
     /// The amount that needs to be provided
     pub amount: Amount,
+    /// The unit that needs to be provided
+    pub unit: U,
     /// The fee charged by the network
     pub fee: Amount,
     /// Quote State
     pub state: MeltQuoteState,
     /// Unix timestamp until the quote is valid
     pub expiry: u64,
-    /// The identifier of the transaction that will send back the funds to the user
-    pub transfer_ids: Option<Vec<String>>,
 }
 
 /// Melt Request [NUT-05]

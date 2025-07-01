@@ -46,22 +46,20 @@ pub async fn insert_new<U: Unit>(
     Ok(())
 }
 
-pub async fn build_response_from_db(
+pub async fn build_response_from_db<U: Unit>(
     conn: &mut PgConnection,
     quote_id: Uuid,
-) -> Result<MeltQuoteResponse<Uuid>, Error> {
+) -> Result<MeltQuoteResponse<Uuid, U>, Error> {
     let record = sqlx::query!(
         r#"
         SELECT 
-            mq.amount, 
-            mq.fee, 
-            mq.state AS "state: MeltQuoteState", 
-            mq.expiry,
-            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS "tx_hashes"
-        FROM melt_quote mq
-        LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id
-        WHERE mq.id = $1
-        GROUP BY mq.amount, mq.fee, mq.state, mq.expiry;
+            amount, 
+            unit,
+            fee, 
+            state AS "state: MeltQuoteState", 
+            expiry
+        FROM melt_quote
+        WHERE id = $1
         "#,
         quote_id
     )
@@ -76,14 +74,15 @@ pub async fn build_response_from_db(
         .map_err(|_| Error::DbToRuntimeConversion)?;
     let amount = Amount::from_i64_repr(record.amount);
     let fee = Amount::from_i64_repr(record.fee);
+    let unit = U::from_str(&record.unit).map_err(|_| Error::DbToRuntimeConversion)?;
 
     Ok(MeltQuoteResponse {
         quote: quote_id,
+        unit,
         amount,
         fee,
         state: record.state,
         expiry,
-        transfer_ids: record.tx_hashes,
     })
 }
 
@@ -177,4 +176,23 @@ pub async fn get_quote_infos_by_invoice_id<U: Unit>(
     };
 
     Ok(ret)
+}
+
+pub async fn get_state_and_transfer_ids(
+    conn: &mut PgConnection,
+    quote_id: Uuid,
+) -> Result<(MeltQuoteState, Option<Vec<String>>), Error> {
+    let record = sqlx::query!(
+        r#"SELECT
+            mq.state AS "state: MeltQuoteState",
+            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS "tx_hashes"
+        FROM melt_quote mq LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id
+        WHERE mq.id = $1
+        GROUP BY mq.state"#,
+        quote_id
+    )
+    .fetch_one(conn)
+    .await?;
+
+    Ok((record.state, record.tx_hashes))
 }

@@ -1,5 +1,6 @@
 pub mod db;
 pub mod errors;
+pub mod melt;
 pub mod mint;
 mod outputs;
 pub mod types;

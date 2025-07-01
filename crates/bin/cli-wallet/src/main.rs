@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node_client::{MeltQuoteStateRequest, MintQuoteState, NodeClient, hash_melt_request};
+use node_client::{MintQuoteState, NodeClient, hash_melt_request};
 use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -383,20 +383,23 @@ async fn main() -> Result<()> {
                 return Err(anyhow!("Invalid starknet address: {}", payee_address));
             }
 
+            let request = serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                payee: payee_address,
+                amount,
+                asset: starknet_types::Asset::Strk,
+            })?;
+            let method = STARKNET_STR.to_string();
             let melt_quote_request = node_client::MeltQuoteRequest {
-                method: STARKNET_STR.to_string(),
+                method: method.clone(),
                 unit: unit.to_string(),
-                request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-                    payee: payee_address,
-                    amount,
-                    asset: starknet_types::Asset::Strk,
-                })?,
+                request: request.clone(),
             };
 
             let melt_quote_response = node_client
                 .melt_quote(melt_quote_request)
                 .await?
                 .into_inner();
+            wallet::db::melt_quote::store(&tx, node_id, method, request, &melt_quote_response)?;
 
             let melt_request = node_client::MeltRequest {
                 method: STARKNET_STR.to_string(),
@@ -404,9 +407,7 @@ async fn main() -> Result<()> {
                 inputs: wallet::convert_inputs(&inputs),
             };
             let melt_request_hash = hash_melt_request(&melt_request);
-            let resp = node_client.melt(melt_request).await?.into_inner();
-
-            wallet::db::register_melt_quote(&tx, node_id, &resp)?;
+            let melt_response = node_client.melt(melt_request).await?.into_inner();
 
             tx.commit()?;
 
@@ -417,26 +418,10 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            loop {
-                let melt_quote_state_response = node_client
-                    .melt_quote_state(MeltQuoteStateRequest {
-                        method: STARKNET_STR.to_string(),
-                        quote: resp.quote.clone(),
-                    })
-                    .await?
-                    .into_inner();
-
-                if !melt_quote_state_response.transfer_ids.is_empty() {
-                    println!(
-                        "{}",
-                        format_melt_transfers_id_into_term_message(
-                            melt_quote_state_response.transfer_ids
-                        )
-                    );
-                    break;
-                }
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
+            println!(
+                "Tx hash: {}",
+                format_melt_transfers_id_into_term_message(melt_response.transfer_ids)
+            );
         }
         Commands::Send {
             amount,

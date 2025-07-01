@@ -30,7 +30,7 @@ pub fn migrations() -> Vec<Migration> {
         Migration {
             version: 5,
             description: "create_table_melt_response",
-            sql: wallet::db::CREATE_TABLE_MELT_RESPONSE,
+            sql: wallet::db::CREATE_TABLE_MELT_QUOTE,
             kind: MigrationKind::Up,
         },
         Migration {
