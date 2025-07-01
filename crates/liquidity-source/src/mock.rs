@@ -92,24 +92,15 @@ impl WithdrawRequest for MockMeltPaymentRequest {
 #[async_trait::async_trait]
 impl WithdrawInterface for MockWithdrawer {
     type Error = Error;
-    type Request = MockMeltPaymentRequest;
+    type Request = ();
     type Amount = StarknetU256;
     type InvoiceId = MockInvoiceId;
 
     fn deserialize_payment_request(
         &self,
-        raw_json_string: &str,
+        _raw_json_string: &str,
     ) -> Result<Self::Request, Self::Error> {
-        if raw_json_string.is_empty() {
-            return Ok(MockMeltPaymentRequest {
-                payee: Felt::default(),
-                asset: Asset::Strk,
-                amount: nuts::Amount::from(32u64),
-            });
-        }
-        let pr = serde_json::from_str::<Self::Request>(raw_json_string).unwrap();
-
-        Ok(pr)
+        Ok(())
     }
 
     async fn proceed_to_payment(

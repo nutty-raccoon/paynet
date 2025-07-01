@@ -1,9 +1,8 @@
 use anyhow::Result;
-use liquidity_source::mock::MockMeltPaymentRequest;
 use node_client::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltRequest,
-    MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request, hash_mint_request,
-    hash_swap_request,
+    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltQuoteRequest,
+    MeltRequest, MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request,
+    hash_mint_request, hash_swap_request,
 };
 use node_tests::init_node_client;
 use nuts::Amount;
@@ -11,7 +10,6 @@ use nuts::dhke::{blind_message, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut01::PublicKey;
 use starknet_types::Unit;
-use starknet_types_core::felt::Felt;
 
 // This tests check that the route that we want to cache are indeed cached.
 //
@@ -171,19 +169,10 @@ async fn works() -> Result<()> {
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
 
-    let payment_request = MockMeltPaymentRequest {
-        payee: Felt::from_hex_unchecked(
-            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        ),
-        asset: starknet_types::Asset::Strk,
-        amount: Amount::from_i64_repr(31), // 31 + fixed 1 fee, input will need to be 32
-    };
-
     let melt_quote_request = MeltQuoteRequest {
         method: "starknet".to_string(),
         unit: Unit::MilliStrk.to_string(),
-        request: serde_json::to_string(&payment_request)
-            .expect("it has been deserialized it should be serializable"),
+        request: String::new(),
     };
 
     let melt_quote_response = client.melt_quote(melt_quote_request).await?.into_inner();

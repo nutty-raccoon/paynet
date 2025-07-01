@@ -388,7 +388,7 @@ async fn main() -> Result<()> {
                 unit: unit.to_string(),
                 request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
                     payee: payee_address,
-                    amount: Amount::from_i64_repr(amount.into_i64_repr() - 1),
+                    amount,
                     asset: starknet_types::Asset::Strk,
                 })?,
             };
