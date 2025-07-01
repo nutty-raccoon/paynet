@@ -1,9 +1,9 @@
 use anyhow::Result;
 use liquidity_source::mock::MockMeltPaymentRequest;
-use node::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltQuoteRequest,
-    MeltRequest, MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request,
-    hash_mint_request, hash_swap_request,
+use node_client::{
+    AcknowledgeRequest, BlindedMessage, GetKeysRequest, GetKeysetsRequest, MeltRequest,
+    MintQuoteRequest, MintRequest, Proof, SwapRequest, hash_melt_request, hash_mint_request,
+    hash_swap_request,
 };
 use node_tests::init_node_client;
 use nuts::Amount;

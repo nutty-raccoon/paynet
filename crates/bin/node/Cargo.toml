@@ -26,7 +26,7 @@ nuts = { workspace = true, features = ["nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
-sqlx = { workspace = true, features = ["postgres", "uuid", "tls-native-tls"] }
+sqlx = { workspace = true, features = ["postgres", "uuid", "tls-native-tls"], default-features = false }
 rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
 bitcoin_hashes = { workspace = true }
@@ -54,7 +54,7 @@ starknet-payment-indexer = { workspace = true, optional = true }
 starknet-liquidity-source = { workspace = true, optional = true }
 
 [features]
-default = ["starknet", "tls"]
+default = ["starknet"]
 mock = ["liquidity-source/mock"]
 starknet = ["dep:starknet-payment-indexer", "dep:starknet-liquidity-source"]
 tls = ["dep:openssl", "dep:tonic-tls"]

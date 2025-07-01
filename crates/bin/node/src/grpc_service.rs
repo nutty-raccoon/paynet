@@ -4,12 +4,12 @@ use crate::{
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
 };
 use node::{
-    AcknowledgeRequest, AcknowledgeResponse, BlindSignature, GetKeysRequest, GetKeysResponse,
-    GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset, MeltQuoteRequest,
-    MeltQuoteStateRequest, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
-    MintRequest, MintResponse, Node, NodeInfoResponse, QuoteStateRequest, RestoreRequest,
-    RestoreResponse, SwapRequest, SwapResponse, hash_melt_request, hash_mint_request,
-    hash_swap_request,
+    AcknowledgeRequest, AcknowledgeResponse, BlindSignature, CheckStateRequest, CheckStateResponse,
+    GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest,
+    Keyset, MeltQuoteRequest, MeltQuoteStateRequest, MeltRequest, MeltResponse, MintQuoteRequest,
+    MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse, ProofCheckState,
+    QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
+    hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -574,6 +574,30 @@ impl Node for GrpcState {
         }
 
         Ok(Response::new(AcknowledgeResponse {}))
+    }
+
+    async fn check_state(
+        &self,
+        request: Request<CheckStateRequest>,
+    ) -> Result<Response<CheckStateResponse>, Status> {
+        let ys: Vec<PublicKey> = request
+            .into_inner()
+            .ys
+            .iter()
+            .map(|y| PublicKey::from_slice(y).map_err(ParseGrpcError::PublicKey))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        let proof_state = self.inner_check_state(ys).await?.proof_check_states;
+
+        Ok(Response::new(CheckStateResponse {
+            states: proof_state
+                .iter()
+                .map(|state| ProofCheckState {
+                    y: state.y.to_bytes().to_vec(),
+                    state: state.state.clone().into(),
+                })
+                .collect::<Vec<_>>(),
+        }))
     }
 
     async fn restore(

@@ -1,14 +1,11 @@
 use nuts::{nut04, nut05};
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
 #[cfg(feature = "keyset-rotation")]
-pub use proto::keyset_rotation::keyset_rotation_service_client::KeysetRotationServiceClient;
-#[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::keyset_rotation_service_server::{
     KeysetRotationService, KeysetRotationServiceServer,
 };
 #[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::*;
-pub use proto::node::node_client::NodeClient;
 pub use proto::node::node_server::{Node, NodeServer};
 pub use proto::node::*;
 
