@@ -138,6 +138,60 @@ jobs:
           path: target
           key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
 
+  unit-test:
+    name: Unit-test
+    strategy:
+      matrix:
+        include:
+          - test_cmd: "cargo test -p node --no-default-features --features=mock,keyset-rotation,tls"
+            cache_key: "node-mock-keyset-tls"
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
+            cache_key: "node-starknet-keyset-tls"
+          - test_cmd: "cargo test -p signer --no-default-features"
+            cache_key: "signer-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features"
+            cache_key: "cli-wallet-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+            cache_key: "cli-wallet-tls"
+          - test_cmd: "cargo test -p db-node --no-default-features"
+            cache_key: "db-node-default"
+          - test_cmd: "cargo test -p nuts --no-default-features"
+            cache_key: "nuts-default"
+          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
+            cache_key: "nuts-starknet-sqlx-nut19"
+          - test_cmd: "cargo test -p starknet-types --no-default-features"
+            cache_key: "starknet-types-default"
+          - test_cmd: "cargo test -p wallet --no-default-features"
+            cache_key: "wallet-default"
+          - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
+            cache_key: "wallet-tls"
+          - test_cmd: "cargo test -p liquidity-source --no-default-features"
+            cache_key: "liquidity-source-default"
+          - test_cmd: "cargo test -p liquidity-source --features=mock"
+            cache_key: "liquidity-source-mock"
+          - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
+            cache_key: "starknet-on-chain-setup-default"
+          - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
+            cache_key: "starknet-payment-indexer-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
+            cache_key: "starknet-liquidity-source-default"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-${{ matrix.cache_key }}-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+      - name: Run test
+        run: ${{ matrix.test_cmd }}
+
   test:
     needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
@@ -184,7 +238,7 @@ jobs:
           timeout 300 bash -c '
             until docker compose -f docker-compose.app-mock.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
               echo "Waiting for mock services to be ready..."
-              sleep 10
+              sleep 2
               docker compose -f docker-compose.app-mock.yml ps
             done
           '
