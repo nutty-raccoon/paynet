@@ -34,7 +34,7 @@ impl WalletOps {
 
     pub async fn mint(&mut self, amount: U256, asset: Asset, env: EnvVariables) -> Result<()> {
         let amount = amount
-            .checked_mul(asset.precision().into())
+            .checked_mul(asset.scale_factor())
             .ok_or(anyhow!("amount too big"))?;
         let (amount, unit, _remainder) = asset
             .convert_to_amount_and_unit(amount)
@@ -95,7 +95,7 @@ impl WalletOps {
         memo: Option<String>,
     ) -> Result<CompactWad<Unit>> {
         let amount = amount
-            .checked_mul(asset.precision().into())
+            .checked_mul(asset.scale_factor())
             .ok_or(anyhow!("amount too big"))?;
         let (amount, unit, _) = asset
             .convert_to_amount_and_unit(amount)
@@ -149,7 +149,7 @@ impl WalletOps {
 
     pub async fn melt(&mut self, amount: U256, asset: Asset, to: String) -> Result<()> {
         let amount = amount
-            .checked_mul(asset.precision().into())
+            .checked_mul(asset.scale_factor())
             .ok_or(anyhow!("amount too big"))?;
         let (amount, unit, _) = asset
             .convert_to_amount_and_unit(amount)
