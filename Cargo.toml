@@ -6,6 +6,7 @@ members = [
   "crates/bin/signer",
   "crates/bin/cli-wallet",
   "crates/bin/starknet-on-chain-setup",
+
   # Libs
   "crates/node-client",
   "crates/db-node",

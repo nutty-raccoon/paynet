@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main, feat-CI-lucienfer ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -50,7 +50,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
   build-images:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-8-cores
     permissions:
       contents: read
       packages: write
@@ -102,7 +102,7 @@ jobs:
             CARGO_FEATURES=${{ matrix.features || '' }}
 
   build-binary:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-8-cores
     permissions:
       contents: read
       packages: write
