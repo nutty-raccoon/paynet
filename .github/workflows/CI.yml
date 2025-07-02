@@ -52,7 +52,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - test_cmd: "cargo test -p node --no-default-features --features=mock,keyset-rotation,tls"
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
             cache_key: "node-mock-keyset-tls"
           - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
             cache_key: "node-starknet-keyset-tls"
@@ -76,14 +76,14 @@ jobs:
             cache_key: "wallet-tls"
           - test_cmd: "cargo test -p liquidity-source --no-default-features"
             cache_key: "liquidity-source-default"
-          - test_cmd: "cargo test -p liquidity-source --features=mock"
-            cache_key: "liquidity-source-mock"
           - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
             cache_key: "starknet-on-chain-setup-default"
           - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
             cache_key: "starknet-payment-indexer-default"
           - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
             cache_key: "starknet-liquidity-source-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
+            cache_key: "starknet-liquidity-source-mock"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -134,7 +134,7 @@ jobs:
           version: "28.x"
       - name: Build services for integration tests
         run: |
-          cargo build -p signer --bin signer -p node --no-default-features --features=mock,keyset-rotation --bin node
+          cargo build -p signer --bin signer -p node --no-default-features --features=starknet,mock,keyset-rotation --bin node
           cargo test --no-run -p signer-tests
           cargo test --no-run -p node-tests
       - name: Run integration tests

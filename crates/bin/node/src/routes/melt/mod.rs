@@ -51,8 +51,8 @@ impl GrpcState {
             .deserialize_payment_request(&melt_payment_request)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
 
-        // Arbitrary fee for now, but will be enough to pay tx fee on starknet
-        let fee = Amount::ONE;
+        // No fee for now
+        let fee = Amount::ZERO;
         let total_amount = withdrawer
             .compute_total_amount_expected(payment_request, unit, fee)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
@@ -132,22 +132,25 @@ impl GrpcState {
         insert_spent_proof_query.execute(&mut tx).await?;
         tx.commit().await?;
 
-        // Get withdrawer and deserialize payment request
-        let mut withdrawer = self
-            .liquidity_sources
-            .get_liquidity_source(method)
-            .ok_or(Error::MethodNotSupported(method))?
-            .withdrawer();
-
-        // Deserialize the payment request
-        let payment_request = withdrawer
-            .deserialize_payment_request(&payment_request)
-            .map_err(|e| Error::LiquiditySource(e.into()))?;
         // Process the actual payment
-        let state = withdrawer
-            .proceed_to_payment(quote_id, payment_request, expiry)
-            .await
-            .map_err(|e| Error::LiquiditySource(e.into()))?;
+        let state = {
+            // Get withdrawer and deserialize payment request
+            let mut withdrawer = self
+                .liquidity_sources
+                .get_liquidity_source(method)
+                .ok_or(Error::MethodNotSupported(method))?
+                .withdrawer();
+
+            // Deserialize the payment request
+            let payment_request = withdrawer
+                .deserialize_payment_request(&payment_request)
+                .map_err(|e| Error::LiquiditySource(e.into()))?;
+
+            withdrawer
+                .proceed_to_payment(quote_id, payment_request, expiry)
+                .await
+                .map_err(|e| Error::LiquiditySource(e.into()))?
+        };
 
         // Update quote state and transfer ID
         db_node::melt_quote::set_state(&mut conn, quote_id, state).await?;

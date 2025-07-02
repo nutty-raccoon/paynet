@@ -3350,9 +3350,7 @@ dependencies = [
  "bitcoin_hashes 0.16.0",
  "nuts",
  "serde",
- "serde_json",
  "starknet-types",
- "thiserror 2.0.12",
  "uuid 1.17.0",
 ]
 

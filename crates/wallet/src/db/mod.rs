@@ -49,8 +49,8 @@ pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
             unit TEXT NOT NULL,
             request TEXT NOT NULL,
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
-            expiry INTEGER NOT NULL
-            transfer_ids BLOB,
+            expiry INTEGER NOT NULL,
+            transfer_ids BLOB
         );"#;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {

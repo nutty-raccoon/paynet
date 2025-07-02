@@ -7,10 +7,6 @@ use nuts::traits::Unit;
 use uuid::Uuid;
 pub use withdraw::WithdrawInterface;
 
-// Implementations
-#[cfg(feature = "mock")]
-pub mod mock;
-
 pub trait LiquiditySource {
     type InvoiceId: Into<[u8; 32]> + LowerHex + UpperHex + Clone + Send + Sync + 'static;
     type Unit: Unit;

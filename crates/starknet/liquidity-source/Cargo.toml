@@ -39,3 +39,7 @@ starknet-payment-indexer = { workspace = true }
 liquidity-source = { workspace = true }
 nuts = { workspace = true }
 signer = { workspace = true }
+
+[features]
+default = []
+mock = []

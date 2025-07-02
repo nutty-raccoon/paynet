@@ -398,7 +398,7 @@ async fn main() -> Result<()> {
                 pool,
                 &mut node_client,
                 node_id,
-                node_amount,
+                node_amount.max(Amount::from(melt_quote_response.amount)),
                 unit.as_str(),
             )
             .await?
@@ -414,6 +414,7 @@ async fn main() -> Result<()> {
             let melt_response = match node_client.melt(melt_request).await {
                 Ok(r) => r.into_inner(),
                 Err(e) => {
+                    println!("eeerrrror: {}", e);
                     // Reset the proof state
                     // TODO: if the error is due to one of the proof being already spent, we should be removing those from db
                     // in order to not use them in the future
@@ -433,10 +434,13 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            println!(
-                "Tx hash: {}",
-                format_melt_transfers_id_into_term_message(melt_response.transfer_ids)
-            );
+            println!("Melt done!");
+            if !melt_response.transfer_ids.is_empty() {
+                println!(
+                    "tx hashes: {}",
+                    format_melt_transfers_id_into_term_message(melt_response.transfer_ids)
+                );
+            }
         }
         Commands::Send {
             amount,
