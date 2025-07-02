@@ -39,6 +39,16 @@ pub enum MeltQuoteState {
     Paid,
 }
 
+impl From<MeltQuoteState> for i32 {
+    fn from(state: MeltQuoteState) -> Self {
+        match state {
+            MeltQuoteState::Unpaid => 1,
+            MeltQuoteState::Pending => 2,
+            MeltQuoteState::Paid => 3,
+        }
+    }
+}
+
 impl core::fmt::Display for MeltQuoteState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -87,19 +97,17 @@ pub struct MeltQuoteRequest<U: Unit> {
 
 /// Melt quote response [NUT-05]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct MeltQuoteResponse<Q> {
+pub struct MeltQuoteResponse<Q, U: Unit> {
     /// Quote Id
     pub quote: Q,
     /// The amount that needs to be provided
     pub amount: Amount,
-    /// The fee charged by the network
-    pub fee: Amount,
+    /// The unit that needs to be provided
+    pub unit: U,
     /// Quote State
     pub state: MeltQuoteState,
     /// Unix timestamp until the quote is valid
     pub expiry: u64,
-    /// The identifier of the transaction that will send back the funds to the user
-    pub transfer_ids: Option<Vec<String>>,
 }
 
 /// Melt Request [NUT-05]

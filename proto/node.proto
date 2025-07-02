@@ -15,9 +15,11 @@ service Node {
   rpc MintQuote (MintQuoteRequest) returns (MintQuoteResponse);
   rpc Mint (MintRequest) returns (MintResponse);
   rpc MintQuoteState (QuoteStateRequest) returns (MintQuoteResponse);
-  // Melt
+  
+  // Melt 
+  rpc MeltQuote (MeltQuoteRequest) returns (MeltQuoteResponse);
+  rpc MeltQuoteState (MeltQuoteStateRequest) returns (MeltQuoteResponse);
   rpc Melt (MeltRequest) returns (MeltResponse);
-  rpc MeltQuoteState (QuoteStateRequest) returns (MeltResponse);
   
   rpc GetNodeInfo (GetNodeInfoRequest) returns (NodeInfoResponse);
   
@@ -103,20 +105,23 @@ message MintResponse {
   repeated bdhke.BlindSignature signatures = 1;
 }
 
-message MeltRequest {
+message MeltQuoteRequest {
   string method = 1;
   string unit = 2;
   string request = 3;
-  repeated bdhke.Proof inputs = 4;
 }
 
-message MeltResponse {
+message MeltQuoteResponse {
   string quote = 1;
   uint64 amount = 2;
-  uint64 fee = 3;
+  string unit = 3;
   MeltState state = 4;
   uint64 expiry = 5;
-  repeated string transfer_ids = 6;
+}
+
+message MeltQuoteStateRequest {
+  string method = 1;
+  string quote = 2;
 }
 
 enum MeltState {
@@ -124,6 +129,16 @@ enum MeltState {
   MLQS_UNPAID = 1;
   MLQS_PENDING = 2;
   MLQS_PAID = 3;
+}
+
+message MeltRequest {
+  string method = 1;
+  string quote = 2;  
+  repeated bdhke.Proof inputs = 3;
+}
+
+message MeltResponse {
+  repeated string transfer_ids = 6;
 }
 
 message SwapRequest {

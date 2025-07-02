@@ -14,11 +14,11 @@ starknet-types-core = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 dotenvy = { workspace = true }
-node-client = { default-features = false, path = "../../node-client", features = [
+node-client = { workspace = true, features = [
     "keyset-rotation"
 ] }
-
 starknet-liquidity-source = { workspace = true }
+liquidity-source = { workspace = true  }
 starknet-types = { workspace = true }
 db-node = { workspace = true }
 

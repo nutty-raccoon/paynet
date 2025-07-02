@@ -94,8 +94,7 @@ pub fn hash_melt_request(request: &MeltRequest) -> u64 {
     let mut hasher = DefaultHasher::new();
 
     request.method.hash(&mut hasher);
-    request.unit.hash(&mut hasher);
-    request.request.hash(&mut hasher);
+    request.quote.hash(&mut hasher);
     for input in &request.inputs {
         input.amount.hash(&mut hasher);
         input.keyset_id.hash(&mut hasher);

@@ -82,7 +82,6 @@ pub async fn create_wads(
 
         used_node
     };
-    println!("amount_to_used_per_node: {:?}", amount_to_use_per_node);
 
     let mut wads = Vec::with_capacity(amount_to_use_per_node.len());
     let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
@@ -99,13 +98,9 @@ pub async fn create_wads(
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
 
-        println!("proofs id: {:?}", proofs_ids);
-
         let db_conn = state.pool.get()?;
-        let proofs = wallet::load_tokens_from_db(&db_conn, proofs_ids)?;
-        println!("proofs : {:?}", proofs);
+        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
         let wad = wallet::create_wad_from_proofs(node_url, unit, None, proofs);
-        println!("wad: {:?}", wad);
         wads.push(wad);
         balance_decrease_events.push(BalanceChange {
             node_id,

@@ -4,19 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+uuid = { workspace = true }
+
 async-trait = { workspace = true }
 serde = { workspace = true }
 bitcoin_hashes = { workspace = true }
-uuid = { workspace = true }
-
 # Local crate
 nuts = { workspace = true }
 # TODO: the trait should not be using starknet types
 starknet-types = { workspace = true }
 
-# Optional starknet
-thiserror = { workspace = true, optional = true }
-
 [features]
 default = []
-mock = ["dep:thiserror"]

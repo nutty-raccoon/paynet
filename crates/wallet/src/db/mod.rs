@@ -4,6 +4,7 @@ use rusqlite::{Connection, OptionalExtension, Result, params};
 use crate::types::NodeUrl;
 
 pub mod balance;
+pub mod melt_quote;
 pub mod mint_quote;
 pub mod node;
 pub mod proof;
@@ -39,16 +40,18 @@ pub const CREATE_TABLE_MINT_QUOTE: &str = r#"
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
             expiry INTEGER NOT NULL
         );"#;
-pub const CREATE_TABLE_MELT_RESPONSE: &str = r#"
-        CREATE TABLE IF NOT EXISTS melt_response (
-            id BLOB (16) PRIMARY KEY,
+pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
+        CREATE TABLE IF NOT EXISTS melt_quote (
+            id BLOB(16) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+            method TEXT NOT NULL,
             amount INTEGER NOT NULL,
-            fee INT2 NOT NULL,
-            state INT2 NOT NULL,
-            expiry INTEGER NOT NULL
-        )
-    "#;
+            unit TEXT NOT NULL,
+            request TEXT NOT NULL,
+            state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
+            expiry INTEGER NOT NULL,
+            transfer_ids TEXT
+        );"#;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
@@ -57,7 +60,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     tx.execute(CREATE_TABLE_KEYSET, ())?;
     tx.execute(CREATE_TABLE_KEY, ())?;
     tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
-    tx.execute(CREATE_TABLE_MELT_RESPONSE, ())?;
+    tx.execute(CREATE_TABLE_MELT_QUOTE, ())?;
     tx.execute(proof::CREATE_TABLE_PROOF, ())?;
 
     tx.commit()?;
@@ -164,35 +167,4 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: KeysetId) -> Result<Option<
         .optional()?;
 
     Ok(opt_unit)
-}
-
-pub fn register_melt_quote(
-    conn: &Connection,
-    node_id: u32,
-    response: &node_client::MeltResponse,
-) -> Result<()> {
-    const INSERT_MELT_RESPONSE: &str = r#"
-            INSERT INTO melt_response (
-                id, node_id, amount, fee, state, expiry
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            "#;
-
-    let fee_i16: i16 = response
-        .fee
-        .try_into()
-        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-
-    conn.execute(
-        INSERT_MELT_RESPONSE,
-        params![
-            &response.quote,
-            node_id,
-            response.amount,
-            fee_i16,
-            response.state,
-            response.expiry,
-        ],
-    )?;
-
-    Ok(())
 }

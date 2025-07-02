@@ -51,12 +51,13 @@ tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 
 # starknet optional 
 starknet-payment-indexer = { workspace = true, optional = true }
-starknet-liquidity-source = { workspace = true, optional = true }
+## Not optional for now as it is our only form of liquidity source
+starknet-liquidity-source = { workspace = true }
 
 [features]
 default = ["starknet"]
-mock = ["liquidity-source/mock"]
-starknet = ["dep:starknet-payment-indexer", "dep:starknet-liquidity-source"]
+mock = ["starknet-liquidity-source/mock"]
+starknet = ["dep:starknet-payment-indexer"]
 tls = ["dep:openssl", "dep:tonic-tls"]
 keyset-rotation = []
 

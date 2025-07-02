@@ -1,5 +1,6 @@
 pub mod db;
 pub mod errors;
+pub mod melt;
 pub mod mint;
 mod outputs;
 pub mod types;
@@ -321,13 +322,13 @@ pub async fn fetch_inputs_ids_from_db_or_node(
 
 pub fn load_tokens_from_db(
     db_conn: &Connection,
-    proofs_ids: Vec<PublicKey>,
+    proofs_ids: &[PublicKey],
 ) -> Result<nut00::Proofs, Error> {
     if proofs_ids.is_empty() {
         return Ok(vec![]);
     }
 
-    let proofs = db::proof::get_proofs_by_ids(db_conn, &proofs_ids)?
+    let proofs = db::proof::get_proofs_by_ids(db_conn, proofs_ids)?
         .into_iter()
         .map(
             |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof, Error> {
@@ -341,7 +342,7 @@ pub fn load_tokens_from_db(
         )
         .collect::<Result<Vec<_>, Error>>()?;
 
-    db::proof::set_proofs_to_state(db_conn, &proofs_ids, ProofState::Reserved)?;
+    db::proof::set_proofs_to_state(db_conn, proofs_ids, ProofState::Reserved)?;
 
     Ok(proofs)
 }

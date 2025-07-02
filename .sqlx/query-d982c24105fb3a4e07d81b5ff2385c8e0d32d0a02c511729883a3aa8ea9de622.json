@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            mq.state AS \"state: MeltQuoteState\",\n            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS \"tx_hashes\"\n        FROM melt_quote mq LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id\n        WHERE mq.id = $1\n        GROUP BY mq.state",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "state: MeltQuoteState",
+        "type_info": {
+          "Custom": {
+            "name": "melt_quote_state",
+            "kind": {
+              "Enum": [
+                "UNPAID",
+                "PENDING",
+                "PAID"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "tx_hashes",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "d982c24105fb3a4e07d81b5ff2385c8e0d32d0a02c511729883a3aa8ea9de622"
+}
