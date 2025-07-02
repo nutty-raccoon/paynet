@@ -726,9 +726,11 @@ dependencies = [
  "clap",
  "dirs",
  "itertools 0.14.0",
- "node",
+ "node-client",
  "nuts",
  "primitive-types 0.13.1",
+ "r2d2",
+ "r2d2_sqlite",
  "rusqlite",
  "serde_json",
  "starknet-liquidity-source",
@@ -748,6 +750,38 @@ name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
+
+[[package]]
+name = "concurrency-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dirs",
+ "futures",
+ "itertools 0.14.0",
+ "log",
+ "node-client",
+ "nuts",
+ "primitive-types 0.13.1",
+ "r2d2",
+ "r2d2_sqlite",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "starknet 0.13.0",
+ "starknet-liquidity-source",
+ "starknet-types",
+ "starknet-types-core",
+ "test-utils",
+ "thiserror 2.0.12",
+ "tokio",
+ "tonic 0.13.1",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wallet",
+]
 
 [[package]]
 name = "concurrent-queue"
@@ -1031,6 +1065,23 @@ name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
+name = "e2e-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "node-client",
+ "r2d2",
+ "r2d2_sqlite",
+ "rusqlite",
+ "starknet-types",
+ "test-utils",
+ "tokio",
+ "url",
+ "wallet",
+]
 
 [[package]]
 name = "either"
@@ -2316,14 +2367,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "node-client"
+version = "0.1.0"
+dependencies = [
+ "nuts",
+ "prost 0.13.5",
+ "thiserror 2.0.12",
+ "tonic 0.13.1",
+ "tonic-build 0.13.1",
+]
+
+[[package]]
 name = "node-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "node",
+ "db-node",
+ "dotenvy",
+ "node-client",
  "nuts",
  "serde_json",
  "signer",
+ "sqlx",
  "starknet-liquidity-source",
  "starknet-types",
  "starknet-types-core",
@@ -3087,6 +3152,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74765f6d916ee2faa39bc8e68e4f3ed8949b48cccdac59983d287a7cb71ce9c5"
 
 [[package]]
+name = "r2d2"
+version = "0.8.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51de85fb3fb6524929c8a2eb85e6b6d363de4e8c48f9e2c2eac4944abc181c93"
+dependencies = [
+ "log",
+ "parking_lot",
+ "scheduled-thread-pool",
+]
+
+[[package]]
+name = "r2d2_sqlite"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb14dba8247a6a15b7fdbc7d389e2e6f03ee9f184f87117706d509c092dfe846"
+dependencies = [
+ "r2d2",
+ "rusqlite",
+ "uuid 1.17.0",
+]
+
+[[package]]
 name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3479,6 +3566,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f29ebaa345f945cec9fbbc532eb307f0fdad8161f281b6369539c8d84876b3d"
 dependencies = [
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "scheduled-thread-pool"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cbc66816425a074528352f5789333ecff06ca41b36b0b0efdfbb29edc391a19"
+dependencies = [
+ "parking_lot",
 ]
 
 [[package]]
@@ -4626,20 +4722,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "tests"
+name = "test-utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
- "dirs",
  "futures",
  "itertools 0.14.0",
  "log",
- "node",
+ "node-client",
  "nuts",
  "primitive-types 0.13.1",
+ "r2d2",
+ "r2d2_sqlite",
  "rusqlite",
- "serde",
  "serde_json",
  "starknet 0.13.0",
  "starknet-liquidity-source",
@@ -4648,8 +4743,6 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tonic 0.13.1",
- "tracing",
- "tracing-subscriber",
  "url",
  "wallet",
 ]
@@ -5333,6 +5426,7 @@ checksum = "3cf4199d1e5d15ddd86a694e4d0dffa9c323ce759fea589f00fef9d81cc1931d"
 dependencies = [
  "getrandom 0.3.3",
  "js-sys",
+ "rand 0.9.1",
  "serde",
  "wasm-bindgen",
 ]
@@ -5364,11 +5458,13 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "log",
- "node",
+ "node-client",
  "num-traits",
  "nuts",
  "openssl",
  "openssl-sys",
+ "r2d2",
+ "r2d2_sqlite",
  "rusqlite",
  "serde",
  "thiserror 2.0.12",
@@ -5585,9 +5681,9 @@ dependencies = [
 
 [[package]]
 name = "windows-link"
-version = "0.1.1"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76840935b766e1b0a05c0066835fb9ec80071d4c09a16f6bd5f7e655e3c14c38"
+checksum = "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
 
 [[package]]
 name = "windows-result"

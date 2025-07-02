@@ -12,14 +12,15 @@ tonic-health = { workspace = true }
 nuts = { workspace = true }
 starknet-types-core = { workspace = true }
 serde_json = { workspace = true }
-
-node = { default-features = false, path = "../../bin/node", features = [
-    "mock", "keyset-rotation"
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+node-client = { default-features = false, path = "../../node-client", features = [
+    "keyset-rotation"
 ] }
 
-starknet-liquidity-source = { path = "../../starknet/liquidity-source" }
+starknet-liquidity-source = { workspace = true }
 starknet-types = { workspace = true }
-
+db-node = { workspace = true }
 
 [[test]]
 name = "keyset_rotation"
@@ -32,6 +33,11 @@ path = "health_check.rs"
 [[test]]
 name = "cache_response"
 path = "cache_response.rs"
+
 [[test]]
 name = "verification_address"
 path = "verification_address.rs"
+
+[[test]]
+name = "check_state"
+path = "check_state.rs"

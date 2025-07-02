@@ -1,0 +1,38 @@
+[package]
+name = "test-utils"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+e2e = ["itertools", "primitive-types", "r2d2", "r2d2_sqlite", "rusqlite", "wallet"]
+concurrency = ["futures"]
+
+strk = ["starknet-types", "starknet", "starknet-types-core", "starknet-liquidity-source"]
+
+e2e-starknet = ["e2e", "strk"]
+concurrency-starknet = ["concurrency", "strk"]
+dev = ["e2e", "strk", "concurrency"]
+
+[dependencies]
+thiserror = { workspace = true }
+futures = { workspace = true, optional = true }
+node-client = { workspace = true  }
+nuts = { workspace = true }
+starknet-types = { workspace = true, optional = true  }
+starknet-types-core = { workspace = true, optional = true }
+tonic = { workspace = true }
+anyhow = { workspace = true }
+itertools = { workspace = true, optional = true }
+primitive-types = { workspace = true, optional = true }
+starknet = { workspace = true, optional = true }
+wallet = { workspace = true, optional = true  }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+serde_json = { workspace = true }
+url = { workspace = true }
+log = { workspace = true }
+starknet-liquidity-source = { workspace = true, optional = true }
+
+# Db
+r2d2_sqlite = { workspace = true, optional = true }
+r2d2 = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }

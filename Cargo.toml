@@ -1,33 +1,46 @@
 [workspace]
 resolver = "3"
 members = [
+  # Bins
   "crates/bin/node",
   "crates/bin/signer",
   "crates/bin/cli-wallet",
   "crates/bin/starknet-on-chain-setup",
-  "crates/bin/tests",
+
+  # Libs
+  "crates/node-client",
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
   "crates/open-telemetry-tracing",
   "crates/liquidity-source",
+  "crates/test-utils",
+  # Starknet libs
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
   "crates/starknet/types",
   # Integration tests
   "crates/tests/signer-tests",
-  "crates/tests/node-tests", 
+  "crates/tests/node-tests",
+  # E2e tests
+  "crates/tests/e2e-tests",
+  "crates/tests/concurrency-tests",
 ]
 default-members = [
+  # Bins
   "crates/bin/node",
   "crates/bin/signer",
   "crates/bin/cli-wallet",
   "crates/bin/starknet-on-chain-setup",
+  # Libs
+  "crates/node-client",
   "crates/db-node",
   "crates/nuts",
   "crates/wallet",
   "crates/open-telemetry-tracing",
   "crates/liquidity-source",
+  "crates/test-utils",
+  # Starknet libs
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
   "crates/starknet/types",
@@ -66,7 +79,6 @@ starknet-crypto = "0.7.4"
 uuid = "1.11.0"
 lazy_static = "1.5.0"
 dotenvy = "0.15.7"
-sqlx = "0.8.2"
 parking_lot = "0.12.3"
 rand = "0.9.0"
 starknet-core = "0.13.0"
@@ -75,7 +87,6 @@ futures-util = "0.3.31"
 anyhow = "1.0.95"
 apibara-core = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
 apibara-sdk = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
-rusqlite = "0.32.0"
 primitive-types = "0.13.1"
 rayon = "1.10.0"
 reqwest = "0.12.12"
@@ -93,6 +104,7 @@ async-trait = "0.1.88"
 itertools = "0.14"
 dashmap = "6.1.0"
 bytes = "1.10.1"
+uint = "0.10.0"
 
 # OPTL
 opentelemetry = "0.29.1"
@@ -106,10 +118,19 @@ tonic-tls = { version = "0.3.0", default-features = false }
 openssl = "0.10"
 openssl-sys = "0.9.108"
 
+# Db
+# Those libs depend on the dynlib `libsqlite3-sys`,
+# wich create conflict if they are not all referencing the exact same version.
+# Be carefull when updating any of those
+sqlx = { version = "0.8.3", default-features = false }
+rusqlite = "0.32.0"
+r2d2_sqlite = "0.25.0"
+r2d2 = "0.8.10"
+
 # Local crates
 # Clients
 signer = { path = "crates/bin/signer" }
-node = { path = "crates/bin/node" }
+node-client = { path = "crates/node-client" }
 # Starknet
 starknet-types = { path = "crates/starknet/types" }
 starknet-payment-indexer = { path = "crates/starknet/payment-indexer" }
@@ -121,3 +142,4 @@ nuts = { path = "crates/nuts" }
 db-node = { path = "crates/db-node" }
 wallet = { path = "crates/wallet" }
 liquidity-source = { path = "crates/liquidity-source" }
+test-utils = { path = "crates/test-utils" }

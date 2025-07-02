@@ -33,13 +33,19 @@ impl Asset {
         }
     }
 
-    pub fn precision(&self) -> U256 {
+    pub fn precision(&self) -> u8 {
+        match self {
+            Asset::Strk | Asset::Eth => 18,
+        }
+    }
+
+    pub fn scale_factor(&self) -> U256 {
         match self {
             Asset::Strk | Asset::Eth => U256::from(1_000_000_000_000_000_000u64),
         }
     }
 
-    fn find_best_unit_for_asset_amount(&self, _asset_amount: U256) -> Unit {
+    pub fn find_best_unit(&self) -> Unit {
         match self {
             Asset::Strk => Unit::MilliStrk,
             Asset::Eth => Unit::Gwei,
@@ -56,7 +62,7 @@ impl Asset {
         asset_amount: U256,
         unit: Unit,
     ) -> Result<(Amount, U256), AssetToUnitConversionError> {
-        let (quotien, rem) = asset_amount.div_mod(U256::from(unit.conversion_rate()));
+        let (quotien, rem) = asset_amount.div_mod(U256::from(unit.scale_factor()));
 
         Ok((
             Amount::from(
@@ -75,7 +81,7 @@ impl Asset {
         &self,
         asset_amount: U256,
     ) -> Result<(Amount, Unit, U256), AssetToUnitConversionError> {
-        let unit = self.find_best_unit_for_asset_amount(asset_amount);
+        let unit = self.find_best_unit();
         let (amount, rem) = self.convert_to_amount_of_unit(asset_amount, unit)?;
 
         Ok((amount, unit, rem))
@@ -91,8 +97,8 @@ impl FromStr for Asset {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "strk" => Ok(Asset::Strk),
-            "eth" => Ok(Asset::Eth),
+            "strk" | "STRK" => Ok(Asset::Strk),
+            "eth" | "ETH" => Ok(Asset::Eth),
             _ => Err(AssetFromStrError),
         }
     }

@@ -1,0 +1,23 @@
+[package]
+name = "e2e-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+dirs = { workspace = true }
+url = { workspace = true }
+wallet = { workspace = true  }
+node-client = { workspace = true  }
+test-utils = { workspace = true, features = ["e2e-starknet"]}
+starknet-types = { workspace = true  }
+
+# Db
+r2d2_sqlite = { workspace = true }
+r2d2 = { workspace = true }
+rusqlite = { workspace = true }
+
+[[test]]
+name = "e2e"
+path = "e2e.rs"

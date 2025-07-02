@@ -29,11 +29,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
       - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: rustfmt, clippy
       - uses: arduino/setup-protoc@v3
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
       - uses: Swatinem/rust-cache@v2
         with:
@@ -44,14 +49,22 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-  build:
+  build-images:
     runs-on: ubuntu-8-cores
     permissions:
       contents: read
       packages: write
     strategy:
       matrix:
-        service: [node, signer, starknet-setup]
+        include:
+        - service: signer
+        - service: starknet-setup
+        - service: node
+          features: starknet
+          image_name: node
+        - service: node
+          features: mock,keyset-rotation
+          image_name: node-mock
     steps:
       - uses: actions/checkout@v4
 
@@ -81,21 +94,104 @@ jobs:
           context: .
           file: ./dockerfiles/${{ matrix.service }}.Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image_name || matrix.service }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          cache-from: type=gha,scope=${{ matrix.image_name || matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.image_name || matrix.service }},mode=max
           build-args: |
-            CARGO_FEATURES=${{ matrix.service == 'node' && 'starknet' || '' }}
-        
-  test:
-    needs: [build]
-    runs-on: ubuntu-latest
+            CARGO_FEATURES=${{ matrix.features || '' }}
+
+  build-binary:
+    runs-on: ubuntu-8-cores
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+      
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Build tests
+        run: cargo test --no-run
+  
+      - name: Cache test binaries for other jobs
+        uses: actions/cache/save@v3
+        with:
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+
+  unit-test:
+    name: Unit-test
+    strategy:
+      matrix:
+        include:
+          - test_cmd: "cargo test -p node --no-default-features --features=mock,keyset-rotation,tls"
+            cache_key: "node-mock-keyset-tls"
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
+            cache_key: "node-starknet-keyset-tls"
+          - test_cmd: "cargo test -p signer --no-default-features"
+            cache_key: "signer-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features"
+            cache_key: "cli-wallet-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+            cache_key: "cli-wallet-tls"
+          - test_cmd: "cargo test -p db-node --no-default-features"
+            cache_key: "db-node-default"
+          - test_cmd: "cargo test -p nuts --no-default-features"
+            cache_key: "nuts-default"
+          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
+            cache_key: "nuts-starknet-sqlx-nut19"
+          - test_cmd: "cargo test -p starknet-types --no-default-features"
+            cache_key: "starknet-types-default"
+          - test_cmd: "cargo test -p wallet --no-default-features"
+            cache_key: "wallet-default"
+          - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
+            cache_key: "wallet-tls"
+          - test_cmd: "cargo test -p liquidity-source --no-default-features"
+            cache_key: "liquidity-source-default"
+          - test_cmd: "cargo test -p liquidity-source --features=mock"
+            cache_key: "liquidity-source-mock"
+          - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
+            cache_key: "starknet-on-chain-setup-default"
+          - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
+            cache_key: "starknet-payment-indexer-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
+            cache_key: "starknet-liquidity-source-default"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-${{ matrix.cache_key }}-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+      - name: Run test
+        run: ${{ matrix.test_cmd }}
+
+  test:
+    needs: [ build-images, build-binary ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -112,22 +208,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update docker-compose with built images
+      - name: Set image environment variables
         run: |
-          sed -i "s|image: \"explorer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/explorer:${{ github.sha }}|g" docker-compose.app.yml
-          sed -i "s|image: \"node\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${{ github.sha }}|g" docker-compose.app.yml
-          sed -i "s|image: \"signer\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}|g" docker-compose.app.yml
-          sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.app.yml
+          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
+          echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
+        
+      - name: Restore test binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
 
-          sed -i "s|image: \"starknet-setup\"|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}|g" docker-compose.testnet.yml
-
-      - name: Build test binary
-        run: cargo build -p tests --bin tests
-
-      - name: Start integration services (mock)
+      - name: Start integration service (mock)
         run: |
-          docker compose -f docker-compose.app-mock.yml up -d
-          docker compose -f docker-compose.app-mock.yml ps
+          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml up -d
 
       - name: Wait for integration services to be healthy
         run: |
@@ -135,7 +232,7 @@ jobs:
           timeout 300 bash -c '
             until docker compose -f docker-compose.app-mock.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
               echo "Waiting for mock services to be ready..."
-              sleep 10
+              sleep 2
               docker compose -f docker-compose.app-mock.yml ps
             done
           '
@@ -153,12 +250,11 @@ jobs:
 
       - name: Cleanup integration tests
         run: |
-          docker compose -f docker-compose.app-mock.yml down -v
+          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml down -v
 
-      - name: Start services
+      - name: Start services  
         run: |
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml up -d
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+          docker compose -f docker-compose.app.yml -f docker-compose.ci-testnet.yml up -d
 
       - name: Wait for services to be healthy
         run: |
@@ -190,8 +286,8 @@ jobs:
           ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
           WALLET_DB_PATH: /tmp/cli-wallet.sqlite3
         run: |
-          ./target/debug/tests e2e
-          ./target/debug/tests concurrency
+          cargo test -p e2e-tests
+          cargo test -p concurrency-tests
 
       - name: Show logs on failure
         if: failure()

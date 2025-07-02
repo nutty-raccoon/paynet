@@ -97,16 +97,23 @@ impl nuts::traits::Unit for Unit {}
 const MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE: u64 = 1_000_000_000_000_000;
 
 impl Unit {
-    pub fn conversion_rate(&self) -> u64 {
+    pub fn scale_factor(&self) -> u64 {
         match self {
             Unit::MilliStrk => MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE,
-            Unit::Gwei => 1000000000,
+            Unit::Gwei => 1_000_000_000,
+        }
+    }
+
+    pub fn scale_order(&self) -> u8 {
+        match self {
+            Unit::MilliStrk => 15,
+            Unit::Gwei => 9,
         }
     }
 
     /// Converts an amount of unit to its blockchain-native representation
     pub fn convert_amount_into_u256(&self, amount: Amount) -> U256 {
-        U256::from(u64::from(amount)) * U256::from(self.conversion_rate())
+        U256::from(u64::from(amount)) * U256::from(self.scale_factor())
     }
     ///
     /// Verifies that an asset is compatible with this unit
