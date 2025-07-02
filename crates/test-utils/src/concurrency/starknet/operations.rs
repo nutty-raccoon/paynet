@@ -17,17 +17,20 @@ use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 
 use crate::{
-    concurrency::utils::{
+    common::{
+        error::{Error, Result},
+        utils::{EnvVariables, starknet::pay_invoices},
+    },
+    concurrency::starknet::utils::{
         get_active_keyset, make_melt, make_mint, make_swap, mint_quote_and_deposit_and_wait,
         wait_transac,
     },
-    env_variables::EnvVariables,
-    errors::{Error, Result},
-    utils::pay_invoices,
 };
 
+/// Concurrency tests for mint, swap, and melt operations.
+
+/// Verifies double-spending protection by attempting to reuse a single quote across multiple concurrent mint operations
 pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables) -> Result<()> {
-    println!("  * running mint concurency test");
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
@@ -57,22 +60,23 @@ pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables
         mints.push(make_mint(req, node_client.clone()));
     }
 
-    println!("minting all");
     let res = join_all(mints).await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     if ok_vec.len() != 1 {
-        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Mint));
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Mint,
+        ));
     }
 
     Ok(())
 }
 
+/// Tests output collision detection by using identical blinded secrets across multiple concurrent mint operations
 pub async fn mint_same_output(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    println!("  * running mint_same_output test");
     let amount = Amount::from_i64_repr(8);
 
     let mint_quote_request = MintQuoteRequest {
@@ -149,22 +153,23 @@ pub async fn mint_same_output(
         mints.push(make_mint(req, node_client.clone()));
     }
 
-    println!("minting all");
     let res = join_all(mints).await;
 
     let ok_vec: Vec<&MintResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     if ok_vec.len() != 1 {
-        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Mint));
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Mint,
+        ));
     }
 
     Ok(())
 }
 
+/// Ensures swap atomicity by attempting to generate identical output tokens from different inputs concurrently
 pub async fn swap_same_output(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    println!("  * running swap_same_output test");
     let swap_amount = 128u64;
     let n_concurent = 64;
     let total_amount_to_mint = Amount::from(swap_amount * n_concurent);
@@ -250,20 +255,21 @@ pub async fn swap_same_output(
         };
         multi_swap.push(make_swap(node_client.clone(), swap_request));
     }
-    println!("swapping all");
     let res = join_all(multi_swap).await;
     let ok_vec: Vec<&SwapResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     if ok_vec.len() != 1 {
-        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Swap));
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Swap,
+        ));
     }
     Ok(())
 }
 
+/// Validates double-spending prevention by reusing the same proof across multiple concurrent swap operations
 pub async fn swap_same_input(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    println!("  * running swap_same_input test");
     let amount = Amount::from_i64_repr(32);
 
     let original_mint_quote_response =
@@ -343,20 +349,21 @@ pub async fn swap_same_input(
         };
         multi_swap.push(make_swap(node_client.clone(), swap_request.clone()))
     }
-    println!("swapping all");
     let res = join_all(multi_swap).await;
     let ok_vec: Vec<&SwapResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     if ok_vec.len() != 1 {
-        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Swap));
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Swap,
+        ));
     }
     Ok(())
 }
 
+/// Tests melt operation integrity by attempting to spend the same proof multiple times concurrently
 pub async fn melt_same_input(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    println!("  * running melt_same_input test");
     let mut payees: HashSet<Felt> = HashSet::new();
     for i in 0..100 {
         // we at 0x02 because the first two address is not valid
@@ -450,11 +457,12 @@ pub async fn melt_same_input(
     for melt_request in melt_requests.iter() {
         multi_melt.push(make_melt(node_client.clone(), melt_request.clone()));
     }
-    println!("melting all");
     let res = join_all(multi_melt).await;
     let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
     if ok_vec.len() != 1 {
-        return Err(Error::Concurrence(crate::errors::ConcurrenceError::Melt));
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Melt,
+        ));
     }
     Ok(())
 }

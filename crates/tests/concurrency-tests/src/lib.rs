@@ -1,4 +1,5 @@
-use crate::errors::Result;
+use anyhow::Result;
+use test_utils::common::utils::EnvVariables;
 
 pub fn read_env_variables() -> Result<EnvVariables> {
     let node_url = std::env::var("NODE_URL")?;
@@ -12,12 +13,4 @@ pub fn read_env_variables() -> Result<EnvVariables> {
         private_key,
         account_address,
     })
-}
-
-#[derive(Debug, Clone)]
-pub struct EnvVariables {
-    pub node_url: String,
-    pub rpc_url: String,
-    pub private_key: String,
-    pub account_address: String,
 }

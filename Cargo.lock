@@ -752,6 +752,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
+name = "concurrency-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dirs",
+ "futures",
+ "itertools 0.14.0",
+ "log",
+ "node-client",
+ "nuts",
+ "primitive-types 0.13.1",
+ "r2d2",
+ "r2d2_sqlite",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "starknet 0.13.0",
+ "starknet-liquidity-source",
+ "starknet-types",
+ "starknet-types-core",
+ "test-utils",
+ "thiserror 2.0.12",
+ "tokio",
+ "tonic 0.13.1",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wallet",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1033,6 +1065,23 @@ name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
+name = "e2e-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "node-client",
+ "r2d2",
+ "r2d2_sqlite",
+ "rusqlite",
+ "starknet-types",
+ "test-utils",
+ "tokio",
+ "url",
+ "wallet",
+]
 
 [[package]]
 name = "either"
@@ -4670,6 +4719,32 @@ dependencies = [
  "once_cell",
  "rustix 1.0.7",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "test-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "itertools 0.14.0",
+ "log",
+ "node-client",
+ "nuts",
+ "primitive-types 0.13.1",
+ "r2d2",
+ "r2d2_sqlite",
+ "rusqlite",
+ "serde_json",
+ "starknet 0.13.0",
+ "starknet-liquidity-source",
+ "starknet-types",
+ "starknet-types-core",
+ "thiserror 2.0.12",
+ "tokio",
+ "tonic 0.13.1",
+ "url",
+ "wallet",
 ]
 
 [[package]]

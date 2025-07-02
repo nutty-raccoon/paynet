@@ -8,9 +8,8 @@ use starknet_types::Unit;
 use tonic::transport::Channel;
 
 use crate::{
-    env_variables::EnvVariables,
-    errors::{Error, Result},
-    utils::pay_invoices,
+    common::error::{Error, Result},
+    common::utils::{EnvVariables, starknet::pay_invoices},
 };
 
 pub async fn make_mint(

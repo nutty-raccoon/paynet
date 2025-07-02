@@ -14,6 +14,7 @@ members = [
   "crates/wallet",
   "crates/open-telemetry-tracing",
   "crates/liquidity-source",
+  "crates/test-utils",
   # Starknet libs
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
@@ -21,6 +22,9 @@ members = [
   # Integration tests
   "crates/tests/signer-tests",
   "crates/tests/node-tests",
+  # E2e tests
+  "crates/tests/e2e-tests",
+  "crates/tests/concurrency-tests",
 ]
 default-members = [
   # Bins
@@ -35,6 +39,7 @@ default-members = [
   "crates/wallet",
   "crates/open-telemetry-tracing",
   "crates/liquidity-source",
+  "crates/test-utils",
   # Starknet libs
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
@@ -137,3 +142,4 @@ nuts = { path = "crates/nuts" }
 db-node = { path = "crates/db-node" }
 wallet = { path = "crates/wallet" }
 liquidity-source = { path = "crates/liquidity-source" }
+test-utils = { path = "crates/test-utils" }

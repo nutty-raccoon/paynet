@@ -1,6 +1,5 @@
-use crate::env_variables::EnvVariables;
-use crate::errors::{Error, Result};
-use crate::utils::pay_invoices;
+use std::time::Duration;
+
 use anyhow::anyhow;
 use itertools::Itertools;
 use node_client::{MeltRequest, MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
@@ -8,12 +7,18 @@ use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, STARKNET_STR, Unit};
 use starknet_types_core::felt::Felt;
-use std::time::Duration;
 use tonic::transport::Channel;
-use wallet::types::NodeUrl;
 use wallet::{
     self,
-    types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
+    types::{
+        NodeUrl,
+        compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
+    },
+};
+
+use crate::common::{
+    error::{Error, Result},
+    utils::{EnvVariables, starknet::pay_invoices},
 };
 
 type Pool = r2d2::Pool<SqliteConnectionManager>;
