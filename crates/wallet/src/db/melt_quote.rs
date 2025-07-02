@@ -20,7 +20,7 @@ pub fn store(
     response: &node_client::MeltQuoteResponse,
 ) -> Result<()> {
     const INSERT_NEW_MELT_QUOTE: &str = r#"
-        INSERT INTO mint_quote
+        INSERT INTO melt_quote
             (id, node_id, method, amount, unit, request, state, expiry)
         VALUES
             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
@@ -39,6 +39,20 @@ pub fn store(
             response.expiry,
         ),
     )?;
+
+    Ok(())
+}
+
+pub fn register_transfer_ids(
+    conn: &Connection,
+    quote_id: String,
+    transfer_ids: String,
+) -> Result<()> {
+    const INSERT_TRANSFER_IDS: &str = r#"
+       INSERT INTO melt_quote (transfer_ids) VALUES (?2) WHERE id = ?1; 
+    "#;
+
+    conn.execute(INSERT_TRANSFER_IDS, [quote_id, transfer_ids])?;
 
     Ok(())
 }

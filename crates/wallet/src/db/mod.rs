@@ -41,7 +41,7 @@ pub const CREATE_TABLE_MINT_QUOTE: &str = r#"
             expiry INTEGER NOT NULL
         );"#;
 pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
-        CREATE TABLE IF NOT EXISTS mint_quote (
+        CREATE TABLE IF NOT EXISTS melt_quote (
             id BLOB(16) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             method TEXT NOT NULL,
@@ -50,7 +50,7 @@ pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
             request TEXT NOT NULL,
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
             expiry INTEGER NOT NULL,
-            transfer_ids BLOB
+            transfer_ids TEXT
         );"#;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {

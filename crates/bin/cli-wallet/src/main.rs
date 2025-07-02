@@ -407,14 +407,13 @@ async fn main() -> Result<()> {
 
             let melt_request = node_client::MeltRequest {
                 method: STARKNET_STR.to_string(),
-                quote: melt_quote_response.quote,
+                quote: melt_quote_response.quote.clone(),
                 inputs: wallet::convert_inputs(&inputs),
             };
             let melt_request_hash = hash_melt_request(&melt_request);
             let melt_response = match node_client.melt(melt_request).await {
                 Ok(r) => r.into_inner(),
                 Err(e) => {
-                    println!("eeerrrror: {}", e);
                     // Reset the proof state
                     // TODO: if the error is due to one of the proof being already spent, we should be removing those from db
                     // in order to not use them in the future
@@ -436,6 +435,12 @@ async fn main() -> Result<()> {
 
             println!("Melt done!");
             if !melt_response.transfer_ids.is_empty() {
+                let transfer_ids_to_store = serde_json::to_string(&melt_response.transfer_ids)?;
+                wallet::db::melt_quote::register_transfer_ids(
+                    &db_conn,
+                    melt_quote_response.quote,
+                    transfer_ids_to_store,
+                )?;
                 println!(
                     "tx hashes: {}",
                     format_melt_transfers_id_into_term_message(melt_response.transfer_ids)
