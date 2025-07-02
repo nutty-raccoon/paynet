@@ -1,8 +1,11 @@
-use nuts::nut05::MeltQuoteState;
+use num_traits::CheckedAdd;
+use nuts::{Amount, nut05::MeltQuoteState};
 use serde::{Deserialize, Serialize};
-use starknet_types::{Asset, ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
+use starknet_types::{
+    Asset, AssetToUnitConversionError, ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS,
+};
 
-use liquidity_source::{WithdrawAmount, WithdrawInterface, WithdrawRequest};
+use liquidity_source::WithdrawInterface;
 use starknet_types::is_valid_starknet_address;
 use uuid::Uuid;
 
@@ -48,32 +51,19 @@ pub enum Error {
     PgPool(sqlx::Error),
     #[error("failed to register transaction hash in melt_quote table: {0}")]
     RegisterTxHash(sqlx::Error),
+    #[error("failed to convert request values to nodes values: {0}")]
+    Conversion(#[from] AssetToUnitConversionError),
+    #[error("amount overflow")]
+    Overflow,
+    #[error("unsupported asset `{0}` for unit `{1}`")]
+    InvalidAssetForUnit(Asset, Unit),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeltPaymentRequest {
     pub payee: Felt,
     pub asset: Asset,
-    pub amount: nuts::Amount,
-}
-
-impl WithdrawRequest for MeltPaymentRequest {
-    fn asset(&self) -> Asset {
-        self.asset
-    }
-    fn amount(&self) -> nuts::Amount {
-        self.amount
-    }
-}
-
-#[repr(transparent)]
-#[derive(Debug)]
-pub struct StarknetU256WithdrawAmount(pub StarknetU256);
-
-impl WithdrawAmount for StarknetU256WithdrawAmount {
-    fn convert_from(unit: Unit, amount: nuts::Amount) -> Self {
-        Self(StarknetU256::from(unit.convert_amount_into_u256(amount)))
-    }
+    pub amount: StarknetU256,
 }
 
 #[derive(Debug, Clone)]
@@ -111,7 +101,7 @@ impl Withdrawer {
 impl WithdrawInterface for Withdrawer {
     type Error = Error;
     type Request = MeltPaymentRequest;
-    type Amount = StarknetU256WithdrawAmount;
+    type Unit = Unit;
     type InvoiceId = StarknetInvoiceId;
 
     fn deserialize_payment_request(&self, raw_json_string: &str) -> Result<Self::Request, Error> {
@@ -125,11 +115,35 @@ impl WithdrawInterface for Withdrawer {
         Ok(pr)
     }
 
+    fn compute_total_amount_expected(
+        &self,
+        request: Self::Request,
+        unit: Unit,
+        fee: Amount,
+    ) -> Result<nuts::Amount, Self::Error> {
+        if !unit.is_asset_supported(request.asset) {
+            return Err(Error::InvalidAssetForUnit(request.asset, unit));
+        }
+
+        let (amount, rem) = request
+            .asset
+            .convert_to_amount_of_unit(request.amount.clone().into(), unit)?;
+
+        if fee == Amount::ZERO {
+            if rem.is_zero() {
+                Ok(amount)
+            } else {
+                amount.checked_add(&Amount::ONE).ok_or(Error::Overflow)
+            }
+        } else {
+            amount.checked_add(&fee).ok_or(Error::Overflow)
+        }
+    }
+
     async fn proceed_to_payment(
         &mut self,
         quote_id: Uuid,
         melt_payment_request: MeltPaymentRequest,
-        amount: Self::Amount,
         expiry: u64,
     ) -> Result<MeltQuoteState, Error> {
         let quote_id_hash =
@@ -144,7 +158,7 @@ impl WithdrawInterface for Withdrawer {
         self.withdraw_order_sender.send(WithdrawOrder::new(
             quote_id_hash,
             expiry.into(),
-            amount.0,
+            melt_payment_request.amount,
             asset_contract_address,
             melt_payment_request.payee,
         ))?;

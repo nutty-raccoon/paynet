@@ -42,7 +42,7 @@ pub struct GrpcState {
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
-    pub liquidity_sources: LiquiditySources,
+    pub liquidity_sources: LiquiditySources<Unit>,
     pub response_cache: Arc<InMemResponseCache<(Route, u64), CachedResponse>>,
 }
 
@@ -64,7 +64,7 @@ impl GrpcState {
         signer_client: SignerClient,
         nuts_settings: NutsSettings<Method, Unit>,
         quote_ttl: QuoteTTLConfig,
-        liquidity_sources: LiquiditySources,
+        liquidity_sources: LiquiditySources<Unit>,
     ) -> Self {
         Self {
             pg_pool,
@@ -448,7 +448,9 @@ impl Node for GrpcState {
 
         let transfer_ids = self.inner_melt(method, quote_id, &inputs).await?;
 
-        let melt_response = MeltResponse { transfer_ids };
+        let melt_response = MeltResponse {
+            transfer_ids: transfer_ids.unwrap_or_default(),
+        };
 
         // Store in cache
         self.cache_response(cache_key, CachedResponse::Melt(melt_response.clone()))?;

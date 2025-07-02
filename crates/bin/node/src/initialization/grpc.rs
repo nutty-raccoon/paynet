@@ -21,7 +21,7 @@ use super::{Error, env_variables::EnvVariables};
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
     signer_client: SignerClient<trace::Grpc<Channel>>,
-    liquidity_sources: LiquiditySources,
+    liquidity_sources: LiquiditySources<Unit>,
     env_vars: EnvVariables,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();

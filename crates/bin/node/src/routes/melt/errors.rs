@@ -1,5 +1,5 @@
 use nuts::Amount;
-use starknet_types::{Asset, Unit};
+use starknet_types::Unit;
 use tonic::Status;
 
 use crate::{logic::InputsError, methods::Method};
@@ -20,8 +20,6 @@ pub enum Error {
     MeltDisabled,
     #[error("unsupported unit `{0}` for method `{1}`")]
     UnitNotSupported(Unit, Method),
-    #[error("unsupported asset `{0}` for unit `{1}`")]
-    InvalidAssetForUnit(Asset, Unit),
     #[error("could not convert asset amount to unit")]
     InvalidAssetConversion,
     #[error("total input amount {0} does not match required amount {1}")]
@@ -55,7 +53,6 @@ impl From<Error> for Status {
                 Status::internal(error.to_string())
             }
             Error::UnitNotSupported(_, _)
-            | Error::InvalidAssetForUnit(_, _)
             | Error::AmountTooLow(_, _)
             | Error::AmountTooHigh(_, _)
             | Error::TotalAmountTooBig

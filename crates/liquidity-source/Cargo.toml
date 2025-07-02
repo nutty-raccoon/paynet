@@ -14,9 +14,10 @@ nuts = { workspace = true }
 # TODO: the trait should not be using starknet types
 starknet-types = { workspace = true }
 
-# Optional starknet
+# Optional mock
 thiserror = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [features]
 default = []
-mock = ["dep:thiserror"]
+mock = ["dep:thiserror", "dep:serde_json"]

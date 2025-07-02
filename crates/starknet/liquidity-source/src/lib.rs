@@ -16,12 +16,10 @@ use starknet::{
     providers::{JsonRpcClient, jsonrpc::HttpTransport},
     signers::{LocalWallet, SigningKey},
 };
-use starknet_types::{CairoShortStringToFeltError, ChainId, constants::ON_CHAIN_CONSTANTS};
+use starknet_types::{CairoShortStringToFeltError, ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::{felt::Felt, hash::Poseidon};
 use url::Url;
-pub use withdraw::{
-    Error as WithdrawalError, MeltPaymentRequest, StarknetU256WithdrawAmount, Withdrawer,
-};
+pub use withdraw::{Error as WithdrawalError, MeltPaymentRequest, Withdrawer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadStarknetConfigError {
@@ -153,6 +151,7 @@ impl liquidity_source::LiquiditySource for StarknetLiquiditySource {
     type Depositer = Depositer;
     type Withdrawer = Withdrawer;
     type InvoiceId = StarknetInvoiceId;
+    type Unit = Unit;
 
     fn depositer(&self) -> Depositer {
         self.depositer.clone()

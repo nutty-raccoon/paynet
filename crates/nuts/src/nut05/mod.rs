@@ -104,8 +104,6 @@ pub struct MeltQuoteResponse<Q, U: Unit> {
     pub amount: Amount,
     /// The unit that needs to be provided
     pub unit: U,
-    /// The fee charged by the network
-    pub fee: Amount,
     /// Quote State
     pub state: MeltQuoteState,
     /// Unix timestamp until the quote is valid

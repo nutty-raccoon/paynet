@@ -55,7 +55,6 @@ pub async fn build_response_from_db<U: Unit>(
         SELECT 
             amount, 
             unit,
-            fee, 
             state AS "state: MeltQuoteState", 
             expiry
         FROM melt_quote
@@ -73,14 +72,12 @@ pub async fn build_response_from_db<U: Unit>(
         .try_into()
         .map_err(|_| Error::DbToRuntimeConversion)?;
     let amount = Amount::from_i64_repr(record.amount);
-    let fee = Amount::from_i64_repr(record.fee);
     let unit = U::from_str(&record.unit).map_err(|_| Error::DbToRuntimeConversion)?;
 
     Ok(MeltQuoteResponse {
         quote: quote_id,
         unit,
         amount,
-        fee,
         state: record.state,
         expiry,
     })

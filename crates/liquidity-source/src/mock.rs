@@ -2,11 +2,12 @@ use crate::DepositInterface;
 use std::fmt::{LowerHex, UpperHex};
 
 use bitcoin_hashes::Sha256;
-use nuts::nut05::MeltQuoteState;
-use starknet_types::{Asset, StarknetU256};
+use nuts::{Amount, nut05::MeltQuoteState};
+use serde::{Deserialize, Serialize};
+use starknet_types::Unit;
 use uuid::Uuid;
 
-use super::{LiquiditySource, WithdrawInterface, WithdrawRequest};
+use super::{LiquiditySource, WithdrawInterface};
 
 #[derive(Debug, Clone)]
 pub struct MockLiquiditySource;
@@ -15,6 +16,7 @@ impl LiquiditySource for MockLiquiditySource {
     type Depositer = MockDepositer;
     type Withdrawer = MockWithdrawer;
     type InvoiceId = MockInvoiceId;
+    type Unit = Unit;
 
     fn depositer(&self) -> MockDepositer {
         MockDepositer
@@ -31,24 +33,17 @@ impl LiquiditySource for MockLiquiditySource {
 
 #[derive(Debug, thiserror::Error)]
 #[error("mock liquidity source error")]
-pub struct Error;
+pub enum Error {
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+}
 
 #[derive(Debug, Clone)]
 pub struct MockWithdrawer;
 
-impl WithdrawRequest for () {
-    fn asset(&self) -> starknet_types::Asset {
-        Asset::Strk
-    }
-    fn amount(&self) -> nuts::Amount {
-        nuts::Amount::from(0u64)
-    }
-}
-
-impl crate::WithdrawAmount for StarknetU256 {
-    fn convert_from(unit: starknet_types::Unit, amount: nuts::Amount) -> Self {
-        StarknetU256::from(unit.convert_amount_into_u256(amount))
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MockWithdrawRequest {
+    amount: Amount,
 }
 
 #[derive(Debug, Clone)]
@@ -74,22 +69,31 @@ impl UpperHex for MockInvoiceId {
 #[async_trait::async_trait]
 impl WithdrawInterface for MockWithdrawer {
     type Error = Error;
-    type Request = ();
-    type Amount = StarknetU256;
+    type Request = MockWithdrawRequest;
     type InvoiceId = MockInvoiceId;
+    type Unit = Unit;
+
+    fn compute_total_amount_expected(
+        &self,
+        request: Self::Request,
+        _unit: Self::Unit,
+        fee: Amount,
+    ) -> Result<Amount, Self::Error> {
+        Ok(request.amount + fee)
+    }
 
     fn deserialize_payment_request(
         &self,
-        _raw_json_string: &str,
+        raw_json_string: &str,
     ) -> Result<Self::Request, Self::Error> {
-        Ok(())
+        let request = serde_json::from_str(raw_json_string)?;
+        Ok(request)
     }
 
     async fn proceed_to_payment(
         &mut self,
         _invoice_id: Uuid,
         _melt_payment_request: Self::Request,
-        _amount: Self::Amount,
         _expiry: u64,
     ) -> Result<MeltQuoteState, Self::Error> {
         Ok(MeltQuoteState::Paid)

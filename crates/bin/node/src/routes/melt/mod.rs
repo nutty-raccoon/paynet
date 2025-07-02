@@ -4,7 +4,7 @@ mod inputs;
 use std::time::Duration;
 
 use inputs::process_melt_inputs;
-use liquidity_source::{LiquiditySource, WithdrawAmount, WithdrawInterface, WithdrawRequest};
+use liquidity_source::{LiquiditySource, WithdrawInterface};
 use nuts::Amount;
 use nuts::nut00::Proof;
 use nuts::nut05::MeltQuoteState;
@@ -50,19 +50,16 @@ impl GrpcState {
         let payment_request = withdrawer
             .deserialize_payment_request(&melt_payment_request)
             .map_err(|e| Error::LiquiditySource(e.into()))?;
-        let asset: starknet_types::Asset = payment_request.asset();
-
-        if !settings.unit.is_asset_supported(asset) {
-            return Err(Error::InvalidAssetForUnit(asset, settings.unit));
-        }
-
-        let expiry = unix_time() + self.quote_ttl.melt_ttl();
-        let quote_id = Uuid::new_v4();
-        let amount = payment_request.amount(); // Get amount from payment request
-        let quote_hash = bitcoin_hashes::Sha256::hash(quote_id.as_bytes());
 
         // Arbitrary fee for now, but will be enough to pay tx fee on starknet
         let fee = Amount::ONE;
+        let total_amount = withdrawer
+            .compute_total_amount_expected(payment_request, unit, fee)
+            .map_err(|e| Error::LiquiditySource(e.into()))?;
+
+        let expiry = unix_time() + self.quote_ttl.melt_ttl();
+        let quote_id = Uuid::new_v4();
+        let quote_hash = bitcoin_hashes::Sha256::hash(quote_id.as_bytes());
 
         // Store the quote in database
         let mut conn = self.pg_pool.acquire().await?;
@@ -71,7 +68,7 @@ impl GrpcState {
             quote_id,
             quote_hash.as_byte_array(),
             settings.unit,
-            amount,
+            total_amount,
             fee,
             &melt_payment_request,
             expiry,
@@ -81,8 +78,7 @@ impl GrpcState {
         Ok(nuts::nut05::MeltQuoteResponse {
             quote: quote_id,
             unit,
-            amount,
-            fee,
+            amount: total_amount,
             state: nuts::nut05::MeltQuoteState::Unpaid,
             expiry,
         })
@@ -95,12 +91,13 @@ impl GrpcState {
         method: Method,
         quote_id: Uuid,
         inputs: &[Proof],
-    ) -> Result<Vec<String>, Error> {
+    ) -> Result<Option<Vec<String>>, Error> {
         let mut conn = self.pg_pool.acquire().await?;
 
         // Get the existing quote from database
-        let (unit, amount, fee, state, expiry, _quote_hash, payment_request) =
-            db_node::melt_quote::get_data(&mut conn, quote_id).await?;
+        // TODO: keep a record of our fees somewhere
+        let (unit, required_amount, _fee, state, expiry, _quote_hash, payment_request) =
+            db_node::melt_quote::get_data::<Unit>(&mut conn, quote_id).await?;
 
         // Check if quote is still valid
         if expiry < unix_time() {
@@ -112,20 +109,6 @@ impl GrpcState {
             return Err(Error::QuoteAlreadyProcessed(quote_id));
         }
 
-        // Get settings for this quote
-        let settings = {
-            let read_nuts_settings_lock = self.nuts.read().await;
-
-            if read_nuts_settings_lock.nut05.disabled {
-                Err(Error::MeltDisabled)?;
-            }
-
-            read_nuts_settings_lock
-                .nut05
-                .get_settings(method, unit)
-                .ok_or(Error::UnitNotSupported(unit, method))?
-        };
-
         // Process and validate inputs
         let mut tx = db_node::start_db_tx_from_conn(&mut conn)
             .await
@@ -136,11 +119,11 @@ impl GrpcState {
             self.signer.clone(),
             self.keyset_cache.clone(),
             inputs,
+            unit,
         )
         .await?;
 
-        // Verify the input amount matches the quote amount + fee
-        let required_amount = amount + fee;
+        // Verify the input amount matches the quote amount
         if total_amount != required_amount {
             return Err(Error::InvalidAmount(total_amount, required_amount));
         }
@@ -162,12 +145,7 @@ impl GrpcState {
             .map_err(|e| Error::LiquiditySource(e.into()))?;
         // Process the actual payment
         let state = withdrawer
-            .proceed_to_payment(
-                quote_id,
-                payment_request,
-                WithdrawAmount::convert_from(settings.unit, amount),
-                expiry,
-            )
+            .proceed_to_payment(quote_id, payment_request, expiry)
             .await
             .map_err(|e| Error::LiquiditySource(e.into()))?;
 
@@ -191,8 +169,7 @@ impl GrpcState {
             if let (MeltQuoteState::Paid, transfer_ids) =
                 db_node::melt_quote::get_state_and_transfer_ids(&mut conn, quote_id).await?
             {
-                // Safe to unwrap, as it should only be set to paid when transfers ids have been registed
-                return Ok(transfer_ids.unwrap());
+                return Ok(transfer_ids);
             } else {
                 let _ = tokio::time::sleep(Duration::from_secs(1)).await;
             }

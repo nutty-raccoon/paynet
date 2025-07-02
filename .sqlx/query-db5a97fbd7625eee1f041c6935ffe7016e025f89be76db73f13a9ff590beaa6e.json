@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            amount, \n            unit,\n            fee, \n            state AS \"state: MeltQuoteState\", \n            expiry\n        FROM melt_quote\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT \n            amount, \n            unit,\n            state AS \"state: MeltQuoteState\", \n            expiry\n        FROM melt_quote\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -15,11 +15,6 @@
       },
       {
         "ordinal": 2,
-        "name": "fee",
-        "type_info": "Int8"
-      },
-      {
-        "ordinal": 3,
         "name": "state: MeltQuoteState",
         "type_info": {
           "Custom": {
@@ -35,7 +30,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "expiry",
         "type_info": "Timestamptz"
       }
@@ -49,9 +44,8 @@
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "133bc8e8b081a7cb27321c0b66e4ed07ff83655f9c3ed13e26f8365b7b31baa6"
+  "hash": "db5a97fbd7625eee1f041c6935ffe7016e025f89be76db73f13a9ff590beaa6e"
 }

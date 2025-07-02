@@ -102,7 +102,7 @@ pub async fn create_wads(
         println!("proofs id: {:?}", proofs_ids);
 
         let db_conn = state.pool.get()?;
-        let proofs = wallet::load_tokens_from_db(&db_conn, proofs_ids)?;
+        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
         println!("proofs : {:?}", proofs);
         let wad = wallet::create_wad_from_proofs(node_url, unit, None, proofs);
         println!("wad: {:?}", wad);
