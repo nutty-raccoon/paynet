@@ -16,6 +16,7 @@
   import { getNodesBalance } from "../commands";
   import { platform } from "@tauri-apps/plugin-os";
   import ScanModal from "./scan/ScanModal.svelte";
+  import { openUrl } from "@tauri-apps/plugin-opener";
 
   const currentPlatform = platform();
   const isMobile = currentPlatform == "ios" || currentPlatform == "android";
@@ -46,6 +47,14 @@
   $effect(() => {
     document.body.classList.add("no-scroll");
   });
+
+  const onClickDeepLink = async () => {
+    try {
+      await openUrl("argent://send");
+    } catch (error) {
+      alert(`Failed to open deeplink: ${error}`);
+    }
+  };
 
   const onAddNode = (nodeData: NodeData) => {
     nodes.push(nodeData);
@@ -145,6 +154,7 @@
       <NodesBalancePage {nodes} {onAddNode} />
     </div>
   {/if}
+  <button onclick={onClickDeepLink}>HERE</button>
 </main>
 
 <NavBar

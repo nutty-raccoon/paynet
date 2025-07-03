@@ -17,7 +17,6 @@ pub fn run() {
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_log::Builder::new().build())
-            .plugin(tauri_plugin_os::init())
             .setup(|app| {
                 let db_path = app
                     .handle()
