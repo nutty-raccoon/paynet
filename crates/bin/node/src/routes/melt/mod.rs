@@ -1,13 +1,11 @@
 mod errors;
 mod inputs;
 
-use std::time::Duration;
-
 use inputs::process_melt_inputs;
 use liquidity_source::{LiquiditySource, WithdrawInterface};
 use nuts::Amount;
 use nuts::nut00::Proof;
-use nuts::nut05::MeltQuoteState;
+use nuts::nut05::MeltResponse;
 use starknet_types::Unit;
 use tracing::{Level, event};
 use uuid::Uuid;
@@ -81,6 +79,7 @@ impl GrpcState {
             amount: total_amount,
             state: nuts::nut05::MeltQuoteState::Unpaid,
             expiry,
+            transfer_ids: None,
         })
     }
 
@@ -91,7 +90,7 @@ impl GrpcState {
         method: Method,
         quote_id: Uuid,
         inputs: &[Proof],
-    ) -> Result<Option<Vec<String>>, Error> {
+    ) -> Result<MeltResponse, Error> {
         let mut conn = self.pg_pool.acquire().await?;
 
         // Get the existing quote from database
@@ -167,15 +166,12 @@ impl GrpcState {
             %quote_id,
         );
 
-        // Wait until the paiment events have been indexed
-        loop {
-            if let (MeltQuoteState::Paid, transfer_ids) =
-                db_node::melt_quote::get_state_and_transfer_ids(&mut conn, quote_id).await?
-            {
-                return Ok(transfer_ids);
-            } else {
-                let _ = tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-        }
+        let (state, transfer_ids) =
+            db_node::melt_quote::get_state_and_transfer_ids(&mut conn, quote_id).await?;
+
+        Ok(MeltResponse {
+            state,
+            transfer_ids,
+        })
     }
 }

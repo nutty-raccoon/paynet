@@ -1,6 +1,8 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node_client::{MintQuoteState, NodeClient, hash_melt_request};
+use node_client::{
+    MeltQuoteState, MeltQuoteStateRequest, MintQuoteState, NodeClient, hash_melt_request,
+};
 use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -389,7 +391,7 @@ async fn main() -> Result<()> {
             wallet::db::melt_quote::store(
                 &db_conn,
                 node_id,
-                method,
+                method.clone(),
                 request,
                 &melt_quote_response,
             )?;
@@ -406,7 +408,7 @@ async fn main() -> Result<()> {
             let inputs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
 
             let melt_request = node_client::MeltRequest {
-                method: STARKNET_STR.to_string(),
+                method: method.clone(),
                 quote: melt_quote_response.quote.clone(),
                 inputs: wallet::convert_inputs(&inputs),
             };
@@ -433,12 +435,32 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            println!("Melt done!");
-            if !melt_response.transfer_ids.is_empty() {
-                let transfer_ids_to_store = serde_json::to_string(&melt_response.transfer_ids)?;
+            println!("Melt submited!");
+            let transfer_ids = if melt_response.state == MeltQuoteState::MlqsPaid as i32 {
+                melt_quote_response.transfer_ids
+            } else {
+                loop {
+                    let melt_quote_state_response = node_client
+                        .melt_quote_state(MeltQuoteStateRequest {
+                            method: method.clone(),
+                            quote: melt_quote_response.quote.clone(),
+                        })
+                        .await?
+                        .into_inner();
+
+                    if melt_quote_state_response.state == MeltQuoteState::MlqsPaid as i32 {
+                        break melt_quote_state_response.transfer_ids;
+                    } else {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
+            };
+            println!("Melt paid!");
+            if !transfer_ids.is_empty() {
+                let transfer_ids_to_store = serde_json::to_string(&transfer_ids)?;
                 wallet::db::melt_quote::register_transfer_ids(
                     &db_conn,
-                    melt_quote_response.quote,
+                    melt_quote_response.quote.clone(),
                     transfer_ids_to_store,
                 )?;
                 println!(

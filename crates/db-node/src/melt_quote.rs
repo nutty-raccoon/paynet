@@ -51,15 +51,15 @@ pub async fn build_response_from_db<U: Unit>(
     quote_id: Uuid,
 ) -> Result<MeltQuoteResponse<Uuid, U>, Error> {
     let record = sqlx::query!(
-        r#"
-        SELECT 
-            amount, 
-            unit,
-            state AS "state: MeltQuoteState", 
-            expiry
-        FROM melt_quote
-        WHERE id = $1
-        "#,
+        r#"SELECT
+            mq.amount, 
+            mq.unit,
+            mq.state AS "state: MeltQuoteState",
+            mq.expiry,
+            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS "tx_hashes"
+        FROM melt_quote mq LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id
+        WHERE mq.id = $1
+        GROUP BY mq.amount, mq.unit, mq.state, mq.expiry"#,
         quote_id
     )
     .fetch_one(conn)
@@ -80,6 +80,7 @@ pub async fn build_response_from_db<U: Unit>(
         amount,
         state: record.state,
         expiry,
+        transfer_ids: record.tx_hashes,
     })
 }
 

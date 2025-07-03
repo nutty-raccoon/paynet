@@ -108,6 +108,7 @@ pub struct MeltQuoteResponse<Q, U: Unit> {
     pub state: MeltQuoteState,
     /// Unix timestamp until the quote is valid
     pub expiry: u64,
+    pub transfer_ids: Option<Vec<String>>,
 }
 
 /// Melt Request [NUT-05]
@@ -117,6 +118,12 @@ pub struct MeltRequest<Q> {
     pub quote: Q,
     /// Proofs
     pub inputs: Proofs,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MeltResponse {
+    pub state: MeltQuoteState,
+    pub transfer_ids: Option<Vec<String>>,
 }
 
 /// Melt Method Settings

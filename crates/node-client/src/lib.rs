@@ -24,25 +24,25 @@ mod proto {
 #[error("The protobuf enum value is unspecified")]
 pub struct UnspecifiedEnum;
 
-impl TryFrom<MeltState> for nut05::MeltQuoteState {
+impl TryFrom<MeltQuoteState> for nut05::MeltQuoteState {
     type Error = UnspecifiedEnum;
 
-    fn try_from(value: MeltState) -> Result<Self, UnspecifiedEnum> {
+    fn try_from(value: MeltQuoteState) -> Result<Self, UnspecifiedEnum> {
         match value {
-            MeltState::MlqsUnspecified => Err(UnspecifiedEnum),
-            MeltState::MlqsUnpaid => Ok(nut05::MeltQuoteState::Unpaid),
-            MeltState::MlqsPending => Ok(nut05::MeltQuoteState::Pending),
-            MeltState::MlqsPaid => Ok(nut05::MeltQuoteState::Paid),
+            MeltQuoteState::MlqsUnspecified => Err(UnspecifiedEnum),
+            MeltQuoteState::MlqsUnpaid => Ok(nut05::MeltQuoteState::Unpaid),
+            MeltQuoteState::MlqsPending => Ok(nut05::MeltQuoteState::Pending),
+            MeltQuoteState::MlqsPaid => Ok(nut05::MeltQuoteState::Paid),
         }
     }
 }
 
-impl From<nut05::MeltQuoteState> for MeltState {
+impl From<nut05::MeltQuoteState> for MeltQuoteState {
     fn from(value: nut05::MeltQuoteState) -> Self {
         match value {
-            nut05::MeltQuoteState::Unpaid => MeltState::MlqsUnpaid,
-            nut05::MeltQuoteState::Pending => MeltState::MlqsPending,
-            nut05::MeltQuoteState::Paid => MeltState::MlqsPaid,
+            nut05::MeltQuoteState::Unpaid => MeltQuoteState::MlqsUnpaid,
+            nut05::MeltQuoteState::Pending => MeltQuoteState::MlqsPending,
+            nut05::MeltQuoteState::Paid => MeltQuoteState::MlqsPaid,
         }
     }
 }
