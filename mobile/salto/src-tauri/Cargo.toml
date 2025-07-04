@@ -19,15 +19,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri
-tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
-tauri-plugin-log = "2"
-tauri-plugin-os = "2"
+tauri = { workspace = true }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-sql = { workspace = true, features = ["sqlite"] }
+tauri-plugin-log = { workspace = true }
+tauri-plugin-os = { workspace = true }
 
 # Serde
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 # db
 rusqlite = { workspace = true }
@@ -39,10 +39,10 @@ thiserror = { workspace = true }
 primitive-types = { workspace = true }
 num-traits = { workspace = true }
 uint = { workspace = true }
+dirs = { workspace = true }
+log = { workspace = true }
 
 # Local
 wallet = { workspace = true }
-log = { workspace = true }
-dirs = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }

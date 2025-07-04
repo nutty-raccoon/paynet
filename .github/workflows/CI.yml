@@ -63,7 +63,7 @@ jobs:
           features: starknet
           image_name: node
         - service: node
-          features: mock,keyset-rotation
+          features: starknet,mock,keyset-rotation
           image_name: node-mock
     steps:
       - uses: actions/checkout@v4
