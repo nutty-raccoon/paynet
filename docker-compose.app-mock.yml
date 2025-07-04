@@ -35,14 +35,14 @@ services:
       interval: 3s
       retries: 3
 
-  node:
+  node-mock:
     image: "node.mock"
     restart: always
     build:
       context: .
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
-        - CARGO_FEATURES=starknet,mock
+        - CARGO_FEATURES=starknet,mock,keyset-rotation
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001

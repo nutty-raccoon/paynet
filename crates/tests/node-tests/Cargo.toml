@@ -34,9 +34,10 @@ path = "health_check.rs"
 name = "cache_response"
 path = "cache_response.rs"
 
-[[test]]
-name = "verification_address"
-path = "verification_address.rs"
+# not finished
+# [[test]]
+# name = "verification_address"
+# path = "verification_address.rs"
 
 [[test]]
 name = "check_state"

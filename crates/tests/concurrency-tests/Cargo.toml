@@ -1,0 +1,46 @@
+[package]
+name = "concurrency-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tonic = { workspace = true }
+dirs = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+starknet-types-core = { workspace = true, optional = true }
+starknet = { workspace = true, optional = true }
+url = { workspace = true }
+primitive-types = { workspace = true }
+log = { workspace = true }
+itertools = { workspace = true }
+wallet = { workspace = true  }
+node-client = { workspace = true  }
+starknet-types = { workspace = true, optional = true  }
+starknet-liquidity-source = { workspace = true, optional = true }
+nuts = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+test-utils = { workspace = true, features = ["concurrency-starknet"]}
+
+# Db
+r2d2_sqlite = { workspace = true }
+r2d2 = { workspace = true }
+rusqlite = { workspace = true }
+
+[[test]]
+name = "melt"
+path = "melt.rs"
+
+[[test]]
+name = "mint"
+path = "mint.rs"
+
+[[test]]
+name = "swap"
+path = "swap.rs"
