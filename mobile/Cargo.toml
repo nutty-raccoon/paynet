@@ -15,7 +15,6 @@ thiserror = "2.0.9"
 primitive-types = "0.13.1"
 num-traits = "0.2.19"
 uint = "0.10.0"
-dirs = "6.0.0"
 log = "0.4.25"
 
 # serde
