@@ -124,7 +124,11 @@ jobs:
           components: rustfmt, clippy
 
       - name: Build tests
-        run: cargo test --no-run
+        run: |
+          cargo test -p node-tests --no-run
+          cargo test -p signer-tests --no-run
+          cargo test -p e2e-tests --no-run
+          cargo test -p concurrency-tests --no-run
   
       - name: Cache test binaries for other jobs
         uses: actions/cache/save@v3
