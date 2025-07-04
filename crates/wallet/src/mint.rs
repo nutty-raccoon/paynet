@@ -1,10 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use node_client::{
-    MintQuoteRequest, MintQuoteResponse, MintQuoteState, MintRequest, NodeClient,
-    QuoteStateRequest, hash_mint_request,
+    MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, QuoteStateRequest,
+    hash_mint_request,
 };
-use nuts::{Amount, SplitTarget, nut19::Route};
+use nuts::{Amount, SplitTarget, nut04::MintQuoteState, nut19::Route};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -59,10 +59,12 @@ pub async fn get_quote_state(
         }
         Ok(response) => {
             let response = response.into_inner();
-            let state = MintQuoteState::try_from(response.state)
-                .map_err(|e| Error::Conversion(e.to_string()))?;
+            let state = MintQuoteState::try_from(
+                node_client::MintQuoteState::try_from(response.state)
+                    .map_err(|e| Error::Conversion(e.to_string()))?,
+            )?;
 
-            if state == MintQuoteState::MnqsUnpaid {
+            if state == MintQuoteState::Unpaid {
                 let now = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
@@ -72,9 +74,9 @@ pub async fn get_quote_state(
                     return Ok(None);
                 }
             }
-            db::mint_quote::set_state(db_conn, response.quote, response.state)?;
-            let state = MintQuoteState::try_from(response.state)
-                .map_err(|e| Error::Conversion(e.to_string()))?;
+
+            db::mint_quote::set_state(db_conn, &response.quote, state)?;
+
             Ok(Some(state))
         }
         Err(e) => Err(e)?,
@@ -101,7 +103,7 @@ pub async fn redeem_quote(
 
     let mint_request = MintRequest {
         method,
-        quote: quote_id,
+        quote: quote_id.clone(),
         outputs,
     };
 
@@ -109,14 +111,17 @@ pub async fn redeem_quote(
     let mint_response = node_client.mint(mint_request).await?.into_inner();
 
     {
-        let db_conn = pool.get()?;
+        let mut db_conn = pool.get()?;
+        let tx = db_conn.transaction()?;
         let _new_tokens = store_new_tokens(
-            &db_conn,
+            &tx,
             node_id,
             keyset_id,
             pre_mints.into_iter(),
             mint_response.signatures.into_iter(),
         )?;
+        db::mint_quote::set_state(&tx, &quote_id, MintQuoteState::Issued)?;
+        tx.commit()?;
     }
 
     acknowledge(node_client, Route::Mint, mint_request_hash).await?;

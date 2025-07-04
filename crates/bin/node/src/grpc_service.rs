@@ -401,6 +401,7 @@ impl Node for GrpcState {
             amount: response.amount.into(),
             state: response.state.into(),
             expiry: response.expiry,
+            transfer_ids: Vec::default(),
         }))
     }
 
@@ -446,10 +447,11 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let transfer_ids = self.inner_melt(method, quote_id, &inputs).await?;
+        let response = self.inner_melt(method, quote_id, &inputs).await?;
 
         let melt_response = MeltResponse {
-            transfer_ids: transfer_ids.unwrap_or_default(),
+            state: response.state.into(),
+            transfer_ids: response.transfer_ids.unwrap_or_default(),
         };
 
         // Store in cache
@@ -496,8 +498,9 @@ impl Node for GrpcState {
             quote: response.quote.to_string(),
             unit: response.unit.to_string(),
             amount: response.amount.into(),
-            state: node::MeltState::from(response.state).into(),
+            state: node::MeltQuoteState::from(response.state).into(),
             expiry: response.expiry,
+            transfer_ids: response.transfer_ids.unwrap_or_default(),
         }))
     }
 

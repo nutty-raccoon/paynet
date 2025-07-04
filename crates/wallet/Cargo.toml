@@ -9,6 +9,7 @@ node-client = { workspace = true }
 futures = { workspace = true }
 nuts = { workspace = true, features = ["rusqlite"] }
 tonic = { workspace = true }
+prost = { workspace = true }
 log = { workspace = true }
 num-traits = { workspace = true }
 thiserror = { workspace = true }
@@ -16,6 +17,7 @@ url = { workspace = true, features = ["serde"] }
 bitcoin = { workspace = true }
 ciborium = { workspace = true }
 itertools = { workspace = true }
+serde_json = { workspace = true }
 
 # tls
 tonic-tls = { workspace = true, default-features=false, features=["openssl"], optional = true  }

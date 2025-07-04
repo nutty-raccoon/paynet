@@ -44,14 +44,14 @@ pub fn store(
 
     Ok(())
 }
-pub fn set_state(conn: &Connection, quote_id: String, state: i32) -> Result<()> {
+pub fn set_state(conn: &Connection, quote_id: &str, state: MintQuoteState) -> Result<()> {
     const SET_MINT_QUOTE_STATE: &str = r#"
         UPDATE mint_quote
         SET state = ?2
         WHERE id = ?1;
     "#;
 
-    conn.execute(SET_MINT_QUOTE_STATE, (&quote_id, state))?;
+    conn.execute(SET_MINT_QUOTE_STATE, (quote_id, state))?;
 
     Ok(())
 }
@@ -89,29 +89,44 @@ pub fn get(conn: &Connection, node_id: u32, quote_id: &str) -> Result<MintQuote>
     Ok(quote)
 }
 
-#[allow(clippy::type_complexity)]
-pub fn get_pendings(
-    conn: &Connection,
-) -> Result<Vec<(u32, Vec<(String, String, i32, String, u64)>)>> {
+#[derive(Debug)]
+pub struct PendingMintQuote {
+    pub id: String,
+    pub method: String,
+    pub amount: Amount,
+    pub unit: String,
+    pub request: String,
+    pub state: MintQuoteState,
+    pub expiry: u64,
+}
+
+pub fn get_pendings(conn: &Connection) -> Result<Vec<(u32, Vec<PendingMintQuote>)>> {
     const GET_PENDING_QUOTES: &str = r#"
-        SELECT node_id, method, id, state, unit, amount FROM mint_quote WHERE state = 1 OR state = 2;
+        SELECT *
+        FROM mint_quote
+        WHERE state = ?1 OR state = ?2;
+        ORDER BY node_id;
     "#;
 
     let mut stmt = conn.prepare(GET_PENDING_QUOTES)?;
-    let mut rows = stmt.query([])?;
+    let mut rows = stmt.query([MintQuoteState::Unpaid, MintQuoteState::Paid])?;
 
-    let mut quote_per_node: Vec<(u32, Vec<(String, String, i32, String, u64)>)> = Vec::new();
-    while let Some(row) = rows.next()? {
-        let node_id = row.get::<_, u32>(0)?;
-        let method = row.get::<_, String>(1)?;
-        let id = row.get::<_, String>(2)?;
-        let state = row.get::<_, i32>(3)?;
-        let unit = row.get::<_, String>(4)?;
-        let amount = row.get::<_, u64>(5)?;
+    let mut quote_per_node: Vec<(u32, Vec<PendingMintQuote>)> = Vec::new();
+    while let Some(r) = rows.next()? {
+        let node_id = r.get::<_, u32>(1)?;
+        let pending_mint_quote = PendingMintQuote {
+            id: r.get::<_, _>(0)?,
+            method: r.get::<_, _>(2)?,
+            amount: r.get::<_, _>(3)?,
+            unit: r.get::<_, _>(4)?,
+            request: r.get::<_, _>(5)?,
+            state: r.get::<_, _>(6)?,
+            expiry: r.get::<_, _>(7)?,
+        };
 
         match quote_per_node.iter().position(|v| v.0 == node_id) {
-            Some(p) => quote_per_node[p].1.push((method, id, state, unit, amount)),
-            None => quote_per_node.push((node_id, vec![(method, id, state, unit, amount)])),
+            Some(p) => quote_per_node[p].1.push(pending_mint_quote),
+            None => quote_per_node.push((node_id, vec![pending_mint_quote])),
         }
     }
 

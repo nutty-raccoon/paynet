@@ -3,6 +3,7 @@ pub mod errors;
 pub mod melt;
 pub mod mint;
 mod outputs;
+pub mod sync;
 pub mod types;
 
 use std::str::FromStr;

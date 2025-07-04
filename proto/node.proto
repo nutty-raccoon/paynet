@@ -115,8 +115,9 @@ message MeltQuoteResponse {
   string quote = 1;
   uint64 amount = 2;
   string unit = 3;
-  MeltState state = 4;
+  MeltQuoteState state = 4;
   uint64 expiry = 5;
+  repeated string transfer_ids = 6;
 }
 
 message MeltQuoteStateRequest {
@@ -124,7 +125,7 @@ message MeltQuoteStateRequest {
   string quote = 2;
 }
 
-enum MeltState {
+enum MeltQuoteState {
   MLQS_UNSPECIFIED = 0;
   MLQS_UNPAID = 1;
   MLQS_PENDING = 2;
@@ -138,7 +139,8 @@ message MeltRequest {
 }
 
 message MeltResponse {
-  repeated string transfer_ids = 6;
+  MeltQuoteState state = 1;
+  repeated string transfer_ids = 2;
 }
 
 message SwapRequest {

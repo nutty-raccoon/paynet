@@ -1,12 +1,19 @@
+use node_client::UnspecifiedEnum;
 use thiserror::Error;
 use tonic::Status;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("transport error: {0}")]
     Transport(#[from] tonic::transport::Error),
+    #[error("unknown enum value: {0}")]
+    ProstUnknownEnumValue(#[from] prost::UnknownEnumValue),
+    #[error(transparent)]
+    UnspecifiedEnum(#[from] UnspecifiedEnum),
     #[error("amount overflow")]
     AmountOverflow,
     #[error("no matching keyset found")]
