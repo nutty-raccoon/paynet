@@ -2,15 +2,17 @@ name: Rust CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]
   pull_request:
-    branches: ["main"]
+    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
   CARGO_TERM_COLOR: always
   ROOT_KEY: tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
   SIGNER_GRPC_PORT: 10001
@@ -47,8 +49,97 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-  test:
-    name: Test
+  build-images:
+    runs-on: ubuntu-8-cores
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+        - service: signer
+        - service: starknet-setup
+        - service: node
+          features: starknet
+          image_name: node
+        - service: node
+          features: starknet,mock,keyset-rotation
+          image_name: node-mock
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./dockerfiles/${{ matrix.service }}.Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image_name || matrix.service }}:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image_name || matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.image_name || matrix.service }},mode=max
+          build-args: |
+            CARGO_FEATURES=${{ matrix.features || '' }}
+
+  build-binary:
+    runs-on: ubuntu-8-cores
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+      
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Build tests
+        run: |
+          cargo test -p node-tests --no-run
+          cargo test -p signer-tests --no-run
+          cargo test -p e2e-tests --no-run
+          cargo test -p concurrency-tests --no-run
+  
+      - name: Cache test binaries for other jobs
+        uses: actions/cache/save@v3
+        with:
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+
+  unit-test:
+    name: Unit-test
     strategy:
       matrix:
         include:
@@ -101,55 +192,122 @@ jobs:
       - name: Run test
         run: ${{ matrix.test_cmd }}
 
-
-  integration-test:
-    name: Integration Test
+  test:
+    needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
-    services:
-      db:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 'password'
-          POSTGRES_DB: node
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
-      - uses: actions/checkout@v4
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
-      - uses: dtolnay/rust-toolchain@1.86.0
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
         with:
-          shared-key: "rust-cache-integration-${{ hashFiles('**/Cargo.lock') }}"
-          cache-on-failure: true
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
-      - name: Build services for integration tests
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image environment variables
         run: |
-          cargo build -p signer --bin signer -p node --no-default-features --features=starknet,mock,keyset-rotation --bin node
-          cargo test --no-run -p signer-tests
-          cargo test --no-run -p node-tests
-      - name: Run integration tests
-        timeout-minutes: 1
+          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
+          echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
+        
+      - name: Restore test binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Start integration service (mock)
         run: |
-          # Signer
-          GRPC_PORT=$SIGNER_GRPC_PORT ./target/debug/signer &
-          SIGNER_RUN_PID=$!
-          while ! echo exit | nc localhost $SIGNER_GRPC_PORT; do sleep 1; done
-          GRPC_PORT=$SIGNER_GRPC_PORT cargo test -p signer-tests
-          # Node
-          GRPC_PORT=$NODE_GRPC_PORT ./target/debug/node --config ./crates/bin/node/config/local.toml &
-          NODE_RUN_PID=$!
-          while ! echo exit | nc localhost $NODE_GRPC_PORT; do sleep 1; done
-          GRPC_PORT=$NODE_GRPC_PORT cargo test -p node-tests
-          # Cleanup
-          kill $SIGNER_RUN_PID
-          kill $NODE_RUN_PID
+          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml up -d
+
+      - name: Wait for integration services to be healthy
+        run: |
+          echo "Waiting for services to be healthy..."
+          timeout 300 bash -c '
+            until docker compose -f docker-compose.app-mock.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
+              echo "Waiting for mock services to be ready..."
+              sleep 2
+              docker compose -f docker-compose.app-mock.yml ps
+            done
+          '
+
+      - name: Run node integration tests
+        env:
+          GRPC_PORT: 10003
+        run: cargo test -p node-tests
+
+      - name: Run signer integration tests
+        env:
+          GRPC_PORT: 10001
+          ROOT_KEY: "${{ env.ROOT_KEY }}"
+        run: cargo test -p signer-tests
+
+      - name: Cleanup integration tests
+        run: |
+          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml down -v
+
+      - name: Start services  
+        run: |
+          docker compose -f docker-compose.app.yml -f docker-compose.ci-testnet.yml up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to be healthy..."
+          timeout 300 bash -c '
+            until docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "4"; do
+              echo "Waiting for all services to be ready..."
+              sleep 10
+              docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+            done
+          '
+
+      - name: Run basic health checks
+        run: |
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T db pg_isready -U postgres
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T signer /bin/grpc_health_probe -addr=localhost:10001
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T node /bin/grpc_health_probe -addr=localhost:10003
+          curl -f http://localhost:5050/is_alive
+
+      - name: Cleanup CLI wallet DB
+        if: always()
+        run: rm -rf /home/runner/.local/share
+
+      - name: Run E2E and concurrency tests
+        env:
+          NODE_URL: http://localhost:10003
+          RPC_URL: http://localhost:5050
+          PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+          ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+        run: |
+          cargo test -p e2e-tests
+          cargo test -p concurrency-tests
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+
+          echo "=== Docker compose logs ==="
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml logs
+          echo "=== Docker compose ps ==="
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+  
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml down -v
+          docker system prune -f
+          rm -rf /home/runner/.local/share
