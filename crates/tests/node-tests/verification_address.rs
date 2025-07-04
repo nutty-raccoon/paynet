@@ -13,7 +13,6 @@ use starknet_types::{Asset, Unit};
 use starknet_types_core::felt::Felt;
 
 #[tokio::test]
-#[cfg(feature = "starknet")]
 async fn test_melt_with_valid_address() -> Result<()> {
     let mut node_client = init_node_client().await?;
 
@@ -98,15 +97,15 @@ async fn test_melt_with_valid_address() -> Result<()> {
     let payment_request = MeltPaymentRequest {
         payee: valid_address,
         asset: Asset::Strk,
+        amount: todo!(),
     };
 
     let serialized_request = serde_json::to_string(&payment_request)?;
 
     let melt_request = MeltRequest {
         method: "starknet".to_string(),
-        unit: Unit::MilliStrk.as_str().to_string(),
-        request: serialized_request,
         inputs: vec![proof],
+        quote: todo!(),
     };
 
     let result = node_client.melt(melt_request).await;
@@ -132,7 +131,6 @@ async fn test_melt_with_valid_address() -> Result<()> {
 }
 
 #[tokio::test]
-#[cfg(feature = "starknet")]
 async fn test_melt_with_invalid_addresses() -> Result<()> {
     let mut node_client = init_node_client().await?;
 
@@ -228,15 +226,15 @@ async fn test_melt_with_invalid_addresses() -> Result<()> {
         let payment_request = MeltPaymentRequest {
             payee: invalid_address,
             asset: Asset::Strk,
+            amount: todo!(),
         };
 
         let serialized_request = serde_json::to_string(&payment_request)?;
 
         let melt_request = MeltRequest {
             method: "starknet".to_string(),
-            unit: Unit::MilliStrk.to_string(),
-            request: serialized_request,
             inputs: vec![proof.clone()],
+            quote: todo!(),
         };
 
         let result = node_client.melt(melt_request).await;
