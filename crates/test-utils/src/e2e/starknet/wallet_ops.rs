@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use itertools::Itertools;
-use node_client::{MeltRequest, MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
+use node_client::{
+    MeltQuoteRequest, MeltQuoteStateRequest, MeltRequest, NodeClient, hash_melt_request,
+};
+use nuts::{Amount, nut04::MintQuoteState};
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, STARKNET_STR, Unit};
@@ -74,7 +77,7 @@ impl WalletOps {
                     return Ok(());
                 }
             };
-            if state == MintQuoteState::MnqsPaid {
+            if state == MintQuoteState::Paid {
                 break;
             }
         }
@@ -115,7 +118,7 @@ impl WalletOps {
         .await?
         .ok_or(anyhow!("not enough funds"))?;
 
-        let proofs = wallet::load_tokens_from_db(&*self.db_pool.get()?, proofs_ids)?;
+        let proofs = wallet::load_tokens_from_db(&*self.db_pool.get()?, &proofs_ids)?;
         let compact_proofs = proofs
             .into_iter()
             .chunk_by(|p| p.keyset_id)
@@ -153,24 +156,7 @@ impl WalletOps {
     }
 
     pub async fn melt(&mut self, amount: U256, asset: Asset, to: String) -> Result<()> {
-        let amount = amount
-            .checked_mul(asset.scale_factor())
-            .ok_or(anyhow!("amount too big"))?;
-        let (amount, unit, _) = asset
-            .convert_to_amount_and_unit(amount)
-            .map_err(|e| Error::Other(e.into()))?;
-
-        let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-            self.db_pool.clone(),
-            &mut self.node_client,
-            self.node_id,
-            amount,
-            unit.as_str(),
-        )
-        .await?
-        .ok_or(anyhow!("not enough funds"))?;
-
-        let inputs = wallet::load_tokens_from_db(&*self.db_pool.get()?, proofs_ids)?;
+        let method = STARKNET_STR.to_string();
         let payee_address = Felt::from_hex(&to).map_err(|e| Error::Other(e.into()))?;
         if !starknet_types::is_valid_starknet_address(&payee_address) {
             return Err(Error::Other(anyhow!(
@@ -178,18 +164,52 @@ impl WalletOps {
                 payee_address
             )));
         }
+
+        let amount = amount
+            .checked_mul(asset.scale_factor())
+            .ok_or(anyhow!("amount too big"))?;
+        let request = serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+            payee: payee_address,
+            asset: starknet_types::Asset::Strk,
+            amount: amount.into(),
+        })?;
+
+        let unit = asset.find_best_unit();
+        let melt_quote_response = self
+            .node_client
+            .melt_quote(MeltQuoteRequest {
+                method: method.clone(),
+                unit: unit.to_string(),
+                request: request.clone(),
+            })
+            .await?
+            .into_inner();
+        wallet::db::melt_quote::store(
+            &*self.db_pool.get()?,
+            self.node_id,
+            method.clone(),
+            request,
+            &melt_quote_response,
+        )?;
+
+        let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+            self.db_pool.clone(),
+            &mut self.node_client,
+            self.node_id,
+            Amount::from(melt_quote_response.amount),
+            unit.as_str(),
+        )
+        .await?
+        .ok_or(anyhow!("not enough funds"))?;
+
+        let inputs = wallet::load_tokens_from_db(&*self.db_pool.get()?, &proofs_ids)?;
         let melt_request = MeltRequest {
-            method: STARKNET_STR.to_string(),
-            unit: unit.to_string(),
-            request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-                payee: payee_address,
-                asset: starknet_types::Asset::Strk,
-            })?,
+            method: method.clone(),
             inputs: wallet::convert_inputs(&inputs),
+            quote: melt_quote_response.quote.clone(),
         };
         let melt_request_hash = hash_melt_request(&melt_request);
-        let resp = self.node_client.melt(melt_request).await?.into_inner();
-        wallet::db::register_melt_quote(&*self.db_pool.get()?, self.node_id, &resp)?;
+        let _melt_response = self.node_client.melt(melt_request).await?.into_inner();
 
         wallet::acknowledge(
             &mut self.node_client,
@@ -201,9 +221,9 @@ impl WalletOps {
         loop {
             let melt_quote_state_response = self
                 .node_client
-                .melt_quote_state(QuoteStateRequest {
-                    method: "starknet".to_string(),
-                    quote: resp.quote.clone(),
+                .melt_quote_state(MeltQuoteStateRequest {
+                    method: method.clone(),
+                    quote: melt_quote_response.quote.clone(),
                 })
                 .await?
                 .into_inner();

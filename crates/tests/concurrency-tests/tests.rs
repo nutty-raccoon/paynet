@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Result;
 use concurrency_tests::read_env_variables;
 use test_utils::concurrency::starknet::operations::{

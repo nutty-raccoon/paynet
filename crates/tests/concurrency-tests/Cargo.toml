@@ -34,13 +34,6 @@ r2d2 = { workspace = true }
 rusqlite = { workspace = true }
 
 [[test]]
-name = "melt"
-path = "melt.rs"
+name = "tests"
+path = "tests.rs"
 
-[[test]]
-name = "mint"
-path = "mint.rs"
-
-[[test]]
-name = "swap"
-path = "swap.rs"

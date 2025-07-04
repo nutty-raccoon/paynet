@@ -9,37 +9,19 @@ use crate::{e2e::wallet_ops::WalletOps, env_variables::EnvVariables};
 
 mod wallet_ops;
 
-fn db_connection() -> Result<(Connection, PathBuf)> {
-    let db_path = if let Ok(env_path) = std::env::var("WALLET_DB_PATH") {
-        PathBuf::from(env_path)
-    } else {
-        dirs::data_dir()
-            .map(|mut dp| {
-                dp.push("cli-wallet.sqlite3");
-                dp
-            })
-            .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?
-    };
-    println!(
-        "Using database at {:?}\n",
-        db_path
-            .as_path()
-            .to_str()
-            .ok_or(anyhow!("invalid db path"))?
-    );
-
-    let mut db_conn = rusqlite::Connection::open(db_path.clone())?;
+fn db_connection() -> Result<Connection> {
+    let mut db_conn = rusqlite::Connection::open_in_memory()?;
 
     wallet::db::create_tables(&mut db_conn)?;
-    Ok((db_conn, db_path))
+
+    Ok(db_conn)
 }
 
 pub async fn run_e2e(env: EnvVariables) -> Result<()> {
-    let (mut db_conn, _db_path) = db_connection()?;
+    let mut db_conn = db_connection()?;
     let node_url = NodeUrl::from_str(&env.node_url).map_err(|e| Error::Other(e.into()))?;
 
     let tx = db_conn.transaction()?;
-
     let (node_client, node_id) = wallet::register_node(&tx, node_url.clone()).await?;
     tx.commit()?;
 

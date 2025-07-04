@@ -8,7 +8,7 @@ use wallet::types::NodeUrl;
 #[tokio::test]
 pub async fn run_e2e() -> Result<()> {
     let env = read_env_variables()?;
-    let (db_pool, _db_path) = db_connection()?;
+    let db_pool = db_connection()?;
     let node_url = NodeUrl::from_str(&env.node_url)?;
 
     let (node_client, node_id) = wallet::register_node(db_pool.clone(), &node_url).await?;

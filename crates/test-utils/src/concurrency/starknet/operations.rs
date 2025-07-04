@@ -2,9 +2,9 @@ use std::collections::HashSet;
 
 use futures::future::join_all;
 use node_client::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltRequest, MeltResponse,
-    MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, NodeClient, Proof, SwapRequest,
-    SwapResponse, hash_mint_request,
+    AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltQuoteRequest, MeltRequest,
+    MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, NodeClient,
+    Proof, SwapRequest, SwapResponse, hash_mint_request,
 };
 use nuts::{
     Amount,
@@ -12,7 +12,8 @@ use nuts::{
     nut00::secret::Secret,
     nut01::PublicKey,
 };
-use starknet_types::Unit;
+use primitive_types::U256;
+use starknet_types::{STARKNET_STR, Unit};
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 
@@ -27,9 +28,9 @@ use crate::{
     },
 };
 
-/// Concurrency tests for mint, swap, and melt operations.
+// Concurrency tests for mint, swap, and melt operations.
 
-/// Verifies double-spending protection by attempting to reuse a single quote across multiple concurrent mint operations
+// Verifies double-spending protection by attempting to reuse a single quote across multiple concurrent mint operations
 pub async fn mint_same_quote(node_client: NodeClient<Channel>, env: EnvVariables) -> Result<()> {
     let amount = Amount::from_i64_repr(32);
 
@@ -364,14 +365,9 @@ pub async fn melt_same_input(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
 ) -> Result<()> {
-    let mut payees: HashSet<Felt> = HashSet::new();
-    for i in 0..100 {
-        // we at 0x02 because the first two address is not valid
-        let addr = "0x02".to_string() + &i.to_string();
-        payees.insert(Felt::from_hex(&addr).map_err(|e| Error::Other(e.into()))?);
-    }
-
     let amount = Amount::from_i64_repr(32);
+
+    // MINTING
 
     let original_mint_quote_response =
         mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
@@ -440,22 +436,43 @@ pub async fn melt_same_input(
         unblind_signature: unblinded_signature.to_bytes().to_vec(),
     };
 
-    let mut melt_requests: Vec<MeltRequest> = Vec::new();
+    let mut melt_quote_ids: Vec<String> = Vec::new();
+    // Build a set of recipient
+    let mut payees: HashSet<Felt> = HashSet::new();
+    for i in 0..100 {
+        // we start at 0x02 because the first two address is not valid
+        let addr = "0x02".to_string() + &i.to_string();
+        payees.insert(Felt::from_hex(&addr).map_err(|e| Error::Other(e.into()))?);
+    }
+
+    let method = STARKNET_STR.to_string();
+    let asset = starknet_types::Asset::Strk;
+    let on_chain_amount = U256::from(32).checked_mul(asset.scale_factor()).unwrap() / 1000;
     for payee in payees.iter() {
-        melt_requests.push(MeltRequest {
-            method: "starknet".to_string(),
-            unit: Unit::MilliStrk.to_string(),
-            request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-                payee: *payee,
-                asset: starknet_types::Asset::Strk,
-            })?,
-            inputs: vec![proof.clone()],
-        });
+        let melt_quote_response = node_client
+            .melt_quote(MeltQuoteRequest {
+                method: method.clone(),
+                unit: Unit::MilliStrk.to_string(),
+                request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                    payee: *payee,
+                    asset,
+                    amount: on_chain_amount.into(),
+                })?,
+            })
+            .await?
+            .into_inner();
+        assert_eq!(melt_quote_response.amount, proof.amount);
+        melt_quote_ids.push(melt_quote_response.quote);
     }
 
     let mut multi_melt = Vec::new();
-    for melt_request in melt_requests.iter() {
-        multi_melt.push(make_melt(node_client.clone(), melt_request.clone()));
+    for melt_quote_id in melt_quote_ids.into_iter() {
+        let melt_request = MeltRequest {
+            method: method.clone(),
+            quote: melt_quote_id,
+            inputs: vec![proof.clone()],
+        };
+        multi_melt.push(make_melt(node_client.clone(), melt_request));
     }
     let res = join_all(multi_melt).await;
     let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();

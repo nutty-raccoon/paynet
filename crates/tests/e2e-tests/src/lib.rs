@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use r2d2_sqlite::SqliteConnectionManager;
 use test_utils::common::utils::EnvVariables;
 
@@ -18,30 +16,11 @@ pub fn read_env_variables() -> Result<EnvVariables> {
     })
 }
 
-pub fn db_connection() -> Result<(r2d2::Pool<SqliteConnectionManager>, PathBuf)> {
-    let db_path = if let Ok(env_path) = std::env::var("WALLET_DB_PATH") {
-        PathBuf::from(env_path)
-    } else {
-        dirs::data_dir()
-            .map(|mut dp| {
-                dp.push("test-wallet.sqlite3");
-                dp
-            })
-            .ok_or(anyhow!("couldn't find `data_dir` on this computer"))?
-    };
-    println!(
-        "Using database at {:?}\n",
-        db_path
-            .as_path()
-            .to_str()
-            .ok_or(anyhow!("invalid db path"))?
-    );
-
-    let mut db_conn = rusqlite::Connection::open(db_path.clone())?;
-
-    wallet::db::create_tables(&mut db_conn)?;
-    let manager = SqliteConnectionManager::file(db_path.clone());
+pub fn db_connection() -> Result<r2d2::Pool<SqliteConnectionManager>> {
+    let manager = SqliteConnectionManager::memory();
     let pool = r2d2::Pool::new(manager)?;
+    let mut db_conn = pool.get()?;
+    wallet::db::create_tables(&mut db_conn)?;
 
-    Ok((pool, db_path))
+    Ok(pool)
 }
