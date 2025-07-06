@@ -587,10 +587,16 @@ pub enum TlsError {
     Connect(#[from] tonic_tls::Error),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ConnectToNodeError {
+    #[error("failed to connect to node")]
+    Tonic(#[from] tonic::transport::Error),
+}
+
 #[cfg(not(feature = "tls"))]
 pub async fn connect_to_node(
     node_url: &NodeUrl,
-) -> Result<NodeClient<Channel>, tonic::transport::Error> {
+) -> Result<NodeClient<Channel>, ConnectToNodeError> {
     #[cfg(not(feature = "tls"))]
     let node_client = NodeClient::connect(node_url.0.to_string()).await?;
 

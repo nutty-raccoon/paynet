@@ -12,7 +12,7 @@ pub fn migrations() -> Vec<Migration> {
         Migration {
             version: 2,
             description: "create_table_keyset",
-            sql: wallet::db::CREATE_TABLE_KEYSET,
+            sql: wallet::db::keyset::CREATE_TABLE_KEYSET,
             kind: MigrationKind::Up,
         },
         Migration {

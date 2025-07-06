@@ -13,11 +13,17 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = {
-        tauri::Builder::default()
+        let builder = tauri::Builder::default();
+
+        let builder = builder
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_log::Builder::new().build())
-            .plugin(tauri_plugin_os::init())
+            .plugin(tauri_plugin_os::init());
+        #[cfg(mobile)]
+        let builder = builder.plugin(tauri_plugin_nfc::init());
+
+        builder
             .setup(|app| {
                 let db_path = app
                     .handle()

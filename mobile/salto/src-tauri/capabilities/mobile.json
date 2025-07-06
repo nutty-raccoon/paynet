@@ -7,5 +7,9 @@
   "windows": [
     "main"
   ],
-  "permissions": []
+  "permissions": [
+    "nfc:allow-is-available",
+    "nfc:allow-scan",
+    "nfc:allow-write"
+  ]
 }

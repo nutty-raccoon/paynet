@@ -21,6 +21,3 @@ target/
 .DS_Store
 .qodo
 *.wad
-
-# tauri app generated files
-mobile/**/gen/

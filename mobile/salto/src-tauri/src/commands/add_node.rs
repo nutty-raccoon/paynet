@@ -15,6 +15,8 @@ pub enum Error {
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
     Wallet(#[from] wallet::errors::Error), // TODO: create more granular errors in wallet
+    #[error(transparent)]
+    RegisterNode(#[from] wallet::RegisterNodeError),
 }
 
 impl serde::Serialize for Error {

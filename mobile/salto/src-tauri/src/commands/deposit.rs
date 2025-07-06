@@ -26,6 +26,8 @@ pub enum CreateMintQuoteError {
     Amount(#[from] ParseAmountStringError),
     #[error(transparent)]
     AssetToUnitConversion(#[from] AssetToUnitConversionError),
+    #[error(transparent)]
+    ConnectToNode(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for CreateMintQuoteError {
@@ -57,7 +59,7 @@ pub async fn create_mint_quote(
 
     let node_url = {
         let db_conn = state.pool.get()?;
-        wallet::db::get_node_url(&db_conn, node_id)?.ok_or(CreateMintQuoteError::NodeId(node_id))?
+        wallet::db::node::get_url_by_id(&db_conn, node_id)?.ok_or(CreateMintQuoteError::NodeId(node_id))?
     };
     let mut node_client = wallet::connect_to_node(&node_url).await?;
 
@@ -67,7 +69,7 @@ pub async fn create_mint_quote(
         node_id,
         STARKNET_STR.to_string(),
         amount,
-        unit.as_str(),
+        unit,
     )
     .await?;
 
@@ -91,6 +93,8 @@ pub enum RedeemQuoteError {
     QuoteNotPaid,
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
+    #[error(transparent)]
+    NodeConnect(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for RedeemQuoteError {
@@ -111,7 +115,7 @@ pub async fn redeem_quote(
 ) -> Result<(), RedeemQuoteError> {
     let node_url = {
         let db_conn = state.pool.get()?;
-        wallet::db::get_node_url(&db_conn, node_id)?.ok_or(RedeemQuoteError::NodeId(node_id))?
+        wallet::db::node::get_url_by_id(&db_conn, node_id)?.ok_or(RedeemQuoteError::NodeId(node_id))?
     };
     let mut node_client = wallet::connect_to_node(&node_url).await?;
 

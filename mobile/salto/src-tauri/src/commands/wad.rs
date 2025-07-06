@@ -34,6 +34,8 @@ pub enum CreateWadsError {
     NotEnoughFunds(Amount, Amount),
     #[error("not enought funds in node {0}")]
     NotEnoughFundsInNode(u32),
+    #[error(transparent)]
+    NodeConnect(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for CreateWadsError {
@@ -93,7 +95,7 @@ pub async fn create_wads(
             &mut node_client,
             node_id,
             amount_to_use,
-            unit.as_str(),
+            unit,
         )
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
@@ -136,6 +138,8 @@ pub enum ReceiveWadsError {
     Tauri(#[from] tauri::Error),
     #[error("this is a json error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    RegisterNode(#[from] wallet::RegisterNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
