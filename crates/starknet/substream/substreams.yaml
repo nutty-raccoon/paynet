@@ -33,14 +33,16 @@ modules:
     - map: starknet:filtered_transactions
   output:
    type: proto:starknet.v1.Events
+- name: map_block_meta
+  kind: map
+  initialBlock: 450595
+  inputs:
+    - map: starknet:blocks
+  output:
+    type: proto:starknet.v1.BlockMeta
 
 network: starknet-testnet
 
-# sink:
-#   module: map_invoice_events
-#   type: sf.substreams.sink.sql.v1.Service
-#   config:
-#     engine: postgres
 
 
 params:
