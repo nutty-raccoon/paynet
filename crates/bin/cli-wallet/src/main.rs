@@ -1,19 +1,22 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use itertools::Itertools;
-use node::{MintQuoteState, NodeClient, QuoteStateRequest, hash_melt_request};
-use nuts::Amount;
+use node_client::{MeltQuoteState, NodeClient, hash_melt_request};
+use nuts::{Amount, nut04::MintQuoteState};
 use primitive_types::U256;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
-use starknet_types::{Asset, Unit, is_valid_starknet_address};
+use starknet_types::{Asset, STARKNET_STR, Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
+use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
     acknowledge,
-    types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
-    types::{NodeUrl, Wad},
+    db::balance::Balance,
+    types::{NodeUrl, ProofState, Wad, compact_wad::CompactWad},
 };
+
+mod sync;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -46,13 +49,6 @@ enum MintCommands {
         #[arg(long)]
         node_id: u32,
     },
-
-    /// Sync
-    #[command(
-        about = "Sync ongoing mint operation",
-        long_about = "Sync ongoing mint operation. Inspect the database for pending quote and ask the node about updates. Finalize the mint if possible."
-    )]
-    Sync {},
 }
 
 #[derive(Subcommand)]
@@ -110,6 +106,7 @@ enum Commands {
         #[arg(long)]
         to: String,
     },
+
     /// Send tokens
     #[command(
         about = "Send some tokens",
@@ -144,6 +141,12 @@ enum Commands {
         long_about = "Decode a wad to print its contents in a friendly format"
     )]
     DecodeWad(WadArgs),
+    /// Sync all pending operations
+    #[command(
+        about = "Sync all pending mint and melt operations",
+        long_about = "Check all nodes for pending mint and melt quote updates and process them accordingly"
+    )]
+    Sync,
 }
 
 #[derive(Args)]
@@ -170,8 +173,6 @@ impl WadArgs {
     }
 }
 
-const STARKNET_METHOD: &str = "starknet";
-
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -194,7 +195,9 @@ async fn main() -> Result<()> {
             .ok_or(anyhow!("invalid db path"))?
     );
 
-    let mut db_conn = rusqlite::Connection::open(db_path)?;
+    let manager = SqliteConnectionManager::file(db_path);
+    let pool = r2d2::Pool::new(manager)?;
+    let mut db_conn = pool.get()?;
 
     wallet::db::create_tables(&mut db_conn)?;
 
@@ -203,7 +206,8 @@ async fn main() -> Result<()> {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
 
             let tx = db_conn.transaction()?;
-            let (mut _node_client, node_id) = wallet::register_node(&tx, node_url.clone()).await?;
+            let (mut _node_client, node_id) =
+                wallet::register_node(pool.clone(), &node_url).await?;
             tx.commit()?;
             println!(
                 "Successfully registered {} as node with id `{}`",
@@ -222,7 +226,7 @@ async fn main() -> Result<()> {
             Some(node_id) => {
                 let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
                 println!("Balance for node {}:", node_id);
-                for (unit, amount) in balances {
+                for Balance { unit, amount } in balances {
                     println!("  {} {}", amount, unit);
                 }
             }
@@ -231,7 +235,7 @@ async fn main() -> Result<()> {
                 for node_balances in nodes_with_balances {
                     println!(
                         "Balance for node {} ({}):",
-                        node_balances.node_id, node_balances.url
+                        node_balances.id, node_balances.url
                     );
                     for balance in node_balances.balances {
                         println!("  {} {}", balance.amount, balance.unit);
@@ -247,23 +251,20 @@ async fn main() -> Result<()> {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Requesting {} to mint {} {}", &node_url, amount, asset);
 
-            let tx = db_conn.transaction()?;
-
             let amount = amount
-                .checked_mul(asset.precision())
+                .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            let mint_quote_response = wallet::create_mint_quote(
-                &tx,
+            let mint_quote_response = wallet::mint::create_quote(
+                pool.clone(),
                 &mut node_client,
                 node_id,
-                STARKNET_METHOD.to_string(),
+                STARKNET_STR.to_string(),
                 amount,
                 unit.as_str(),
             )
             .await?;
-            tx.commit()?;
 
             println!(
                 "MintQuote created with id: {}\nProceed to payment:\n{}",
@@ -274,10 +275,10 @@ async fn main() -> Result<()> {
                 // Wait a bit
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                let state = match wallet::get_mint_quote_state(
+                let state = match wallet::mint::get_quote_state(
                     &db_conn,
                     &mut node_client,
-                    STARKNET_METHOD.to_string(),
+                    STARKNET_STR.to_string(),
                     mint_quote_response.quote.clone(),
                 )
                 .await?
@@ -289,69 +290,25 @@ async fn main() -> Result<()> {
                     }
                 };
 
-                if state == MintQuoteState::MnqsPaid {
+                if state == MintQuoteState::Paid {
                     println!("On-chain deposit received");
                     break;
                 }
             }
 
-            let tx = db_conn.transaction()?;
-            wallet::mint_and_store_new_tokens(
-                &tx,
+            wallet::mint::redeem_quote(
+                pool.clone(),
                 &mut node_client,
-                STARKNET_METHOD.to_string(),
+                STARKNET_STR.to_string(),
                 mint_quote_response.quote,
                 node_id,
                 unit.as_str(),
                 amount,
             )
             .await?;
-            tx.commit()?;
 
             // TODO: remove mint_quote
             println!("Token stored. Finished.");
-        }
-        Commands::Mint(MintCommands::Sync {}) => {
-            let pending_quotes = wallet::db::get_pending_mint_quotes(&db_conn)?;
-            for (node_id, quotes) in pending_quotes {
-                let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
-                for (method, quote_id, previous_state, unit, amount) in quotes {
-                    let tx = db_conn.transaction()?;
-                    let new_state = match wallet::get_mint_quote_state(
-                        &tx,
-                        &mut node_client,
-                        method,
-                        quote_id.clone(),
-                    )
-                    .await?
-                    {
-                        Some(new_state) => new_state,
-                        None => {
-                            println!("quote {} has expired", quote_id);
-                            continue;
-                        }
-                    };
-
-                    let previous_state = MintQuoteState::try_from(previous_state).unwrap();
-                    if previous_state == MintQuoteState::MnqsUnpaid
-                        && new_state == MintQuoteState::MnqsPaid
-                    {
-                        println!("On-chain deposit received for quote {}", quote_id);
-                        wallet::mint_and_store_new_tokens(
-                            &tx,
-                            &mut node_client,
-                            STARKNET_METHOD.to_string(),
-                            quote_id,
-                            node_id,
-                            unit.as_str(),
-                            Amount::from(amount),
-                        )
-                        .await?;
-                        println!("Token stored.");
-                    }
-                    tx.commit()?;
-                }
-            }
         }
         Commands::Melt {
             amount,
@@ -363,47 +320,72 @@ async fn main() -> Result<()> {
 
             println!("Melting {} {} tokens", amount, asset);
 
-            let amount = amount
-                .checked_mul(asset.precision())
+            let on_chain_amount = amount
+                .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
-            let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
-
-            let tx = db_conn.transaction()?;
-            let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                &tx,
-                &mut node_client,
-                node_id,
-                amount,
-                unit.as_str(),
-            )
-            .await?
-            .ok_or(anyhow!("not enough funds"))?;
-            tx.commit()?;
-
-            let tx = db_conn.transaction()?;
-
-            let inputs = wallet::load_tokens_from_db(&tx, proofs_ids).await?;
+            let (node_amount, unit, _remainder) =
+                asset.convert_to_amount_and_unit(on_chain_amount)?;
 
             let payee_address = Felt::from_hex(&to)?;
             if !is_valid_starknet_address(&payee_address) {
                 return Err(anyhow!("Invalid starknet address: {}", payee_address));
             }
 
-            let melt_request = node::MeltRequest {
-                method: STARKNET_METHOD.to_string(),
+            let request = serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                payee: payee_address,
+                asset: starknet_types::Asset::Strk,
+                amount: on_chain_amount.into(),
+            })?;
+            let method = STARKNET_STR.to_string();
+            let melt_quote_request = node_client::MeltQuoteRequest {
+                method: method.clone(),
                 unit: unit.to_string(),
-                request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-                    payee: payee_address,
-                    asset: starknet_types::Asset::Strk,
-                })?,
+                request: request.clone(),
+            };
+
+            let melt_quote_response = node_client
+                .melt_quote(melt_quote_request)
+                .await?
+                .into_inner();
+            wallet::db::melt_quote::store(
+                &db_conn,
+                node_id,
+                method.clone(),
+                request,
+                &melt_quote_response,
+            )?;
+
+            let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+                pool.clone(),
+                &mut node_client,
+                node_id,
+                node_amount.max(Amount::from(melt_quote_response.amount)),
+                unit.as_str(),
+            )
+            .await?
+            .ok_or(anyhow!("not enough funds"))?;
+            let inputs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
+
+            let melt_request = node_client::MeltRequest {
+                method: method.clone(),
+                quote: melt_quote_response.quote.clone(),
                 inputs: wallet::convert_inputs(&inputs),
             };
             let melt_request_hash = hash_melt_request(&melt_request);
-            let resp = node_client.melt(melt_request).await?.into_inner();
-
-            wallet::db::register_melt_quote(&tx, node_id, &resp)?;
-
-            tx.commit()?;
+            let melt_response = match node_client.melt(melt_request).await {
+                Ok(r) => r.into_inner(),
+                Err(e) => {
+                    // Reset the proof state
+                    // TODO: if the error is due to one of the proof being already spent, we should be removing those from db
+                    // in order to not use them in the future
+                    wallet::db::proof::set_proofs_to_state(
+                        &db_conn,
+                        &proofs_ids,
+                        ProofState::Unspent,
+                    )?;
+                    return Err(e.into());
+                }
+            };
 
             acknowledge(
                 &mut node_client,
@@ -412,25 +394,39 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            loop {
-                let melt_quote_state_response = node_client
-                    .melt_quote_state(QuoteStateRequest {
-                        method: STARKNET_METHOD.to_string(),
-                        quote: resp.quote.clone(),
-                    })
-                    .await?
-                    .into_inner();
-
-                if !melt_quote_state_response.transfer_ids.is_empty() {
-                    println!(
-                        "{}",
-                        format_melt_transfers_id_into_term_message(
-                            melt_quote_state_response.transfer_ids
-                        )
-                    );
-                    break;
+            println!("Melt submited!");
+            if melt_response.state == MeltQuoteState::MlqsPaid as i32 {
+                let tx = db_conn.transaction()?;
+                wallet::db::melt_quote::update_state(
+                    &tx,
+                    &melt_quote_response.quote,
+                    melt_response.state,
+                )?;
+                if !melt_response.transfer_ids.is_empty() {
+                    let transfer_ids_to_store = serde_json::to_string(&melt_response.transfer_ids)?;
+                    wallet::db::melt_quote::register_transfer_ids(
+                        &tx,
+                        &melt_quote_response.quote,
+                        &transfer_ids_to_store,
+                    )?;
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tx.commit()?;
+                display_paid_melt_quote(melt_quote_response.quote, melt_response.transfer_ids);
+            } else {
+                loop {
+                    if sync::sync_melt_quote(
+                        pool.clone(),
+                        &mut node_client,
+                        method.clone(),
+                        melt_quote_response.quote.clone(),
+                    )
+                    .await?
+                    {
+                        break;
+                    } else {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
             }
         }
         Commands::Send {
@@ -458,13 +454,12 @@ async fn main() -> Result<()> {
             println!("Sending {} {} using node {}", amount, asset, &node_url);
 
             let amount = amount
-                .checked_mul(asset.precision())
+                .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            let tx = db_conn.transaction()?;
             let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                &tx,
+                pool.clone(),
                 &mut node_client,
                 node_id,
                 amount,
@@ -472,33 +467,11 @@ async fn main() -> Result<()> {
             )
             .await?
             .ok_or(anyhow!("not enough funds"))?;
-            tx.commit()?;
 
             let tx = db_conn.transaction()?;
 
-            let proofs = wallet::load_tokens_from_db(&tx, proofs_ids).await?;
-
-            let compact_proofs = proofs
-                .into_iter()
-                .chunk_by(|p| p.keyset_id)
-                .into_iter()
-                .map(|(keyset_id, proofs)| CompactKeysetProofs {
-                    keyset_id,
-                    proofs: proofs
-                        .map(|p| CompactProof {
-                            amount: p.amount,
-                            secret: p.secret,
-                            c: p.c,
-                        })
-                        .collect(),
-                })
-                .collect();
-            let wad = CompactWad {
-                node_url,
-                unit,
-                memo,
-                proofs: compact_proofs,
-            };
+            let proofs = wallet::load_tokens_from_db(&tx, &proofs_ids)?;
+            let wad = wallet::create_wad_from_proofs(node_url, unit, memo, proofs);
 
             match output {
                 Some(output_path) => {
@@ -527,18 +500,18 @@ async fn main() -> Result<()> {
             let wad = args.read_wad()?;
 
             let (mut node_client, node_id) =
-                wallet::register_node(&db_conn, wad.node_url.clone()).await?;
+                wallet::register_node(pool.clone(), &wad.node_url).await?;
             println!("Receiving tokens on node `{}`", node_id);
             if let Some(memo) = wad.memo() {
                 println!("Memo: {}", memo);
             }
 
             let amount_received = wallet::receive_wad(
-                &mut db_conn,
+                pool.clone(),
                 &mut node_client,
                 node_id,
                 wad.unit.as_str(),
-                &wad.proofs,
+                wad.proofs,
             )
             .await?;
 
@@ -569,6 +542,9 @@ async fn main() -> Result<()> {
             println!("\nDetailed Contents:");
             println!("{}", serde_json::to_string_pretty(&regular_wad)?);
         }
+        Commands::Sync => {
+            sync::sync_all_pending_operations(pool).await?;
+        }
     }
 
     Ok(())
@@ -591,20 +567,4 @@ pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
         U256::from_str_radix(amount, 10)
     }
     .map_err(std::io::Error::other)
-}
-
-fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
-    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
-    if transfer_ids.len() != 1 {
-        string_to_print.push('s');
-    }
-    string_to_print.push_str(": ");
-    let mut iterator = transfer_ids.into_iter();
-    string_to_print.push_str(&iterator.next().unwrap());
-    for tx_hash in iterator {
-        string_to_print.push_str(", ");
-        string_to_print.push_str(&tx_hash);
-    }
-
-    string_to_print
 }

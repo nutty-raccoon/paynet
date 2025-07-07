@@ -1,14 +1,11 @@
 use nuts::{nut04, nut05};
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
 #[cfg(feature = "keyset-rotation")]
-pub use proto::keyset_rotation::keyset_rotation_service_client::KeysetRotationServiceClient;
-#[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::keyset_rotation_service_server::{
     KeysetRotationService, KeysetRotationServiceServer,
 };
 #[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::*;
-pub use proto::node::node_client::NodeClient;
 pub use proto::node::node_server::{Node, NodeServer};
 pub use proto::node::*;
 
@@ -29,25 +26,25 @@ mod proto {
 #[error("The protobuf enum value is unspecified")]
 pub struct UnspecifiedEnum;
 
-impl TryFrom<MeltState> for nut05::MeltQuoteState {
+impl TryFrom<MeltQuoteState> for nut05::MeltQuoteState {
     type Error = UnspecifiedEnum;
 
-    fn try_from(value: MeltState) -> Result<Self, UnspecifiedEnum> {
+    fn try_from(value: MeltQuoteState) -> Result<Self, UnspecifiedEnum> {
         match value {
-            MeltState::MlqsUnspecified => Err(UnspecifiedEnum),
-            MeltState::MlqsUnpaid => Ok(nut05::MeltQuoteState::Unpaid),
-            MeltState::MlqsPending => Ok(nut05::MeltQuoteState::Pending),
-            MeltState::MlqsPaid => Ok(nut05::MeltQuoteState::Paid),
+            MeltQuoteState::MlqsUnspecified => Err(UnspecifiedEnum),
+            MeltQuoteState::MlqsUnpaid => Ok(nut05::MeltQuoteState::Unpaid),
+            MeltQuoteState::MlqsPending => Ok(nut05::MeltQuoteState::Pending),
+            MeltQuoteState::MlqsPaid => Ok(nut05::MeltQuoteState::Paid),
         }
     }
 }
 
-impl From<nut05::MeltQuoteState> for MeltState {
+impl From<nut05::MeltQuoteState> for MeltQuoteState {
     fn from(value: nut05::MeltQuoteState) -> Self {
         match value {
-            nut05::MeltQuoteState::Unpaid => MeltState::MlqsUnpaid,
-            nut05::MeltQuoteState::Pending => MeltState::MlqsPending,
-            nut05::MeltQuoteState::Paid => MeltState::MlqsPaid,
+            nut05::MeltQuoteState::Unpaid => MeltQuoteState::MlqsUnpaid,
+            nut05::MeltQuoteState::Pending => MeltQuoteState::MlqsPending,
+            nut05::MeltQuoteState::Paid => MeltQuoteState::MlqsPaid,
         }
     }
 }
@@ -96,9 +93,8 @@ pub fn hash_melt_request(request: &MeltRequest) -> u64 {
     let mut hasher = DefaultHasher::new();
 
     request.method.hash(&mut hasher);
-    request.unit.hash(&mut hasher);
-    request.request.hash(&mut hasher);
-    for input in &request.inputs {
+    request.quote.hash(&mut hasher);
+    for input in request.inputs.clone() {
         input.amount.hash(&mut hasher);
         input.keyset_id.hash(&mut hasher);
         input.secret.hash(&mut hasher);

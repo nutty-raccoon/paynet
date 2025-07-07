@@ -1,12 +1,16 @@
+use std::marker::PhantomData;
+
 use liquidity_source::LiquiditySource;
+use nuts::traits::Unit;
 use sqlx::PgPool;
 
 use crate::{initialization::ProgramArguments, methods::Method};
 
 #[derive(Debug, Clone)]
-pub struct LiquiditySources {
+pub struct LiquiditySources<U: Unit> {
     #[cfg(feature = "starknet")]
     starknet: starknet_liquidity_source::StarknetLiquiditySource,
+    _phantom_data: PhantomData<U>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -21,35 +25,34 @@ pub enum Error {
     MissingConfigFile(String),
 }
 
-impl LiquiditySources {
+impl<U: Unit> LiquiditySources<U> {
     #[allow(unused_variables)]
-    pub async fn init(pg_pool: PgPool, args: ProgramArguments) -> Result<LiquiditySources, Error> {
+    pub async fn init(
+        pg_pool: PgPool,
+        args: ProgramArguments,
+    ) -> Result<LiquiditySources<U>, Error> {
+        #[cfg(not(feature = "mock"))]
+        let starknet = starknet_liquidity_source::StarknetLiquiditySource::init(
+            pg_pool,
+            args.config
+                .ok_or(Error::MissingConfigFile(String::from("starknet")))?,
+        )
+        .await?;
+        #[cfg(feature = "mock")]
+        let starknet = starknet_liquidity_source::StarknetLiquiditySource::new();
+
         Ok(LiquiditySources {
-            #[cfg(feature = "starknet")]
-            starknet: starknet_liquidity_source::StarknetLiquiditySource::init(
-                pg_pool,
-                args.config
-                    .ok_or(Error::MissingConfigFile(String::from("starknet")))?,
-            )
-            .await?,
+            starknet,
+            _phantom_data: PhantomData,
         })
     }
 
-    pub fn get_liquidity_source(&self, method: Method) -> Option<impl LiquiditySource> {
+    pub fn get_liquidity_source(
+        &self,
+        method: Method,
+    ) -> Option<impl LiquiditySource<Unit = starknet_types::Unit>> {
         match method {
-            Method::Starknet => self.starknet(),
+            Method::Starknet => Some(self.starknet.clone()),
         }
-    }
-}
-
-impl LiquiditySources {
-    #[cfg(feature = "mock")]
-    pub fn starknet(&self) -> Option<impl LiquiditySource> {
-        Some(liquidity_source::mock::MockLiquiditySource)
-    }
-
-    #[cfg(all(not(feature = "mock"), feature = "starknet"))]
-    pub fn starknet(&self) -> Option<impl LiquiditySource> {
-        Some(self.starknet.clone())
     }
 }

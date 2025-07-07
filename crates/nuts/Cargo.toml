@@ -18,7 +18,7 @@ hex = { workspace = true }
 
 # Optional
 rusqlite = { workspace = true, optional = true }
-sqlx = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true, features = ["macros"] }
 starknet-types-core = { workspace = true, optional = true }
 
 [dev-dependencies]

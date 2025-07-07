@@ -1,4 +1,5 @@
 use nuts::nut05::MeltQuoteResponse;
+use starknet_types::Unit;
 use tonic::Status;
 use uuid::Uuid;
 
@@ -23,7 +24,7 @@ impl GrpcState {
         &self,
         method: Method,
         quote_id: Uuid,
-    ) -> Result<MeltQuoteResponse<Uuid>, Error> {
+    ) -> Result<MeltQuoteResponse<Uuid, Unit>, Error> {
         match method {
             Method::Starknet => {}
         }

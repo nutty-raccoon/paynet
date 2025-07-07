@@ -1,4 +1,5 @@
 use num_traits::CheckedAdd;
+use starknet_types::Unit;
 use std::collections::HashSet;
 
 use db_node::InsertSpentProofsQueryBuilder;
@@ -16,8 +17,8 @@ pub async fn process_melt_inputs<'a>(
     signer: SignerClient,
     keyset_cache: KeysetCache,
     inputs: &'a [Proof],
+    expected_unit: Unit,
 ) -> Result<(Amount, InsertSpentProofsQueryBuilder<'a>), InputsError> {
-    let mut common_unit = None;
     let mut secrets = HashSet::new();
     let mut query_builder = InsertSpentProofsQueryBuilder::new();
     let mut total_amount = Amount::ZERO;
@@ -48,15 +49,9 @@ pub async fn process_melt_inputs<'a>(
             ));
         }
 
-        // Check all units are the same
         let unit = keyset_info.unit();
-        match common_unit {
-            Some(u) => {
-                if u != unit {
-                    Err(InputsError::MultipleUnits)?;
-                }
-            }
-            None => common_unit = Some(unit),
+        if expected_unit != unit {
+            Err(InputsError::UnexpectedUnit)?;
         }
 
         // Incement total amount

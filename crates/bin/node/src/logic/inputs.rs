@@ -18,8 +18,8 @@ pub enum Error {
     HashOnCurve,
     #[error("duplicate input")]
     DuplicateInput,
-    #[error("melt only support inputs of the same unit")]
-    MultipleUnits,
+    #[error("the proofs were not of the quote unit")]
+    UnexpectedUnit,
     #[error("the sum off all the inputs' amount must fit in a u64")]
     TotalAmountTooBig,
     #[error("the sum off all the inputs' fee must fit in a u64")]
@@ -43,7 +43,7 @@ impl From<Error> for Status {
         match value {
             Error::HashOnCurve
             | Error::DuplicateInput
-            | Error::MultipleUnits
+            | Error::UnexpectedUnit
             | Error::TotalAmountTooBig
             | Error::TotalFeeTooBig
             | Error::Invalid

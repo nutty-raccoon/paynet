@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT EXISTS (\n            SELECT * FROM proof WHERE y = ANY($1) AND state = 1\n        ) AS \"exists!\";",
+  "query": "SELECT EXISTS (\n            SELECT * FROM proof WHERE y = ANY($1) AND state = $2\n        ) AS \"exists!\";",
   "describe": {
     "columns": [
       {
@@ -11,12 +11,13 @@
     ],
     "parameters": {
       "Left": [
-        "ByteaArray"
+        "ByteaArray",
+        "Int2"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "cba63e848c93baf759ba24ce6e98570e5d65cfb60618d2c454968ba4dd94cb42"
+  "hash": "a61504f443561d0ad54dd581b5422d3fbe15235fc025764ab27fb87cf5cd3108"
 }

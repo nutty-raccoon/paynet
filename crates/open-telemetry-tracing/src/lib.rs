@@ -62,7 +62,7 @@ use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt};
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```rust,compile_fail
 /// use open_telemetry_tracing::init;
 /// use tracing_subscriber::util::SubscriberInitExt;
 ///

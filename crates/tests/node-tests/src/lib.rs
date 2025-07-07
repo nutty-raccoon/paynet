@@ -2,8 +2,8 @@ use anyhow::{Result, anyhow};
 use std::time::{Duration, Instant};
 use tonic_health::pb::health_client::HealthClient;
 
-use node::keyset_rotation_service_client::KeysetRotationServiceClient;
-use node::node_client::NodeClient;
+use node_client::keyset_rotation_service_client::KeysetRotationServiceClient;
+use node_client::node_client::NodeClient;
 
 use tonic::transport::Channel;
 

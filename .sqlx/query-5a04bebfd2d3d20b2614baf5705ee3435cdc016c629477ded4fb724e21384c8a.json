@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            mq.amount, \n            mq.unit,\n            mq.state AS \"state: MeltQuoteState\",\n            mq.expiry,\n            COALESCE(ARRAY_AGG(mpe.tx_hash) FILTER (WHERE mpe.tx_hash IS NOT NULL), '{}') AS \"tx_hashes\"\n        FROM melt_quote mq LEFT JOIN melt_payment_event mpe ON mq.invoice_id = mpe.invoice_id\n        WHERE mq.id = $1\n        GROUP BY mq.amount, mq.unit, mq.state, mq.expiry",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "state: MeltQuoteState",
+        "type_info": {
+          "Custom": {
+            "name": "melt_quote_state",
+            "kind": {
+              "Enum": [
+                "UNPAID",
+                "PENDING",
+                "PAID"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "expiry",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "tx_hashes",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "5a04bebfd2d3d20b2614baf5705ee3435cdc016c629477ded4fb724e21384c8a"
+}

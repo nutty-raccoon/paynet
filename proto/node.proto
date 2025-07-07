@@ -15,13 +15,18 @@ service Node {
   rpc MintQuote (MintQuoteRequest) returns (MintQuoteResponse);
   rpc Mint (MintRequest) returns (MintResponse);
   rpc MintQuoteState (QuoteStateRequest) returns (MintQuoteResponse);
-  // Melt
+  
+  // Melt 
+  rpc MeltQuote (MeltQuoteRequest) returns (MeltQuoteResponse);
+  rpc MeltQuoteState (MeltQuoteStateRequest) returns (MeltQuoteResponse);
   rpc Melt (MeltRequest) returns (MeltResponse);
-  rpc MeltQuoteState (QuoteStateRequest) returns (MeltResponse);
   
   rpc GetNodeInfo (GetNodeInfoRequest) returns (NodeInfoResponse);
   
   rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
+
+  // NUT07
+  rpc CheckState (CheckStateRequest) returns (CheckStateResponse);
 
   rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
@@ -100,27 +105,42 @@ message MintResponse {
   repeated bdhke.BlindSignature signatures = 1;
 }
 
-message MeltRequest {
+message MeltQuoteRequest {
   string method = 1;
   string unit = 2;
   string request = 3;
-  repeated bdhke.Proof inputs = 4;
 }
 
-message MeltResponse {
+message MeltQuoteResponse {
   string quote = 1;
   uint64 amount = 2;
-  uint64 fee = 3;
-  MeltState state = 4;
+  string unit = 3;
+  MeltQuoteState state = 4;
   uint64 expiry = 5;
   repeated string transfer_ids = 6;
 }
 
-enum MeltState {
+message MeltQuoteStateRequest {
+  string method = 1;
+  string quote = 2;
+}
+
+enum MeltQuoteState {
   MLQS_UNSPECIFIED = 0;
   MLQS_UNPAID = 1;
   MLQS_PENDING = 2;
   MLQS_PAID = 3;
+}
+
+message MeltRequest {
+  string method = 1;
+  string quote = 2;  
+  repeated bdhke.Proof inputs = 3;
+}
+
+message MeltResponse {
+  MeltQuoteState state = 1;
+  repeated string transfer_ids = 2;
 }
 
 message SwapRequest {
@@ -146,4 +166,23 @@ message RestoreRequest {
 message RestoreResponse {
   repeated bdhke.BlindedMessage outputs = 1;
   repeated bdhke.BlindSignature signatures = 2;
+}
+
+message CheckStateRequest {
+  repeated bytes ys = 1;
+}
+
+enum ProofState {
+  PS_UNSPECIFIED = 0;
+  PS_UNSPENT = 1;
+  PS_PENDING = 2;
+  PS_SPENT = 3;
+}
+
+message ProofCheckState {
+  bytes Y = 1;
+  ProofState state = 2;
+}
+message CheckStateResponse {
+  repeated ProofCheckState states = 1;
 }

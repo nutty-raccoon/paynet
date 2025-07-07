@@ -161,6 +161,7 @@ async fn create_new_mint_quote(
                 .await?;
             new_state
         }
+
         #[cfg(all(not(feature = "mock"), feature = "starknet"))]
         MintQuoteState::Unpaid
     };
