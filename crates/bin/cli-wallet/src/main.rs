@@ -147,6 +147,27 @@ enum Commands {
         long_about = "Check all nodes for pending mint and melt quote updates and process them accordingly"
     )]
     Sync,
+    #[command(
+        about = "Generate a new wallet",
+        long_about = "Generate a new wallet. This will create a new wallet with a new seed phrase and private key."
+    )]
+    GenerateWallet {
+        /// The number of words in the seed phrase
+        #[arg(long, short)]
+        word_count: Option<u8>,
+    },
+    #[command(
+        about = "Restore a wallet",
+        long_about = "Restore a wallet. This will restore a wallet from a seed phrase and private key."
+    )]
+    RestoreWallet {
+        /// The seed phrase
+        #[arg(long, short)]
+        seed_phrase: String,
+        /// The private key
+        #[arg(long, short)]
+        private_key: Option<String>,
+    },
 }
 
 #[derive(Args)]
@@ -544,6 +565,14 @@ async fn main() -> Result<()> {
         }
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
+        }
+        Commands::GenerateWallet { word_count } => {
+            let seed_phrase = wallet::utils::create_seed_phrase(word_count.or(Some(12)));
+            let private_key = wallet::utils::derive_private_key(&seed_phrase);
+            println!("Seed phrase: {}", seed_phrase.to_string());
+            println!("Private key: {}", private_key);
+        }
+        Commands::RestoreWallet { seed_phrase, private_key } => {
         }
     }
 
