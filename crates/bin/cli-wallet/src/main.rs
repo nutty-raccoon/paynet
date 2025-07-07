@@ -7,9 +7,10 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use starknet_types::{Asset, STARKNET_STR, Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
+use uuid::Uuid;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use sync::display_paid_melt_quote;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{fmt::time, EnvFilter};
 use wallet::{
     acknowledge,
     db::balance::Balance,
@@ -151,7 +152,7 @@ enum Commands {
         about = "Generate a new wallet",
         long_about = "Generate a new wallet. This will create a new wallet with a new seed phrase and private key."
     )]
-    GenerateWallet {
+    Init {
         /// The number of words in the seed phrase
         #[arg(long, short)]
         word_count: Option<u8>,
@@ -160,7 +161,7 @@ enum Commands {
         about = "Restore a wallet",
         long_about = "Restore a wallet. This will restore a wallet from a seed phrase and private key."
     )]
-    RestoreWallet {
+    Restore {
         /// The seed phrase
         #[arg(long, short)]
         seed_phrase: String,
@@ -566,14 +567,37 @@ async fn main() -> Result<()> {
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
         }
-        Commands::GenerateWallet { word_count } => {
+        Commands::Init { word_count } => {
             let seed_phrase = wallet::utils::create_seed_phrase(word_count.or(Some(12)));
-            let private_key = wallet::utils::derive_private_key(&seed_phrase);
             println!("Seed phrase: {}", seed_phrase.to_string());
-            println!("Private key: {}", private_key);
+
+            let wallet = wallet::db::wallet::Wallet {
+                id: Uuid::new_v4().to_string(),
+                node_id: 0,
+                seed_phrase: seed_phrase.to_string(),
+                private_key: seed_phrase.to_string(),
+                is_user_saved_locally: true,
+                counter: 0,
+                created_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u64,
+                updated_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u64,
+            };
+
+            println!("Do you want to save this wallet locally? (y/YES/n): ");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+
+            let should_save = input.trim().to_lowercase();
+            if should_save == "y" || should_save == "yes" {
+                wallet::db::wallet::create_wallet(&db_conn, wallet)?;
+                println!("Wallet saved locally!");
+            } else {
+                println!("Wallet not saved locally.");
+            }
         }
-        Commands::RestoreWallet { seed_phrase, private_key } => {
-        }
+        Commands::Restore {
+            seed_phrase,
+            private_key,
+        } => {}
     }
 
     Ok(())

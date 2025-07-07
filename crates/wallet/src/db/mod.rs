@@ -8,6 +8,7 @@ pub mod melt_quote;
 pub mod mint_quote;
 pub mod node;
 pub mod proof;
+pub mod wallet;
 
 pub const CREATE_TABLE_KEYSET: &str = r#"
         CREATE TABLE IF NOT EXISTS keyset (
@@ -53,6 +54,18 @@ pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
             transfer_ids TEXT
         );"#;
 
+pub const CREATE_TABLE_WALLET: &str = r#"
+    CREATE TABLE IF NOT EXISTS wallet (
+        id BLOB(16) PRIMARY KEY,
+        node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+        seed_phrase TEXT NOT NULL,
+        private_key TEXT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        is_user_saved_locally BOOLEAN NOT NULL,
+        counter INTEGER NOT NULL DEFAULT 0
+    );"#;
+
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
@@ -62,6 +75,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
     tx.execute(CREATE_TABLE_MELT_QUOTE, ())?;
     tx.execute(proof::CREATE_TABLE_PROOF, ())?;
+    tx.execute(CREATE_TABLE_WALLET, ())?;
 
     tx.commit()?;
 
