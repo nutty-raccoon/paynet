@@ -48,13 +48,9 @@ fn map_invoice_events(transactions: Transactions) -> Result<Events, substreams::
     Ok(proto_events)
 }
 
-// #[substreams::handlers::map]
-// fn map_block_meta(blk: Block) -> Result<BlockMeta, substreams::errors::Error> {
-//     let header = blk.header.as_ref().unwrap();
-
-//     Ok(BlockMeta {
-//         number: blk.number,
-//         hash: Hex::encode(&blk.hash),
-//         parent_hash: Hex::encode(&header.parent_hash),
-//     })
-// }
+#[substreams::handlers::map]
+fn map_block_meta(blk: Block) -> Result<BlockMeta, substreams::errors::Error> {
+    Ok(BlockMeta {
+        height: blk.block_number,
+    })
+}
