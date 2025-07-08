@@ -10,13 +10,14 @@ pub enum WalletError {
     DerivationPathError(String),
     #[error("Failed to derive private key: {0}")]
     DerivePrivError(String),
+    #[error("Failed to generate mnemonic: {0}")]
+    GenerateMnemonicError(String),
 }
 
 // Create a new seed phrase mnemonic with 12 words and BIP39 standard
-pub fn create_seed_phrase() -> Mnemonic {
-    let mnemonic = Mnemonic::generate_in(Language::English, 12 as usize)
-        .expect("Failed to create mnemonic from entropy");
-    mnemonic
+pub fn create_seed_phrase() -> Result<Mnemonic, WalletError> {
+    let mnemonic = Mnemonic::generate_in(Language::English, 12 as usize).map_err(|e| WalletError::GenerateMnemonicError(e.to_string()))?;
+    Ok(mnemonic)
 }
 
 // Use BIP32 derivation path m/0'/0/0 to derive the first private key
@@ -69,10 +70,10 @@ mod tests {
 
     #[test]
     fn test_create_seed_phrase() {
-        let seed_phrase = create_seed_phrase();
-        println!("seed_phrase: {}", seed_phrase.clone().to_string());
+        let seed_phrase = create_seed_phrase().unwrap();
+        println!("seed_phrase: {}", seed_phrase.to_string());
         // Test that the seed phrase is 12 words and each word is non-empty
-        let binding = seed_phrase.clone().to_string();
+        let binding = seed_phrase.to_string();
         let words: Vec<&str> = binding.split_whitespace().collect();
         assert_eq!(words.len(), 12, "Seed phrase should be 12 words");
         for (i, word) in words.iter().enumerate() {
@@ -82,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_create_private_key() {
-        let seed_phrase = create_seed_phrase();
+        let seed_phrase = create_seed_phrase().unwrap();
         let private_key = derive_private_key(&seed_phrase).unwrap();
         println!("private_key: {:?}", private_key);
         // Improved test: check that the derived private key matches the expected master key for a known mnemonic and path

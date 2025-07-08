@@ -561,7 +561,7 @@ async fn main() -> Result<()> {
             sync::sync_all_pending_operations(pool).await?;
         }
         Commands::Init {  } => {
-            let seed_phrase = wallet::utils::create_seed_phrase();
+            let seed_phrase = wallet::utils::create_seed_phrase().unwrap();
             println!("Seed phrase: {}", seed_phrase.to_string());
 
             let private_key = wallet::utils::derive_private_key(&seed_phrase).unwrap();
