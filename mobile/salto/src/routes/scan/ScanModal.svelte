@@ -5,12 +5,11 @@
   import { receive_wads } from "../../commands";
 
   interface Props {
-    isOpen: boolean;
     onSuccess: () => void;
     onCancell: () => void;
   }
 
-  let { isOpen, onCancell, onSuccess }: Props = $props();
+  let { onCancell, onSuccess }: Props = $props();
 
   let percentageEstimate = $state("");
   let decoder = $state(new URDecoder());
@@ -39,7 +38,7 @@
   }
 </script>
 
-<Portal {isOpen} onClose={onCancell} backgroundColor="rgba(0, 0, 0, 0.95)">
+<Portal isOpen={true} onClose={onCancell} backgroundColor="rgba(0, 0, 0, 0.95)">
   {#snippet children()}
     <div class="scan-content">
       <p class="scan-instructions">Point your camera at a QR code</p>

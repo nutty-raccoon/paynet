@@ -1,7 +1,5 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
-  import PayButton from "./components/PayButton.svelte";
-  import ReceiveButton from "./components/ReceiveButton.svelte";
   import PayModal from "./components/PayModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceChange, type NodeData } from "../types";
@@ -14,18 +12,21 @@
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
-  import { platform } from "@tauri-apps/plugin-os";
-  import ScanModal from "./scan/ScanModal.svelte";
+  import ReceiveModal from "./receive/ReceiveModal.svelte";
 
-  const currentPlatform = platform();
-  const isMobile = currentPlatform == "ios" || currentPlatform == "android";
+  const Modal = {
+    ROOT: 0,
+    PAY: 1,
+    RECEIVE: 2,
+  } as const;
+  type Modal = (typeof Modal)[keyof typeof Modal];
+
+  let currentModal = $state<Modal>(Modal.ROOT);
 
   // Sample data with multiple nodes to demonstrate the new card design
   let nodes: NodeData[] = $state([]);
 
   let activeTab: Tab = $state("pay");
-  let isPayModalOpen = $state(false);
-  let isReceiveModalOpen = $state(false);
   let errorMessage = $state("");
 
   // Calculate total balance across all nodes
@@ -58,38 +59,20 @@
     decreaseNodeBalance(nodes, balanceIncrease);
   };
 
-  const onReceiveError = (error: string) => {
-    errorMessage = error;
-  };
-
   // PayModal control functions
-  function openPayModal() {
-    isPayModalOpen = true;
+  function openModal(modal: Modal) {
+    currentModal = modal;
     // Add history entry to handle back button
     history.pushState({ modal: true }, "");
   }
 
-  function closePayModal() {
-    isPayModalOpen = false;
-  }
-
-  function openReceiveModal() {
-    isReceiveModalOpen = true;
-    // Add history entry to handle back button
-    history.pushState({ modal: true }, "");
-  }
-
-  function closeReceiveModal() {
-    isReceiveModalOpen = false;
+  function goBackToRoot() {
+    currentModal = Modal.ROOT;
   }
 
   // Set up back button listener for PayModal
   function handlePopState() {
-    if (isPayModalOpen) {
-      closePayModal();
-    } else if (isReceiveModalOpen) {
-      closeReceiveModal();
-    }
+    goBackToRoot();
   }
 
   onMount(() => {
@@ -123,23 +106,29 @@
 
 <main class="container">
   {#if activeTab === "pay"}
-    <div class="pay-container">
-      <div class="total-balance-card">
-        <h2 class="balance-title">TOTAL BALANCE</h2>
-        <p class="total-balance-amount">{formattedTotalBalance}</p>
-      </div>
-      {#if errorMessage}
-        <div class="error-message">
-          {errorMessage}
+    {#if currentModal == Modal.ROOT}
+      <div class="pay-container">
+        <div class="total-balance-card">
+          <h2 class="balance-title">TOTAL BALANCE</h2>
+          <p class="total-balance-amount">{formattedTotalBalance}</p>
         </div>
-      {/if}
-      <PayButton onClick={openPayModal} />
-      <ReceiveButton
-        {isMobile}
-        onClick={openReceiveModal}
-        onError={onReceiveError}
-      />
-    </div>
+        {#if errorMessage}
+          <div class="error-message">
+            {errorMessage}
+          </div>
+        {/if}
+        <button class="pay-button" onclick={() => openModal(Modal.PAY)}
+          >Pay</button
+        >
+        <button class="receive-button" onclick={() => openModal(Modal.RECEIVE)}
+          >Receive</button
+        >
+      </div>
+    {:else if currentModal == Modal.PAY}
+      <PayModal availableBalances={totalBalance} onClose={goBackToRoot} />
+    {:else if currentModal == Modal.RECEIVE}
+      <ReceiveModal onClose={goBackToRoot} />
+    {/if}
   {:else if activeTab === "balances"}
     <div class="balances-container">
       <NodesBalancePage {nodes} {onAddNode} />
@@ -152,18 +141,6 @@
   onTabChange={(tab: Tab) => {
     activeTab = tab;
   }}
-/>
-
-<PayModal
-  isOpen={isPayModalOpen}
-  availableBalances={totalBalance}
-  onClose={closePayModal}
-/>
-
-<ScanModal
-  isOpen={isReceiveModalOpen}
-  onCancell={closeReceiveModal}
-  onSuccess={closeReceiveModal}
 />
 
 <style>
@@ -268,6 +245,54 @@
     width: 90%;
     max-width: 400px;
     margin: 0 auto;
+  }
+
+  .pay-button {
+    background-color: #1e88e5;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 600;
+    padding: 0.8rem 3rem;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      transform 0.1s;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .pay-button:hover {
+    background-color: #1976d2;
+  }
+
+  .pay-button:active {
+    transform: scale(0.98);
+    background-color: #1565c0;
+  }
+
+  .receive-button {
+    background-color: #2e7d32;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 600;
+    padding: 0.8rem 3rem;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      transform 0.1s;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .receive-button:hover {
+    background-color: #1b5e20;
+  }
+
+  .receive-button:active {
+    transform: scale(0.98);
+    background-color: #0d4814;
   }
 
   @media (prefers-color-scheme: dark) {

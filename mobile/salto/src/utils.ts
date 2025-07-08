@@ -82,4 +82,3 @@ export function computeTotalBalancePerUnit(nodes: NodeData[]): Map<string, numbe
 
   return map;
 }
-

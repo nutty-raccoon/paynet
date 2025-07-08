@@ -1,22 +1,30 @@
 <script lang="ts">
-  import type { EventHandler } from "svelte/elements";
-  import { formatBalance, unitPrecision } from "../../utils";
-  import { create_wads } from "../../commands";
   import QRPaymentPortal from "./QRPaymentPortal.svelte";
-  import { Buffer } from "buffer";
+  import NfcModal from "./NfcModal.svelte";
+  import AmountForm from "./AmountForm.svelte";
+  import PaymentMethodChoice from "./PaymentMethodChoice.svelte";
+  import { isNFCAvailable } from "../..//stores.js";
+
+  const Modal = {
+    AMOUNT_FORM: 0,
+    METHOD_CHOICE: 1,
+    NFC: 2,
+    QR_CODE: 3,
+  } as const;
+  type Modal = (typeof Modal)[keyof typeof Modal];
 
   interface Props {
-    isOpen: boolean;
     availableBalances: Map<string, number>;
     onClose: () => void;
   }
 
-  let { isOpen, availableBalances, onClose }: Props = $props();
+  let { availableBalances, onClose }: Props = $props();
 
-  let selectedUnit = $state<string>("millistrk");
-  let amount = $state<number>(0);
-  let paymentError = $state<string>("");
   let paymentData = $state<any>(null);
+  let paymentStrings = $state<null | [string, string]>(null);
+
+  // What to show
+  let currentModal = $state<Modal>(Modal.AMOUNT_FORM);
 
   // Get available units (those with balance > 0)
   let availableUnits = $derived(
@@ -25,149 +33,72 @@
       .map(([unit, _]) => unit),
   );
 
-  // Reset form when modal opens/closes
-  $effect(() => {
-    if (isOpen) {
-      selectedUnit = availableUnits.length > 0 ? availableUnits[0] : "";
-      amount = 0;
-      paymentError = "";
-      paymentData = null;
-    }
-  });
-
-  let { asset, amount: assetAmount } = $derived(
-    formatBalance({
-      unit: selectedUnit,
-      amount: availableBalances.get(selectedUnit) || 0,
-    }),
-  );
-
-  const onQRCodeClose = () => {
-    paymentData = null;
-  };
-
   const handleModalClose = () => {
-    if (!!paymentData) {
-      onQRCodeClose();
-    }
     onClose();
   };
 
-  const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
-    event,
-  ) => {
-    event.preventDefault();
-    const form = event.target as HTMLFormElement;
-    const formDataObject = new FormData(form);
-    const token = formDataObject.get("payment-token");
-    const amount = formDataObject.get("payment-amount");
-
-    // Clear previous error
-    paymentError = "";
-
-    if (amount && token) {
-      const amountString = amount.toString();
-      const amountValue = parseFloat(amountString);
-
-      if (amountValue <= 0) {
-        paymentError = "Amount must be greater than 0";
-        return;
-      }
-      if (amountValue > assetAmount) {
-        paymentError = `Amount cannot exceed ${assetAmount} ${selectedUnit}`;
-        return;
-      }
-
-      create_wads(amountString, asset).then((val) => {
-        if (!!val) {
-          const messageBuffer = Buffer.from(val);
-          paymentData = messageBuffer;
-        }
-      });
+  const handleNFCChoice = async () => {
+    if (isNFCAvailable) {
+      currentModal = Modal.NFC;
+    } else {
+      alert("NFC not available on your device");
     }
   };
 
-  $effect(() => {
-    if (!isOpen) {
-      paymentError = "";
-      paymentData = null; // Ensure QR component is properly cleaned up
-    }
-  });
+  const openModal = (modal: Modal) => {
+    currentModal = modal;
+  };
 
-  const handleUnitChange = (event: Event) => {
-    const target = event.target as HTMLSelectElement;
-    selectedUnit = target.value;
-    // Reset amount when unit changes
-    amount = 0;
+  const handlePaymentDataGenerated = (
+    amountString: string,
+    assetString: string,
+    data: any,
+  ) => {
+    paymentStrings = [amountString, assetString];
+    paymentData = data;
+    // Next step of the process
+    currentModal = Modal.METHOD_CHOICE;
   };
 </script>
 
-{#if isOpen}
-  <div class="modal-overlay">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Make Payment</h3>
-        <button class="close-button" onclick={handleModalClose}>✕</button>
-      </div>
-
-      {#if availableUnits.length === 0}
-        <div class="no-balance-message">
-          <p>No funds available for payment. Please deposit tokens first.</p>
-          <button class="close-button-alt" onclick={onClose}>Close</button>
-        </div>
-      {:else if paymentData}
-        <QRPaymentPortal {paymentData} onClose={onQRCodeClose} />
-      {:else}
-        <form onsubmit={handleFormSubmit}>
-          <div class="form-group">
-            <label for="payment-token">Currency</label>
-            <select
-              id="payment-token"
-              name="payment-token"
-              bind:value={selectedUnit}
-              onchange={handleUnitChange}
-              required
-            >
-              {#each availableUnits as unit}
-                {@const formatted = formatBalance({ unit, amount: 0 })}
-                <option value={unit}>{formatted.asset}</option>
-              {/each}
-            </select>
-            {#if selectedUnit}
-              <span class="balance-info">
-                Available: {assetAmount}
-                {asset}
-              </span>
-            {/if}
-          </div>
-
-          <div class="form-group">
-            <label for="payment-amount">Amount</label>
-            <input
-              type="number"
-              id="payment-amount"
-              name="payment-amount"
-              bind:value={amount}
-              placeholder="0.0"
-              min="0"
-              max={assetAmount}
-              step={1 / unitPrecision(selectedUnit)}
-              required
-            />
-          </div>
-
-          {#if paymentError}
-            <div class="error-message">
-              {paymentError}
-            </div>
-          {/if}
-
-          <button type="submit" class="submit-button">Pay</button>
-        </form>
-      {/if}
+<div class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Make Payment</h3>
+      <button class="close-button" onclick={handleModalClose}>✕</button>
     </div>
+
+    {#if availableUnits.length === 0}
+      <div class="no-balance-message">
+        <p>No funds available for payment. Please deposit tokens first.</p>
+        <button class="close-button-alt" onclick={onClose}>Close</button>
+      </div>
+    {:else if currentModal === Modal.AMOUNT_FORM}
+      <AmountForm
+        {availableUnits}
+        {availableBalances}
+        onClose={() => openModal(Modal.METHOD_CHOICE)}
+        onPaymentDataGenerated={handlePaymentDataGenerated}
+      />
+    {:else if currentModal == Modal.METHOD_CHOICE}
+      <PaymentMethodChoice
+        {paymentStrings}
+        onNFCChoice={handleNFCChoice}
+        onQRCodeChoice={() => openModal(Modal.QR_CODE)}
+      />
+    {:else if currentModal === Modal.NFC}
+      <NfcModal
+        isReceiving={false}
+        onClose={() => openModal(Modal.METHOD_CHOICE)}
+      />
+    {:else if currentModal === Modal.QR_CODE && paymentData}
+      <QRPaymentPortal
+        {paymentData}
+        onClose={() => openModal(Modal.METHOD_CHOICE)}
+      />
+    {/if}
   </div>
-{/if}
+</div>
 
 <style>
   .modal-overlay {
@@ -244,71 +175,5 @@
 
   .close-button-alt:hover {
     background-color: #555;
-  }
-
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group label {
-    display: block;
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-    color: #333;
-    font-weight: 500;
-  }
-
-  .form-group select,
-  .form-group input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 1rem;
-    box-sizing: border-box;
-    background-color: white;
-  }
-
-  .form-group select:focus,
-  .form-group input:focus {
-    border-color: #1e88e5;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
-  }
-
-  .balance-info {
-    display: block;
-    font-size: 0.8rem;
-    color: #666;
-    margin-top: 0.25rem;
-    font-style: italic;
-  }
-
-  .submit-button {
-    padding: 0.8rem 2rem;
-    background-color: #1e88e5;
-    color: white;
-    font-weight: 600;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    width: 100%;
-    transition: background-color 0.2s;
-    font-size: 1rem;
-  }
-
-  .submit-button:hover {
-    background-color: #1976d2;
-  }
-
-  .error-message {
-    margin-bottom: 1rem;
-    padding: 0.75rem;
-    background-color: #ffebee;
-    border: 1px solid #f44336;
-    border-radius: 6px;
-    color: #c62828;
-    font-size: 0.9rem;
-    font-weight: 500;
   }
 </style>
