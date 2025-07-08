@@ -1,9 +1,5 @@
 use rusqlite::{Connection, Result, params};
 pub struct Wallet {
-    pub id: String,
-    pub node_id: u32,
-    pub counter: u64,
-    pub keyset_id: String,
     pub seed_phrase: String,
     pub private_key: String,
     pub created_at: u64,
@@ -13,12 +9,31 @@ pub struct Wallet {
 
 pub fn create_wallet(conn: &Connection, wallet: Wallet) -> Result<()> {
     let sql = r#"
-        INSERT INTO wallet (id, node_id, seed_phrase, private_key, created_at, updated_at, is_user_saved_locally, counter)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO settings (seed_phrase, private_key, created_at, updated_at, is_user_saved_locally)
+        VALUES (?, ?, ?, ?, ?)
     "#;
 
     let mut stmt = conn.prepare(sql)?;
-    stmt.execute(params![wallet.id, wallet.node_id, wallet.seed_phrase, wallet.private_key, wallet.created_at, wallet.updated_at, wallet.is_user_saved_locally, wallet.counter])?;
+    stmt.execute(params![wallet.seed_phrase, wallet.private_key, wallet.created_at, wallet.updated_at, wallet.is_user_saved_locally])?;
 
     Ok(())
+}
+
+pub fn get_wallet(conn: &Connection, seed_phrase: String) -> Result<Option<Wallet>> {
+    let sql = r#"
+        SELECT seed_phrase, private_key, created_at, updated_at, is_user_saved_locally
+        FROM settings
+        WHERE seed_phrase = ?
+    "#;
+    let mut stmt = conn.prepare(sql)?;
+    let wallet = stmt.query_row(params![seed_phrase], |row| {
+        Ok(Wallet {
+            seed_phrase: row.get(0)?,
+            private_key: row.get(1)?,
+            created_at: row.get(2)?,
+            updated_at: row.get(3)?,
+            is_user_saved_locally: row.get(4)?,
+        })
+    })?;
+    Ok(Some(wallet))
 }

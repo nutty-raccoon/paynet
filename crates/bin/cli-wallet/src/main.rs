@@ -152,11 +152,7 @@ enum Commands {
         about = "Generate a new wallet",
         long_about = "Generate a new wallet. This will create a new wallet with a new seed phrase and private key."
     )]
-    Init {
-        /// The number of words in the seed phrase
-        #[arg(long, short)]
-        word_count: Option<u8>,
-    },
+    Init,
     #[command(
         about = "Restore a wallet",
         long_about = "Restore a wallet. This will restore a wallet from a seed phrase and private key."
@@ -165,9 +161,6 @@ enum Commands {
         /// The seed phrase
         #[arg(long, short)]
         seed_phrase: String,
-        /// The private key
-        #[arg(long, short)]
-        private_key: Option<String>,
     },
 }
 
@@ -567,17 +560,16 @@ async fn main() -> Result<()> {
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
         }
-        Commands::Init { word_count } => {
-            let seed_phrase = wallet::utils::create_seed_phrase(word_count.or(Some(12)));
+        Commands::Init {  } => {
+            let seed_phrase = wallet::utils::create_seed_phrase();
             println!("Seed phrase: {}", seed_phrase.to_string());
 
+            let private_key = wallet::utils::derive_private_key(&seed_phrase).unwrap();
+
             let wallet = wallet::db::wallet::Wallet {
-                id: Uuid::new_v4().to_string(),
-                node_id: 0,
                 seed_phrase: seed_phrase.to_string(),
-                private_key: seed_phrase.to_string(),
+                private_key: private_key.to_string(),
                 is_user_saved_locally: true,
-                counter: 0,
                 created_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u64,
                 updated_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u64,
             };
@@ -591,13 +583,22 @@ async fn main() -> Result<()> {
                 wallet::db::wallet::create_wallet(&db_conn, wallet)?;
                 println!("Wallet saved locally!");
             } else {
-                println!("Wallet not saved locally.");
+                println!("Wallet not saved locally and in Database. Please generate a new wallet and type yes/y.");
             }
         }
         Commands::Restore {
             seed_phrase,
-            private_key,
-        } => {}
+        } => {
+            let wallet = wallet::db::wallet::get_wallet(&db_conn, seed_phrase.clone())?;
+            if wallet.is_none() {
+                println!("Wallet not found!");
+                return Ok(());
+            }
+            let wallet = wallet.unwrap();
+            println!("Wallet restored!");
+            println!("Seed phrase: {}", wallet.seed_phrase);
+            println!("Private key: {}", wallet.private_key);
+        }
     }
 
     Ok(())
