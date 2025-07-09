@@ -8,13 +8,15 @@ pub mod melt_quote;
 pub mod mint_quote;
 pub mod node;
 pub mod proof;
+pub mod wallet;
 
 pub const CREATE_TABLE_KEYSET: &str = r#"
         CREATE TABLE IF NOT EXISTS keyset (
             id BLOB(8) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             unit TEXT NOT NULL,
-            active BOOL NOT NULL
+            active BOOL NOT NULL,
+            counter INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE INDEX keyset_node_id ON keyset(node_id);
@@ -52,6 +54,15 @@ pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
             expiry INTEGER NOT NULL,
             transfer_ids TEXT
         );"#;
+
+pub const CREATE_TABLE_SETTINGS: &str = r#"
+    CREATE TABLE IF NOT EXISTS settings (
+        seed_phrase TEXT NOT NULL,
+        private_key TEXT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        is_user_seed_backed BOOLEAN NOT NULL
+    );"#;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;

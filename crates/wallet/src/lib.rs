@@ -5,6 +5,7 @@ pub mod mint;
 mod outputs;
 pub mod sync;
 pub mod types;
+pub mod utils;
 
 use std::str::FromStr;
 

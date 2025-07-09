@@ -19,6 +19,7 @@ ciborium = { workspace = true }
 itertools = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+bip39 = { version = "2.0", features = ["rand"] }
 
 # tls
 tonic-tls = { workspace = true, default-features=false, features=["openssl"], optional = true  }
