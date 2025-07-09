@@ -526,15 +526,15 @@ async fn main() -> Result<()> {
                     "Please enter 'y' or 'yes' if you want to replace your seed phrase and you have saved it in a safe place.  \n Make sure to save it somewhere safe, with it your will be able to recover your funds."
                 );
                 std::io::stdin().read_line(&mut input)?;
-                let mut should_save = input.trim().to_lowercase();
+                let mut user_input = input.trim().to_lowercase();
                 loop {
-                    if should_save == "y" || should_save == "yes" {
+                    if user_input == "y" || user_input == "yes" {
                         break;
                     }
                     println!("\n Please enter 'y' or 'yes' to save the wallet.");
                     input.clear();
                     std::io::stdin().read_line(&mut input)?;
-                    should_save = input.trim().to_lowercase();
+                    user_input = input.trim().to_lowercase();
                 }
                 wallet::db::wallet::update_wallet(&db_conn, wallet)?;
                 println!("Wallet updated!");
