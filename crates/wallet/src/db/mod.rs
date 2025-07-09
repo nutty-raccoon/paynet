@@ -180,3 +180,12 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: KeysetId) -> Result<Option<
 
     Ok(opt_unit)
 }
+
+
+pub fn get_keyset_counter(conn: &Connection, keyset_id: KeysetId) -> Result<u32> {
+    let mut stmt = conn.prepare("SELECT counter FROM keyset WHERE id = ?1 LIMIT 1")?;
+    let counter = stmt
+        .query_row(params![keyset_id], |r| r.get::<_, u32>(0))?;
+
+    Ok(counter)
+}

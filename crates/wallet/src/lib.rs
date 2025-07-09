@@ -9,6 +9,7 @@ pub mod utils;
 
 use std::str::FromStr;
 
+use bitcoin::bip32::Xpriv;
 use errors::Error;
 use futures::StreamExt;
 use itertools::Itertools;
@@ -171,6 +172,15 @@ pub fn get_active_keyset_for_unit(
         .ok_or(Error::NoMatchingKeyset)?;
 
     Ok(keyset_id)
+}
+
+pub fn get_keyset_counter(
+    db_conn: &Connection,
+    keyset_id: KeysetId,
+) -> Result<u32, Error> {
+    let keyset_counter = db::get_keyset_counter(db_conn, keyset_id)?;
+
+    Ok(keyset_counter)
 }
 
 pub fn store_new_tokens(
@@ -357,8 +367,9 @@ pub async fn swap_to_have_target_amount<U: Unit>(
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
 ) -> Result<Vec<(PublicKey, Amount)>, Error> {
+    let db_conn = pool.get()?;
+
     let (keyset_id, input_unblind_signature) = {
-        let db_conn = pool.get()?;
         let keyset_id = get_active_keyset_for_unit(&db_conn, node_id, unit.as_ref())?;
 
         let input_unblind_signature =
@@ -367,8 +378,19 @@ pub async fn swap_to_have_target_amount<U: Unit>(
         (keyset_id, input_unblind_signature)
     };
 
+    let wallet = db::wallet::get_wallet(&db_conn)?.ok_or(Error::WalletNotFound)?;
+    let xpriv = Xpriv::from_str(&wallet.private_key)?;
+
+    let keyset_counter = 0;
+
     let pre_mints =
-        PreMint::generate_for_amount(proof_to_swap.1, &SplitTarget::Value(target_amount))?;
+        PreMint::generate_for_amount(
+            xpriv,
+            keyset_id,
+            keyset_counter,
+            proof_to_swap.1,
+            &SplitTarget::Value(target_amount),
+        )?;
 
     let inputs = vec![node_client::Proof {
         amount: proof_to_swap.1.into(),
@@ -479,8 +501,8 @@ pub async fn receive_wad(
             ));
         }
     }
+    let db_conn = pool.get()?;
     let keyset_id = {
-        let db_conn = pool.get()?;
         let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
         for params in stmt_params {
             insert_proof_stmt.execute(params)?;
@@ -488,7 +510,18 @@ pub async fn receive_wad(
         get_active_keyset_for_unit(&db_conn, node_id, unit)?
     };
 
-    let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
+    let keyset_counter = get_keyset_counter(&db_conn, keyset_id)?;
+    let db_conn = pool.get()?;
+    let wallet = db::wallet::get_wallet(&db_conn)?.ok_or(Error::WalletNotFound)?;
+    let xpriv = Xpriv::from_str(&wallet.private_key)?;
+
+    let pre_mints = PreMint::generate_for_amount(
+        xpriv,
+        keyset_id,
+        keyset_counter,
+        total_amount,
+        &SplitTarget::None,
+    )?;
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 
     let swap_request = node_client::SwapRequest { inputs, outputs };

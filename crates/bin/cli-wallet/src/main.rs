@@ -521,10 +521,9 @@ async fn main() -> Result<()> {
             let mut input = String::new();
             if wallet_count > 0 {
                 println!("Wallet already exists!  If you don't want to replace your seed phrase, please stop this process.");
-                println!("New seed phrase: {} . \n Here is your seed phrase. With it your will be able to recover your funds. Make sure to save it somewhere safe.", seed_phrase.to_string());
-
+                println!("New seed phrase: {} . \n ", seed_phrase.to_string());
                 println!(
-                    "Please enter 'y' or 'yes' if you want to replace your seed phrase and you have saved it in a safe place.  \n"
+                    "Please enter 'y' or 'yes' if you want to replace your seed phrase and you have saved it in a safe place.  \n Make sure to save it somewhere safe, with it your will be able to recover your funds."
                 );
                 std::io::stdin().read_line(&mut input)?;
                 let mut should_save = input.trim().to_lowercase();
@@ -564,7 +563,7 @@ async fn main() -> Result<()> {
             println!("Wallet saved locally!");
         }
         Commands::Restore { seed_phrase } => {
-            let wallet = wallet::db::wallet::get_wallet(&db_conn, seed_phrase.clone())?;
+            let wallet = wallet::db::wallet::get_wallet(&db_conn)?;
             if wallet.is_none() {
                 println!("Wallet not found!");
                 return Ok(());

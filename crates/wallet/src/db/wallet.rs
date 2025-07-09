@@ -19,7 +19,27 @@ pub fn create_wallet(conn: &Connection, wallet: Wallet) -> Result<()> {
     Ok(())
 }
 
-pub fn get_wallet(conn: &Connection, seed_phrase: String) -> Result<Option<Wallet>> {
+pub fn get_wallet(conn: &Connection) -> Result<Option<Wallet>> {
+    let sql = r#"
+        SELECT seed_phrase, private_key, created_at, updated_at, is_user_seed_backed
+        FROM settings
+        ORDER BY RANDOM()
+        LIMIT 1
+    "#;
+    let mut stmt = conn.prepare(sql)?;
+    let wallet = stmt.query_row(params![], |row| {
+        Ok(Wallet {
+            seed_phrase: row.get(0)?,
+            private_key: row.get(1)?,
+            created_at: row.get(2)?,
+            updated_at: row.get(3)?,
+            is_user_seed_backed: row.get(4)?,
+        })
+    })?;
+    Ok(Some(wallet))
+}
+
+pub fn get_wallet_by_seed_phrase(conn: &Connection, seed_phrase: String) -> Result<Option<Wallet>> {
     let sql = r#"
         SELECT seed_phrase, private_key, created_at, updated_at, is_user_seed_backed
         FROM settings
