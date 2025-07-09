@@ -199,7 +199,7 @@ jobs:
       - name: Run test
         run: ${{ matrix.test_cmd }}
 
-  test:
+  mock-tests:
     needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
     steps:
@@ -225,10 +225,8 @@ jobs:
 
       - name: Set image environment variables
         run: |
-          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${GITHUB_SHA}" >> $GITHUB_ENV
           echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
           echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
-          echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
         
       - name: Restore test binaries
         uses: actions/cache/restore@v3
@@ -264,8 +262,47 @@ jobs:
         run: cargo test -p signer-tests
 
       - name: Cleanup integration tests
+        if: always()
         run: |
           docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml down -v
+          docker system prune -f
+
+  starknet-tests:
+    needs: [ build-images, build-binary ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image environment variables
+        run: |
+          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
+          echo "STARKNET_SETUP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/starknet-setup:${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Restore test binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
 
       - name: Start services  
         run: |
@@ -317,4 +354,3 @@ jobs:
         run: |
           docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml down -v
           docker system prune -f
-          rm -rf /home/runner/.local/share
