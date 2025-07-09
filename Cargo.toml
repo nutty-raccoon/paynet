@@ -17,8 +17,7 @@ members = [
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
   "crates/starknet/types",
-  "crates/starknet/substream",
-  "crates/starknet/substream-sql",
+  "crates/starknet/invoice-indexer",
   # Integration tests
   "crates/tests/signer-tests",
   "crates/tests/node-tests",
@@ -41,8 +40,7 @@ default-members = [
   # Starknet libs
   "crates/starknet/payment-indexer",
   "crates/starknet/liquidity-source",
-  "crates/starknet/substream",
-  "crates/starknet/substream-sql",
+  "crates/starknet/invoice-indexer",
   "crates/starknet/types",
   # Mobile
   "mobile/salto/src-tauri",
@@ -146,5 +144,4 @@ nuts = { path = "crates/nuts" }
 db-node = { path = "crates/db-node" }
 wallet = { path = "crates/wallet" }
 liquidity-source = { path = "crates/liquidity-source" }
-substream-paynet = { path = "crates/starknet/substream" }
-substream-paynet-sql = { path = "crates/starknet/substream-sql" }
+invoice-indexer = { path = "crates/starknet/invoice-indexer" }
