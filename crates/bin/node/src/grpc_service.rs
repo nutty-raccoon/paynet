@@ -4,9 +4,9 @@ use crate::{
     response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
 };
 use node::{
-    AcknowledgeRequest, AcknowledgeResponse, BlindSignature, CheckStateRequest, CheckStateResponse,
-    GetKeysRequest, GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest,
-    Keyset, MeltQuoteRequest, MeltQuoteResponse, MeltQuoteStateRequest, MeltRequest, MeltResponse,
+    AcknowledgeRequest, AcknowledgeResponse, CheckStateRequest, CheckStateResponse, GetKeysRequest,
+    GetKeysResponse, GetKeysetsRequest, GetKeysetsResponse, GetNodeInfoRequest, Keyset,
+    MeltQuoteRequest, MeltQuoteResponse, MeltQuoteStateRequest, MeltRequest, MeltResponse,
     MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
     ProofCheckState, QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
     hash_melt_request, hash_mint_request, hash_swap_request,
@@ -283,7 +283,7 @@ impl Node for GrpcState {
         let swap_response = SwapResponse {
             signatures: promises
                 .iter()
-                .map(|p| BlindSignature {
+                .map(|p| node::BlindSignature {
                     amount: p.amount.into(),
                     keyset_id: p.keyset_id.to_bytes().to_vec(),
                     blind_signature: p.c.to_bytes().to_vec(),
@@ -365,7 +365,7 @@ impl Node for GrpcState {
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
         let signatures = promises
             .iter()
-            .map(|p| BlindSignature {
+            .map(|p| node::BlindSignature {
                 amount: p.amount.into(),
                 keyset_id: p.keyset_id.to_bytes().to_vec(),
                 blind_signature: p.c.to_bytes().to_vec(),
@@ -602,6 +602,12 @@ impl Node for GrpcState {
     ) -> Result<Response<RestoreResponse>, Status> {
         let restore_signatures_request = restore_signatures_request.into_inner();
 
+        if restore_signatures_request.outputs.len() > 100 {
+            return Err(Status::invalid_argument(
+                "Too many outputs: maximum allowed is 100",
+            ));
+        }
+
         let blind_messages = restore_signatures_request
             .outputs
             .iter()
@@ -617,18 +623,32 @@ impl Node for GrpcState {
             .collect::<Result<Vec<BlindedMessage>, ParseGrpcError>>()
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        let signatures = self.inner_restore(blind_messages).await?;
+        let restored_messages_and_signatures = self.inner_restore(blind_messages).await?;
+
+        let (outputs, signatures) = restored_messages_and_signatures
+            .into_iter()
+            .map(|res| {
+                let amount = res.amount.into();
+                let keyset_id = res.keyset_id.to_bytes().to_vec();
+
+                (
+                    node::BlindedMessage {
+                        amount,
+                        keyset_id: keyset_id.clone(),
+                        blinded_secret: res.blinded_secret.to_bytes().to_vec(),
+                    },
+                    node::BlindSignature {
+                        amount,
+                        keyset_id,
+                        blind_signature: res.blind_signature.to_bytes().to_vec(),
+                    },
+                )
+            })
+            .unzip();
 
         let restore_response = RestoreResponse {
-            signatures: signatures
-                .into_iter()
-                .map(|p| BlindSignature {
-                    amount: p.amount.into(),
-                    keyset_id: p.keyset_id.to_bytes().to_vec(),
-                    blind_signature: p.c.to_bytes().to_vec(),
-                })
-                .collect::<Vec<_>>(),
-            outputs: restore_signatures_request.outputs,
+            outputs,
+            signatures,
         };
 
         Ok(Response::new(restore_response))
