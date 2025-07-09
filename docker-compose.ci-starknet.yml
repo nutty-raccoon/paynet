@@ -1,0 +1,66 @@
+services:
+  db:
+    image: "postgres"
+    environment:
+      - POSTGRES_USER=postgres
+      # Required by pg_isready
+      - PGUSER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=node
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  signer:
+    image: ${SIGNER_IMAGE}
+    restart: always
+    environment:
+      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+      - GRPC_PORT=10001
+    ports:
+      - "10001:10001"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+  
+  node:
+    image: ${NODE_STARKNET_IMAGE}
+    restart: always
+    volumes:
+      - ./crates/bin/node/config/docker.toml:/etc/paynet/config.toml
+    environment:
+      - PG_URL=postgres://postgres:password@db/node
+      - SIGNER_URL=http://signer:10001
+      - DNA_URI=http://dna:7171
+      - CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9
+      - GRPC_PORT=10003
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
+    command:
+      - --config
+      - /etc/paynet/config.toml
+    ports:
+      - "10003:10003"
+    depends_on:
+      db:
+        condition: service_healthy
+      signer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+volumes:
+  database_data:
+    driver: local
