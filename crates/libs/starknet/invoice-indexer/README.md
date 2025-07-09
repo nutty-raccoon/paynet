@@ -1,4 +1,4 @@
-# substream Substreams modules
+# invoice_indexer Substreams modules
 
 This package was initialized via `substreams init`, using the `starknet-events` template.
 

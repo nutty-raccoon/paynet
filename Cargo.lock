@@ -2202,6 +2202,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "invoice-indexer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cainome",
+ "hex-literal",
+ "log",
+ "num-bigint",
+ "num-traits",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "starknet 0.11.0",
+ "starknet-types-core 0.1.5",
+ "substreams",
+ "substreams-database-change",
+]
+
+[[package]]
 name = "io-uring"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5097,41 +5119,6 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
-name = "substream-paynet"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cainome",
- "hex-literal",
- "log",
- "num-bigint",
- "num-traits",
- "prost 0.13.5",
- "prost-types 0.13.5",
- "regex",
- "serde",
- "serde_json",
- "starknet 0.11.0",
- "starknet-types-core 0.1.5",
- "substreams",
-]
-
-[[package]]
-name = "substream_paynet_sql"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "getrandom 0.2.16",
- "hex",
- "prost 0.13.5",
- "prost-types 0.13.5",
- "sha2",
- "substream-paynet",
- "substreams",
- "substreams-database-change",
-]
 
 [[package]]
 name = "substreams"

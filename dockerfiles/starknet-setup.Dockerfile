@@ -13,7 +13,7 @@ RUN cargo chef prepare --recipe-path recipe.json --bin starknet-on-chain-setup
 
 FROM chef AS builder 
 
-RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y protobuf-compiler libgtk-3-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev libatk1.0-dev libwebkit2gtk-4.1-dev  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json

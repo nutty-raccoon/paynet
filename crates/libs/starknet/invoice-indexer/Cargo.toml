@@ -1,27 +1,29 @@
 [package]
-name = "substream-paynet"
+name = "invoice-indexer"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+name = "substreams"
+crate-type = ["cdylib"]
 
 [dependencies]
 hex-literal = "0.3.4"
 num-bigint = "0.4"
 num-traits = "0.2.15"
-prost = { workspace = true }
-prost-types = { workspace = true }
-substreams = { workspace = true }
-
+prost = "0.13.3"
+prost-types = "0.13.3"
+substreams = "0.6.0"
 starknet = { git = "https://github.com/xJonathanLEI/starknet-rs", rev = "2ddc694" }
 starknet-types-core = { git = "https://github.com/starknet-io/types-rs", rev = "f98f048" }
 cainome = { git = "https://github.com/cartridge-gg/cainome", tag = "v0.4.0", features = [
     "abigen-rs",
 ] }
+substreams-database-change = "2"
 serde_json = "1.0.128"
 log = "0.4.22"
 serde = { version = "1.0.209", features = ["derive"] }
+sha2.workspace = true
 
 [build-dependencies]
 anyhow = "1"
