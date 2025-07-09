@@ -200,6 +200,7 @@ jobs:
         run: ${{ matrix.test_cmd }}
 
   mock-tests:
+    name: "Integration Tests (Mock)"
     needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
     steps:
@@ -225,7 +226,7 @@ jobs:
 
       - name: Set image environment variables
         run: |
-          echo "NODE_MOCK_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "NODE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/node-mock:${GITHUB_SHA}" >> $GITHUB_ENV
           echo "SIGNER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/signer:${{ github.sha }}" >> $GITHUB_ENV
         
       - name: Restore test binaries
@@ -237,16 +238,16 @@ jobs:
 
       - name: Start integration service (mock)
         run: |
-          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml up -d
+          docker compose -f docker-compose.ci.yml up -d
 
       - name: Wait for integration services to be healthy
         run: |
           echo "Waiting for services to be healthy..."
           timeout 300 bash -c '
-            until docker compose -f docker-compose.app-mock.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
+            until docker compose -f docker-compose.ci.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
               echo "Waiting for mock services to be ready..."
               sleep 2
-              docker compose -f docker-compose.app-mock.yml ps
+              docker compose -f docker-compose.ci.yml ps
             done
           '
 
@@ -264,10 +265,11 @@ jobs:
       - name: Cleanup integration tests
         if: always()
         run: |
-          docker compose -f docker-compose.app-mock.yml -f docker-compose.ci.yml down -v
+          docker compose -f docker-compose.ci.yml down -v
           docker system prune -f
 
   starknet-tests:
+    name: "Integration Tests (Starknet)"
     needs: [ build-images, build-binary ]
     runs-on: ubuntu-latest
     steps:
@@ -306,24 +308,24 @@ jobs:
 
       - name: Start services  
         run: |
-          docker compose -f docker-compose.app.yml -f docker-compose.ci-testnet.yml up -d
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml up -d
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to be healthy..."
           timeout 300 bash -c '
-            until docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "4"; do
+            until docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "4"; do
               echo "Waiting for all services to be ready..."
               sleep 10
-              docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+              docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml ps
             done
           '
 
       - name: Run basic health checks
         run: |
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T db pg_isready -U postgres
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T signer /bin/grpc_health_probe -addr=localhost:10001
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml exec -T node /bin/grpc_health_probe -addr=localhost:10003
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml exec -T db pg_isready -U postgres
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml exec -T signer /bin/grpc_health_probe -addr=localhost:10001
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml exec -T node /bin/grpc_health_probe -addr=localhost:10003
           curl -f http://localhost:5050/is_alive
 
       - name: Cleanup CLI wallet DB
@@ -345,12 +347,12 @@ jobs:
         run: |
 
           echo "=== Docker compose logs ==="
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml logs
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml logs
           echo "=== Docker compose ps ==="
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml ps
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml ps
   
       - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.app.yml -f docker-compose.testnet.yml down -v
+          docker compose -f docker-compose.ci.yml -f docker-compose.ci-testnet.yml down -v
           docker system prune -f
