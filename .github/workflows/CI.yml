@@ -96,8 +96,8 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image_name || matrix.service }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.image_name || matrix.service }}
-          cache-to: type=gha,scope=${{ matrix.image_name || matrix.service }},mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image_name || matrix.service }}:cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.image_name || matrix.service }}:cache,mode=max
           build-args: |
             CARGO_FEATURES=${{ matrix.features || '' }}
 

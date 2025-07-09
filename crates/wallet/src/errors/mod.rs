@@ -29,7 +29,7 @@ pub enum Error {
     #[error("protocol error: {0}")]
     Protocol(String),
     #[error("not enough funds")]
-    MissingFunds,
+    NotEnoughFunds,
     #[error("nut01 error: {0}")]
     Nut01(#[from] nuts::nut01::Error),
     #[error("nut02 error: {0}")]

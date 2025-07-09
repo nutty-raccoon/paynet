@@ -48,7 +48,7 @@ pub async fn pay_quote<U: Unit>(
     let proofs_ids =
         fetch_inputs_ids_from_db_or_node(pool.clone(), node_client, node_id, amount, unit)
             .await?
-            .ok_or(Error::MissingFunds)?;
+            .ok_or(Error::NotEnoughFunds)?;
     let inputs = load_tokens_from_db(&*pool.get()?, &proofs_ids)?;
 
     // Create melt request
