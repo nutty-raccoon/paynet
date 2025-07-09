@@ -23,10 +23,12 @@ starknet-types-core = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand = { workspace = true }
+bip39 = { workspace = true }
 
 [features]
 default = []
 starknet = ["dep:starknet-types-core"]
 sqlx = ["dep:sqlx"]
 rusqlite = ["dep:rusqlite"]
+nut13 = []
 nut19 = []

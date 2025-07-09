@@ -22,7 +22,7 @@ use bitcoin::base64::{Engine as _, alphabet};
 pub enum Error {
     #[error("the total amount of this wad is to big")]
     WadValueOverflow,
-    #[error("unsuported wad format. Should start with {PAYNET_PREFIX}")]
+    #[error("unsuported wad format. Should start with {CASHU_PREFIX}")]
     UnsupportedWadFormat,
     #[error("failed to decode the base64 wad representation: {0}")]
     InvalidBase64(#[from] bitcoin::base64::DecodeError),
@@ -84,7 +84,7 @@ impl<U: Unit> CompactWad<U> {
     }
 }
 
-pub const PAYNET_PREFIX: &str = "paynetB";
+pub const CASHU_PREFIX: &str = "cashuB";
 
 impl<U: Unit + Serialize> fmt::Display for CompactWad<U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -92,7 +92,7 @@ impl<U: Unit + Serialize> fmt::Display for CompactWad<U> {
         let mut data = Vec::new();
         ciborium::into_writer(self, &mut data).map_err(|e| fmt::Error::custom(e.to_string()))?;
         let encoded = general_purpose::URL_SAFE.encode(data);
-        write!(f, "{}{}", PAYNET_PREFIX, encoded)
+        write!(f, "{}{}", CASHU_PREFIX, encoded)
     }
 }
 
@@ -101,7 +101,7 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWad<U> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s
-            .strip_prefix(PAYNET_PREFIX)
+            .strip_prefix(CASHU_PREFIX)
             .ok_or(Error::UnsupportedWadFormat)?;
 
         let decode_config = general_purpose::GeneralPurposeConfig::new()

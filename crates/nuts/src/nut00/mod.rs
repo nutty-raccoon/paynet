@@ -1,6 +1,6 @@
 mod errors;
 pub mod secret;
-use errors::Error;
+pub use errors::Error;
 use num_traits::CheckedAdd;
 use secret::Secret;
 use serde::{Deserialize, Serialize};
