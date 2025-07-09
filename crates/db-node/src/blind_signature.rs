@@ -1,5 +1,5 @@
 use futures_util::StreamExt;
-use nuts::{Amount, nut00::BlindSignature, nut01::PublicKey, traits::Unit};
+use nuts::{Amount, nut01::PublicKey, nut02::KeysetId, traits::Unit};
 use sqlx::{PgConnection, Row};
 
 use crate::Error;
@@ -43,10 +43,18 @@ pub async fn sum_amount_of_unit_in_circulation<U: Unit>(
     Ok(amount)
 }
 
+#[derive(Debug)]
+pub struct RestoreFromDbResponse {
+    pub amount: Amount,
+    pub keyset_id: KeysetId,
+    pub blinded_secret: PublicKey,
+    pub blind_signature: PublicKey,
+}
+
 pub async fn get_by_blind_secrets(
     conn: &mut PgConnection,
     blind_secrets: impl ExactSizeIterator<Item = PublicKey>,
-) -> Result<Vec<BlindSignature>, Error> {
+) -> Result<Vec<RestoreFromDbResponse>, Error> {
     let n_blind_secrets = blind_secrets.len();
 
     // Build query
@@ -62,7 +70,7 @@ pub async fn get_by_blind_secrets(
         .join(", ");
     let sql = format!(
         r#"
-        SELECT amount, keyset_id, c FROM blind_signature
+        SELECT amount, keyset_id, c, y FROM blind_signature
         JOIN (
           VALUES ({})
         ) AS v(y, position) ON blind_signature.y = v.y
@@ -84,13 +92,15 @@ pub async fn get_by_blind_secrets(
         let amount = row.try_get::<i64, _>(0)?;
         let keyset_id = row.try_get::<i64, _>(1)?;
         let c = row.try_get::<&[u8], _>(2)?;
+        let y = row.try_get::<&[u8], _>(3)?;
 
-        ret.push(BlindSignature {
+        ret.push(RestoreFromDbResponse {
             amount: Amount::from_i64_repr(amount),
             keyset_id: keyset_id
                 .try_into()
                 .map_err(|_| Error::DbToRuntimeConversion)?,
-            c: PublicKey::from_slice(c).map_err(|_| Error::DbToRuntimeConversion)?,
+            blinded_secret: PublicKey::from_slice(y).map_err(|_| Error::DbToRuntimeConversion)?,
+            blind_signature: PublicKey::from_slice(c).map_err(|_| Error::DbToRuntimeConversion)?,
         });
     }
 
