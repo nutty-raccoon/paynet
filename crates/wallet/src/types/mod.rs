@@ -1,8 +1,6 @@
+use bitcoin::bip32::Xpriv;
 use nuts::{
-    Amount, SplitTarget,
-    dhke::blind_message,
-    nut00::{self, secret::Secret},
-    nut01::{PublicKey, SecretKey},
+    dhke::blind_message, nut00::{self, secret::Secret}, nut01::{PublicKey, SecretKey}, nut02::KeysetId, Amount, SplitTarget
 };
 
 use rusqlite::{
@@ -25,6 +23,9 @@ pub struct PreMint {
 
 impl PreMint {
     pub fn generate_for_amount(
+        xpriv: Xpriv,
+        keyset_id: KeysetId,
+        keyset_counter: u32,
         total_amount: Amount,
         split_target: &SplitTarget,
     ) -> Result<Vec<Self>, Error> {
@@ -32,8 +33,10 @@ impl PreMint {
             .split_targeted(split_target)?
             .into_iter()
             .map(|amount| -> Result<_, Error> {
-                let secret = Secret::generate();
-                let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
+                let secret = Secret::from_xpriv(xpriv, keyset_id, keyset_counter).unwrap();
+                let blinding_factor = SecretKey::from_xpriv(xpriv, keyset_id, keyset_counter).unwrap();
+
+                let (blinded_secret, r) = blind_message(secret.as_bytes(), Some(blinding_factor))?;
 
                 let pm = PreMint {
                     amount,

@@ -49,6 +49,10 @@ pub enum Error {
     UnitMissmatch(String, String),
     #[error("failed to get a connection from the pool: {0}")]
     R2D2(#[from] r2d2::Error),
+    #[error("wallet not found")]
+    WalletNotFound,
+    #[error("failed to parse xpriv: {0}")]
+    Xpriv(#[from] bitcoin::bip32::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

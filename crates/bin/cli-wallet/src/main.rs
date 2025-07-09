@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node_client::NodeClient;
+use node_client::{NodeClient, RestoreRequest};
 use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -11,7 +11,8 @@ use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
-    db::balance::Balance,
+    db::{balance::Balance},
+    get_active_keyset_for_unit,
     melt::wait_for_payment,
     types::{NodeUrl, Wad, compact_wad::CompactWad},
 };
@@ -147,6 +148,23 @@ enum Commands {
         long_about = "Check all nodes for pending mint and melt quote updates and process them accordingly"
     )]
     Sync,
+    #[command(
+        about = "Generate a new wallet",
+        long_about = "Generate a new wallet. This will create a new wallet with a new seed phrase and private key."
+    )]
+    Init,
+    #[command(
+        about = "Restore a wallet",
+        long_about = "Restore a wallet. This will restore a wallet from a seed phrase and private key."
+    )]
+    Restore {
+        /// The seed phrase
+        #[arg(long, short)]
+        seed_phrase: String,
+        /// The private key
+        #[arg(long, short)]
+        node_id: u32,
+    },
 }
 
 #[derive(Args)]
@@ -485,6 +503,111 @@ async fn main() -> Result<()> {
         }
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
+        }
+        Commands::Init {} => {
+            let wallet_count = wallet::db::wallet::count_wallets(&db_conn)?;
+            let seed_phrase = wallet::utils::create_seed_phrase()?;
+            let private_key = wallet::utils::derive_private_key(&seed_phrase)?;
+
+            let wallet = wallet::db::wallet::Wallet {
+                seed_phrase: seed_phrase.to_string(),
+                private_key: private_key.to_string(),
+                is_user_seed_backed: true,
+                created_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as u64,
+                updated_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as u64,
+            };
+            let mut input = String::new();
+            if wallet_count > 0 {
+                println!(
+                    "Wallet already exists!  If you don't want to replace your seed phrase, please stop this process."
+                );
+                println!("New seed phrase: {} . \n ", seed_phrase.to_string());
+                println!(
+                    "Please enter 'y' or 'yes' if you want to replace your seed phrase and you have saved it in a safe place.  \n Make sure to save it somewhere safe, with it your will be able to recover your funds."
+                );
+                std::io::stdin().read_line(&mut input)?;
+                let mut user_input = input.trim().to_lowercase();
+                loop {
+                    if user_input == "y" || user_input == "yes" {
+                        break;
+                    }
+                    println!("\n Please enter 'y' or 'yes' to save the wallet.");
+                    input.clear();
+                    std::io::stdin().read_line(&mut input)?;
+                    user_input = input.trim().to_lowercase();
+                }
+                wallet::db::wallet::update_wallet(&db_conn, wallet)?;
+                println!("Wallet updated!");
+                return Ok(());
+            }
+
+            std::io::stdin().read_line(&mut input)?;
+            println!(
+                "Here is your seed phrase. With it your will be able to recover your funds, should you lose access to this device or destroy your local database.  \n Make sure to save it somewhere safe."
+            );
+            println!("Seed phrase: {} ", seed_phrase.to_string());
+
+            println!("Have you stored this seed phrase in a safe place? (y/n)");
+
+            let mut should_save = input.trim().to_lowercase();
+            loop {
+                if should_save == "y" || should_save == "yes" {
+                    break;
+                }
+                println!("\n Please enter 'y' or 'yes' to save the wallet.");
+                input.clear();
+                std::io::stdin().read_line(&mut input)?;
+                should_save = input.trim().to_lowercase();
+            }
+            wallet::db::wallet::create_wallet(&db_conn, wallet)?;
+            println!("Wallet saved locally!");
+        }
+        Commands::Restore {
+            seed_phrase,
+            node_id,
+        } => {
+            let wallet = wallet::db::wallet::get_wallet(&db_conn).unwrap();
+            if wallet.is_none() {
+                println!("Wallet not found!");
+                return Ok(());
+            }
+            let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            let keyset_id = { get_active_keyset_for_unit(&db_conn, node_id, STARKNET_STR)? };
+
+            let keyset_counter = wallet::db::get_keyset_counter(&db_conn, keyset_id)?;
+
+            let xpriv =
+                wallet::utils::convert_private_key_to_xpriv(wallet.unwrap().private_key).unwrap();
+            // let secret = Secret::from_xpriv(xpriv, keyset_id, keyset_counter).unwrap();
+            // let blinding_factor = SecretKey::from_xpriv(xpriv, keyset_id, keyset_counter).unwrap();
+            // let (blinded_secret, r) = blind_message(secret.as_bytes(), Some(blinding_factor))?;
+
+            let blinded_messages = wallet::utils::generate_blinded_messages(
+                keyset_id,
+                xpriv,
+                0,
+                99,
+            )?;
+            let outputs = blinded_messages
+                .iter()
+                .map(|bm| node_client::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: bm.keyset_id.to_bytes().to_vec(),
+                    blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect();
+
+            let request = RestoreRequest { outputs: outputs };
+            let response = node_client::NodeClient::restore(&mut node_client, request).await?;
+            println!("Response: {:?}", response);
+
+            println!("Wallet restored!");
         }
     }
 

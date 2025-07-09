@@ -1,5 +1,5 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
+use std::{str::FromStr, time::{SystemTime, UNIX_EPOCH}};
+use bitcoin::bip32::Xpriv;
 use node_client::{
     MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, QuoteStateRequest,
     hash_mint_request,
@@ -121,12 +121,24 @@ pub async fn redeem_quote(
     unit: &str,
     total_amount: Amount,
 ) -> Result<(), Error> {
+    let db_conn = pool.get()?;
+
     let keyset_id = {
-        let db_conn = pool.get()?;
         get_active_keyset_for_unit(&db_conn, node_id, unit)?
     };
 
-    let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
+    let wallet = db::wallet::get_wallet(&db_conn)?.ok_or(Error::WalletNotFound)?;
+    let xpriv = Xpriv::from_str(&wallet.private_key)?;
+
+    let keyset_counter = db::get_keyset_counter(&db_conn, keyset_id)?;
+
+    let pre_mints = PreMint::generate_for_amount(
+        xpriv,
+        keyset_id,
+        keyset_counter,
+        total_amount,
+        &SplitTarget::None,
+    )?;
 
     let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
 

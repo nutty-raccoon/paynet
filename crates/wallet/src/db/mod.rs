@@ -8,13 +8,15 @@ pub mod melt_quote;
 pub mod mint_quote;
 pub mod node;
 pub mod proof;
+pub mod wallet;
 
 pub const CREATE_TABLE_KEYSET: &str = r#"
         CREATE TABLE IF NOT EXISTS keyset (
             id BLOB(8) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             unit TEXT NOT NULL,
-            active BOOL NOT NULL
+            active BOOL NOT NULL,
+            counter INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE INDEX keyset_node_id ON keyset(node_id);
@@ -53,6 +55,15 @@ pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
             transfer_ids TEXT
         );"#;
 
+pub const CREATE_TABLE_SETTINGS: &str = r#"
+    CREATE TABLE IF NOT EXISTS settings (
+        seed_phrase TEXT NOT NULL,
+        private_key TEXT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        is_user_seed_backed BOOLEAN NOT NULL
+    );"#;
+
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
@@ -62,6 +73,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
     tx.execute(CREATE_TABLE_MELT_QUOTE, ())?;
     tx.execute(proof::CREATE_TABLE_PROOF, ())?;
+    tx.execute(CREATE_TABLE_SETTINGS, ())?;
 
     tx.commit()?;
 
@@ -167,4 +179,13 @@ pub fn get_keyset_unit(conn: &Connection, keyset_id: KeysetId) -> Result<Option<
         .optional()?;
 
     Ok(opt_unit)
+}
+
+
+pub fn get_keyset_counter(conn: &Connection, keyset_id: KeysetId) -> Result<u32> {
+    let mut stmt = conn.prepare("SELECT counter FROM keyset WHERE id = ?1 LIMIT 1")?;
+    let counter = stmt
+        .query_row(params![keyset_id], |r| r.get::<_, u32>(0))?;
+
+    Ok(counter)
 }
