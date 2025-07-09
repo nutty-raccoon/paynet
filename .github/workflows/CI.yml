@@ -36,7 +36,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   clippy:
-    name: Lint
+    name: Check clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
           cache-on-failure: true
           cache-all-crates: true
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps
 
   build-images:
     runs-on: ubuntu-8-cores
