@@ -110,7 +110,7 @@ jobs:
             CARGO_FEATURES=${{ matrix.features || '' }}
 
   build-binary:
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
