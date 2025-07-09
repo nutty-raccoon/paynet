@@ -11,7 +11,8 @@ use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
-    db::balance::Balance,
+    db::{balance::Balance},
+    get_active_keyset_for_unit,
     melt::wait_for_payment,
     types::{NodeUrl, Wad, compact_wad::CompactWad},
 };
@@ -160,6 +161,9 @@ enum Commands {
         /// The seed phrase
         #[arg(long, short)]
         seed_phrase: String,
+        /// The private key
+        #[arg(long, short)]
+        node_id: u32,
     },
 }
 
@@ -520,7 +524,9 @@ async fn main() -> Result<()> {
             };
             let mut input = String::new();
             if wallet_count > 0 {
-                println!("Wallet already exists!  If you don't want to replace your seed phrase, please stop this process.");
+                println!(
+                    "Wallet already exists!  If you don't want to replace your seed phrase, please stop this process."
+                );
                 println!("New seed phrase: {} . \n ", seed_phrase.to_string());
                 println!(
                     "Please enter 'y' or 'yes' if you want to replace your seed phrase and you have saved it in a safe place.  \n Make sure to save it somewhere safe, with it your will be able to recover your funds."
@@ -562,33 +568,45 @@ async fn main() -> Result<()> {
             wallet::db::wallet::create_wallet(&db_conn, wallet)?;
             println!("Wallet saved locally!");
         }
-        Commands::Restore { seed_phrase } => {
-            let wallet = wallet::db::wallet::get_wallet(&db_conn)?;
+        Commands::Restore {
+            seed_phrase,
+            node_id,
+        } => {
+            let wallet = wallet::db::wallet::get_wallet(&db_conn).unwrap();
             if wallet.is_none() {
                 println!("Wallet not found!");
                 return Ok(());
             }
-            let (mut node_client, _node_url) = connect_to_node(&mut db_conn, 1).await?;
-            let outputs = vec![
-                // BlindedMessage {
-                //     amount: U256::from(1000000000000000000),
-                //     keyset_id: KeysetId::from_bytes(&bm.keyset_id)
-                //         .map_err(ParseGrpcError::KeysetId)?,
-                //     blinded_secret: PublicKey::from_slice(&wallet.blinded_secret)
-                //         .map_err(ParseGrpcError::PublicKey)?,
-                // },
-            ];
-            // To sign a BlindedMessage, you typically send it to the mint (node) via a protocol request (e.g., during minting or restoring).
-            // The node will verify the request and, if valid, return a BlindSignature for each BlindedMessage.
-            // In this context, the outputs vector contains BlindedMessages (or their equivalents).
-            // The signing is performed by the node when you call the restore method on the NodeClient.
-            // Example (pseudocode):
-            // let request = RestoreRequest { outputs };
-            // let response = node_client.restore(request).await?;
-            // The response will contain the BlindSignatures for your BlindedMessages.
+            let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            let keyset_id = { get_active_keyset_for_unit(&db_conn, node_id, STARKNET_STR)? };
+
+            let keyset_counter = wallet::db::get_keyset_counter(&db_conn, keyset_id)?;
+
+            let xpriv =
+                wallet::utils::convert_private_key_to_xpriv(wallet.unwrap().private_key).unwrap();
+            // let secret = Secret::from_xpriv(xpriv, keyset_id, keyset_counter).unwrap();
+            // let blinding_factor = SecretKey::from_xpriv(xpriv, keyset_id, keyset_counter).unwrap();
+            // let (blinded_secret, r) = blind_message(secret.as_bytes(), Some(blinding_factor))?;
+
+            let blinded_messages = wallet::utils::generate_blinded_messages(
+                keyset_id,
+                xpriv,
+                0,
+                99,
+            )?;
+            let outputs = blinded_messages
+                .iter()
+                .map(|bm| node_client::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: bm.keyset_id.to_bytes().to_vec(),
+                    blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect();
+
             let request = RestoreRequest { outputs: outputs };
             let response = node_client::NodeClient::restore(&mut node_client, request).await?;
             println!("Response: {:?}", response);
+
             println!("Wallet restored!");
         }
     }

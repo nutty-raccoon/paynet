@@ -1,5 +1,10 @@
 use bip39::{Language, Mnemonic};
-use bitcoin::{Network, PrivateKey};
+use bitcoin::{Network, PrivateKey, bip32::Xpriv};
+use nuts::nut00::secret::Secret;
+use nuts::nut02::KeysetId;
+use nuts::Amount;
+use nuts::{dhke::blind_message, nut00::BlindedMessage, nut01::SecretKey};
+use std::str::FromStr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -12,6 +17,10 @@ pub enum WalletError {
     DerivePrivError(String),
     #[error("Failed to generate mnemonic: {0}")]
     GenerateMnemonicError(String),
+    #[error("Failed to convert private key to xpriv: {0}")]
+    ConvertPrivateKeyToXprivError(String),
+    #[error("Failed to generate blinded messages: {0}")]
+    GenerateBlindedMessagesError(String),
 }
 
 // Create a new seed phrase mnemonic with 12 words and BIP39 standard
@@ -58,6 +67,39 @@ pub fn derive_private_key_from_path(seed_phrase: &Mnemonic, path: &str) -> Priva
         .expect("Failed to derive private key");
     let private_key = PrivateKey::new(derived_key.private_key, Network::Bitcoin);
     private_key
+}
+
+pub fn convert_private_key_to_xpriv(private_key: String) -> Result<Xpriv, WalletError> {
+    let xpriv =
+        Xpriv::from_str(&private_key).map_err(|e| WalletError::MasterKeyError(e.to_string()))?;
+    Ok(xpriv)
+}
+/// Generate blinded messages from predetermined secrets and blindings
+/// factor
+pub fn generate_blinded_messages(
+    keyset_id: KeysetId,
+    xpriv: Xpriv,
+    start_count: u32,
+    end_count: u32,
+) -> Result<Vec<BlindedMessage>, WalletError> {
+    let mut blinded_messages = vec![];
+
+    for i in start_count..=end_count {
+        let secret = Secret::from_xpriv(xpriv, keyset_id, i).map_err(|e| WalletError::GenerateBlindedMessagesError(e.to_string()))?;
+        let blinding_factor = SecretKey::from_xpriv(xpriv, keyset_id, i).map_err(|e| WalletError::GenerateBlindedMessagesError(e.to_string()))?;
+
+        let (blinded, r) = blind_message(&secret.to_bytes(), Some(blinding_factor)).map_err(|e| WalletError::GenerateBlindedMessagesError(e.to_string()))?;
+
+        let blinded_message = BlindedMessage{
+            amount: Amount::ZERO,
+            keyset_id: keyset_id,
+            blinded_secret: blinded,
+        };
+
+        blinded_messages.push(blinded_message);
+    }
+
+    Ok(blinded_messages)
 }
 
 #[cfg(test)]
