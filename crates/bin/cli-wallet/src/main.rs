@@ -501,10 +501,8 @@ async fn main() -> Result<()> {
             sync::sync_all_pending_operations(pool).await?;
         }
         Commands::Init {} => {
+            let wallet_count = wallet::db::wallet::count_wallets(&db_conn)?;
             let seed_phrase = wallet::utils::create_seed_phrase()?;
-            println!("Here is your seed phrase. With it your will be able to recover your funds, should you lose access to this device or destroy your local database.  \n Make sure to save it somewhere safe.");
-            println!("Seed phrase: {} ", seed_phrase.to_string());
-
             let private_key = wallet::utils::derive_private_key(&seed_phrase)?;
 
             let wallet = wallet::db::wallet::Wallet {
@@ -520,10 +518,37 @@ async fn main() -> Result<()> {
                     .unwrap()
                     .as_secs() as u64,
             };
+            let mut input = String::new();
+            if wallet_count > 0 {
+                println!("Wallet already exists!  If you don't want to replace your seed phrase, please stop this process.");
+                println!("New seed phrase: {} . \n Here is your seed phrase. With it your will be able to recover your funds. Make sure to save it somewhere safe.", seed_phrase.to_string());
+
+                println!(
+                    "Please enter 'y' or 'yes' if you want to replace your seed phrase and you have saved it in a safe place.  \n"
+                );
+                std::io::stdin().read_line(&mut input)?;
+                let mut should_save = input.trim().to_lowercase();
+                loop {
+                    if should_save == "y" || should_save == "yes" {
+                        break;
+                    }
+                    println!("\n Please enter 'y' or 'yes' to save the wallet.");
+                    input.clear();
+                    std::io::stdin().read_line(&mut input)?;
+                    should_save = input.trim().to_lowercase();
+                }
+                wallet::db::wallet::update_wallet(&db_conn, wallet)?;
+                println!("Wallet updated!");
+                return Ok(());
+            }
+
+            std::io::stdin().read_line(&mut input)?;
+            println!(
+                "Here is your seed phrase. With it your will be able to recover your funds, should you lose access to this device or destroy your local database.  \n Make sure to save it somewhere safe."
+            );
+            println!("Seed phrase: {} ", seed_phrase.to_string());
 
             println!("Have you stored this seed phrase in a safe place? (y/n)");
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input)?;
 
             let mut should_save = input.trim().to_lowercase();
             loop {
@@ -562,9 +587,7 @@ async fn main() -> Result<()> {
             // let request = RestoreRequest { outputs };
             // let response = node_client.restore(request).await?;
             // The response will contain the BlindSignatures for your BlindedMessages.
-            let request = RestoreRequest {
-                outputs: outputs,
-            };
+            let request = RestoreRequest { outputs: outputs };
             let response = node_client::NodeClient::restore(&mut node_client, request).await?;
             println!("Response: {:?}", response);
             println!("Wallet restored!");

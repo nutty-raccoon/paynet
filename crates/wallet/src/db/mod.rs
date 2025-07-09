@@ -73,6 +73,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
     tx.execute(CREATE_TABLE_MELT_QUOTE, ())?;
     tx.execute(proof::CREATE_TABLE_PROOF, ())?;
+    tx.execute(CREATE_TABLE_SETTINGS, ())?;
 
     tx.commit()?;
 
