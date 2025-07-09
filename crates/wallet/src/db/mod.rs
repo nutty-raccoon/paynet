@@ -61,7 +61,7 @@ pub const CREATE_TABLE_SETTINGS: &str = r#"
         private_key TEXT NOT NULL,
         created_at INTEGER,
         updated_at INTEGER,
-        is_user_saved_locally BOOLEAN NOT NULL
+        is_user_seed_backed BOOLEAN NOT NULL
     );"#;
 
 pub fn create_tables(conn: &mut Connection) -> Result<()> {

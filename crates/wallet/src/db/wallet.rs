@@ -4,24 +4,24 @@ pub struct Wallet {
     pub private_key: String,
     pub created_at: u64,
     pub updated_at: u64,
-    pub is_user_saved_locally: bool,
+    pub is_user_seed_backed: bool,
 }
 
 pub fn create_wallet(conn: &Connection, wallet: Wallet) -> Result<()> {
     let sql = r#"
-        INSERT INTO settings (seed_phrase, private_key, created_at, updated_at, is_user_saved_locally)
+        INSERT INTO settings (seed_phrase, private_key, created_at, updated_at, is_user_seed_backed)
         VALUES (?, ?, ?, ?, ?)
     "#;
 
     let mut stmt = conn.prepare(sql)?;
-    stmt.execute(params![wallet.seed_phrase, wallet.private_key, wallet.created_at, wallet.updated_at, wallet.is_user_saved_locally])?;
+    stmt.execute(params![wallet.seed_phrase, wallet.private_key, wallet.created_at, wallet.updated_at, wallet.is_user_seed_backed])?;
 
     Ok(())
 }
 
 pub fn get_wallet(conn: &Connection, seed_phrase: String) -> Result<Option<Wallet>> {
     let sql = r#"
-        SELECT seed_phrase, private_key, created_at, updated_at, is_user_saved_locally
+        SELECT seed_phrase, private_key, created_at, updated_at, is_user_seed_backed
         FROM settings
         WHERE seed_phrase = ?
     "#;
@@ -32,7 +32,7 @@ pub fn get_wallet(conn: &Connection, seed_phrase: String) -> Result<Option<Walle
             private_key: row.get(1)?,
             created_at: row.get(2)?,
             updated_at: row.get(3)?,
-            is_user_saved_locally: row.get(4)?,
+            is_user_seed_backed: row.get(4)?,
         })
     })?;
     Ok(Some(wallet))

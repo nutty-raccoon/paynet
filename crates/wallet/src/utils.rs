@@ -1,5 +1,5 @@
 use bip39::{Language, Mnemonic};
-use bitcoin::{Network, PrivateKey, hex::DisplayHex};
+use bitcoin::{Network, PrivateKey};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -16,7 +16,8 @@ pub enum WalletError {
 
 // Create a new seed phrase mnemonic with 12 words and BIP39 standard
 pub fn create_seed_phrase() -> Result<Mnemonic, WalletError> {
-    let mnemonic = Mnemonic::generate_in(Language::English, 12 as usize).map_err(|e| WalletError::GenerateMnemonicError(e.to_string()))?;
+    let mnemonic = Mnemonic::generate_in(Language::English, 12 as usize)
+        .map_err(|e| WalletError::GenerateMnemonicError(e.to_string()))?;
     Ok(mnemonic)
 }
 

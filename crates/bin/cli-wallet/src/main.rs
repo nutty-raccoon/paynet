@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node_client::{MeltQuoteState, NodeClient, hash_melt_request};
+use node_client::{hash_melt_request, MeltQuoteState, NodeClient, RestoreRequest};
 use nuts::{Amount, nut04::MintQuoteState};
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -11,6 +11,7 @@ use uuid::Uuid;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::{fmt::time, EnvFilter};
+
 use wallet::{
     acknowledge,
     db::balance::Balance,
@@ -560,44 +561,74 @@ async fn main() -> Result<()> {
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
         }
-        Commands::Init {  } => {
-            let seed_phrase = wallet::utils::create_seed_phrase().unwrap();
-            println!("Seed phrase: {}", seed_phrase.to_string());
+        Commands::Init {} => {
+            let seed_phrase = wallet::utils::create_seed_phrase()?;
+            println!("Here is your seed phrase. With it your will be able to recover your funds, should you lose access to this device or destroy your local database.  \n Make sure to save it somewhere safe.");
+            println!("Seed phrase: {} ", seed_phrase.to_string());
 
-            let private_key = wallet::utils::derive_private_key(&seed_phrase).unwrap();
+            let private_key = wallet::utils::derive_private_key(&seed_phrase)?;
 
             let wallet = wallet::db::wallet::Wallet {
                 seed_phrase: seed_phrase.to_string(),
                 private_key: private_key.to_string(),
-                is_user_saved_locally: true,
-                created_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u64,
-                updated_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as u64,
+                is_user_seed_backed: true,
+                created_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as u64,
+                updated_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as u64,
             };
 
-            println!("Do you want to save this wallet locally? (y/YES/n): ");
+            println!("Have you stored this seed phrase in a safe place? (y/n)");
             let mut input = String::new();
             std::io::stdin().read_line(&mut input)?;
 
-            let should_save = input.trim().to_lowercase();
-            if should_save == "y" || should_save == "yes" {
-                wallet::db::wallet::create_wallet(&db_conn, wallet)?;
-                println!("Wallet saved locally!");
-            } else {
-                println!("Wallet not saved locally and in Database. Please generate a new wallet and type yes/y.");
+            let mut should_save = input.trim().to_lowercase();
+            loop {
+                if should_save == "y" || should_save == "yes" {
+                    break;
+                }
+                println!("\n Please enter 'y' or 'yes' to save the wallet.");
+                input.clear();
+                std::io::stdin().read_line(&mut input)?;
+                should_save = input.trim().to_lowercase();
             }
+            wallet::db::wallet::create_wallet(&db_conn, wallet)?;
+            println!("Wallet saved locally!");
         }
-        Commands::Restore {
-            seed_phrase,
-        } => {
+        Commands::Restore { seed_phrase } => {
             let wallet = wallet::db::wallet::get_wallet(&db_conn, seed_phrase.clone())?;
             if wallet.is_none() {
                 println!("Wallet not found!");
                 return Ok(());
             }
-            let wallet = wallet.unwrap();
+            let (mut node_client, _node_url) = connect_to_node(&mut db_conn, 1).await?;
+            let outputs = vec![
+                // BlindedMessage {
+                //     amount: U256::from(1000000000000000000),
+                //     keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                //         .map_err(ParseGrpcError::KeysetId)?,
+                //     blinded_secret: PublicKey::from_slice(&wallet.blinded_secret)
+                //         .map_err(ParseGrpcError::PublicKey)?,
+                // },
+            ];
+            // To sign a BlindedMessage, you typically send it to the mint (node) via a protocol request (e.g., during minting or restoring).
+            // The node will verify the request and, if valid, return a BlindSignature for each BlindedMessage.
+            // In this context, the outputs vector contains BlindedMessages (or their equivalents).
+            // The signing is performed by the node when you call the restore method on the NodeClient.
+            // Example (pseudocode):
+            // let request = RestoreRequest { outputs };
+            // let response = node_client.restore(request).await?;
+            // The response will contain the BlindSignatures for your BlindedMessages.
+            let request = RestoreRequest {
+                outputs: outputs,
+            };
+            let response = node_client::NodeClient::restore(&mut node_client, request).await?;
+            println!("Response: {:?}", response);
             println!("Wallet restored!");
-            println!("Seed phrase: {}", wallet.seed_phrase);
-            println!("Private key: {}", wallet.private_key);
         }
     }
 
