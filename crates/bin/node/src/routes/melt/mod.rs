@@ -57,14 +57,14 @@ impl GrpcState {
 
         let expiry = unix_time() + self.quote_ttl.melt_ttl();
         let quote_id = Uuid::new_v4();
-        let quote_hash = bitcoin_hashes::Sha256::hash(quote_id.as_bytes());
+        let invoice_id = liquidity_source.compute_invoice_id(quote_id, expiry);
 
         // Store the quote in database
         let mut conn = self.pg_pool.acquire().await?;
         db_node::melt_quote::insert_new(
             &mut conn,
             quote_id,
-            quote_hash.as_byte_array(),
+            &invoice_id.into(),
             settings.unit,
             total_amount,
             fee,

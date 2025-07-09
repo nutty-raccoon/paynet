@@ -45,6 +45,12 @@ impl Unit {
     }
 }
 
+impl AsRef<str> for Unit {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 /// Used in the derivation path when createing keysets
 ///
 /// This guarantee that different units don't share the same signing keys

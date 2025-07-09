@@ -114,7 +114,7 @@ async fn sync_melt_quotes(
     Ok(())
 }
 
-pub async fn sync_melt_quote(
+async fn sync_melt_quote(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     method: String,

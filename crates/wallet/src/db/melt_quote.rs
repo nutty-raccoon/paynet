@@ -45,7 +45,7 @@ pub fn store(
 
 pub fn register_transfer_ids(conn: &Connection, quote_id: &str, transfer_ids: &str) -> Result<()> {
     const INSERT_TRANSFER_IDS: &str = r#"
-       INSERT INTO melt_quote (transfer_ids) VALUES (?2) WHERE id = ?1; 
+       UPDATE melt_quote SET transfer_ids = ?2 WHERE id = ?1; 
     "#;
 
     conn.execute(INSERT_TRANSFER_IDS, [quote_id, transfer_ids])?;

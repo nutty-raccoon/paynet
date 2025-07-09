@@ -64,6 +64,7 @@ mod not_mock {
 
             let quote_id_hash =
                 Felt::from_bytes_be(Sha256::hash(quote_id.as_bytes()).as_byte_array());
+
             let calls = generate_single_payment_transaction_calls(
                 on_chain_constants.invoice_payment_contract_address,
                 quote_id_hash,

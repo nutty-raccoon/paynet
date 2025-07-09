@@ -23,7 +23,7 @@ pub async fn run_e2e() -> Result<()> {
             node_url,
             10.into(),
             starknet_types::Asset::Strk,
-            Some("./test.wad".to_string()),
+            Some("Here is some money".to_string()),
         )
         .await?;
     wallet_ops.receive(&wad).await?;

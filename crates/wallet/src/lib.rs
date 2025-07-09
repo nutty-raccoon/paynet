@@ -238,12 +238,12 @@ pub fn store_new_proofs_from_blind_signatures(
     Ok(new_tokens)
 }
 
-pub async fn fetch_inputs_ids_from_db_or_node(
+pub async fn fetch_inputs_ids_from_db_or_node<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     target_amount: Amount,
-    unit: &str,
+    unit: U,
 ) -> Result<Option<Vec<PublicKey>>, Error> {
     let mut proofs_ids = Vec::new();
     let mut proofs_not_used = Vec::new();
@@ -348,17 +348,17 @@ pub fn load_tokens_from_db(
     Ok(proofs)
 }
 
-pub async fn swap_to_have_target_amount(
+pub async fn swap_to_have_target_amount<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    unit: &str,
+    unit: U,
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
 ) -> Result<Vec<(PublicKey, Amount)>, Error> {
     let (keyset_id, input_unblind_signature) = {
         let db_conn = pool.get()?;
-        let keyset_id = get_active_keyset_for_unit(&db_conn, node_id, unit)?;
+        let keyset_id = get_active_keyset_for_unit(&db_conn, node_id, unit.as_ref())?;
 
         let input_unblind_signature =
             db::proof::get_proof_and_set_state_pending(&db_conn, proof_to_swap.0)?

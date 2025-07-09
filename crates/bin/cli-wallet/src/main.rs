@@ -1,19 +1,19 @@
 use anyhow::{Result, anyhow};
 use clap::{Args, Parser, Subcommand, ValueHint};
-use node_client::{MeltQuoteState, NodeClient, hash_melt_request};
-use nuts::{Amount, nut04::MintQuoteState};
+use node_client::NodeClient;
+use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use starknet_types::{Asset, STARKNET_STR, Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
-use std::{fs, path::PathBuf, str::FromStr, time::Duration};
+use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
-    acknowledge,
     db::balance::Balance,
-    types::{NodeUrl, ProofState, Wad, compact_wad::CompactWad},
+    melt::wait_for_payment,
+    types::{NodeUrl, Wad, compact_wad::CompactWad},
 };
 
 mod sync;
@@ -262,7 +262,7 @@ async fn main() -> Result<()> {
                 node_id,
                 STARKNET_STR.to_string(),
                 amount,
-                unit.as_str(),
+                unit,
             )
             .await?;
 
@@ -271,29 +271,18 @@ async fn main() -> Result<()> {
                 &mint_quote_response.quote, &mint_quote_response.request
             );
 
-            loop {
-                // Wait a bit
-                tokio::time::sleep(Duration::from_secs(1)).await;
-
-                let state = match wallet::mint::get_quote_state(
-                    &db_conn,
-                    &mut node_client,
-                    STARKNET_STR.to_string(),
-                    mint_quote_response.quote.clone(),
-                )
-                .await?
-                {
-                    Some(new_state) => new_state,
-                    None => {
-                        println!("quote {} has expired", mint_quote_response.quote);
-                        return Ok(());
-                    }
-                };
-
-                if state == MintQuoteState::Paid {
-                    println!("On-chain deposit received");
-                    break;
+            match wallet::mint::wait_for_quote_payment(
+                &db_conn,
+                &mut node_client,
+                STARKNET_STR.to_string(),
+                mint_quote_response.quote.clone(),
+            )
+            .await?
+            {
+                wallet::mint::QuotePaymentIssue::Expired => {
+                    println!("quote {} has expired", mint_quote_response.quote)
                 }
+                wallet::mint::QuotePaymentIssue::Paid => println!("On-chain deposit received"),
             }
 
             wallet::mint::redeem_quote(
@@ -320,112 +309,64 @@ async fn main() -> Result<()> {
 
             println!("Melting {} {} tokens", amount, asset);
 
+            // Convert user inputs to actionable types
             let on_chain_amount = amount
                 .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
-            let (node_amount, unit, _remainder) =
-                asset.convert_to_amount_and_unit(on_chain_amount)?;
+            let unit = asset.find_best_unit();
 
             let payee_address = Felt::from_hex(&to)?;
             if !is_valid_starknet_address(&payee_address) {
                 return Err(anyhow!("Invalid starknet address: {}", payee_address));
             }
+            let method = STARKNET_STR.to_string();
 
+            // Format starknet request
             let request = serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
                 payee: payee_address,
                 asset: starknet_types::Asset::Strk,
                 amount: on_chain_amount.into(),
             })?;
-            let method = STARKNET_STR.to_string();
-            let melt_quote_request = node_client::MeltQuoteRequest {
-                method: method.clone(),
-                unit: unit.to_string(),
-                request: request.clone(),
-            };
 
-            let melt_quote_response = node_client
-                .melt_quote(melt_quote_request)
-                .await?
-                .into_inner();
-            wallet::db::melt_quote::store(
-                &db_conn,
-                node_id,
-                method.clone(),
-                request,
-                &melt_quote_response,
-            )?;
-
-            let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+            // Create the quote
+            let melt_quote_response = wallet::melt::create_quote(
                 pool.clone(),
                 &mut node_client,
                 node_id,
-                node_amount.max(Amount::from(melt_quote_response.amount)),
-                unit.as_str(),
-            )
-            .await?
-            .ok_or(anyhow!("not enough funds"))?;
-            let inputs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
-
-            let melt_request = node_client::MeltRequest {
-                method: method.clone(),
-                quote: melt_quote_response.quote.clone(),
-                inputs: wallet::convert_inputs(&inputs),
-            };
-            let melt_request_hash = hash_melt_request(&melt_request);
-            let melt_response = match node_client.melt(melt_request).await {
-                Ok(r) => r.into_inner(),
-                Err(e) => {
-                    // Reset the proof state
-                    // TODO: if the error is due to one of the proof being already spent, we should be removing those from db
-                    // in order to not use them in the future
-                    wallet::db::proof::set_proofs_to_state(
-                        &db_conn,
-                        &proofs_ids,
-                        ProofState::Unspent,
-                    )?;
-                    return Err(e.into());
-                }
-            };
-
-            acknowledge(
-                &mut node_client,
-                nuts::nut19::Route::Melt,
-                melt_request_hash,
+                method.clone(),
+                unit,
+                request,
             )
             .await?;
+            println!("Melt quote created!");
 
+            let melt_response = wallet::melt::pay_quote(
+                pool.clone(),
+                &mut node_client,
+                node_id,
+                melt_quote_response.quote.clone(),
+                Amount::from(melt_quote_response.amount),
+                method.clone(),
+                unit,
+            )
+            .await?;
             println!("Melt submited!");
-            if melt_response.state == MeltQuoteState::MlqsPaid as i32 {
-                let tx = db_conn.transaction()?;
-                wallet::db::melt_quote::update_state(
-                    &tx,
-                    &melt_quote_response.quote,
-                    melt_response.state,
-                )?;
-                if !melt_response.transfer_ids.is_empty() {
-                    let transfer_ids_to_store = serde_json::to_string(&melt_response.transfer_ids)?;
-                    wallet::db::melt_quote::register_transfer_ids(
-                        &tx,
-                        &melt_quote_response.quote,
-                        &transfer_ids_to_store,
-                    )?;
-                }
-                tx.commit()?;
+
+            if melt_response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
                 display_paid_melt_quote(melt_quote_response.quote, melt_response.transfer_ids);
             } else {
-                loop {
-                    if sync::sync_melt_quote(
-                        pool.clone(),
-                        &mut node_client,
-                        method.clone(),
-                        melt_quote_response.quote.clone(),
-                    )
-                    .await?
-                    {
-                        break;
-                    } else {
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+                match wait_for_payment(
+                    pool.clone(),
+                    &mut node_client,
+                    method,
+                    melt_quote_response.quote.clone(),
+                )
+                .await?
+                {
+                    Some(transfer_ids) => {
+                        display_paid_melt_quote(melt_quote_response.quote, transfer_ids)
                     }
+                    None => println!("Melt quote {} has expired", melt_quote_response.quote),
                 }
             }
         }
@@ -463,7 +404,7 @@ async fn main() -> Result<()> {
                 &mut node_client,
                 node_id,
                 amount,
-                unit.as_str(),
+                unit,
             )
             .await?
             .ok_or(anyhow!("not enough funds"))?;

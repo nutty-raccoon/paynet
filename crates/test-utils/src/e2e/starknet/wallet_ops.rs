@@ -1,11 +1,7 @@
-use std::time::Duration;
-
 use anyhow::anyhow;
 use itertools::Itertools;
-use node_client::{
-    MeltQuoteRequest, MeltQuoteStateRequest, MeltRequest, NodeClient, hash_melt_request,
-};
-use nuts::{Amount, nut04::MintQuoteState};
+use node_client::NodeClient;
+use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, STARKNET_STR, Unit};
@@ -54,32 +50,26 @@ impl WalletOps {
             self.node_id,
             STARKNET_STR.to_string(),
             amount,
-            unit.as_str(),
+            unit,
         )
         .await?;
 
         let calls: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
         pay_invoices(calls.to_vec(), env).await?;
 
-        loop {
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            let state = match wallet::mint::get_quote_state(
-                &*self.db_pool.get()?,
-                &mut self.node_client,
-                STARKNET_STR.to_string(),
-                quote.quote.clone(),
-            )
-            .await?
-            {
-                Some(s) => s,
-                None => {
-                    println!("quote {} has expired", quote.quote);
-                    return Ok(());
-                }
-            };
-            if state == MintQuoteState::Paid {
-                break;
+        match wallet::mint::wait_for_quote_payment(
+            &*self.db_pool.get()?,
+            &mut self.node_client,
+            STARKNET_STR.to_string(),
+            quote.quote.clone(),
+        )
+        .await?
+        {
+            wallet::mint::QuotePaymentIssue::Expired => {
+                println!("quote {} has expired", quote.quote);
+                return Ok(());
             }
+            wallet::mint::QuotePaymentIssue::Paid => {}
         }
 
         wallet::mint::redeem_quote(
@@ -92,6 +82,7 @@ impl WalletOps {
             amount,
         )
         .await?;
+
         Ok(())
     }
 
@@ -113,7 +104,7 @@ impl WalletOps {
             &mut self.node_client,
             self.node_id,
             amount,
-            unit.as_str(),
+            unit,
         )
         .await?
         .ok_or(anyhow!("not enough funds"))?;
@@ -175,86 +166,40 @@ impl WalletOps {
         })?;
 
         let unit = asset.find_best_unit();
-        let melt_quote_response = self
-            .node_client
-            .melt_quote(MeltQuoteRequest {
-                method: method.clone(),
-                unit: unit.to_string(),
-                request: request.clone(),
-            })
-            .await?
-            .into_inner();
-        wallet::db::melt_quote::store(
-            &*self.db_pool.get()?,
-            self.node_id,
-            method.clone(),
-            request,
-            &melt_quote_response,
-        )?;
 
-        let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+        let melt_quote_response = wallet::melt::create_quote(
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
-            Amount::from(melt_quote_response.amount),
-            unit.as_str(),
-        )
-        .await?
-        .ok_or(anyhow!("not enough funds"))?;
-
-        let inputs = wallet::load_tokens_from_db(&*self.db_pool.get()?, &proofs_ids)?;
-        let melt_request = MeltRequest {
-            method: method.clone(),
-            inputs: wallet::convert_inputs(&inputs),
-            quote: melt_quote_response.quote.clone(),
-        };
-        let melt_request_hash = hash_melt_request(&melt_request);
-        let _melt_response = self.node_client.melt(melt_request).await?.into_inner();
-
-        wallet::acknowledge(
-            &mut self.node_client,
-            nuts::nut19::Route::Melt,
-            melt_request_hash,
+            method.clone(),
+            unit,
+            request,
         )
         .await?;
 
-        loop {
-            let melt_quote_state_response = self
-                .node_client
-                .melt_quote_state(MeltQuoteStateRequest {
-                    method: method.clone(),
-                    quote: melt_quote_response.quote.clone(),
-                })
-                .await?
-                .into_inner();
+        let _melt_response = wallet::melt::pay_quote(
+            self.db_pool.clone(),
+            &mut self.node_client,
+            self.node_id,
+            melt_quote_response.quote.clone(),
+            Amount::from(melt_quote_response.amount),
+            method.clone(),
+            unit,
+        )
+        .await?;
 
-            if !melt_quote_state_response.transfer_ids.is_empty() {
-                println!(
-                    "{}",
-                    WalletOps::format_melt_transfers_id_into_term_message(
-                        melt_quote_state_response.transfer_ids
-                    )
-                );
-                break;
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+        if wallet::melt::wait_for_payment(
+            self.db_pool.clone(),
+            &mut self.node_client,
+            method,
+            melt_quote_response.quote,
+        )
+        .await?
+        .is_none()
+        {
+            panic!("quote expired")
         }
+
         Ok(())
-    }
-
-    fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
-        let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
-        if transfer_ids.len() != 1 {
-            string_to_print.push('s');
-        }
-        string_to_print.push_str(": ");
-        let mut iterator = transfer_ids.into_iter();
-        string_to_print.push_str(&iterator.next().unwrap());
-        for tx_hash in iterator {
-            string_to_print.push_str(", ");
-            string_to_print.push_str(&tx_hash);
-        }
-
-        string_to_print
     }
 }

@@ -28,6 +28,8 @@ pub enum Error {
     Grpc(#[from] Status),
     #[error("protocol error: {0}")]
     Protocol(String),
+    #[error("not enough funds")]
+    MissingFunds,
     #[error("nut01 error: {0}")]
     Nut01(#[from] nuts::nut01::Error),
     #[error("nut02 error: {0}")]

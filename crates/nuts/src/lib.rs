@@ -32,7 +32,10 @@ pub mod traits {
 
     pub trait Method: Debug + Display + FromStr {}
 
-    pub trait Unit: FromStr + Sized + Debug + Copy + Clone + Display + Into<u32> {}
+    pub trait Unit:
+        FromStr + AsRef<str> + Sized + Debug + Copy + Clone + Display + Into<u32>
+    {
+    }
 
     #[cfg(test)]
     pub mod test_types {
@@ -53,15 +56,7 @@ pub mod traits {
 
         impl Display for TestUnit {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                Display::fmt(
-                    match self {
-                        TestUnit::Sat => "sat",
-                        TestUnit::Msat => "msat",
-                        TestUnit::Usd => "usd",
-                        TestUnit::Eur => "eur",
-                    },
-                    f,
-                )
+                Display::fmt(self.as_ref(), f)
             }
         }
 
@@ -92,6 +87,17 @@ pub mod traits {
         }
 
         impl Unit for TestUnit {}
+
+        impl AsRef<str> for TestUnit {
+            fn as_ref(&self) -> &str {
+                match self {
+                    TestUnit::Sat => "sat",
+                    TestUnit::Msat => "msat",
+                    TestUnit::Usd => "usd",
+                    TestUnit::Eur => "eur",
+                }
+            }
+        }
 
         #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
         #[serde(rename_all = "lowercase")]

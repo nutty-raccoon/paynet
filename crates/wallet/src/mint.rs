@@ -4,7 +4,7 @@ use node_client::{
     MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, QuoteStateRequest,
     hash_mint_request,
 };
-use nuts::{Amount, SplitTarget, nut04::MintQuoteState, nut19::Route};
+use nuts::{Amount, SplitTarget, nut04::MintQuoteState, nut19::Route, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -15,28 +15,57 @@ use crate::{
     store_new_tokens, types::PreMint,
 };
 
-pub async fn create_quote(
+pub async fn create_quote<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     method: String,
     amount: Amount,
-    unit: &str,
+    unit: U,
 ) -> Result<MintQuoteResponse, Error> {
     let response = node_client
         .mint_quote(MintQuoteRequest {
             method: method.clone(),
             amount: amount.into(),
-            unit: unit.to_string(),
+            unit: unit.as_ref().to_string(),
             description: None,
         })
         .await?
         .into_inner();
 
     let db_conn = pool.get()?;
-    db::mint_quote::store(&db_conn, node_id, method, amount, unit, &response)?;
+    db::mint_quote::store(&db_conn, node_id, method, amount, unit.as_ref(), &response)?;
 
     Ok(response)
+}
+
+pub enum QuotePaymentIssue {
+    Paid,
+    Expired,
+}
+
+pub async fn wait_for_quote_payment(
+    db_conn: &Connection,
+    node_client: &mut NodeClient<Channel>,
+    method: String,
+    quote_id: String,
+) -> Result<QuotePaymentIssue, Error> {
+    loop {
+        let state =
+            match get_quote_state(db_conn, node_client, method.clone(), quote_id.clone()).await? {
+                Some(new_state) => new_state,
+                None => {
+                    return Ok(QuotePaymentIssue::Expired);
+                }
+            };
+
+        if state == MintQuoteState::Paid {
+            return Ok(QuotePaymentIssue::Paid);
+        }
+
+        // Wait a bit
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
 }
 
 pub async fn get_quote_state(
