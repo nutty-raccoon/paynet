@@ -123,8 +123,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - uses: dtolnay/rust-toolchain@1.86.0
-        with:
-          components: rustfmt, clippy
 
       - name: Build tests
         run: |
