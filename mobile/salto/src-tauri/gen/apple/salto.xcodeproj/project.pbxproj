@@ -285,7 +285,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = salto_iOS/salto_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = YAGG6M7PAR;
+				DEVELOPMENT_TEAM = 8YYK3AW43Z;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = "arm64-sim x86_64";
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
@@ -401,7 +401,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = salto_iOS/salto_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = YAGG6M7PAR;
+				DEVELOPMENT_TEAM = 8YYK3AW43Z;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = "arm64-sim x86_64";
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
