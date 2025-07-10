@@ -15,20 +15,6 @@ pub mod transactions;
 
 pub const STARKNET_STR: &str = "starknet";
 
-#[derive(Debug, thiserror::Error)]
-#[error("starknet u256 amount of {1} is to big to be converted into protocol Amount of Unit {0}")]
-pub struct StarknetU256ToAmountError(Unit, StarknetU256);
-
-pub fn felt_to_short_string(felt: Felt) -> String {
-    let bytes = felt.to_bytes_be();
-    let first_char_idx = match bytes.iter().position(|&b| b != 0) {
-        Some(idx) => idx,
-        None => return String::new(),
-    };
-
-    unsafe { String::from_utf8_unchecked(bytes[first_char_idx..].to_vec()) }
-}
-
 /// Possible errors for encoding a Cairo short string.
 #[derive(Debug, thiserror::Error)]
 pub enum CairoShortStringToFeltError {
