@@ -67,7 +67,7 @@ pub async fn create_mint_quote(
         node_id,
         STARKNET_STR.to_string(),
         amount,
-        unit.as_str(),
+        unit,
     )
     .await?;
 
@@ -130,7 +130,7 @@ pub async fn redeem_quote(
         STARKNET_STR.to_string(),
         mint_quote.id,
         node_id,
-        mint_quote.unit.as_str(),
+        &mint_quote.unit,
         mint_quote.amount,
     )
     .await?;

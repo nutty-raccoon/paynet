@@ -93,7 +93,7 @@ pub async fn create_wads(
             &mut node_client,
             node_id,
             amount_to_use,
-            unit.as_str(),
+            unit,
         )
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;

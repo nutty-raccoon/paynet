@@ -2,6 +2,132 @@
   import type { EventHandler } from "svelte/elements";
   import type { NodeData } from "../../types";
   import { create_mint_quote, redeem_quote } from "../../commands";
+  import { onMount } from "svelte";
+  import UniversalProvider from "@walletconnect/universal-provider";
+  import { type SessionTypes } from "@walletconnect/types";
+
+  const metadata = {
+    name: "Wallet connect Test",
+    description: "Test app for connecting to Argent Mobile",
+    url: "https://walletconnect.com/",
+    icons: ["https://avatars.githubusercontent.com/u/37784886"],
+  };
+
+  export const initializeProvider = async () => {
+    try {
+      console.log("Initializing provider...");
+
+      const projectId = "56d9b0549e0d13805a157332f2e5daed"; // walletconnect project id
+
+      const providerInstance = await UniversalProvider.init({
+        projectId,
+        metadata,
+        relayUrl: "wss://relay.walletconnect.com",
+      });
+
+      console.log("Provider initialized successfully");
+      return providerInstance;
+    } catch (err: any) {
+      console.error("Error initializing provider:", err);
+      throw err;
+    }
+  };
+
+  const openWallet = (uri: string) => {
+    const encodedUri = encodeURIComponent(uri);
+
+    const argentScheme = `argent://wc?uri=${encodedUri}`;
+    console.log("Opening Argent with scheme:", argentScheme);
+
+    open(argentScheme);
+  };
+
+  const handleConnect = async () => {
+    if (!providerState) {
+      console.error("Provider is not initialized");
+      alert("Provider is not initialized");
+      return;
+    }
+
+    try {
+      console.log("Attempting to connect...");
+      console.log(`Using Argent Mobile chain ID: starknet:SNSEPOLIA`);
+
+      const { uri, approval } = await providerState.client.connect({
+        requiredNamespaces: {
+          starknet: {
+            chains: ["starknet:SNSEPOLIA"], // Use Argent specific chain ID format
+            methods: [
+              "starknet_account",
+              "starknet_requestAddInvokeTransaction",
+            ],
+            events: ["accountsChanged", "chainChanged"],
+          },
+        },
+        sessionProperties: {
+          url: "starknetrntest://wc",
+          name: metadata.name,
+          description: metadata.description,
+          icons: metadata.icons[0],
+        },
+      });
+
+      // Store the URI for deep linking
+      if (uri) {
+        console.log("WalletConnect URI:", uri);
+        wcURIState = uri;
+        openWallet(uri);
+      } else {
+        console.warn("No URI available for wallet connection");
+        return;
+      }
+
+      // Wait for wallet approval
+      console.log("Waiting for wallet approval...");
+      const session = await approval();
+      console.log("Session approved:", session);
+
+      if (session && session.namespaces.starknet?.accounts?.length > 0) {
+        const accountAddress =
+          session.namespaces.starknet.accounts[0].split(":")[2]; // Extract address
+        console.log("Connected to account:", accountAddress);
+
+        sessionState = session;
+        accountState = accountAddress;
+      } else {
+        console.warn("Session established but no accounts found");
+        if (session) {
+          console.log(
+            "Session namespaces:",
+            JSON.stringify(session.namespaces),
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error("Connection error:", err);
+    } finally {
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!providerState || !sessionState) {
+      console.error(
+        "Cannot disconnect: Provider or session is not initialized",
+      );
+      return;
+    }
+    try {
+      console.log("Disconnecting session...");
+      await providerState.disconnect();
+      console.log("Successfully disconnected");
+      sessionState = null;
+      accountState = null;
+      wcURIState = null;
+      transactionHashState = null;
+    } catch (err: any) {
+      console.error("Disconnect error:", err);
+    }
+  };
 
   interface Props {
     selectedNode: NodeData | null;
@@ -10,6 +136,11 @@
 
   let { selectedNode, onClose }: Props = $props();
   let depositError = $state<string>("");
+  let providerState = $state<UniversalProvider | null>(null);
+  let sessionState = $state<SessionTypes.Struct | null>(null);
+  let accountState = $state<string | null>(null);
+  let wcURIState = $state<string | null>(null);
+  let transactionHashState = $state<string | null>(null);
 
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
     event,
@@ -54,6 +185,33 @@
     if (!selectedNode) {
       depositError = "";
     }
+  });
+
+  onMount(() => {
+    initializeProvider()
+      .then((prov) => {
+        providerState = prov;
+        const activeSessions = Object.values(prov.session || {});
+        if (activeSessions.length > 0) {
+          console.log("Found active session:", activeSessions[0]);
+          sessionState = activeSessions[0] as SessionTypes.Struct;
+
+          // Extract account if available
+          const starknetAccounts =
+            activeSessions[0]?.namespaces?.starknet?.accounts;
+          if (starknetAccounts && starknetAccounts.length > 0) {
+            const accountAddress = starknetAccounts[0].split(":")[2];
+            accountState = accountAddress;
+          }
+          console.log("provider initialized");
+          console.log(sessionState);
+          console.log(accountState);
+        }
+        handleConnect();
+      })
+      .catch((e) => {
+        console.log("failed to init provider", e);
+      });
   });
 </script>
 

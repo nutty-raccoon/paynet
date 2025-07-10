@@ -21,7 +21,13 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-os": "~2",
     "@tauri-apps/plugin-sql": "~2",
-    "html5-qrcode": "^2.3.8"
+    "@walletconnect/core": "^2.19.1",
+    "@walletconnect/types": "^2.20.2",
+    "@walletconnect/universal-provider": "^2.19.1",
+    "@walletconnect/utils": "^2.19.1",
+    "@walletconnect/client": "^1.8.0",
+    "html5-qrcode": "^2.3.8",
+    "starknet": "^6.0.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
