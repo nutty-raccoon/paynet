@@ -103,12 +103,12 @@ pub fn upsert_node_keysets(
     }
 
     const GET_NEW_KEYSETS: &str = r#"
-        SELECT id FROM keyset WHERE id NOT IN(SELECT id FROM _tmp_inserted);
+        SELECT id FROM keyset WHERE id NOT IN(SELECT id FROM _tmp_inserted) AND node_id = ?1;
     "#;
 
     let new_keyset_ids = {
         let mut stmt = conn.prepare(GET_NEW_KEYSETS)?;
-        stmt.query_map([], |row| row.get::<_, KeysetId>(0))?
+        stmt.query_map([node_id], |row| row.get::<_, KeysetId>(0))?
             .collect::<Result<Vec<_>>>()?
     };
 

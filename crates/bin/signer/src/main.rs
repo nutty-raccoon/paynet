@@ -1,4 +1,4 @@
-use bitcoin::bip32::Xpriv;
+use bitcoin::{NetworkKind, PrivateKey, bip32::Xpriv};
 use nuts::{
     Amount,
     dhke::{sign_message, verify_message},
@@ -231,6 +231,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let root_private_key = {
         let root_key_env_var: String =
             std::env::var(ROOT_KEY_ENV_VAR).expect("env var `ROOT_KEY` should be set");
+        let x = PrivateKey::generate(NetworkKind::Main);
         Xpriv::from_str(&root_key_env_var)
             .expect("content of `ROOT_KEY` env var should be a valid private key")
     };

@@ -25,6 +25,7 @@ members = [
   # E2e tests
   "crates/tests/e2e-tests",
   "crates/tests/concurrency-tests",
+  "crates/gen-btc-xpriv",
 ]
 default-members = [
   # Bins
