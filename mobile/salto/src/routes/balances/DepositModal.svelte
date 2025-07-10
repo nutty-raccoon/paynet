@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import UniversalProvider from "@walletconnect/universal-provider";
   import { type SessionTypes } from "@walletconnect/types";
+  import { openUrl } from "@tauri-apps/plugin-opener";
 
   const metadata = {
     name: "Wallet connect Test",
@@ -33,13 +34,17 @@
     }
   };
 
-  const openWallet = (uri: string) => {
+  const openWallet = async (uri: string) => {
     const encodedUri = encodeURIComponent(uri);
 
     const argentScheme = `argent://wc?uri=${encodedUri}`;
     console.log("Opening Argent with scheme:", argentScheme);
 
-    open(argentScheme);
+    try {
+      openUrl(argentScheme);
+    } catch {
+      console.log("failedto open uri");
+    }
   };
 
   const handleConnect = async () => {
@@ -50,62 +55,34 @@
     }
 
     try {
-      console.log("Attempting to connect...");
-      console.log(`Using Argent Mobile chain ID: starknet:SNSEPOLIA`);
-
       const { uri, approval } = await providerState.client.connect({
         requiredNamespaces: {
           starknet: {
-            chains: ["starknet:SNSEPOLIA"], // Use Argent specific chain ID format
+            chains: ["starknet:SNMAIN"],
             methods: [
-              "starknet_account",
               "starknet_requestAddInvokeTransaction",
+              "starknet_signMessage",
             ],
             events: ["accountsChanged", "chainChanged"],
           },
         },
-        sessionProperties: {
-          url: "starknetrntest://wc",
-          name: metadata.name,
-          description: metadata.description,
-          icons: metadata.icons[0],
-        },
       });
 
-      // Store the URI for deep linking
       if (uri) {
         console.log("WalletConnect URI:", uri);
-        wcURIState = uri;
         openWallet(uri);
-      } else {
-        console.warn("No URI available for wallet connection");
-        return;
       }
 
-      // Wait for wallet approval
-      console.log("Waiting for wallet approval...");
-      const session = await approval();
-      console.log("Session approved:", session);
+      console.log("waiting for new session");
+      const newSession = await approval();
+      console.log("got session");
+      sessionState = newSession;
 
-      if (session && session.namespaces.starknet?.accounts?.length > 0) {
-        const accountAddress =
-          session.namespaces.starknet.accounts[0].split(":")[2]; // Extract address
-        console.log("Connected to account:", accountAddress);
-
-        sessionState = session;
-        accountState = accountAddress;
-      } else {
-        console.warn("Session established but no accounts found");
-        if (session) {
-          console.log(
-            "Session namespaces:",
-            JSON.stringify(session.namespaces),
-          );
-        }
-      }
+      const accountAddress =
+        newSession.namespaces.starknet.accounts[0].split(":")[2];
+      accountState = accountAddress;
     } catch (err: any) {
-      console.error("Connection error:", err);
-    } finally {
+      console.log("errr", err.message);
     }
   };
 

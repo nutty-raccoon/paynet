@@ -50,7 +50,7 @@
 
   const onClickDeepLink = async () => {
     try {
-      await openUrl("argent://send");
+      await openUrl("uber://");
     } catch (error) {
       alert(`Failed to open deeplink: ${error}`);
     }
