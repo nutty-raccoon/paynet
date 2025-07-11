@@ -88,6 +88,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       
       - uses: Swatinem/rust-cache@v2
         with:
@@ -189,6 +190,7 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
 
       - name: Restore node-mock binary
@@ -286,6 +288,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore node-starknet binary
         uses: actions/cache/restore@v3
