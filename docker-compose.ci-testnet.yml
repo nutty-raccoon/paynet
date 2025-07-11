@@ -35,6 +35,5 @@ services:
       starknet-devnet:
         condition: service_healthy
   
-
 volumes:
   dna:
