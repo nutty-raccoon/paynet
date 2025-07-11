@@ -57,6 +57,28 @@ jobs:
 
   build-binary:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: "node-mock"
+            build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation"
+            cache_key: "node-mock-binary"
+          - name: "node-starknet"
+            build_cmd: "cargo build --release -p node --no-default-features --features=starknet"
+            cache_key: "node-starknet-binary"
+          - name: "signer"
+            build_cmd: "cargo build --release -p signer"
+            cache_key: "signer-binary"
+          - name: "test-binaries"
+            build_cmd: |
+              cargo test -p node-tests --no-run
+              cargo test -p signer-tests --no-run
+              cargo test -p e2e-tests --no-run
+              cargo test -p concurrency-tests --no-run
+            cache_key: "test-binaries"
+          - name: "starknet-on-chain-setup"
+            build_cmd: "cargo build --release -p starknet-on-chain-setup"
+            cache_key: "starknet-on-chain-setup-binary"
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -68,24 +90,20 @@ jobs:
           version: "28.x"
       
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-${{ matrix.cache_key }}-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
 
       - uses: dtolnay/rust-toolchain@1.86.0
 
-      - name: Build binaries and tests
-        run: |
-          cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation
-          cargo build --release -p node --no-default-features --features=starknet,keyset-rotation
-          cargo build --release -p signer
-          cargo test -p node-tests --no-run
-          cargo test -p signer-tests --no-run
-          cargo test -p e2e-tests --no-run
-          cargo test -p concurrency-tests --no-run
+      - name: Build ${{ matrix.name }}
+        run: ${{ matrix.build_cmd }}
   
-      - name: Cache binaries and test binaries for other jobs
+      - name: Cache ${{ matrix.name }} for other jobs
         uses: actions/cache/save@v3
         with:
           path: target
-          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   unit-test:
     name: Unit-test
@@ -173,7 +191,21 @@ jobs:
         with:
           version: "28.x"
 
-      - name: Restore binaries and test binaries
+      - name: Restore node-mock binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: node-mock-binary-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore signer binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore test binaries
         uses: actions/cache/restore@v3
         with:
           path: target
@@ -255,11 +287,32 @@ jobs:
         with:
           version: "28.x"
 
-      - name: Restore binaries and test binaries
+      - name: Restore node-starknet binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: node-starknet-binary-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore signer binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore test binaries
         uses: actions/cache/restore@v3
         with:
           path: target
           key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore starknet-on-chain-setup binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: starknet-on-chain-setup-binary-${{ github.run_id }}-${{ github.run_attempt }}
           fail-on-cache-miss: true
 
       - name: Start testnet services
@@ -270,12 +323,23 @@ jobs:
         run: |
           echo "Waiting for testnet services to be healthy..."
           timeout 300 bash -c '
-            until docker compose -f docker-compose.ci-testnet.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "3"; do
+            until docker compose -f docker-compose.ci-testnet.yml ps --format "table {{.Service}}\t{{.Status}}" | grep -E "(healthy|running)" | wc -l | grep -q "2"; do
               echo "Waiting for testnet services to be ready..."
               sleep 2
               docker compose -f docker-compose.ci-testnet.yml ps
             done
           '
+
+      - name: Run starknet on-chain setup
+        run: |
+          RUST_LOG=info ./target/release/starknet-on-chain-setup \
+            --chain-id=SN_DEVNET \
+            --url=http://localhost:5050 \
+            --private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
+            --account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 \
+            declare \
+            --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
+            --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt || echo "")
 
       - name: Start signer service
         run: |
