@@ -559,7 +559,9 @@ pub async fn melt_same_quote(
         .collect();
 
     // MELT
-    let payee = Felt::from_hex("0x02").map_err(|e| Error::Other(e.into()))?;
+    let payee =
+        Felt::from_hex("0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691")
+            .map_err(|e| Error::Other(e.into()))?;
     let method = STARKNET_STR.to_string();
     let asset = starknet_types::Asset::Strk;
     let on_chain_amount = U256::from(128).checked_mul(asset.scale_factor()).unwrap() / 1000;
@@ -568,7 +570,7 @@ pub async fn melt_same_quote(
             method: method.clone(),
             unit: Unit::MilliStrk.to_string(),
             request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
-                payee: payee,
+                payee,
                 asset,
                 amount: on_chain_amount.into(),
             })?,

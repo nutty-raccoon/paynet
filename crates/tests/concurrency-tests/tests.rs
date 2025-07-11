@@ -18,7 +18,8 @@ pub async fn same_intput() -> Result<()> {
     mint_same_quote(node_client.clone(), env.clone()).await?;
     swap_same_input(node_client.clone(), env.clone()).await?;
     swap_same_output(node_client.clone(), env.clone()).await?;
-    melt_same_input(node_client.clone(), env.clone()).await?;
     melt_same_quote(node_client.clone(), env.clone()).await?;
+    melt_same_input(node_client.clone(), env.clone()).await?;
+
     Ok(())
 }
