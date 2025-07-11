@@ -484,6 +484,7 @@ pub async fn melt_same_input(
     Ok(())
 }
 
+/// Tests melt operation integrity by attempting to spend the same quote multiple times concurrently
 pub async fn melt_same_quote(
     mut node_client: NodeClient<Channel>,
     env: EnvVariables,
