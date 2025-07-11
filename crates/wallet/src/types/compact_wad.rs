@@ -47,6 +47,16 @@ pub struct CompactWad<U: Unit> {
     pub proofs: Vec<CompactKeysetProofs>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct CompactWads<U: Unit>(pub Vec<CompactWad<U>>);
+
+impl<U: Unit> CompactWads<U> {
+    pub fn new(wads: Vec<CompactWad<U>>) -> Self {
+        Self(wads)
+    }
+}
+
 impl<U: Unit> CompactWad<U> {
     /// Proofs from token
     pub fn proofs(&self) -> Proofs {
@@ -97,6 +107,32 @@ impl<U: Unit + Serialize> fmt::Display for CompactWad<U> {
 }
 
 impl<U: Unit + DeserializeOwned> FromStr for CompactWad<U> {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s
+            .strip_prefix(CASHU_PREFIX)
+            .ok_or(Error::UnsupportedWadFormat)?;
+
+        let decode_config = general_purpose::GeneralPurposeConfig::new()
+            .with_decode_padding_mode(bitcoin::base64::engine::DecodePaddingMode::Indifferent);
+        let decoded = GeneralPurpose::new(&alphabet::URL_SAFE, decode_config).decode(s)?;
+        let token = ciborium::from_reader(&decoded[..])?;
+        Ok(token)
+    }
+}
+
+impl<U: Unit + Serialize> fmt::Display for CompactWads<U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use serde::ser::Error;
+        let mut data = Vec::new();
+        ciborium::into_writer(self, &mut data).map_err(|e| fmt::Error::custom(e.to_string()))?;
+        let encoded = general_purpose::URL_SAFE.encode(data);
+        write!(f, "{}{}", CASHU_PREFIX, encoded)
+    }
+}
+
+impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

@@ -20,14 +20,16 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
     };
 
     for (node_id, pending_quotes) in pending_mint_quotes {
-        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?;
+        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .ok_or(anyhow!("unknown node id: {}", node_id))?;
         println!("Syncing node {} ({}) mint quotes", node_id, node_url);
 
         let (mut node_client, _) = connect_to_node(pool.clone(), node_id).await?;
         sync_mint_quotes(&pool, &mut node_client, node_id, &pending_quotes).await?;
     }
     for (node_id, pending_quotes) in pending_melt_quotes {
-        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?;
+        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .ok_or(anyhow!("unknown node id: {}", node_id))?;
         println!("Syncing node {} ({}) melt quotes", node_id, node_url);
 
         let (mut node_client, _) = connect_to_node(pool.clone(), node_id).await?;
@@ -153,8 +155,8 @@ async fn connect_to_node(
 ) -> Result<(NodeClient<Channel>, NodeUrl)> {
     let node_url = {
         let db_conn = pool.get()?;
-        wallet::db::get_node_url(&db_conn, node_id)?
-            .ok_or_else(|| anyhow!("Node {} not found", node_id))?
+        wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .ok_or(anyhow!("unknown node id: {}", node_id))?
     };
 
     let node_client = wallet::connect_to_node(&node_url)
