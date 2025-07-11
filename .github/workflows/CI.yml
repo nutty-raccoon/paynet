@@ -105,52 +105,52 @@ jobs:
       - name: Build libs
         run: cargo build --release --locked --lib
 
-  build-app-binaries:
-    name: Build binaries
-    runs-on: ubuntu-latest
-    needs: [ build-libs-release ]
-    strategy:
-      matrix:
-        include:
-          - name: "node-mock"
-            build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation --locked"
-            cache_key: "node-mock-binary"
-          - name: "node-starknet"
-            build_cmd: "cargo build --release -p node --no-default-features --features=starknet --locked"
-            cache_key: "node-starknet-binary"
-          - name: "signer"
-            build_cmd: "cargo build --release -p signer --locked"
-            cache_key: "signer-binary"
-          - name: "starknet-on-chain-setup"
-            build_cmd: "cargo build --release -p starknet-on-chain-setup --locked"
-            cache_key: "starknet-on-chain-setup-binary"
-    steps:
-      - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
+  # build-app-binaries:
+  #   name: Build binaries
+  #   runs-on: ubuntu-latest
+  #   needs: [ build-libs-release ]
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - name: "node-mock"
+  #           build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation --locked"
+  #           cache_key: "node-mock-binary"
+  #         - name: "node-starknet"
+  #           build_cmd: "cargo build --release -p node --no-default-features --features=starknet --locked"
+  #           cache_key: "node-starknet-binary"
+  #         - name: "signer"
+  #           build_cmd: "cargo build --release -p signer --locked"
+  #           cache_key: "signer-binary"
+  #         - name: "starknet-on-chain-setup"
+  #           build_cmd: "cargo build --release -p starknet-on-chain-setup --locked"
+  #           cache_key: "starknet-on-chain-setup-binary"
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Remove unwanted files
+  #       run: rm -f rust-toolchain.toml
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "28.x"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Install protoc
+  #       uses: arduino/setup-protoc@v3
+  #       with:
+  #         version: "28.x"
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
       
-      - uses: dtolnay/rust-toolchain@1.86.0
+  #     - uses: dtolnay/rust-toolchain@1.86.0
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
-          key: "${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
-          cache-targets: true
-          cache-on-failure: true
-      - name: Build ${{ matrix.name }}
-        run: ${{ matrix.build_cmd }}
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         shared-key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+  #         key: "${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+  #         cache-targets: true
+  #         cache-on-failure: true
+  #     - name: Build ${{ matrix.name }}
+  #       run: ${{ matrix.build_cmd }}
   
-      - name: Cache ${{ matrix.name }} for other jobs
-        uses: actions/cache/save@v3
-        with:
-          path: target
-          key: ${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+  #     - name: Cache ${{ matrix.name }} for other jobs
+  #       uses: actions/cache/save@v3
+  #       with:
+  #         path: target
+  #         key: ${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   build-test-binaries:
     name: Build test binaries
