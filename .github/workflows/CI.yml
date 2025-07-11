@@ -55,8 +55,8 @@ jobs:
   #     - name: Run clippy
   #       run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps
 
-  build-libs:
-    name: Build workspace libs
+  build-libs-debug:
+    name: Build debug workspace libs
     runs-on: ubuntu-8-cores
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +73,32 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-libs-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+          shared-key: "rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+          cache-targets: true
+          cache-on-failure: true
+
+      - name: Build libs
+        run: cargo build --locked --lib
+
+  build-libs-release:
+    name: Build release workspace libs
+    runs-on: ubuntu-8-cores
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - uses: dtolnay/rust-toolchain@1.86.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           cache-targets: true
           cache-on-failure: true
 
@@ -83,7 +108,7 @@ jobs:
   build-binary:
     name: Build binaries
     runs-on: ubuntu-latest
-    needs: [ build-libs ]
+    needs: [ build-libs-release ]
     strategy:
       matrix:
         include:
@@ -96,13 +121,6 @@ jobs:
           - name: "signer"
             build_cmd: "cargo build --release -p signer"
             cache_key: "signer-binary"
-          - name: "test-binaries"
-            build_cmd: |
-              cargo test -p node-tests --no-run
-              cargo test -p signer-tests --no-run
-              cargo test -p e2e-tests --no-run
-              cargo test -p concurrency-tests --no-run
-            cache_key: "test-binaries"
           - name: "starknet-on-chain-setup"
             build_cmd: "cargo build --release -p starknet-on-chain-setup"
             cache_key: "starknet-on-chain-setup-binary"
@@ -121,7 +139,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-libs-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+          shared-key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           key: "${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           cache-targets: true
           cache-on-failure: true
@@ -134,60 +152,109 @@ jobs:
           path: target
           key: ${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-  # unit-test:
-  #   name: Unit-test
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
-  #           cache_key: "node-mock-keyset-tls"
-  #         - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
-  #           cache_key: "node-starknet-keyset-tls"
-  #         - test_cmd: "cargo test -p signer --no-default-features"
-  #           cache_key: "signer-default"
-  #         - test_cmd: "cargo test -p cli-wallet --no-default-features"
-  #           cache_key: "cli-wallet-default"
-  #         - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
-  #           cache_key: "cli-wallet-tls"
-  #         - test_cmd: "cargo test -p db-node --no-default-features"
-  #           cache_key: "db-node-default"
-  #         - test_cmd: "cargo test -p nuts --no-default-features"
-  #           cache_key: "nuts-default"
-  #         - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
-  #           cache_key: "nuts-starknet-sqlx-nut19"
-  #         - test_cmd: "cargo test -p starknet-types --no-default-features"
-  #           cache_key: "starknet-types-default"
-  #         - test_cmd: "cargo test -p wallet --no-default-features"
-  #           cache_key: "wallet-default"
-  #         - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
-  #           cache_key: "wallet-tls"
-  #         - test_cmd: "cargo test -p liquidity-source --no-default-features"
-  #           cache_key: "liquidity-source-default"
-  #         - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
-  #           cache_key: "starknet-on-chain-setup-default"
-  #         - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
-  #           cache_key: "starknet-payment-indexer-default"
-  #         - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
-  #           cache_key: "starknet-liquidity-source-default"
-  #         - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
-  #           cache_key: "starknet-liquidity-source-mock"
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Remove unwanted files
-  #       run: rm -f rust-toolchain.toml
+  build-test-binary:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    needs: [ build-libs-debug ]
+    strategy:
+      matrix:
+        include:
+          - name: "node-tests"
+            build_cmd: "cargo test -p node-tests --no-run"
+            cache_key: "node-tests"
+          - name: "signer-tests"
+            build_cmd: "cargo test -p signer-tests --no-run"
+            cache_key: "signer-tests"
+          - name: "e2e-tests"
+            build_cmd: "cargo test -p e2e-tests --no-run"
+            cache_key: "e2e-tests"
+          - name: "concurrency-tests"
+            build_cmd: "cargo test -p concurrency-tests --no-run"
+            cache_key: "concurrency-tests"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
 
-  #     - uses: dtolnay/rust-toolchain@1.86.0
-  #     - uses: Swatinem/rust-cache@v2
-  #       with:
-  #         shared-key: "rust-cache-${{ matrix.cache_key }}-${{ hashFiles('**/Cargo.lock') }}"
-  #         cache-on-failure: true
-  #     - uses: arduino/setup-protoc@v3
-  #       with:
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
-  #         version: "28.x"
-  #     - name: Run test
-  #       run: ${{ matrix.test_cmd }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - uses: dtolnay/rust-toolchain@1.86.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+          key: "rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+          cache-targets: true
+          cache-on-failure: true
+      - name: Build ${{ matrix.name }}
+        run: ${{ matrix.build_cmd }}
+  
+      - name: Cache ${{ matrix.name }} for other jobs
+        uses: actions/cache/save@v3
+        with:
+          path: target
+          key: ${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+  unit-test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs: [ build-libs-debug ]
+    strategy:
+      matrix:
+        include:
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
+            cache_key: "node-mock-keyset-tls"
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
+            cache_key: "node-starknet-keyset-tls"
+          - test_cmd: "cargo test -p signer --no-default-features"
+            cache_key: "signer-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features"
+            cache_key: "cli-wallet-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+            cache_key: "cli-wallet-tls"
+          - test_cmd: "cargo test -p db-node --no-default-features"
+            cache_key: "db-node-default"
+          - test_cmd: "cargo test -p nuts --no-default-features"
+            cache_key: "nuts-default"
+          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
+            cache_key: "nuts-starknet-sqlx-nut19"
+          - test_cmd: "cargo test -p starknet-types --no-default-features"
+            cache_key: "starknet-types-default"
+          - test_cmd: "cargo test -p wallet --no-default-features"
+            cache_key: "wallet-default"
+          - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
+            cache_key: "wallet-tls"
+          - test_cmd: "cargo test -p liquidity-source --no-default-features"
+            cache_key: "liquidity-source-default"
+          - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
+            cache_key: "starknet-on-chain-setup-default"
+          - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
+            cache_key: "starknet-payment-indexer-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
+            cache_key: "starknet-liquidity-source-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
+            cache_key: "starknet-liquidity-source-mock"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
+          -key: "rust-unit-tests-${{ matrix.cache_key }}-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+      - name: Run test
+        run: ${{ matrix.test_cmd }}
 
   mock-tests:
     name: "Integration Tests (Mock)"
@@ -235,11 +302,18 @@ jobs:
           key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
           fail-on-cache-miss: true
 
-      - name: Restore test binaries
+      - name: Restore node test binaries
         uses: actions/cache/restore@v3
         with:
           path: target
-          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          key: node-tests-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore signer test binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: signer-tests-binaries-${{ github.run_id }}-${{ github.run_attempt }}
           fail-on-cache-miss: true
 
       - name: Start signer service
@@ -332,11 +406,18 @@ jobs:
           key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
           fail-on-cache-miss: true
 
-      - name: Restore test binaries
+      - name: Restore concurrency test binary
         uses: actions/cache/restore@v3
         with:
           path: target
-          key: test-binaries-${{ github.run_id }}-${{ github.run_attempt }}
+          key: concurrency-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Restore e2e test binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: e2e-tests-${{ github.run_id }}-${{ github.run_attempt }}
           fail-on-cache-miss: true
 
       - name: Restore starknet-on-chain-setup binary
