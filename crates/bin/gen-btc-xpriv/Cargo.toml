@@ -1,0 +1,8 @@
+[package]
+name = "gen-btc-xpriv"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitcoin = { workspace = true }
+rand = { workspace = true }

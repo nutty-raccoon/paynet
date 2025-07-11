@@ -8,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=node
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     restart: always
     volumes:
       - database_data:/var/lib/postgresql/data
@@ -22,10 +22,10 @@ services:
     image: "signer"
     restart: always
     environment:
-      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+      - ROOT_KEY=${ROOT_KEY:-tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH}
       - GRPC_PORT=10001
     ports:
-      - "10001:10001"
+      - "${SIGNER_PORT:-10001}:10001"
     build:
       context: .
       dockerfile: ./dockerfiles/signer.Dockerfile
@@ -48,7 +48,7 @@ services:
       - SIGNER_URL=http://signer:10001
       - GRPC_PORT=10003
     ports:
-      - "10003:10003"
+      - "${NODE_PORT:-10003}:10003"
     depends_on:
       db:
         condition: service_healthy

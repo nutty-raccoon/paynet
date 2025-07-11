@@ -3,6 +3,7 @@ pub mod errors;
 pub mod melt;
 pub mod mint;
 mod outputs;
+pub mod send;
 pub mod sync;
 pub mod types;
 
@@ -66,11 +67,23 @@ pub fn build_outputs_from_premints(
         .collect()
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RefreshNodeKeysetError {
+    #[error("failed to get keysets from the node: {0}")]
+    GetKeysets(#[from] tonic::Status),
+    #[error("failed connect to database: {0}")]
+    R2d2(#[from] r2d2::Error),
+    #[error("fail to interact with the database: {0}")]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error("conversion error: {0}")]
+    InvalidKeysetValue(String),
+}
+
 pub async fn refresh_node_keysets(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-) -> Result<(), Error> {
+) -> Result<(), RefreshNodeKeysetError> {
     let keysets = node_client
         .keysets(GetKeysetsRequest {})
         .await?
@@ -79,7 +92,7 @@ pub async fn refresh_node_keysets(
 
     let new_keyset_ids = {
         let db_conn = pool.get()?;
-        crate::db::upsert_node_keysets(&db_conn, node_id, keysets)?
+        crate::db::keyset::upsert_many_for_node(&db_conn, node_id, keysets)?
     };
 
     // Parallelization of the queries
@@ -101,8 +114,12 @@ pub async fn refresh_node_keysets(
             Ok(resp) => {
                 let resp = resp.into_inner();
                 let keyset = resp.keysets;
-                let id = KeysetId::from_bytes(&keyset[0].id)
-                    .map_err(|e| Error::Conversion(format!("Invalid keyset ID length: {:?}", e)))?;
+                let id = KeysetId::from_bytes(&keyset[0].id).map_err(|e| {
+                    RefreshNodeKeysetError::InvalidKeysetValue(format!(
+                        "Invalid keyset ID length: {:?}",
+                        e
+                    ))
+                })?;
                 let db_conn = pool.get()?;
                 db::insert_keyset_keys(
                     &db_conn,
@@ -128,7 +145,7 @@ pub async fn read_or_import_node_keyset(
     // Happy path, it is in DB
     {
         let db_conn = pool.get()?;
-        if let Some(unit) = db::get_keyset_unit(&db_conn, keyset_id)? {
+        if let Some(unit) = db::keyset::get_unit_by_id(&db_conn, keyset_id)? {
             // Should be safe to unwrap unless someone manually tamper with the database to remove keys
             let max_order = db::proof::get_max_order_for_keyset(&db_conn, keyset_id)?.unwrap();
             return Ok((unit, max_order));
@@ -166,7 +183,7 @@ pub fn get_active_keyset_for_unit(
     node_id: u32,
     unit: &str,
 ) -> Result<KeysetId, Error> {
-    let keyset_id = db::fetch_one_active_keyset_id_for_node_and_unit(db_conn, node_id, unit)?
+    let keyset_id = db::keyset::fetch_one_active_id_for_node_and_unit(db_conn, node_id, unit)?
         .ok_or(Error::NoMatchingKeyset)?;
 
     Ok(keyset_id)
@@ -252,7 +269,7 @@ pub async fn fetch_inputs_ids_from_db_or_node<U: Unit>(
     {
         let db_conn = pool.get()?;
         let total_amount_available =
-            db::proof::compute_total_amount_of_available_proofs(&db_conn, node_id)?;
+            db::proof::get_node_total_available_amount_of_unit(&db_conn, node_id, unit.as_ref())?;
 
         if total_amount_available < target_amount {
             return Ok(None);
@@ -521,19 +538,36 @@ pub async fn receive_wad(
     Ok(total_amount)
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RegisterNodeError {
+    #[error("failed connect to the node: {0}")]
+    NodeClient(#[from] tonic::transport::Error),
+    #[error("failed connect to database: {0}")]
+    R2d2(#[from] r2d2::Error),
+    #[error("unknown node with url: {0}")]
+    NotFound(NodeUrl),
+    #[error("fail to interact with the database: {0}")]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error("fail to refresh the node {0} keyset: {1}")]
+    RefreshNodeKeyset(u32, RefreshNodeKeysetError),
+}
+
 pub async fn register_node(
     pool: Pool<SqliteConnectionManager>,
     node_url: &NodeUrl,
-) -> Result<(NodeClient<tonic::transport::Channel>, u32), Error> {
+) -> Result<(NodeClient<tonic::transport::Channel>, u32), RegisterNodeError> {
     let mut node_client = NodeClient::connect(node_url.to_string()).await?;
 
     let node_id = {
         let db_conn = pool.get()?;
         db::node::insert(&db_conn, node_url)?;
         db::node::get_id_by_url(&db_conn, node_url)?
+            .ok_or(RegisterNodeError::NotFound(node_url.clone()))?
     };
 
-    refresh_node_keysets(pool, &mut node_client, node_id).await?;
+    refresh_node_keysets(pool, &mut node_client, node_id)
+        .await
+        .map_err(|e| RegisterNodeError::RefreshNodeKeyset(node_id, e))?;
 
     Ok((node_client, node_id))
 }
@@ -553,11 +587,18 @@ pub enum TlsError {
     Connect(#[from] tonic_tls::Error),
 }
 
-pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>, Error> {
+#[cfg(not(feature = "tls"))]
+pub async fn connect_to_node(
+    node_url: &NodeUrl,
+) -> Result<NodeClient<Channel>, tonic::transport::Error> {
     #[cfg(not(feature = "tls"))]
     let node_client = NodeClient::connect(node_url.0.to_string()).await?;
 
-    #[cfg(feature = "tls")]
+    Ok(node_client)
+}
+
+#[cfg(feature = "tls")]
+pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>, Error> {
     let node_client = {
         let mut connector = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())
             .map_err(|e| Error::Tls(TlsError::BuildConnector(e)))?;

@@ -13,7 +13,10 @@ use tracing_subscriber::EnvFilter;
 use wallet::{
     db::balance::Balance,
     melt::wait_for_payment,
-    types::{NodeUrl, Wad, compact_wad::CompactWad},
+    types::{
+        NodeUrl, ProofState, Wad,
+        compact_wad::{CompactWad, CompactWads},
+    },
 };
 
 mod sync;
@@ -100,7 +103,7 @@ enum Commands {
         /// Unit to melt
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
-        /// Id of the node to use
+        /// Ids of the nodes to use in priority
         #[arg(long)]
         node_id: u32,
         #[arg(long)]
@@ -120,8 +123,8 @@ enum Commands {
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
         /// Id of the node to use
-        #[arg(long)]
-        node_id: u32,
+        #[arg(long, num_args = 1..,)]
+        node_ids: Vec<u32>,
         /// Optional memo to add context to the wad
         #[arg(long)]
         memo: Option<String>,
@@ -159,7 +162,7 @@ struct WadArgs {
 }
 
 impl WadArgs {
-    fn read_wad(&self) -> Result<CompactWad<Unit>> {
+    fn read_wads(&self) -> Result<Vec<CompactWad<Unit>>> {
         let wad_string = if let Some(json_string) = &self.opt_wad_string {
             Ok(json_string.clone())
         } else if let Some(file_path) = &self.opt_wad_file_path {
@@ -167,9 +170,9 @@ impl WadArgs {
         } else {
             Err(anyhow!("cli rules guarantee one and only one will be set"))
         }?;
-        let wad: CompactWad<Unit> = wad_string.parse()?;
+        let wads: CompactWads<Unit> = wad_string.parse()?;
 
-        Ok(wad)
+        Ok(wads.0)
     }
 }
 
@@ -373,62 +376,111 @@ async fn main() -> Result<()> {
         Commands::Send {
             amount,
             asset,
-            node_id,
+            node_ids,
             memo,
             output,
         } => {
-            let output: Option<PathBuf> = output
+            let output = output
                 .map(|output_path| {
                     if output_path
                         .extension()
                         .ok_or_else(|| anyhow!("output file must have a .wad extension."))?
                         == "wad"
                     {
-                        Ok(output_path)
+                        let output_path_string = output_path
+                            .as_path()
+                            .to_str()
+                            .ok_or_else(|| anyhow!("invalid db path"))?
+                            .to_string();
+
+                        Ok((output_path, output_path_string))
                     } else {
                         Err(anyhow!("Output file should be a `.wad` file"))
                     }
                 })
                 .transpose()?;
 
-            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
-            println!("Sending {} {} using node {}", amount, asset, &node_url);
-
             let amount = amount
                 .checked_mul(asset.scale_factor())
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
-            let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
+            let (total_amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
-            let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                pool.clone(),
-                &mut node_client,
-                node_id,
-                amount,
-                unit,
-            )
-            .await?
-            .ok_or(anyhow!("not enough funds"))?;
+            let node_ids_with_amount_to_use =
+                wallet::send::plan_spending(&db_conn, total_amount, unit, &node_ids)?;
 
-            let tx = db_conn.transaction()?;
+            let mut node_and_proofs = Vec::with_capacity(node_ids_with_amount_to_use.len());
+            for (node_id, amount_to_use) in node_ids_with_amount_to_use {
+                let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
 
-            let proofs = wallet::load_tokens_from_db(&tx, &proofs_ids)?;
-            let wad = wallet::create_wad_from_proofs(node_url, unit, memo, proofs);
+                let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+                    pool.clone(),
+                    &mut node_client,
+                    node_id,
+                    amount_to_use,
+                    unit,
+                )
+                .await?
+                .ok_or(anyhow!("not enough funds"))?;
+
+                println!(
+                    "Spending {} {} from node {} ({})",
+                    amount_to_use, asset, &node_id, &node_url
+                );
+                node_and_proofs.push((node_url, proofs_ids));
+            }
+
+            let mut wads = Vec::with_capacity(node_and_proofs.len());
+            let mut should_revert = None;
+            for (i, (node_url, proofs_ids)) in node_and_proofs.iter().enumerate() {
+                let proofs = match wallet::load_tokens_from_db(&db_conn, proofs_ids) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        println!(
+                            "Failed to load the following proofs for node {}: {}\nProof ids: {:?}\nReverting now.",
+                            node_url, e, proofs_ids
+                        );
+                        should_revert = Some(i);
+                        break;
+                    }
+                };
+
+                let wad =
+                    wallet::create_wad_from_proofs(node_url.clone(), unit, memo.clone(), proofs);
+                wads.push(wad);
+            }
+            if let Some(max_reached) = should_revert {
+                node_and_proofs
+                    .iter()
+                    .map(|(_, pids)| pids)
+                    .take(max_reached)
+                    .for_each(|proofs_id| {
+                        if let Err(e) = wallet::db::proof::set_proofs_to_state(
+                            &db_conn,
+                            proofs_id,
+                            ProofState::Unspent,
+                        ) {
+                            println!(
+                                "failed to revet state of the following proofs: {}\nProofs ids: {:?}",
+                                e, proofs_id
+                            );
+                        }
+                    });
+
+                return Err(anyhow!("wad creation reverted"));
+            };
+
+            let wads = CompactWads::new(wads);
 
             match output {
-                Some(output_path) => {
-                    let path_str = output_path
-                        .as_path()
-                        .to_str()
-                        .ok_or_else(|| anyhow!("invalid db path"))?;
-                    fs::write(&output_path, wad.to_string())
+                Some((output_path, path_str)) => {
+                    fs::write(&output_path, wads.to_string())
                         .map_err(|e| anyhow!("could not write to file {}: {}", path_str, e))?;
                     println!("Wad saved to {:?}", path_str);
                 }
                 None => {
-                    println!("Wad:\n{}", wad);
+                    println!("Wad:\n{}", wads);
                 }
             }
-            tx.commit()?;
         }
         Commands::Receive(WadArgs {
             opt_wad_string,
@@ -438,26 +490,43 @@ async fn main() -> Result<()> {
                 opt_wad_string,
                 opt_wad_file_path,
             };
-            let wad = args.read_wad()?;
+            let wads = args.read_wads()?;
 
-            let (mut node_client, node_id) =
-                wallet::register_node(pool.clone(), &wad.node_url).await?;
-            println!("Receiving tokens on node `{}`", node_id);
-            if let Some(memo) = wad.memo() {
-                println!("Memo: {}", memo);
+            for wad in wads {
+                let (mut node_client, node_id) =
+                    wallet::register_node(pool.clone(), &wad.node_url).await?;
+                let CompactWad {
+                    node_url,
+                    unit,
+                    memo,
+                    proofs,
+                } = wad;
+
+                match wallet::receive_wad(
+                    pool.clone(),
+                    &mut node_client,
+                    node_id,
+                    wad.unit.as_str(),
+                    proofs,
+                )
+                .await
+                {
+                    Ok(a) => {
+                        println!("Received tokens on node `{}`", node_id);
+                        if let Some(memo) = memo {
+                            println!("Memo: {}", memo);
+                        }
+                        println!("{} {}", a, unit.as_str());
+                    }
+                    Err(e) => {
+                        println!(
+                            "failed to receive_wad from node {} ({}): {}",
+                            node_id, node_url, e
+                        );
+                        continue;
+                    }
+                };
             }
-
-            let amount_received = wallet::receive_wad(
-                pool.clone(),
-                &mut node_client,
-                node_id,
-                wad.unit.as_str(),
-                wad.proofs,
-            )
-            .await?;
-
-            println!("Received:");
-            println!("{} {}", amount_received, wad.unit.as_str());
         }
         Commands::DecodeWad(WadArgs {
             opt_wad_string,
@@ -467,21 +536,28 @@ async fn main() -> Result<()> {
                 opt_wad_string,
                 opt_wad_file_path,
             };
-            let wad = args.read_wad()?;
+            let wads = args.read_wads()?;
 
-            let regular_wad = Wad {
-                node_url: wad.node_url.clone(),
-                proofs: wad.proofs(),
-            };
+            for wad in wads {
+                let regular_wad = Wad {
+                    node_url: wad.node_url.clone(),
+                    proofs: wad.proofs(),
+                };
 
-            println!("Node URL: {}", wad.node_url);
-            println!("Unit: {}", wad.unit());
-            if let Some(memo) = wad.memo() {
-                println!("Memo: {}", memo);
+                println!("Node URL: {}", wad.node_url);
+                if let Some(memo) = wad.memo() {
+                    println!("Memo: {}", memo);
+                }
+                match wad.value() {
+                    Ok(v) => println!("Total Value: {} {}", v, wad.unit()),
+                    Err(_) => {
+                        println!("sum of all proofs in the wad overflowed");
+                        continue;
+                    }
+                };
+                println!("\nDetailed Contents:");
+                println!("{}", serde_json::to_string_pretty(&regular_wad)?);
             }
-            println!("Total Value: {} {}", wad.value()?, wad.unit());
-            println!("\nDetailed Contents:");
-            println!("{}", serde_json::to_string_pretty(&regular_wad)?);
         }
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
@@ -495,7 +571,7 @@ pub async fn connect_to_node(
     conn: &mut Connection,
     node_id: u32,
 ) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
-    let node_url = wallet::db::get_node_url(conn, node_id)?
+    let node_url = wallet::db::node::get_url_by_id(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
     let node_client = wallet::connect_to_node(&node_url).await?;
     Ok((node_client, node_url))

@@ -5,8 +5,9 @@ members = [
   "crates/bin/node",
   "crates/bin/signer",
   "crates/bin/cli-wallet",
+  # Utils
+  "crates/bin/gen-btc-xpriv",
   "crates/bin/starknet-on-chain-setup",
-
   # Libs
   "crates/node-client",
   "crates/db-node",
@@ -31,6 +32,8 @@ default-members = [
   "crates/bin/node",
   "crates/bin/signer",
   "crates/bin/cli-wallet",
+  # Utils
+  "crates/bin/gen-btc-xpriv",
   "crates/bin/starknet-on-chain-setup",
   # Libs
   "crates/node-client",

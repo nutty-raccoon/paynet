@@ -1460,6 +1460,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gen-btc-xpriv"
+version = "0.1.0"
+dependencies = [
+ "bitcoin",
+ "rand 0.9.1",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

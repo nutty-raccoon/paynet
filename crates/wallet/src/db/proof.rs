@@ -19,20 +19,6 @@ pub const CREATE_TABLE_PROOF: &str = r#"
         CREATE INDEX proof_state ON proof(state); 
     "#;
 
-pub fn compute_total_amount_of_available_proofs(conn: &Connection, node_id: u32) -> Result<Amount> {
-    let mut stmt = conn.prepare(
-        r#"SELECT COALESCE(
-                (SELECT SUM(amount) FROM proof WHERE node_id=?1 AND state=?2),
-                0
-              );"#,
-    )?;
-    let sum = stmt.query_row(params![node_id, ProofState::Unspent], |r| {
-        r.get::<_, Amount>(0)
-    })?;
-
-    Ok(sum)
-}
-
 /// Fetch the proof info and set it to pending
 ///
 /// Will return None if the proof is already Pending.
@@ -159,4 +145,73 @@ pub fn delete_proofs(conn: &Connection, ys: &[PublicKey]) -> Result<()> {
     stmt.raw_execute()?;
 
     Ok(())
+}
+
+/// Returns the node available amount of unit
+///
+/// Sum the amount of each unspent proof of unit for this node
+pub fn get_node_total_available_amount_of_unit(
+    conn: &Connection,
+    node_id: u32,
+    unit: &str,
+) -> Result<Amount> {
+    let mut stmt = conn.prepare(
+        r#"SELECT COALESCE(
+                (SELECT SUM(p.amount) 
+                 FROM proof p 
+                 JOIN keyset k ON p.keyset_id = k.id 
+                 WHERE p.node_id = ?1 AND p.state = ?2 AND k.unit = ?3),
+                0
+              );"#,
+    )?;
+    let sum = stmt.query_row(params![node_id, ProofState::Unspent, unit], |r| {
+        r.get::<_, Amount>(0)
+    })?;
+
+    Ok(sum)
+}
+
+/// Returns the non excluded nodes ids along with their available funds
+///
+/// Will return the list of all nodes present in the database,
+/// that have not been excleded by the `nodes_to_exclude` argument,
+/// sorted by descending amount of unit available
+pub fn get_nodes_ids_and_available_funds_ordered_desc(
+    conn: &Connection,
+    unit: &str,
+    nodes_to_exclude: &[u32],
+) -> Result<Vec<(u32, Amount)>> {
+    // Create placeholders for the excluded nodes
+    let placeholders = if nodes_to_exclude.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "AND p.node_id NOT IN ({})",
+            vec!["?"; nodes_to_exclude.len()].join(",")
+        )
+    };
+
+    let query = format!(
+        r#"SELECT p.node_id, COALESCE(SUM(p.amount), 0) as total_amount
+           FROM proof p 
+           JOIN keyset k ON p.keyset_id = k.id 
+           WHERE p.state = ?1 AND k.unit = ?2 {}
+           GROUP BY p.node_id
+           ORDER BY total_amount DESC"#,
+        placeholders
+    );
+
+    let mut stmt = conn.prepare(&query)?;
+    stmt.raw_bind_parameter(1, ProofState::Unspent)?;
+    stmt.raw_bind_parameter(2, unit)?;
+    for (i, node_id) in nodes_to_exclude.iter().enumerate() {
+        stmt.raw_bind_parameter(i + 3, node_id)?;
+    }
+
+    let res = stmt
+        .raw_query()
+        .mapped(|row| Ok((row.get::<_, u32>(0)?, row.get::<_, Amount>(1)?)))
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(res)
 }

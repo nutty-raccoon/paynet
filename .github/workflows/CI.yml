@@ -58,7 +58,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps
 
   build-images:
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
