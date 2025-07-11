@@ -73,7 +73,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           key: "rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           cache-targets: true
           cache-on-failure: true
@@ -99,7 +98,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           key: "rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
           cache-targets: true
           cache-on-failure: true
