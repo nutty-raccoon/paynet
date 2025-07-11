@@ -7,7 +7,7 @@ WORKDIR app
 FROM chef AS planner
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json --bin starknet-on-chain-setup
 
 #------------
 
@@ -16,16 +16,10 @@ FROM chef AS builder
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json --no-default-features
+RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
-
-#------------
-# Everything up to there is common with node, signer
-# which mean common layers, cached together increasing speed.
-# What comes next is binary specific.
-#------------
 
 RUN cargo build --release -p starknet-on-chain-setup 
 

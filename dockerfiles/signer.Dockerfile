@@ -7,7 +7,7 @@ WORKDIR app
 FROM chef AS planner
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json --bin signer
 
 #------------
 
@@ -16,11 +16,7 @@ FROM chef AS builder
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json --no-default-features
-
-COPY ./Cargo.toml ./
-COPY ./crates/ ./crates/
-COPY ./proto/ ./proto/
+RUN cargo chef cook --release --recipe-path recipe.json
 
 RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     ARCH=$(uname -m) && \
@@ -34,11 +30,9 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${PROBE_ARCH} && \
     chmod +x /bin/grpc_health_probe
 
-#------------
-# Everything up to there is common with signer
-# which mean common layers, cached together increasing speed.
-# What comes next is binary specific.
-#------------
+COPY ./Cargo.toml ./
+COPY ./proto/ ./proto/
+COPY ./crates/ ./crates/
 
 RUN cargo build --release -p signer
 
