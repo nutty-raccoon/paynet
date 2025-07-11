@@ -483,3 +483,117 @@ pub async fn melt_same_input(
     }
     Ok(())
 }
+
+pub async fn melt_same_quote(
+    mut node_client: NodeClient<Channel>,
+    env: EnvVariables,
+) -> Result<()> {
+    let swap_amount = 128u64;
+    let n_concurent = 64;
+    let total_amount_to_mint = Amount::from(swap_amount * n_concurent);
+
+    // MINTING
+
+    let active_keyset =
+        get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
+    let node_pubkey_for_amount = PublicKey::from_hex(
+        &node_client
+            .keys(GetKeysRequest {
+                keyset_id: Some(active_keyset.id.clone()),
+            })
+            .await?
+            .into_inner()
+            .keysets
+            .first()
+            .unwrap()
+            .keys
+            .iter()
+            .find(|key| key.amount == swap_amount)
+            .unwrap()
+            .pubkey,
+    )
+    .map_err(|e| Error::Other(e.into()))?;
+    let original_mint_quote_response =
+        mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), total_amount_to_mint)
+            .await?;
+
+    let mut blind_messages = Vec::with_capacity(n_concurent as usize);
+    let mut rs = Vec::with_capacity(n_concurent as usize);
+    let mut secrets = Vec::with_capacity(n_concurent as usize);
+    for _ in 0..n_concurent {
+        let secret = Secret::generate();
+        let (blinded_secret, r) =
+            blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+        blind_messages.push(BlindedMessage {
+            amount: swap_amount,
+            keyset_id: active_keyset.id.clone(),
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        });
+        rs.push(r);
+        secrets.push(secret);
+    }
+
+    let mint_request = MintRequest {
+        method: "starknet".to_string(),
+        quote: original_mint_quote_response.clone().quote,
+        outputs: blind_messages,
+    };
+    let mint_response = make_mint(mint_request, node_client.clone()).await?;
+    let proofs: Vec<_> = mint_response
+        .signatures
+        .into_iter()
+        .enumerate()
+        .map(|(i, s)| Proof {
+            amount: Amount::from(swap_amount).into(),
+            keyset_id: active_keyset.id.clone(),
+            secret: secrets[i].to_string(),
+            unblind_signature: unblind_message(
+                &PublicKey::from_slice(&s.blind_signature).unwrap(),
+                &rs[i],
+                &node_pubkey_for_amount,
+            )
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+        })
+        .collect();
+
+    // MELT
+    let payee = Felt::from_hex("0x02").map_err(|e| Error::Other(e.into()))?;
+    let method = STARKNET_STR.to_string();
+    let asset = starknet_types::Asset::Strk;
+    let on_chain_amount = U256::from(128).checked_mul(asset.scale_factor()).unwrap() / 1000;
+    let melt_quote_response = node_client
+        .melt_quote(MeltQuoteRequest {
+            method: method.clone(),
+            unit: Unit::MilliStrk.to_string(),
+            request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                payee: payee,
+                asset,
+                amount: on_chain_amount.into(),
+            })?,
+        })
+        .await?
+        .into_inner();
+    let melt_quote_id = melt_quote_response.quote;
+
+    let mut multi_melt = Vec::new();
+    for proof in proofs {
+        let melt_request = MeltRequest {
+            method: method.clone(),
+            quote: melt_quote_id.clone(),
+            inputs: vec![proof],
+        };
+        multi_melt.push(make_melt(node_client.clone(), melt_request));
+    }
+
+    let res = join_all(multi_melt).await;
+    let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+    println!("success: {}", ok_vec.len());
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Melt,
+        ));
+    }
+    Ok(())
+}
