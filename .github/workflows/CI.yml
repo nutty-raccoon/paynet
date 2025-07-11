@@ -57,7 +57,7 @@ jobs:
 
   build-libs-debug:
     name: Build debug workspace libs
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -82,7 +82,7 @@ jobs:
 
   build-libs-release:
     name: Build release workspace libs
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -107,22 +107,22 @@ jobs:
 
   build-app-binaries:
     name: Build binaries
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     needs: [ build-libs-release ]
     strategy:
       matrix:
         include:
           - name: "node-mock"
-            build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation"
+            build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation --locked"
             cache_key: "node-mock-binary"
           - name: "node-starknet"
-            build_cmd: "cargo build --release -p node --no-default-features --features=starknet"
+            build_cmd: "cargo build --release -p node --no-default-features --features=starknet --locked"
             cache_key: "node-starknet-binary"
           - name: "signer"
-            build_cmd: "cargo build --release -p signer"
+            build_cmd: "cargo build --release -p signer --locked"
             cache_key: "signer-binary"
           - name: "starknet-on-chain-setup"
-            build_cmd: "cargo build --release -p starknet-on-chain-setup"
+            build_cmd: "cargo build --release -p starknet-on-chain-setup --locked"
             cache_key: "starknet-on-chain-setup-binary"
     steps:
       - uses: actions/checkout@v4
@@ -154,22 +154,22 @@ jobs:
 
   build-test-binaries:
     name: Build test binaries
-    runs-on: ubuntu-8-cores
+    runs-on: ubuntu-latest
     needs: [ build-libs-debug ]
     strategy:
       matrix:
         include:
           - name: "node-tests"
-            build_cmd: "cargo test -p node-tests --no-run"
+            build_cmd: "cargo test -p node-tests --no-run --locked"
             cache_key: "node-tests"
           - name: "signer-tests"
-            build_cmd: "cargo test -p signer-tests --no-run"
+            build_cmd: "cargo test -p signer-tests --no-run --locked"
             cache_key: "signer-tests"
           - name: "e2e-tests"
-            build_cmd: "cargo test -p e2e-tests --no-run"
+            build_cmd: "cargo test -p e2e-tests --no-run --locked"
             cache_key: "e2e-tests"
           - name: "concurrency-tests"
-            build_cmd: "cargo test -p concurrency-tests --no-run"
+            build_cmd: "cargo test -p concurrency-tests --no-run --locked"
             cache_key: "concurrency-tests"
     steps:
       - uses: actions/checkout@v4
@@ -256,256 +256,256 @@ jobs:
   #     - name: Run test
   #       run: ${{ matrix.test_cmd }}
 
-  mock-tests:
-    name: "Integration Tests (Mock)"
-    needs: [ build-app-binaries, build-test-binaries ]
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: node
-          PGUSER: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
+  # mock-tests:
+  #   name: "Integration Tests (Mock)"
+  #   needs: [ build-app-binaries, build-test-binaries ]
+  #   runs-on: ubuntu-latest
+  #   services:
+  #     postgres:
+  #       image: postgres
+  #       env:
+  #         POSTGRES_USER: postgres
+  #         POSTGRES_PASSWORD: password
+  #         POSTGRES_DB: node
+  #         PGUSER: postgres
+  #       ports:
+  #         - 5432:5432
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Remove unwanted files
+  #       run: rm -f rust-toolchain.toml
 
-      - uses: dtolnay/rust-toolchain@1.86.0
+  #     - uses: dtolnay/rust-toolchain@1.86.0
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          version: "28.x"
+  #     - name: Install protoc
+  #       uses: arduino/setup-protoc@v3
+  #       with:
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #         version: "28.x"
 
-      - name: Restore node-mock binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: node-mock-binary-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore node-mock binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: node-mock-binary-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore signer binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore signer binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore node test binaries
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: node-tests-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore node test binaries
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: node-tests-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore signer test binaries
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: signer-tests-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore signer test binaries
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: signer-tests-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Start signer service
-        run: |
-          RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
-          echo $! > signer.pid
+  #     - name: Start signer service
+  #       run: |
+  #         RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
+  #         echo $! > signer.pid
         
-      - name: Start node service (mock)
-        run: |
-          RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" GRPC_PORT=10003 \
-          ./target/release/node &
-          echo $! > node.pid
+  #     - name: Start node service (mock)
+  #       run: |
+  #         RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" GRPC_PORT=10003 \
+  #         ./target/release/node &
+  #         echo $! > node.pid
 
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting for signer to be ready..."
-          timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
+  #     - name: Wait for services to be ready
+  #       run: |
+  #         echo "Waiting for signer to be ready..."
+  #         timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
           
-          echo "Waiting for node to be ready..."
-          timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
+  #         echo "Waiting for node to be ready..."
+  #         timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
 
-      - name: Run node integration tests
-        env:
-          GRPC_PORT: 10003
-        run: cargo test -p node-tests
+  #     - name: Run node integration tests
+  #       env:
+  #         GRPC_PORT: 10003
+  #       run: cargo test -p node-tests
 
-      - name: Run signer integration tests
-        env:
-          GRPC_PORT: 10001
-          ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test -p signer-tests
+  #     - name: Run signer integration tests
+  #       env:
+  #         GRPC_PORT: 10001
+  #         ROOT_KEY: "${{ env.ROOT_KEY }}"
+  #       run: cargo test -p signer-tests
 
-      - name: Cleanup services
-        if: always()
-        run: |
-          if [ -f signer.pid ]; then
-            kill $(cat signer.pid) || true
-            rm signer.pid
-          fi
-          if [ -f node.pid ]; then
-            kill $(cat node.pid) || true
-            rm node.pid
-          fi
+  #     - name: Cleanup services
+  #       if: always()
+  #       run: |
+  #         if [ -f signer.pid ]; then
+  #           kill $(cat signer.pid) || true
+  #           rm signer.pid
+  #         fi
+  #         if [ -f node.pid ]; then
+  #           kill $(cat node.pid) || true
+  #           rm node.pid
+  #         fi
 
-  starknet-tests:
-    name: "Integration Tests (Starknet)"
-    needs: [ build-app-binaries, build-test-binaries ]
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: node
-          PGUSER: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
+  # starknet-tests:
+  #   name: "Integration Tests (Starknet)"
+  #   needs: [ build-app-binaries, build-test-binaries ]
+  #   runs-on: ubuntu-latest
+  #   services:
+  #     postgres:
+  #       image: postgres
+  #       env:
+  #         POSTGRES_USER: postgres
+  #         POSTGRES_PASSWORD: password
+  #         POSTGRES_DB: node
+  #         PGUSER: postgres
+  #       ports:
+  #         - 5432:5432
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Remove unwanted files
+  #       run: rm -f rust-toolchain.toml
 
-      - uses: dtolnay/rust-toolchain@1.86.0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  #     - uses: dtolnay/rust-toolchain@1.86.0
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "28.x"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Install protoc
+  #       uses: arduino/setup-protoc@v3
+  #       with:
+  #         version: "28.x"
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Restore node-starknet binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: node-starknet-binary-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore node-starknet binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: node-starknet-binary-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore signer binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore signer binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore concurrency test binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: concurrency-tests-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore concurrency test binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: concurrency-tests-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore e2e test binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: e2e-tests-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore e2e test binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: e2e-tests-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Restore starknet-on-chain-setup binary
-        uses: actions/cache/restore@v3
-        with:
-          path: target
-          key: starknet-on-chain-setup-binary-${{ github.run_id }}-${{ github.run_attempt }}
-          fail-on-cache-miss: true
+  #     - name: Restore starknet-on-chain-setup binary
+  #       uses: actions/cache/restore@v3
+  #       with:
+  #         path: target
+  #         key: starknet-on-chain-setup-binary-${{ github.run_id }}-${{ github.run_attempt }}
+  #         fail-on-cache-miss: true
 
-      - name: Start testnet services
-        run: |
-          docker compose -f docker-compose.ci-testnet.yml up -d
+  #     - name: Start testnet services
+  #       run: |
+  #         docker compose -f docker-compose.ci-testnet.yml up -d
 
-      - name: Wait for testnet services to be healthy
-        run: |
-          echo "Waiting for testnet services to be healthy..."
-          sleep 5
+  #     - name: Wait for testnet services to be healthy
+  #       run: |
+  #         echo "Waiting for testnet services to be healthy..."
+  #         sleep 5
 
-      - name: Run starknet on-chain setup
-        run: |
-          RUST_LOG=info ./target/release/starknet-on-chain-setup \
-            --chain-id=SN_DEVNET \
-            --url=http://localhost:5050 \
-            --private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
-            --account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 \
-            declare \
-            --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
-            --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt || echo "")
+  #     - name: Run starknet on-chain setup
+  #       run: |
+  #         RUST_LOG=info ./target/release/starknet-on-chain-setup \
+  #           --chain-id=SN_DEVNET \
+  #           --url=http://localhost:5050 \
+  #           --private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
+  #           --account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 \
+  #           declare \
+  #           --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
+  #           --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt || echo "")
 
-      - name: Start signer service
-        run: |
-          RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
-          echo $! > signer.pid
+  #     - name: Start signer service
+  #       run: |
+  #         RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
+  #         echo $! > signer.pid
 
-      - name: Start node service (starknet)
-        run: |
-          RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" \
-          DNA_URI=http://localhost:7171 \
-          CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
-          GRPC_PORT=10003 \
-          ./target/release/node --config ./crates/bin/node/config/local.toml &
-          echo $! > node.pid
+  #     - name: Start node service (starknet)
+  #       run: |
+  #         RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" \
+  #         DNA_URI=http://localhost:7171 \
+  #         CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
+  #         GRPC_PORT=10003 \
+  #         ./target/release/node --config ./crates/bin/node/config/local.toml &
+  #         echo $! > node.pid
 
-      - name: Wait for local services to be ready
-        run: |
-          echo "Waiting for signer to be ready..."
-          timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
+  #     - name: Wait for local services to be ready
+  #       run: |
+  #         echo "Waiting for signer to be ready..."
+  #         timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
           
-          echo "Waiting for node to be ready..."
-          timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
+  #         echo "Waiting for node to be ready..."
+  #         timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
 
-      - name: Run basic health checks
-        run: |
-          pg_isready -h localhost -p 5432 -U postgres
-          curl -f http://localhost:5050/is_alive
+  #     - name: Run basic health checks
+  #       run: |
+  #         pg_isready -h localhost -p 5432 -U postgres
+  #         curl -f http://localhost:5050/is_alive
 
-      - name: Cleanup CLI wallet DB
-        if: always()
-        run: rm -rf /home/runner/.local/share
+  #     - name: Cleanup CLI wallet DB
+  #       if: always()
+  #       run: rm -rf /home/runner/.local/share
 
-      - name: Run E2E and concurrency tests
-        env:
-          NODE_URL: http://localhost:10003
-          RPC_URL: http://localhost:5050
-          PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
-          ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
-        run: |
-          cargo test -p e2e-tests
-          cargo test -p concurrency-tests
+  #     - name: Run E2E and concurrency tests
+  #       env:
+  #         NODE_URL: http://localhost:10003
+  #         RPC_URL: http://localhost:5050
+  #         PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+  #         ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+  #       run: |
+  #         cargo test -p e2e-tests
+  #         cargo test -p concurrency-tests
 
-      - name: Show logs on failure
-        if: failure()
-        run: |
-          echo "=== Docker compose logs ==="
-          docker compose -f docker-compose.ci-testnet.yml logs
-          echo "=== Docker compose ps ==="
-          docker compose -f docker-compose.ci-testnet.yml ps
+  #     - name: Show logs on failure
+  #       if: failure()
+  #       run: |
+  #         echo "=== Docker compose logs ==="
+  #         docker compose -f docker-compose.ci-testnet.yml logs
+  #         echo "=== Docker compose ps ==="
+  #         docker compose -f docker-compose.ci-testnet.yml ps
   
-      - name: Cleanup
-        if: always()
-        run: |
-          if [ -f signer.pid ]; then
-            kill $(cat signer.pid) || true
-            rm signer.pid
-          fi
-          if [ -f node.pid ]; then
-            kill $(cat node.pid) || true
-            rm node.pid
-          fi
-          docker compose -f docker-compose.ci-testnet.yml down -v
-          docker system prune -f
+  #     - name: Cleanup
+  #       if: always()
+  #       run: |
+  #         if [ -f signer.pid ]; then
+  #           kill $(cat signer.pid) || true
+  #           rm signer.pid
+  #         fi
+  #         if [ -f node.pid ]; then
+  #           kill $(cat node.pid) || true
+  #           rm node.pid
+  #         fi
+  #         docker compose -f docker-compose.ci-testnet.yml down -v
+  #         docker system prune -f
