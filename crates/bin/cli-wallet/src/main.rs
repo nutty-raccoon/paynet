@@ -103,7 +103,7 @@ enum Commands {
         /// Unit to melt
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
-        /// Id of the node to use
+        /// Ids of the nodes to use in priority
         #[arg(long)]
         node_id: u32,
         #[arg(long)]
