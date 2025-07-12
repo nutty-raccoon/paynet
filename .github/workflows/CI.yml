@@ -171,7 +171,7 @@ jobs:
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
-            target/
+            target
           key: rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
           restore-keys: |
             rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
@@ -189,7 +189,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
+            target
           key: rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
           restore-keys: |
             rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}
