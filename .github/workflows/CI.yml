@@ -166,7 +166,7 @@ jobs:
       # First priority: Try to restore the exact binary cache (fastest)
       - name: Restore ${{ matrix.name }} binary cache
         id: binary-cache-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/index/
@@ -199,15 +199,7 @@ jobs:
 
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
-  
-      - name: Cache ${{ matrix.name }} for other jobs
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+ 
 
   build-test-binaries:
     name: Build test binaries
@@ -248,7 +240,7 @@ jobs:
       # First priority: Try to restore the exact binary cache (fastest)
       - name: Restore ${{ matrix.name }} binary cache
         id: binary-cache-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/index/
@@ -282,17 +274,6 @@ jobs:
       # Build the test binary (will be very fast if binary cache hit, or moderately fast if libs cache hit)
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
-
-      # Save the binary cache for future runs (only if we didn't have an exact binary cache hit)
-      - name: Cache ${{ matrix.name }} for other jobs
-        if: steps.binary-cache-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
   unit-test:
     name: Unit tests
