@@ -222,14 +222,17 @@ jobs:
         id: binary-cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: target/
-          key: rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_src_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_src_path)) }}
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
           restore-keys: |
-            rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_src_path)) }}
-            rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
-            rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-
-            rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-
-            rust-test-binaries-${{ matrix.cache_key }}-
+            rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
+            rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+            rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-
+            rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-
+            rust-test-binaries-${{ matrix.name }}-
 
       # Second priority: If no binary cache, restore debug libs cache
       - name: Restore Rust debug libs cache
@@ -259,7 +262,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: target/
-          key: rust-test-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('./Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_src_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_src_path)) }}
+          key: rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('./Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
   # unit-test:
   #   name: Unit tests
