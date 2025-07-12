@@ -27,6 +27,6 @@ r2d2_sqlite = "0.25.0"
 r2d2 = "0.8.10"
 
 # local
-wallet = { path = "../crates/wallet" }
-starknet-types = { path = "../crates/starknet/types" }
-nuts = { path = "../crates/nuts" }
+wallet = { path = "../crates/libs/wallet" }
+starknet-types = { path = "../crates/libs/starknet/types" }
+nuts = { path = "../crates/libs/nuts" }
