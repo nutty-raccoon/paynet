@@ -63,6 +63,24 @@ jobs:
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
 
+      - name: Cache Rust dependencies and targets
+        id: lookup-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
+          lookup-only: true
+
+      - name: Exit if cache hit
+        if: steps.lookup-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "Cache hit found for debug libs, skipping build"
+          exit 0
+
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
@@ -96,6 +114,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
+
+      - name: Cache Rust dependencies and targets
+        id: lookup-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
+          lookup-only: true
+
+      - name: Exit if cache hit
+        if: steps.lookup-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "Cache hit found for release libs, skipping build"
+          exit 0
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -282,13 +318,6 @@ jobs:
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
 
-      - name: Upload ${{ matrix.name }} test binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}-binaries
-          path: target/debug/deps/
-          retention-days: 1
-
   # unit-test:
   #   name: Unit tests
   #   runs-on: ubuntu-latest
@@ -428,17 +457,23 @@ jobs:
           name: signer-binary
           path: target/release/
 
-      - name: Download node test binaries
-        uses: actions/download-artifact@v4
+      - name: Restore node test binaries
+        uses: actions/cache/restore@v4
         with:
-          name: node-tests-binaries
-          path: target/debug/deps/
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
 
-      - name: Download signer test binaries
-        uses: actions/download-artifact@v4
+      - name: Restore signer test binaries
+        uses: actions/cache/restore@v4
         with:
-          name: signer-tests-binaries
-          path: target/debug/deps/
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
 
       - name: Make binaries executable
         run: |
