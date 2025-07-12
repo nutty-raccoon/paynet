@@ -133,19 +133,15 @@ jobs:
           - name: "node-mock"
             build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation --locked"
             crate_name: node
-            cache_key: "node-mock-binary"
           - name: "node-starknet"
             build_cmd: "cargo build --release -p node --no-default-features --features=starknet --locked"
             crate_name: node
-            cache_key: "node-starknet-binary"
           - name: "signer"
             build_cmd: "cargo build --release -p signer --locked"
             crate_name: signer
-            cache_key: "signer-binary"
           - name: "starknet-on-chain-setup"
             build_cmd: "cargo build --release -p starknet-on-chain-setup --locked"
             crate_name: starknet-on-chain-setup
-            cache_key: "starknet-on-chain-setup-binary"
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -168,7 +164,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.86.0
 
       # First priority: Try to restore the exact binary cache (fastest)
-      - name: Restore ${{ matrix.cache_key }} binary cache
+      - name: Restore ${{ matrix.name }} binary cache
         id: binary-cache-restore
         uses: actions/cache/restore@v4
         with:
@@ -176,12 +172,12 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             target/
-          key: rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          key: rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
           restore-keys: |
-            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
-            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
-            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-
-            rust-app-binaries-${{ matrix.cache_key }}-
+            rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
+            rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+            rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-
+            rust-app-binaries-${{ matrix.name }}-
 
       # Second priority: If no binary cache, restore release libs cache
       - name: Restore Rust release libs cache
@@ -211,7 +207,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             target/
-          key: rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          key: rust-app-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
   build-test-binaries:
     name: Build test binaries
