@@ -369,23 +369,6 @@ jobs:
           version: "28.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # First priority: Try to restore the exact binary cache (fastest)
-      - name: Restore ${{ matrix.cache_key }} binary cache
-        id: binary-cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target
-          key: rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
-          restore-keys: |
-            rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
-            rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
-            rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-
-            rust-unit-tests-${{ matrix.cache_key }}-
-
-      # Second priority: If no binary cache, restore debug libs cache
       - name: Restore Rust debug libs cache
         if: ${{ steps.binary-cache-restore.outputs.cache-hit == '' }}
         id: libs-cache-restore
@@ -405,15 +388,6 @@ jobs:
 
       - name: Run test
         run: ${{ matrix.test_cmd }}
-
-      - name: Cache ${{ matrix.name }} for other jobs
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target
-          key: rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
   mock-tests:
     name: "Integration Tests (Mock)"
@@ -448,28 +422,28 @@ jobs:
           version: "28.x"
 
       - name: Restore node-mock binary
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-test-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/node/Cargo.toml' ) }}-${{ hashFiles( './crates/bin/node/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore signer binary
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-test-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/signer/Cargo.toml') }}-${{ hashFiles( './crates/bin/signer/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore node test binaries
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore signer test binaries
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
@@ -552,28 +526,28 @@ jobs:
   #         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
   #     - name: Restore node-starknet binary
-  #       uses: actions/cache/restore@v3
+  #       uses: actions/cache/restore@v4
   #       with:
   #         path: target
   #         key: node-starknet-binary-${{ github.run_id }}-${{ github.run_attempt }}
   #         fail-on-cache-miss: true
 
   #     - name: Restore signer binary
-  #       uses: actions/cache/restore@v3
+  #       uses: actions/cache/restore@v4
   #       with:
   #         path: target
   #         key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
   #         fail-on-cache-miss: true
 
   #     - name: Restore concurrency test binary
-  #       uses: actions/cache/restore@v3
+  #       uses: actions/cache/restore@v4
   #       with:
   #         path: target
   #         key: concurrency-tests-${{ github.run_id }}-${{ github.run_attempt }}
   #         fail-on-cache-miss: true
 
   #     - name: Restore e2e test binary
-  #       uses: actions/cache/restore@v3
+  #       uses: actions/cache/restore@v4
   #       with:
   #         path: target
   #         key: e2e-tests-${{ github.run_id }}-${{ github.run_attempt }}
