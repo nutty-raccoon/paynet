@@ -238,8 +238,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            ~/.cargo/registry/
-            ~/.cargo/git/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
             target/
           key: rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
           restore-keys: |
