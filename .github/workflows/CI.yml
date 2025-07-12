@@ -233,7 +233,7 @@ jobs:
 
       # Second priority: If no binary cache, restore debug libs cache
       - name: Restore Rust debug libs cache
-        if: steps.binary-cache-restore.outputs.cache-hit != 'true'
+        if: ${{ steps.binary-cache-restore.outputs.cache-hit == '' }}
         id: libs-cache-restore
         uses: actions/cache/restore@v4
         with:
