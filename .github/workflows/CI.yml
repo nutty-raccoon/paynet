@@ -425,14 +425,14 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: target
-          key: rust-test-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/node/Cargo.toml' ) }}-${{ hashFiles( './crates/bin/node/src/**') }}
+          key: rust-app-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/node/Cargo.toml' ) }}-${{ hashFiles( './crates/bin/node/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore signer binary
         uses: actions/cache/restore@v4
         with:
           path: target
-          key: rust-test-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/signer/Cargo.toml') }}-${{ hashFiles( './crates/bin/signer/src/**') }}
+          key: rust-app-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/signer/Cargo.toml') }}-${{ hashFiles( './crates/bin/signer/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore node test binaries
