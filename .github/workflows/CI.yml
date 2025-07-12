@@ -374,7 +374,10 @@ jobs:
         id: binary-cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: target
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target
           key: rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
           restore-keys: |
             rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
@@ -406,7 +409,10 @@ jobs:
       - name: Cache ${{ matrix.name }} for other jobs
         uses: actions/cache/save@v4
         with:
-          path: target
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target
           key: rust-unit-tests-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
   mock-tests:
@@ -445,28 +451,28 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: target
-          key: rust-test-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          key: rust-test-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crate/bin/node/Cargo.toml') }}-${{ hashFiles( './crates/bin/node/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore signer binary
         uses: actions/cache/restore@v3
         with:
           path: target
-          key: rust-test-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          key: rust-test-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crate/bin/signer/Cargo.toml') }}-${{ hashFiles( './crates/bin/signer/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore node test binaries
         uses: actions/cache/restore@v3
         with:
           path: target
-          key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
           fail-on-cache-miss: true
 
       - name: Restore signer test binaries
         uses: actions/cache/restore@v3
         with:
           path: target
-          key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
           fail-on-cache-miss: true
 
       - name: Start signer service
