@@ -89,97 +89,130 @@ jobs:
       - name: Build libs
         run: cargo build --locked --lib
 
-  # build-libs-release:
-  #   name: Build release workspace libs
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Remove unwanted files
-  #       run: rm -f rust-toolchain.toml
+  build-libs-release:
+    name: Build release workspace libs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
 
-  #     - name: Install protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         version: "28.x"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       
-  #     - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: dtolnay/rust-toolchain@1.86.0
 
-  #     - name: Cache Rust dependencies and targets
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry/index/
-  #           ~/.cargo/registry/cache/
-  #           ~/.cargo/git/db/
-  #           target/
-  #         key: rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-  #         restore-keys: |
-  #           rust-libs-release-${{ runner.os }}-
-  #           rust-libs-release-
+      - name: Cache Rust dependencies and targets
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
+          restore-keys: |
+            rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}
+            rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+            rust-libs-release-${{ runner.os }}-
+            rust-libs-release-
 
-  #     - name: Build libs
-  #       run: cargo build --release --locked --lib
+      - name: Build libs
+        run: cargo build --release --locked --lib
 
-  # build-app-binaries:
-  #   name: Build binaries
-  #   runs-on: ubuntu-latest
-  #   needs: [ build-libs-release ]
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - name: "node-mock"
-  #           build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation --locked"
-  #           cache_key: "node-mock-binary"
-  #         - name: "node-starknet"
-  #           build_cmd: "cargo build --release -p node --no-default-features --features=starknet --locked"
-  #           cache_key: "node-starknet-binary"
-  #         - name: "signer"
-  #           build_cmd: "cargo build --release -p signer --locked"
-  #           cache_key: "signer-binary"
-  #         - name: "starknet-on-chain-setup"
-  #           build_cmd: "cargo build --release -p starknet-on-chain-setup --locked"
-  #           cache_key: "starknet-on-chain-setup-binary"
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Remove unwanted files
-  #       run: rm -f rust-toolchain.toml
+  build-app-binaries:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    needs: [ build-libs-release ]
+    strategy:
+      matrix:
+        include:
+          - name: "node-mock"
+            build_cmd: "cargo build --release -p node --no-default-features --features=starknet,mock,keyset-rotation --locked"
+            crate_name: node
+            cache_key: "node-mock-binary"
+          - name: "node-starknet"
+            build_cmd: "cargo build --release -p node --no-default-features --features=starknet --locked"
+            crate_name: node
+            cache_key: "node-starknet-binary"
+          - name: "signer"
+            build_cmd: "cargo build --release -p signer --locked"
+            crate_name: signer
+            cache_key: "signer-binary"
+          - name: "starknet-on-chain-setup"
+            build_cmd: "cargo build --release -p starknet-on-chain-setup --locked"
+            crate_name: starknet-on-chain-setup
+            cache_key: "starknet-on-chain-setup-binary"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
 
-  #     - name: Install protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         version: "28.x"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # Get the crate path for hash computation
+      - name: Get crate source path
+        id: get-crate-path
+        run: |
+          CRATE_PATH=$(cargo info ${{ matrix.crate_name }} | grep -o '(from [^)]*' | sed 's/(from //')
+          echo "crate_path=${CRATE_PATH}" >> $GITHUB_OUTPUT
+          echo "Crate path: ${CRATE_PATH}"
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       
-  #     - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: dtolnay/rust-toolchain@1.86.0
 
-  #     - name: Restore Rust release libs cache
-  #       id: cache-restore
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry/index/
-  #           ~/.cargo/registry/cache/
-  #           ~/.cargo/git/db/
-  #           target/
-  #         key: rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-  #         restore-keys: |
-  #           rust-libs-release-${{ runner.os }}-
-  #           rust-libs-release-
+      # First priority: Try to restore the exact binary cache (fastest)
+      - name: Restore ${{ matrix.cache_key }} binary cache
+        id: binary-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          restore-keys: |
+            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
+            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-
+            rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-
+            rust-app-binaries-${{ matrix.cache_key }}-
 
-  #     - uses: Swatinem/rust-cache@v2
-  #       with:
-  #         shared-key: "${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}"
-  #         cache-targets: true
-  #         cache-on-failure: true
-  #     - name: Build ${{ matrix.name }}
-  #       run: ${{ matrix.build_cmd }}
+      # Second priority: If no binary cache, restore release libs cache
+      - name: Restore Rust release libs cache
+        if: ${{ steps.binary-cache-restore.outputs.cache-hit == '' }}
+        id: libs-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
+          restore-keys: |
+            rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}
+            rust-libs-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+            rust-libs-release-${{ runner.os }}-
+            rust-libs-release-
+
+      - name: Build ${{ matrix.name }}
+        run: ${{ matrix.build_cmd }}
   
-  #     - name: Cache ${{ matrix.name }} for other jobs
-  #       uses: actions/cache/save@v3
-  #       with:
-  #         path: target
-  #         key: ${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Cache ${{ matrix.name }} for other jobs
+        uses: actions/cache/save@v3
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-app-binaries-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
   build-test-binaries:
     name: Build test binaries
@@ -209,7 +242,7 @@ jobs:
       
       - uses: dtolnay/rust-toolchain@1.86.0
 
-            # Get the crate path for hash computation
+      # Get the crate path for hash computation
       - name: Get crate source path
         id: get-crate-path
         run: |
@@ -230,7 +263,6 @@ jobs:
           restore-keys: |
             rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
             rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
-            rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-
             rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-
             rust-test-binaries-${{ matrix.name }}-
 
@@ -267,184 +299,218 @@ jobs:
             target/
           key: rust-test-binaries-${{ matrix.name }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
 
-  # unit-test:
-  #   name: Unit tests
-  #   runs-on: ubuntu-latest
-  #   needs: [ build-libs-debug ]
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
-  #           cache_key: "node-mock-keyset-tls"
-  #         - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
-  #           cache_key: "node-starknet-keyset-tls"
-  #         - test_cmd: "cargo test -p signer --no-default-features"
-  #           cache_key: "signer-default"
-  #         - test_cmd: "cargo test -p cli-wallet --no-default-features"
-  #           cache_key: "cli-wallet-default"
-  #         - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
-  #           cache_key: "cli-wallet-tls"
-  #         - test_cmd: "cargo test -p db-node --no-default-features"
-  #           cache_key: "db-node-default"
-  #         - test_cmd: "cargo test -p nuts --no-default-features"
-  #           cache_key: "nuts-default"
-  #         - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
-  #           cache_key: "nuts-starknet-sqlx-nut19"
-  #         - test_cmd: "cargo test -p starknet-types --no-default-features"
-  #           cache_key: "starknet-types-default"
-  #         - test_cmd: "cargo test -p wallet --no-default-features"
-  #           cache_key: "wallet-default"
-  #         - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
-  #           cache_key: "wallet-tls"
-  #         - test_cmd: "cargo test -p liquidity-source --no-default-features"
-  #           cache_key: "liquidity-source-default"
-  #         - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
-  #           cache_key: "starknet-on-chain-setup-default"
-  #         - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
-  #           cache_key: "starknet-payment-indexer-default"
-  #         - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
-  #           cache_key: "starknet-liquidity-source-default"
-  #         - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
-  #           cache_key: "starknet-liquidity-source-mock"
-  #   steps:
-  #     - uses: actions/checkout@v4
+  unit-test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs: [ build-libs-debug ]
+    strategy:
+      matrix:
+        include:
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
+            crate_name: node
+            cache_key: "node-mock-keyset-tls"
+          - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
+            crate_name: node
+            cache_key: "node-starknet-keyset-tls"
+          - test_cmd: "cargo test -p signer --no-default-features"
+            crate_name: signer
+            cache_key: "signer-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features"
+            crate_name: cli-wallet
+            cache_key: "cli-wallet-default"
+          - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+            crate_name: cli-wallet
+            cache_key: "cli-wallet-tls"
+          - test_cmd: "cargo test -p db-node --no-default-features"
+            crate_name: db-node
+            cache_key: "db-node-default"
+          - test_cmd: "cargo test -p nuts --no-default-features"
+            crate_name: nuts
+            cache_key: "nuts-default"
+          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
+            crate_name: nuts
+            cache_key: "nuts-starknet-sqlx-nut19"
+          - test_cmd: "cargo test -p starknet-types --no-default-features"
+            crate_name: starknet-types
+            cache_key: "starknet-types-default"
+          - test_cmd: "cargo test -p wallet --no-default-features"
+            crate_name: wallet
+            cache_key: "wallet-default"
+          - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
+            crate_name: wallet
+            cache_key: "wallet-tls"
+          - test_cmd: "cargo test -p liquidity-source --no-default-features"
+            crate_name: liquidity-source
+            cache_key: "liquidity-source-default"
+          - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
+            crate_name: starknet-on-chain-setup
+            cache_key: "starknet-on-chain-setup-default"
+          - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
+            crate_name: starknet-payment-indexer
+            cache_key: "starknet-payment-indexer-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
+            crate_name: starknet-liquidity-source
+            cache_key: "starknet-liquidity-source-default"
+          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
+            crate_name: starknet-liquidity-source
+            cache_key: "starknet-liquidity-source-mock"
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Remove unwanted files
-  #       run: rm -f rust-toolchain.toml
-  #     - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@1.86.0
 
-  #     # First priority: Try to restore the exact binary cache (fastest)
-  #     - name: Restore ${{ matrix.name }} binary cache
-  #       id: binary-cache-restore
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: target/
-  #         key: unit-tests-${{ matrix.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # Get the crate path for hash computation
+      - name: Get crate source path
+        id: get-crate-path
+        run: |
+          CRATE_PATH=$(cargo info ${{ matrix.crate_name }} | grep -o '(from [^)]*' | sed 's/(from //')
+          echo "crate_path=${CRATE_PATH}" >> $GITHUB_OUTPUT
+          echo "Crate path: ${CRATE_PATH}"
 
-  #     # Second priority: If no binary cache, restore debug libs cache
-  #     - name: Restore Rust debug libs cache
-  #       if: steps.binary-cache-restore.outputs.cache-hit != 'true'
-  #       id: libs-cache-restore
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry/
-  #           ~/.cargo/git/
-  #           target/
-  #         key: rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-  #         restore-keys: |
-  #           rust-libs-debug-${{ runner.os }}-
-  #           rust-libs-debug-
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - uses: arduino/setup-protoc@v3
-  #       with:
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
-  #         version: "28.x"
+      # First priority: Try to restore the exact binary cache (fastest)
+      - name: Restore ${{ matrix.cache_key }} binary cache
+        id: binary-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: target/
+          key: rust-cache-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          restore-keys: |
+            rust-cache-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}
+            rust-cache-${{ matrix.cache_key }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-
+            rust-cache-${{ matrix.cache_key }}-${{ runner.os }}-
+            rust-cache-${{ matrix.cache_key }}-${{ runner.os }}-
+            rust-cache-${{ matrix.cache_key }}-
 
-  #     - name: Run test
-  #       run: ${{ matrix.test_cmd }}
 
-  # mock-tests:
-  #   name: "Integration Tests (Mock)"
-  #   needs: [ build-app-binaries, build-test-binaries ]
-  #   runs-on: ubuntu-latest
-  #   services:
-  #     postgres:
-  #       image: postgres
-  #       env:
-  #         POSTGRES_USER: postgres
-  #         POSTGRES_PASSWORD: password
-  #         POSTGRES_DB: node
-  #         PGUSER: postgres
-  #       ports:
-  #         - 5432:5432
-  #       options: >-
-  #         --health-cmd pg_isready
-  #         --health-interval 10s
-  #         --health-timeout 5s
-  #         --health-retries 5
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Remove unwanted files
-  #       run: rm -f rust-toolchain.toml
+      # Second priority: If no binary cache, restore debug libs cache
+      - name: Restore Rust debug libs cache
+        if: ${{ steps.binary-cache-restore.outputs.cache-hit == '' }}
+        id: libs-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
+          restore-keys: |
+            rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}
+            rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+            rust-libs-debug-${{ runner.os }}-
+            rust-libs-debug-
 
-  #     - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Run test
+        run: ${{ matrix.test_cmd }}
 
-  #     - name: Install protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
-  #         version: "28.x"
+  mock-tests:
+    name: "Integration Tests (Mock)"
+    needs: [ build-app-binaries, build-test-binaries ]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: node
+          PGUSER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
 
-  #     - name: Restore node-mock binary
-  #       uses: actions/cache/restore@v3
-  #       with:
-  #         path: target
-  #         key: node-mock-binary-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - uses: dtolnay/rust-toolchain@1.86.0
 
-  #     - name: Restore signer binary
-  #       uses: actions/cache/restore@v3
-  #       with:
-  #         path: target
-  #         key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
 
-  #     - name: Restore node test binaries
-  #       uses: actions/cache/restore@v3
-  #       with:
-  #         path: target
-  #         key: node-tests-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Restore node-mock binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: rust-test-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          fail-on-cache-miss: true
 
-  #     - name: Restore signer test binaries
-  #       uses: actions/cache/restore@v3
-  #       with:
-  #         path: target
-  #         key: signer-tests-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Restore signer binary
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: rust-test-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          fail-on-cache-miss: true
 
-  #     - name: Start signer service
-  #       run: |
-  #         RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
-  #         echo $! > signer.pid
+      - name: Restore node test binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          fail-on-cache-miss: true
+
+      - name: Restore signer test binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: target
+          key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( format('{0}/Cargo.toml', steps.get-crate-path.outputs.crate_path)) }}-${{ hashFiles( format('{0}/src/**', steps.get-crate-path.outputs.crate_path)) }}
+          fail-on-cache-miss: true
+
+      - name: Start signer service
+        run: |
+          RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
+          echo $! > signer.pid
         
-  #     - name: Start node service (mock)
-  #       run: |
-  #         RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" GRPC_PORT=10003 \
-  #         ./target/release/node &
-  #         echo $! > node.pid
+      - name: Start node service (mock)
+        run: |
+          RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" GRPC_PORT=10003 \
+          ./target/release/node &
+          echo $! > node.pid
 
-  #     - name: Wait for services to be ready
-  #       run: |
-  #         echo "Waiting for signer to be ready..."
-  #         timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for signer to be ready..."
+          timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
           
-  #         echo "Waiting for node to be ready..."
-  #         timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
+          echo "Waiting for node to be ready..."
+          timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
 
-  #     - name: Run node integration tests
-  #       env:
-  #         GRPC_PORT: 10003
-  #       run: cargo test -p node-tests
+      - name: Run node integration tests
+        env:
+          GRPC_PORT: 10003
+        run: cargo test -p node-tests
 
-  #     - name: Run signer integration tests
-  #       env:
-  #         GRPC_PORT: 10001
-  #         ROOT_KEY: "${{ env.ROOT_KEY }}"
-  #       run: cargo test -p signer-tests
+      - name: Run signer integration tests
+        env:
+          GRPC_PORT: 10001
+          ROOT_KEY: "${{ env.ROOT_KEY }}"
+        run: cargo test -p signer-tests
 
-  #     - name: Cleanup services
-  #       if: always()
-  #       run: |
-  #         if [ -f signer.pid ]; then
-  #           kill $(cat signer.pid) || true
-  #           rm signer.pid
-  #         fi
-  #         if [ -f node.pid ]; then
-  #           kill $(cat node.pid) || true
-  #           rm node.pid
-  #         fi
+      - name: Cleanup services
+        if: always()
+        run: |
+          if [ -f signer.pid ]; then
+            kill $(cat signer.pid) || true
+            rm signer.pid
+          fi
+          if [ -f node.pid ]; then
+            kill $(cat node.pid) || true
+            rm node.pid
+          fi
 
   # starknet-tests:
   #   name: "Integration Tests (Starknet)"
