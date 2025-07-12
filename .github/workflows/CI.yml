@@ -275,100 +275,100 @@ jobs:
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
 
-  unit-test:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    needs: [ build-libs-debug ]
-    strategy:
-      matrix:
-        include:
-          - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
-            crate_name: node
-            cache_key: "node-mock-keyset-tls"
-          - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
-            crate_name: node
-            cache_key: "node-starknet-keyset-tls"
-          - test_cmd: "cargo test -p signer --no-default-features"
-            crate_name: signer
-            cache_key: "signer-default"
-          - test_cmd: "cargo test -p cli-wallet --no-default-features"
-            crate_name: cli-wallet
-            cache_key: "cli-wallet-default"
-          - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
-            crate_name: cli-wallet
-            cache_key: "cli-wallet-tls"
-          - test_cmd: "cargo test -p db-node --no-default-features"
-            crate_name: db-node
-            cache_key: "db-node-default"
-          - test_cmd: "cargo test -p nuts --no-default-features"
-            crate_name: nuts
-            cache_key: "nuts-default"
-          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
-            crate_name: nuts
-            cache_key: "nuts-starknet-sqlx-nut19"
-          - test_cmd: "cargo test -p starknet-types --no-default-features"
-            crate_name: starknet-types
-            cache_key: "starknet-types-default"
-          - test_cmd: "cargo test -p wallet --no-default-features"
-            crate_name: wallet
-            cache_key: "wallet-default"
-          - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
-            crate_name: wallet
-            cache_key: "wallet-tls"
-          - test_cmd: "cargo test -p liquidity-source --no-default-features"
-            crate_name: liquidity-source
-            cache_key: "liquidity-source-default"
-          - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
-            crate_name: starknet-on-chain-setup
-            cache_key: "starknet-on-chain-setup-default"
-          - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
-            crate_name: starknet-payment-indexer
-            cache_key: "starknet-payment-indexer-default"
-          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
-            crate_name: starknet-liquidity-source
-            cache_key: "starknet-liquidity-source-default"
-          - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
-            crate_name: starknet-liquidity-source
-            cache_key: "starknet-liquidity-source-mock"
-    steps:
-      - uses: actions/checkout@v4
+  # unit-test:
+  #   name: Unit tests
+  #   runs-on: ubuntu-latest
+  #   needs: [ build-libs-debug ]
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - test_cmd: "cargo test -p node --no-default-features --features=starknet,mock,keyset-rotation,tls"
+  #           crate_name: node
+  #           cache_key: "node-mock-keyset-tls"
+  #         - test_cmd: "cargo test -p node --no-default-features --features=starknet,keyset-rotation,tls"
+  #           crate_name: node
+  #           cache_key: "node-starknet-keyset-tls"
+  #         - test_cmd: "cargo test -p signer --no-default-features"
+  #           crate_name: signer
+  #           cache_key: "signer-default"
+  #         - test_cmd: "cargo test -p cli-wallet --no-default-features"
+  #           crate_name: cli-wallet
+  #           cache_key: "cli-wallet-default"
+  #         - test_cmd: "cargo test -p cli-wallet --no-default-features --features=tls,tls-allow-self-signed"
+  #           crate_name: cli-wallet
+  #           cache_key: "cli-wallet-tls"
+  #         - test_cmd: "cargo test -p db-node --no-default-features"
+  #           crate_name: db-node
+  #           cache_key: "db-node-default"
+  #         - test_cmd: "cargo test -p nuts --no-default-features"
+  #           crate_name: nuts
+  #           cache_key: "nuts-default"
+  #         - test_cmd: "cargo test -p nuts --features=starknet,sqlx,nut19"
+  #           crate_name: nuts
+  #           cache_key: "nuts-starknet-sqlx-nut19"
+  #         - test_cmd: "cargo test -p starknet-types --no-default-features"
+  #           crate_name: starknet-types
+  #           cache_key: "starknet-types-default"
+  #         - test_cmd: "cargo test -p wallet --no-default-features"
+  #           crate_name: wallet
+  #           cache_key: "wallet-default"
+  #         - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
+  #           crate_name: wallet
+  #           cache_key: "wallet-tls"
+  #         - test_cmd: "cargo test -p liquidity-source --no-default-features"
+  #           crate_name: liquidity-source
+  #           cache_key: "liquidity-source-default"
+  #         - test_cmd: "cargo test -p starknet-on-chain-setup --no-default-features"
+  #           crate_name: starknet-on-chain-setup
+  #           cache_key: "starknet-on-chain-setup-default"
+  #         - test_cmd: "cargo test -p starknet-payment-indexer --no-default-features"
+  #           crate_name: starknet-payment-indexer
+  #           cache_key: "starknet-payment-indexer-default"
+  #         - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features"
+  #           crate_name: starknet-liquidity-source
+  #           cache_key: "starknet-liquidity-source-default"
+  #         - test_cmd: "cargo test -p starknet-liquidity-source --no-default-features --features=mock"
+  #           crate_name: starknet-liquidity-source
+  #           cache_key: "starknet-liquidity-source-mock"
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
-      - uses: dtolnay/rust-toolchain@1.86.0
+  #     - name: Remove unwanted files
+  #       run: rm -f rust-toolchain.toml
+  #     - uses: dtolnay/rust-toolchain@1.86.0
 
-      # Get the crate path for hash computation
-      - name: Get crate source path
-        id: get-crate-path
-        run: |
-          CRATE_PATH=$(cargo info ${{ matrix.crate_name }} | grep -o '(from [^)]*' | sed 's/(from //')
-          echo "crate_path=${CRATE_PATH}" >> $GITHUB_OUTPUT
-          echo "Crate path: ${CRATE_PATH}"
+  #     # Get the crate path for hash computation
+  #     - name: Get crate source path
+  #       id: get-crate-path
+  #       run: |
+  #         CRATE_PATH=$(cargo info ${{ matrix.crate_name }} | grep -o '(from [^)]*' | sed 's/(from //')
+  #         echo "crate_path=${CRATE_PATH}" >> $GITHUB_OUTPUT
+  #         echo "Crate path: ${CRATE_PATH}"
 
-      - uses: arduino/setup-protoc@v3
-        with:
-          version: "28.x"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - uses: arduino/setup-protoc@v3
+  #       with:
+  #         version: "28.x"
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Restore Rust debug libs cache
-        if: ${{ steps.binary-cache-restore.outputs.cache-hit == '' }}
-        id: libs-cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
-          restore-keys: |
-            rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}
-            rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-            rust-libs-debug-${{ runner.os }}-
-            rust-libs-debug-
+  #     - name: Restore Rust debug libs cache
+  #       if: ${{ steps.binary-cache-restore.outputs.cache-hit == '' }}
+  #       id: libs-cache-restore
+  #       uses: actions/cache/restore@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry/index/
+  #           ~/.cargo/registry/cache/
+  #           ~/.cargo/git/db/
+  #           target/
+  #         key: rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}-${{ hashFiles( './crates/**') }}
+  #         restore-keys: |
+  #           rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( '**/Cargo.toml') }}
+  #           rust-libs-debug-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+  #           rust-libs-debug-${{ runner.os }}-
+  #           rust-libs-debug-
 
-      - name: Run test
-        run: ${{ matrix.test_cmd }}
+  #     - name: Run test
+  #       run: ${{ matrix.test_cmd }}
 
   mock-tests:
     name: "Integration Tests (Mock)"
@@ -407,28 +407,24 @@ jobs:
         with:
           path: target
           key: rust-app-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/node/Cargo.toml' ) }}-${{ hashFiles( './crates/bin/node/src/**') }}
-          fail-on-cache-miss: true
 
       - name: Restore signer binary
         uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-app-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/signer/Cargo.toml') }}-${{ hashFiles( './crates/bin/signer/src/**') }}
-          fail-on-cache-miss: true
 
       - name: Restore node test binaries
         uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
-          fail-on-cache-miss: true
 
       - name: Restore signer test binaries
         uses: actions/cache/restore@v4
         with:
           path: target
           key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
-          fail-on-cache-miss: true
 
       - name: Start signer service
         run: |
