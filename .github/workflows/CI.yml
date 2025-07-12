@@ -199,6 +199,13 @@ jobs:
 
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
+
+      - name: Upload ${{ matrix.name }} binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-binary
+          path: target/release/${{ matrix.crate_name }}
+          retention-days: 1
  
 
   build-test-binaries:
@@ -274,6 +281,13 @@ jobs:
       # Build the test binary (will be very fast if binary cache hit, or moderately fast if libs cache hit)
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
+
+      - name: Upload ${{ matrix.name }} test binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-binaries
+          path: target/debug/deps/
+          retention-days: 1
 
   # unit-test:
   #   name: Unit tests
@@ -402,29 +416,35 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
 
-      - name: Restore node-mock binary
-        uses: actions/cache/restore@v4
+      - name: Download node-mock binary
+        uses: actions/download-artifact@v4
         with:
-          path: target
-          key: rust-app-binaries-node-mock-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/node/Cargo.toml' ) }}-${{ hashFiles( './crates/bin/node/src/**') }}
+          name: node-mock-binary
+          path: target/release/
 
-      - name: Restore signer binary
-        uses: actions/cache/restore@v4
+      - name: Download signer binary
+        uses: actions/download-artifact@v4
         with:
-          path: target
-          key: rust-app-binaries-signer-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/bin/signer/Cargo.toml') }}-${{ hashFiles( './crates/bin/signer/src/**') }}
+          name: signer-binary
+          path: target/release/
 
-      - name: Restore node test binaries
-        uses: actions/cache/restore@v4
+      - name: Download node test binaries
+        uses: actions/download-artifact@v4
         with:
-          path: target
-          key: rust-test-binaries-node-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
+          name: node-tests-binaries
+          path: target/debug/deps/
 
-      - name: Restore signer test binaries
-        uses: actions/cache/restore@v4
+      - name: Download signer test binaries
+        uses: actions/download-artifact@v4
         with:
-          path: target
-          key: rust-test-binaries-signer-tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
+          name: signer-tests-binaries
+          path: target/debug/deps/
+
+      - name: Make binaries executable
+        run: |
+          chmod +x target/release/node
+          chmod +x target/release/signer
+          chmod +x target/debug/deps/*
 
       - name: Start signer service
         run: |
