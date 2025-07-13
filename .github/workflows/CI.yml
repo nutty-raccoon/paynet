@@ -475,8 +475,10 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
+        with:
+          sparse-checkout: |
+            crates/bins/node/config/local.toml
+          sparse-checkout-cone-mode: false
 
       - name: Download node-starknet binary
         uses: actions/download-artifact@v4
