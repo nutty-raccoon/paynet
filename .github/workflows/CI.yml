@@ -347,154 +347,161 @@ jobs:
             rm node.pid
           fi
 
-  # starknet-tests:
-  #   name: "Integration Tests (Starknet)"
-  #   needs: [ build-app-binaries, build-test-binaries ]
-  #   runs-on: ubuntu-latest
-  #   services:
-  #     postgres:
-  #       image: postgres
-  #       env:
-  #         POSTGRES_USER: postgres
-  #         POSTGRES_PASSWORD: password
-  #         POSTGRES_DB: node
-  #         PGUSER: postgres
-  #       ports:
-  #         - 5432:5432
-  #       options: >-
-  #         --health-cmd pg_isready
-  #         --health-interval 10s
-  #         --health-timeout 5s
-  #         --health-retries 5
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Remove unwanted files
-  #       run: rm -f rust-toolchain.toml
+  starknet-tests:
+    name: "Integration Tests (Starknet)"
+    needs: [ build-app-binaries, build-test-binaries ]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: node
+          PGUSER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unwanted files
+        run: rm -f rust-toolchain.toml
 
-  #     - uses: dtolnay/rust-toolchain@1.86.0
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  #     - name: Install protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         version: "28.x"
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "28.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - name: Restore node-starknet binary
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: target
-  #         key: node-starknet-binary-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Download node-starknet binary
+        uses: actions/download-artifact@v4
+        with:
+          name: node-starknet-binary
+          path: target/release/
 
-  #     - name: Restore signer binary
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: target
-  #         key: signer-binary-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Download signer binary
+        uses: actions/download-artifact@v4
+        with:
+          name: signer-binary
+          path: target/release/
 
-  #     - name: Restore concurrency test binary
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: target
-  #         key: concurrency-tests-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Download starknet-on-chain-setup binary
+        uses: actions/download-artifact@v4
+        with:
+          name: starknet-on-chain-setup-binary
+          path: target/release/
 
-  #     - name: Restore e2e test binary
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: target
-  #         key: e2e-tests-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Start testnet services
+        run: |
+          docker compose -f docker-compose.ci-testnet.yml up -d
 
-  #     - name: Restore starknet-on-chain-setup binary
-  #       uses: actions/cache/restore@v3
-  #       with:
-  #         path: target
-  #         key: starknet-on-chain-setup-binary-${{ github.run_id }}-${{ github.run_attempt }}
-  #         fail-on-cache-miss: true
+      - name: Wait for testnet services to be healthy
+        run: |
+          echo "Waiting for testnet services to be healthy..."
+          sleep 5
 
-  #     - name: Start testnet services
-  #       run: |
-  #         docker compose -f docker-compose.ci-testnet.yml up -d
+      - name: Run starknet on-chain setup
+        run: |
+          RUST_LOG=info ./target/release/starknet-on-chain-setup \
+            --chain-id=SN_DEVNET \
+            --url=http://localhost:5050 \
+            --private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
+            --account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 \
+            declare \
+            --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
+            --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt || echo "")
 
-  #     - name: Wait for testnet services to be healthy
-  #       run: |
-  #         echo "Waiting for testnet services to be healthy..."
-  #         sleep 5
+      - name: Start signer service
+        run: |
+          RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
+          echo $! > signer.pid
 
-  #     - name: Run starknet on-chain setup
-  #       run: |
-  #         RUST_LOG=info ./target/release/starknet-on-chain-setup \
-  #           --chain-id=SN_DEVNET \
-  #           --url=http://localhost:5050 \
-  #           --private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
-  #           --account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 \
-  #           declare \
-  #           --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
-  #           --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt || echo "")
+      - name: Start node service (starknet)
+        run: |
+          RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" \
+          DNA_URI=http://localhost:7171 \
+          CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
+          GRPC_PORT=10003 \
+          ./target/release/node --config ./crates/bin/node/config/local.toml &
+          echo $! > node.pid
 
-  #     - name: Start signer service
-  #       run: |
-  #         RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
-  #         echo $! > signer.pid
+      - name: Restore e2e tests binaries
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-${{ runner.os }}-test-binaries-e2e-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
+          fail-on-cache-miss: true
 
-  #     - name: Start node service (starknet)
-  #       run: |
-  #         RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" \
-  #         DNA_URI=http://localhost:7171 \
-  #         CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
-  #         GRPC_PORT=10003 \
-  #         ./target/release/node --config ./crates/bin/node/config/local.toml &
-  #         echo $! > node.pid
-
-  #     - name: Wait for local services to be ready
-  #       run: |
-  #         echo "Waiting for signer to be ready..."
-  #         timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
+      - name: Wait for local services to be ready
+        run: |
+          echo "Waiting for signer to be ready..."
+          timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
           
-  #         echo "Waiting for node to be ready..."
-  #         timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
+          echo "Waiting for node to be ready..."
+          timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
 
-  #     - name: Run basic health checks
-  #       run: |
-  #         pg_isready -h localhost -p 5432 -U postgres
-  #         curl -f http://localhost:5050/is_alive
+      - name: Run basic health checks
+        run: |
+          pg_isready -h localhost -p 5432 -U postgres
+          curl -f http://localhost:5050/is_alive
 
-  #     - name: Cleanup CLI wallet DB
-  #       if: always()
-  #       run: rm -rf /home/runner/.local/share
+      - name: Run E2E tests
+        env:
+          NODE_URL: http://localhost:10003
+          RPC_URL: http://localhost:5050
+          PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+          ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+        run: |
+          cargo test -p e2e-tests
 
-  #     - name: Run E2E and concurrency tests
-  #       env:
-  #         NODE_URL: http://localhost:10003
-  #         RPC_URL: http://localhost:5050
-  #         PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
-  #         ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
-  #       run: |
-  #         cargo test -p e2e-tests
-  #         cargo test -p concurrency-tests
+      - name: Restore concurrency tests binaries
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-${{ runner.os }}-test-binaries-concurrency-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
+          fail-on-cache-miss: true
 
-  #     - name: Show logs on failure
-  #       if: failure()
-  #       run: |
-  #         echo "=== Docker compose logs ==="
-  #         docker compose -f docker-compose.ci-testnet.yml logs
-  #         echo "=== Docker compose ps ==="
-  #         docker compose -f docker-compose.ci-testnet.yml ps
+      - name: Run concurrency tests
+        env:
+          NODE_URL: http://localhost:10003
+          RPC_URL: http://localhost:5050
+          PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+          ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
+        run: |
+          cargo test -p concurrency-tests
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker compose logs ==="
+          docker compose -f docker-compose.ci-testnet.yml logs
+          echo "=== Docker compose ps ==="
+          docker compose -f docker-compose.ci-testnet.yml ps
   
-  #     - name: Cleanup
-  #       if: always()
-  #       run: |
-  #         if [ -f signer.pid ]; then
-  #           kill $(cat signer.pid) || true
-  #           rm signer.pid
-  #         fi
-  #         if [ -f node.pid ]; then
-  #           kill $(cat node.pid) || true
-  #           rm node.pid
-  #         fi
-  #         docker compose -f docker-compose.ci-testnet.yml down -v
-  #         docker system prune -f
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f signer.pid ]; then
+            kill $(cat signer.pid) || true
+            rm signer.pid
+          fi
+          if [ -f node.pid ]; then
+            kill $(cat node.pid) || true
+            rm node.pid
+          fi
+          docker compose -f docker-compose.ci-testnet.yml down -v
+          docker system prune -f
