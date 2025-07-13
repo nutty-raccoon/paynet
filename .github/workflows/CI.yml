@@ -278,26 +278,6 @@ jobs:
           name: signer-binary
           path: target/release/
 
-      - name: Restore node test binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-${{ runner.os }}-test-binaries-node-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
-          fail-on-cache-miss: true
-
-      - name: Restore signer test binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-${{ runner.os }}-test-binaries-signer-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
-          fail-on-cache-miss: true
-
       - name: Make binaries executable
         run: |
           chmod +x target/release/node
@@ -308,30 +288,52 @@ jobs:
           RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
           echo $! > signer.pid
         
+      - name: Restore signer test binaries
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-${{ runner.os }}-test-binaries-signer-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
+          fail-on-cache-miss: true
+
+      - name: Wait for signer service to be ready
+        run: |
+          echo "Waiting for signer to be ready..."
+          timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
+          
+      - name: Run signer integration tests
+        env:
+          GRPC_PORT: 10001
+          ROOT_KEY: "${{ env.ROOT_KEY }}"
+        run: cargo test -p signer-tests
+
       - name: Start node service (mock)
         run: |
           RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" GRPC_PORT=10003 \
           ./target/release/node &
           echo $! > node.pid
 
-      - name: Wait for services to be ready
+      - name: Restore node test binaries
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: rust-${{ runner.os }}-test-binaries-node-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
+          fail-on-cache-miss: true
+
+      - name: Wait for node service to be ready
         run: |
-          echo "Waiting for signer to be ready..."
-          timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
-          
           echo "Waiting for node to be ready..."
           timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
-
+          
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
         run: cargo test -p node-tests
-
-      - name: Run signer integration tests
-        env:
-          GRPC_PORT: 10001
-          ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test -p signer-tests
 
       - name: Cleanup services
         if: always()
