@@ -126,7 +126,7 @@ Now that we know what we are signing, let's sign it.
 ```
 
 For this purpose, I suggest you create a local account using Starkli, but you could also use your main Argent or Braavos wallet.
-Be careful though, this program, if malicious, could drain your account. Fortunately, you compiled it yourself, based on [source code](./crates/bin/starknet-on-chain-setup/src/main.rs) you can read.
+Be careful though, this program, if malicious, could drain your account. Fortunately, you compiled it yourself, based on [source code](./crates/bins/starknet-on-chain-setup/src/main.rs) you can read.
 Alternatively, you can pay the invoice using any other way you like; just be cautious while copying the payload.
 
 If you happen to lose connection to the node while the CLI is waiting for the deposit, don't worry, you can run the following command:

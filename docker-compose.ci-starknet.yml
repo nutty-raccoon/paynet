@@ -36,7 +36,7 @@ services:
     image: ${NODE_STARKNET_IMAGE}
     restart: always
     volumes:
-      - ./crates/bin/node/config/docker.toml:/etc/paynet/config.toml
+      - ./crates/bins/node/config/docker.toml:/etc/paynet/config.toml
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001

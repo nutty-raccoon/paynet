@@ -46,7 +46,7 @@ services:
       args:
         - CARGO_FEATURES=starknet
     volumes:
-      - ./crates/bin/node/config/sepolia.toml:/etc/paynet/config.toml
+      - ./crates/bins/node/config/sepolia.toml:/etc/paynet/config.toml
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001

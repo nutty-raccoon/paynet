@@ -492,7 +492,7 @@ jobs:
           DNA_URI=http://localhost:7171 \
           CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
           GRPC_PORT=10003 \
-          ./target/release/node --config ./crates/bin/node/config/local.toml &
+          ./target/release/node --config ./crates/bins/node/config/local.toml &
           echo $! > node.pid
 
       - name: Restore e2e tests binaries
