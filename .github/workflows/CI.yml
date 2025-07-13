@@ -197,7 +197,9 @@ jobs:
       - name: Restore contract build cache
         uses: actions/cache@v4
         with:
-          path: contracts/invoice/target/
+          path: |
+            $HOME/.cache/scarb/
+            contracts/invoice/target/
           key: starknet-${{ runner.os }}-contracts-invoice-${{ hashFiles('contracts/invoice/Scarb.toml') }}-${{ hashFiles('contracts/invoice/src/**') }}
           restore-keys: |
             starknet-${{ runner.os }}-contracts-invoice-${{ hashFiles('contracts/invoice/Scarb.toml') }}-
@@ -360,7 +362,7 @@ jobs:
         env:
           GRPC_PORT: 10001
           ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test -p signer-tests
+        run: cargo test -p signer-tests --locked
 
       - name: Start node service (mock)
         run: |
@@ -386,7 +388,7 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test -p node-tests
+        run: cargo test -p node-tests --locked
 
       - name: Cleanup services
         if: always()
@@ -525,7 +527,7 @@ jobs:
           PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
           ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
         run: |
-          cargo test -p e2e-tests
+          cargo test -p e2e-tests --locked
 
       - name: Restore concurrency tests binaries
         uses: actions/cache/restore@v4
@@ -544,7 +546,7 @@ jobs:
           PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
           ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
         run: |
-          cargo test -p concurrency-tests
+          cargo test -p concurrency-tests --locked
 
       - name: Cleanup
         if: always()
