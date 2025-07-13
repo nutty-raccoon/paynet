@@ -145,7 +145,6 @@ jobs:
       
       - uses: dtolnay/rust-toolchain@1.86.0
 
-      # Get the crate path for hash computation
       - name: Get crate source path
         id: get-crate-path
         run: |
@@ -168,6 +167,29 @@ jobs:
 
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
+
+      - name: Find and upload ${{ matrix.name }} test binary
+        run: |
+          # Find the test binary in target/debug/deps/
+          TEST_BINARY=$(find ./target/debug/deps/ -name "${{ matrix.name }}-*" -type f -executable | head -1)
+          if [ -z "$TEST_BINARY" ]; then
+            echo "Error: Could not find test binary for ${{ matrix.name }}"
+            ls -la ./target/debug/deps/ | grep "${{ matrix.name }}"
+            exit 1
+          fi
+          echo "Found test binary: $TEST_BINARY"
+          
+          # Create a directory for the artifact and copy the binary
+          mkdir -p ./test-binaries/
+          cp "$TEST_BINARY" "./test-binaries/${{ matrix.name }}"
+          chmod +x "./test-binaries/${{ matrix.name }}"
+
+      - name: Upload ${{ matrix.name }} test binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-test-binary
+          path: ./test-binaries/${{ matrix.name }}
+          retention-days: 1
 
   build-starknet-contracts:
     name: Build Starknet contracts
@@ -309,18 +331,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Remove unwanted files
-        run: rm -f rust-toolchain.toml
-
-      - uses: dtolnay/rust-toolchain@1.86.0
-
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          version: "28.x"
-
       - name: Download node-mock binary
         uses: actions/download-artifact@v4
         with:
@@ -333,26 +343,30 @@ jobs:
           name: signer-binary
           path: target/release/
 
+      - name: Download node tests binary
+        uses: actions/download-artifact@v4
+        with:
+          name: node-tests-test-binary
+          path: test-binaries/node-tests
+
+      - name: Download signer tests binary
+        uses: actions/download-artifact@v4
+        with:
+          name: signer-tests-test-binary
+          path: test-binaries/signer-tests
+
       - name: Make binaries executable
         run: |
           chmod +x target/release/node
           chmod +x target/release/signer
+          chmod +x test-binaries/node-tests
+          chmod +x test-binaries/signer-tests
 
       - name: Start signer service
         run: |
           RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
           echo $! > signer.pid
         
-      - name: Restore signer test binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-${{ runner.os }}-test-binaries-signer-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/signer-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/signer-tests/src/**') }}
-          fail-on-cache-miss: true
-
       - name: Wait for signer service to be ready
         run: |
           echo "Waiting for signer to be ready..."
@@ -362,23 +376,13 @@ jobs:
         env:
           GRPC_PORT: 10001
           ROOT_KEY: "${{ env.ROOT_KEY }}"
-        run: cargo test -p signer-tests --locked
+        run: ./test-binaries/signer-tests
 
       - name: Start node service (mock)
         run: |
           RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" GRPC_PORT=10003 \
           ./target/release/node &
           echo $! > node.pid
-
-      - name: Restore node test binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-${{ runner.os }}-test-binaries-node-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
-          fail-on-cache-miss: true
 
       - name: Wait for node service to be ready
         run: |
@@ -388,7 +392,7 @@ jobs:
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
-        run: cargo test -p node-tests --locked
+        run: ./test-binaries/node-tests
 
       - name: Cleanup services
         if: always()
@@ -427,12 +431,6 @@ jobs:
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "28.x"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Download node-starknet binary
         uses: actions/download-artifact@v4
         with:
@@ -457,11 +455,25 @@ jobs:
           name: starknet-contracts
           path: contracts/invoice/
 
+      - name: Download e2e tests binary
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-tests-test-binary
+          path: ./test-binaries/e2e-tests
+
+      - name: Download concurrency tests binary
+        uses: actions/download-artifact@v4
+        with:
+          name: concurrency-tests-test-binary
+          path: ./test-binaries/concurrency-tests
+
       - name: Make binaries executable
         run: |
           chmod +x target/release/node
           chmod +x target/release/signer
           chmod +x target/release/starknet-on-chain-setup
+          chmod +x test-binaries/e2e-tests
+          chmod +x test-binaries/concurrency-tests
 
       - name: Start testnet services
         run: |
@@ -497,16 +509,6 @@ jobs:
           ./target/release/node --config ./crates/bins/node/config/local.toml &
           echo $! > node.pid
 
-      - name: Restore e2e tests binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-${{ runner.os }}-test-binaries-e2e-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/e2e-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/e2e-tests/src/**') }}
-          fail-on-cache-miss: true
-
       - name: Wait for local services to be ready
         run: |
           echo "Waiting for signer to be ready..."
@@ -526,18 +528,7 @@ jobs:
           RPC_URL: http://localhost:5050
           PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
           ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
-        run: |
-          cargo test -p e2e-tests --locked
-
-      - name: Restore concurrency tests binaries
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            target/
-          key: rust-${{ runner.os }}-test-binaries-concurrency-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/concurrency-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/concurrency-tests/src/**') }}
-          fail-on-cache-miss: true
+        run: test-binaries/e2e-tests
 
       - name: Run concurrency tests
         env:
@@ -545,8 +536,7 @@ jobs:
           RPC_URL: http://localhost:5050
           PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
           ACCOUNT_ADDRESS: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
-        run: |
-          cargo test -p concurrency-tests --locked
+        run: test-binaries/concurrency-tests
 
       - name: Cleanup
         if: always()

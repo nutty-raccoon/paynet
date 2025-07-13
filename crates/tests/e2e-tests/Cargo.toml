@@ -19,5 +19,5 @@ r2d2 = { workspace = true }
 rusqlite = { workspace = true }
 
 [[test]]
-name = "e2e"
+name = "e2e-tests"
 path = "e2e.rs"
