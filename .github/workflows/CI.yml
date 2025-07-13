@@ -209,41 +209,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            contracts/invoice
+          sparse-checkout-cone-mode: false
+
+      - uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: "2.9.2"
+          scarb-lock: contracts/invoice/Scarb.lock 
+          cache: true
+          cache-targets: true
       
-      - name: Cache Scarb and Starkli tools
+      - name: Cache Starkli
         uses: actions/cache@v4
         with:
           path: /tmp/tools
-          key: starknet-tools-scarb-2.9.2-starkli-0.3.8-${{ runner.arch }}
+          key: starkli-0.3.8-${{ runner.arch }}
       
-      - name: Install Scarb and Starkli
+      - name: Install Starkli
         run: |
           mkdir -p /tmp/tools
-          if [ ! -f /tmp/tools/scarb ]; then
-            curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.9.2/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
-            mv /tmp/tools/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu/bin/scarb /tmp/tools/scarb
-            chmod +x /tmp/tools/scarb
-          fi
           if [ ! -f /tmp/tools/starkli ]; then
             curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
             chmod +x /tmp/tools/starkli
           fi
       
-      - name: Restore contract build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            $HOME/.cache/scarb/
-            contracts/invoice/target/
-          key: starknet-${{ runner.os }}-contracts-invoice-${{ hashFiles('contracts/invoice/Scarb.toml') }}-${{ hashFiles('contracts/invoice/src/**') }}
-          restore-keys: |
-            starknet-${{ runner.os }}-contracts-invoice-${{ hashFiles('contracts/invoice/Scarb.toml') }}-
-            starknet-${{ runner.os }}-contracts-invoice-
-      
       - name: Build contracts
         working-directory: ./contracts/invoice
-        run: |
-          /tmp/tools/scarb --profile release build
+        run: scarb --profile release build
       
       - name: Generate compiled class hash
         working-directory: ./contracts/invoice
@@ -478,6 +472,7 @@ jobs:
         with:
           sparse-checkout: |
             crates/bins/node/config/local.toml
+            docker-compose.ci-testnet.yml
           sparse-checkout-cone-mode: false
 
       - name: Download node-starknet binary
