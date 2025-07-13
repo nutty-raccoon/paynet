@@ -180,8 +180,6 @@ jobs:
         with:
           path: /tmp/tools
           key: starknet-tools-scarb-2.9.2-starkli-0.3.8-${{ runner.arch }}
-          restore-keys: |
-            starknet-tools-scarb-2.9.2-starkli-0.3.8-
       
       - name: Install Scarb and Starkli
         run: |
@@ -195,6 +193,15 @@ jobs:
             curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
             chmod +x /tmp/tools/starkli
           fi
+      
+      - name: Restore contract build cache
+        uses: actions/cache@v4
+        with:
+          path: contracts/invoice/target/
+          key: starknet-${{ runner.os }}-contracts-invoice-${{ hashFiles('contracts/invoice/Scarb.toml') }}-${{ hashFiles('contracts/invoice/src/**') }}
+          restore-keys: |
+            starknet-${{ runner.os }}-contracts-invoice-${{ hashFiles('contracts/invoice/Scarb.toml') }}-
+            starknet-${{ runner.os }}-contracts-invoice-
       
       - name: Build contracts
         working-directory: ./contracts/invoice
@@ -495,7 +502,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             target/
-          key: rust-${{ runner.os }}-test-binaries-e2e-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
+          key: rust-${{ runner.os }}-test-binaries-e2e-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/e2e-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/e2e-tests/src/**') }}
           fail-on-cache-miss: true
 
       - name: Wait for local services to be ready
@@ -527,7 +534,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             target/
-          key: rust-${{ runner.os }}-test-binaries-concurrency-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/node-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/node-tests/src/**') }}
+          key: rust-${{ runner.os }}-test-binaries-concurrency-tests-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles( './crates/tests/concurrency-tests/Cargo.toml') }}-${{ hashFiles( './crates/tests/concurrency-tests/src/**') }}
           fail-on-cache-miss: true
 
       - name: Run concurrency tests
