@@ -630,5 +630,5 @@ jobs:
             kill $(cat node.pid) || true
             rm node.pid
           fi
-          docker compose -f docker-compose.ci-testnet.yml down -v
+          docker compose -f docker-compose.ci-testnet.yml down
           docker system prune -f
