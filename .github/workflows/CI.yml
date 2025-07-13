@@ -169,6 +169,52 @@ jobs:
       - name: Build ${{ matrix.name }}
         run: ${{ matrix.build_cmd }}
 
+  build-starknet-contracts:
+    name: Build Starknet contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Cache Scarb and Starkli tools
+        uses: actions/cache@v4
+        with:
+          path: /tmp/tools
+          key: starknet-tools-scarb-2.9.2-starkli-0.3.8-${{ runner.arch }}
+          restore-keys: |
+            starknet-tools-scarb-2.9.2-starkli-0.3.8-
+      
+      - name: Install Scarb and Starkli
+        run: |
+          mkdir -p /tmp/tools
+          if [ ! -f /tmp/tools/scarb ]; then
+            curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.9.2/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
+            mv /tmp/tools/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu/bin/scarb /tmp/tools/scarb
+            chmod +x /tmp/tools/scarb
+          fi
+          if [ ! -f /tmp/tools/starkli ]; then
+            curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
+            chmod +x /tmp/tools/starkli
+          fi
+      
+      - name: Build contracts
+        working-directory: ./contracts/invoice
+        run: |
+          /tmp/tools/scarb --profile release build
+      
+      - name: Generate compiled class hash
+        working-directory: ./contracts/invoice
+        run: |
+          /tmp/tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt
+      
+      - name: Upload contract artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: starknet-contracts
+          path: |
+            contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json
+            contracts/invoice/compiled_class_hash.txt
+          retention-days: 1
+
   unit-test:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -347,9 +393,10 @@ jobs:
             rm node.pid
           fi
 
+
   starknet-tests:
     name: "Integration Tests (Starknet)"
-    needs: [ build-app-binaries, build-test-binaries ]
+    needs: [ build-app-binaries, build-test-binaries, build-starknet-contracts ]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -370,10 +417,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
-
-      - uses: dtolnay/rust-toolchain@1.86.0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -399,6 +442,18 @@ jobs:
           name: starknet-on-chain-setup-binary
           path: target/release/
 
+      - name: Download contract artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: starknet-contracts
+          path: contracts/invoice/
+
+      - name: Make binaries executable
+        run: |
+          chmod +x target/release/node
+          chmod +x target/release/signer
+          chmod +x target/release/starknet-on-chain-setup
+
       - name: Start testnet services
         run: |
           docker compose -f docker-compose.ci-testnet.yml up -d
@@ -417,7 +472,7 @@ jobs:
             --account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691 \
             declare \
             --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
-            --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt || echo "")
+            --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt)
 
       - name: Start signer service
         run: |
@@ -484,14 +539,6 @@ jobs:
         run: |
           cargo test -p concurrency-tests
 
-      - name: Show logs on failure
-        if: failure()
-        run: |
-          echo "=== Docker compose logs ==="
-          docker compose -f docker-compose.ci-testnet.yml logs
-          echo "=== Docker compose ps ==="
-          docker compose -f docker-compose.ci-testnet.yml ps
-  
       - name: Cleanup
         if: always()
         run: |
