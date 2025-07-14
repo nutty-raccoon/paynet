@@ -59,7 +59,8 @@ pub async fn create_mint_quote(
 
     let node_url = {
         let db_conn = state.pool.get()?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)?.ok_or(CreateMintQuoteError::NodeId(node_id))?
+        wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .ok_or(CreateMintQuoteError::NodeId(node_id))?
     };
     let mut node_client = wallet::connect_to_node(&node_url).await?;
 
@@ -115,7 +116,8 @@ pub async fn redeem_quote(
 ) -> Result<(), RedeemQuoteError> {
     let node_url = {
         let db_conn = state.pool.get()?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)?.ok_or(RedeemQuoteError::NodeId(node_id))?
+        wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .ok_or(RedeemQuoteError::NodeId(node_id))?
     };
     let mut node_client = wallet::connect_to_node(&node_url).await?;
 
