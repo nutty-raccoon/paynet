@@ -92,7 +92,7 @@ jobs:
           version: "28.x"
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: rust-cache-clippy-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: rust-mobile-cache-clippy${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
           cache-all-crates: true
       - name: Run clippy
