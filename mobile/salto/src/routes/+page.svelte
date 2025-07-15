@@ -1,6 +1,6 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
-  import PayModal from "./send/PayModal.svelte";
+  import SendModal from "./send/SendModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceChange, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
@@ -59,7 +59,7 @@
     decreaseNodeBalance(nodes, balanceIncrease);
   };
 
-  // PayModal control functions
+  // SendModal control functions
   function openModal(modal: Modal) {
     currentModal = modal;
     // Add history entry to handle back button
@@ -70,7 +70,7 @@
     currentModal = Modal.ROOT;
   }
 
-  // Set up back button listener for PayModal
+  // Set up back button listener for SendModal
   function handlePopState() {
     goBackToRoot();
   }
@@ -125,7 +125,7 @@
         >
       </div>
     {:else if currentModal == Modal.SEND}
-      <PayModal availableBalances={totalBalance} onClose={goBackToRoot} />
+      <SendModal availableBalances={totalBalance} onClose={goBackToRoot} />
     {:else if currentModal == Modal.RECEIVE}
       <ReceiveModal onClose={goBackToRoot} />
     {/if}

@@ -71,35 +71,41 @@
       <button class="close-button" onclick={handleModalClose}>✕</button>
     </div>
 
-    {#if availableUnits.length === 0}
-      <div class="no-balance-message">
-        <p>No funds available for payment. Please deposit tokens first.</p>
-        <button class="close-button-alt" onclick={onClose}>Close</button>
-      </div>
-    {:else if !paymentData}
-      <AmountForm
-        {availableUnits}
-        {availableBalances}
-        onClose={() => {}}
-        onPaymentDataGenerated={handlePaymentDataGenerated}
-      />
-    {:else if selectedMethod == SelectedMethod.NONE}
-      <SendingMethodChoice
-        {paymentStrings}
-        onNFCChoice={handleNFCChoice}
-        onQRCodeChoice={() => selectMethod(SelectedMethod.QR_CODE)}
-        onCopyChoice={() => handleCopyChoice(paymentData as string)}
-      />
-    {:else if selectedMethod === SelectedMethod.NFC}
-      <NfcModal
-        isReceiving={false}
-        onClose={() => selectMethod(SelectedMethod.NONE)}
-      />
-    {:else if selectedMethod === SelectedMethod.QR_CODE}
-      <QRPaymentPortal
-        {paymentData}
-        onClose={() => selectMethod(SelectedMethod.NONE)}
-      />
+    {#if selectedMethod == SelectedMethod.NONE}
+      {#if availableUnits.length === 0}
+        <div class="no-balance-message">
+          <p>No funds available for payment. Please deposit tokens first.</p>
+          <button class="close-button-alt" onclick={onClose}>Close</button>
+        </div>
+      {:else if !paymentData}
+        <AmountForm
+          {availableUnits}
+          {availableBalances}
+          onClose={() => {}}
+          onPaymentDataGenerated={handlePaymentDataGenerated}
+        />
+      {:else}
+        <SendingMethodChoice
+          {paymentStrings}
+          onNFCChoice={handleNFCChoice}
+          onQRCodeChoice={() => selectMethod(SelectedMethod.QR_CODE)}
+          onCopyChoice={() => handleCopyChoice(paymentData as string)}
+        />
+      {/if}
+    {:else if !!paymentData}
+      {#if selectedMethod === SelectedMethod.NFC}
+        <NfcModal
+          isReceiving={false}
+          onClose={() => selectMethod(SelectedMethod.NONE)}
+        />
+      {:else if selectedMethod === SelectedMethod.QR_CODE}
+        <QRPaymentPortal
+          {paymentData}
+          onClose={() => selectMethod(SelectedMethod.NONE)}
+        />
+      {:else}
+        Error
+      {/if}
     {/if}
   </div>
 </div>
