@@ -24,6 +24,7 @@ tauri-plugin-opener = { workspace = true }
 tauri-plugin-sql = { workspace = true, features = ["sqlite"] }
 tauri-plugin-log = { workspace = true }
 tauri-plugin-os = { workspace = true }
+tauri-plugin-clipboard-manager = { workspace = true }
 
 # Serde
 serde = { workspace = true, features = ["derive"] }

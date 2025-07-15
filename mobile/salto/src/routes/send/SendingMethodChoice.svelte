@@ -3,9 +3,11 @@
     paymentStrings: [string, string] | null;
     onNFCChoice: () => void;
     onQRCodeChoice: () => void;
+    onCopyChoice: () => void;
   }
 
-  let { paymentStrings, onNFCChoice, onQRCodeChoice }: Props = $props();
+  let { paymentStrings, onNFCChoice, onQRCodeChoice, onCopyChoice }: Props =
+    $props();
 </script>
 
 <div class="payment-method-choice">
@@ -25,7 +27,12 @@
     <button class="method-button qr-button" onclick={onQRCodeChoice}>
       <div class="method-icon">📱</div>
       <span>QR Code</span>
-      <small>Scan to pay</small>
+      <small>Show</small>
+    </button>
+    <button class="method-button copy-button" onclick={onCopyChoice}>
+      <div class="method-icon">📋</div>
+      <span>Copy</span>
+      <small>Copy to clipboard</small>
     </button>
   </div>
 </div>
@@ -108,5 +115,9 @@
 
   .qr-button:hover {
     background-color: #e8f5e8;
+  }
+
+  .copy-button:hover {
+    background-color: #fff3e0;
   }
 </style>

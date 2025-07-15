@@ -11,6 +11,7 @@ tauri-plugin-sql = "2"
 tauri-plugin-log = "2"
 tauri-plugin-os = "2"
 tauri-plugin-nfc = "2"
+tauri-plugin-clipboard-manager = "2"
 
 thiserror = "2.0.9"
 primitive-types = "0.13.1"

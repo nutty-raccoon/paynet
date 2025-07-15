@@ -1,17 +1,18 @@
 <script lang="ts">
   import QRPaymentPortal from "./QRPaymentPortal.svelte";
-  import NfcModal from "./NfcModal.svelte";
+  import NfcModal from "../components/NfcModal.svelte";
   import AmountForm from "./AmountForm.svelte";
-  import PaymentMethodChoice from "./PaymentMethodChoice.svelte";
-  import { isNFCAvailable } from "../..//stores.js";
+  import SendingMethodChoice from "./SendingMethodChoice.svelte";
+  import { isNFCAvailable } from "../../stores.js";
+  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
-  const Modal = {
-    AMOUNT_FORM: 0,
-    METHOD_CHOICE: 1,
-    NFC: 2,
-    QR_CODE: 3,
+  const SelectedMethod = {
+    NONE: 0,
+    NFC: 1,
+    QR_CODE: 2,
+    COPY: 3,
   } as const;
-  type Modal = (typeof Modal)[keyof typeof Modal];
+  type SelectedMethod = (typeof SelectedMethod)[keyof typeof SelectedMethod];
 
   interface Props {
     availableBalances: Map<string, number>;
@@ -20,11 +21,11 @@
 
   let { availableBalances, onClose }: Props = $props();
 
-  let paymentData = $state<any>(null);
+  let paymentData = $state<string | null>(null);
   let paymentStrings = $state<null | [string, string]>(null);
 
   // What to show
-  let currentModal = $state<Modal>(Modal.AMOUNT_FORM);
+  let selectedMethod = $state<SelectedMethod>(SelectedMethod.NONE);
 
   // Get available units (those with balance > 0)
   let availableUnits = $derived(
@@ -39,25 +40,27 @@
 
   const handleNFCChoice = async () => {
     if (isNFCAvailable) {
-      currentModal = Modal.NFC;
+      selectedMethod = SelectedMethod.NFC;
     } else {
       alert("NFC not available on your device");
     }
   };
 
-  const openModal = (modal: Modal) => {
-    currentModal = modal;
+  const handleCopyChoice = async (wads: string) => {
+    await writeText(wads);
+  };
+
+  const selectMethod = (modal: SelectedMethod) => {
+    selectedMethod = modal;
   };
 
   const handlePaymentDataGenerated = (
     amountString: string,
     assetString: string,
-    data: any,
+    data: string,
   ) => {
     paymentStrings = [amountString, assetString];
     paymentData = data;
-    // Next step of the process
-    currentModal = Modal.METHOD_CHOICE;
   };
 </script>
 
@@ -73,28 +76,29 @@
         <p>No funds available for payment. Please deposit tokens first.</p>
         <button class="close-button-alt" onclick={onClose}>Close</button>
       </div>
-    {:else if currentModal === Modal.AMOUNT_FORM}
+    {:else if !paymentData}
       <AmountForm
         {availableUnits}
         {availableBalances}
-        onClose={() => openModal(Modal.METHOD_CHOICE)}
+        onClose={() => {}}
         onPaymentDataGenerated={handlePaymentDataGenerated}
       />
-    {:else if currentModal == Modal.METHOD_CHOICE}
-      <PaymentMethodChoice
+    {:else if selectedMethod == SelectedMethod.NONE}
+      <SendingMethodChoice
         {paymentStrings}
         onNFCChoice={handleNFCChoice}
-        onQRCodeChoice={() => openModal(Modal.QR_CODE)}
+        onQRCodeChoice={() => selectMethod(SelectedMethod.QR_CODE)}
+        onCopyChoice={() => handleCopyChoice(paymentData as string)}
       />
-    {:else if currentModal === Modal.NFC}
+    {:else if selectedMethod === SelectedMethod.NFC}
       <NfcModal
         isReceiving={false}
-        onClose={() => openModal(Modal.METHOD_CHOICE)}
+        onClose={() => selectMethod(SelectedMethod.NONE)}
       />
-    {:else if currentModal === Modal.QR_CODE && paymentData}
+    {:else if selectedMethod === SelectedMethod.QR_CODE}
       <QRPaymentPortal
         {paymentData}
-        onClose={() => openModal(Modal.METHOD_CHOICE)}
+        onClose={() => selectMethod(SelectedMethod.NONE)}
       />
     {/if}
   </div>

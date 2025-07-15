@@ -2,7 +2,6 @@
   import { onMount, onDestroy } from "svelte";
 
   interface Props {
-    isOpen: boolean;
     onClose: () => void;
     title?: string;
     showCloseButton?: boolean;
@@ -12,7 +11,6 @@
   }
 
   let {
-    isOpen,
     onClose,
     title = "",
     showCloseButton = true,
@@ -21,14 +19,9 @@
     children,
   }: Props = $props();
 
-  let showPortal = $state(false);
-
   onMount(() => {
-    if (isOpen) {
-      showPortal = true;
-      // Prevent body scroll
-      document.body.style.overflow = "hidden";
-    }
+    // Prevent body scroll
+    document.body.style.overflow = "hidden";
   });
 
   onDestroy(() => {
@@ -36,45 +29,32 @@
     document.body.style.overflow = "";
   });
 
-  // Watch for isOpen changes
-  $effect(() => {
-    if (isOpen) {
-      showPortal = true;
-      document.body.style.overflow = "hidden";
-    } else {
-      showPortal = false;
-      document.body.style.overflow = "";
-    }
-  });
-
   const handleClose = () => {
     onClose();
   };
 </script>
 
-{#if showPortal}
-  <div class="portal-overlay">
-    <div
-      class="portal-content"
-      style="max-width: {maxWidth}; background-color: {backgroundColor};"
-    >
-      {#if title || showCloseButton}
-        <div class="portal-header">
-          {#if title}
-            <h2>{title}</h2>
-          {/if}
-          {#if showCloseButton}
-            <button class="close-button" onclick={handleClose}>✕</button>
-          {/if}
-        </div>
-      {/if}
-
-      <div class="portal-body">
-        {@render children()}
+<div class="portal-overlay">
+  <div
+    class="portal-content"
+    style="max-width: {maxWidth}; background-color: {backgroundColor};"
+  >
+    {#if title || showCloseButton}
+      <div class="portal-header">
+        {#if title}
+          <h2>{title}</h2>
+        {/if}
+        {#if showCloseButton}
+          <button class="close-button" onclick={handleClose}>✕</button>
+        {/if}
       </div>
+    {/if}
+
+    <div class="portal-body">
+      {@render children()}
     </div>
   </div>
-{/if}
+</div>
 
 <style>
   .portal-overlay {

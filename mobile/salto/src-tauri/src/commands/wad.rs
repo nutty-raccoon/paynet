@@ -3,7 +3,7 @@ use std::{cmp::Ordering, str::FromStr};
 use nuts::Amount;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, Unit};
 use tauri::{AppHandle, Emitter, State};
-use wallet::types::compact_wad::{self, CompactWad};
+use wallet::types::compact_wad::{self, CompactWads};
 
 use crate::{
     parse_asset_amount::{parse_asset_amount, ParseAmountStringError},
@@ -114,8 +114,7 @@ pub async fn create_wads(
         app.emit("balance-decrease", event)?;
     }
 
-    let wads_string = serde_json::to_string(&wads)?;
-    Ok(wads_string)
+    Ok(CompactWads(wads).to_string())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -157,9 +156,9 @@ pub async fn receive_wads(
     state: State<'_, AppState>,
     wads: String,
 ) -> Result<(), ReceiveWadsError> {
-    let deserialized_wads: Vec<CompactWad<Unit>> = serde_json::from_str(&wads)?;
+    let wads: CompactWads<Unit> = wads.parse()?;
 
-    for wad in deserialized_wads {
+    for wad in wads.0 {
         let (mut node_client, node_id) =
             wallet::register_node(state.pool.clone(), &wad.node_url).await?;
 

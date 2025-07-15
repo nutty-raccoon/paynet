@@ -1,8 +1,10 @@
 <script lang="ts">
-  import PaymentMethodChoice from "../components/PaymentMethodChoice.svelte";
+  import ReceivingMethodChoice from "./ReceivingMethodChoice.svelte";
   import { isNFCAvailable, isMobile } from "../..//stores.js";
   import NfcModal from "../components/NfcModal.svelte";
   import ScanModal from "../scan/ScanModal.svelte";
+  import { receive_wads } from "../../commands";
+  import { readText } from "@tauri-apps/plugin-clipboard-manager";
 
   const Modal = {
     METHOD_CHOICE: 0,
@@ -38,6 +40,12 @@
       alert("qrcode scan only available on mobile");
     }
   };
+
+  const handlePasteChoice = async () => {
+    const wads = await readText();
+    await receive_wads(wads);
+    onClose();
+  };
 </script>
 
 <div class="modal-overlay">
@@ -48,10 +56,10 @@
     </div>
 
     {#if currentModal === Modal.METHOD_CHOICE}
-      <PaymentMethodChoice
-        paymentStrings={null}
+      <ReceivingMethodChoice
         onNFCChoice={handleNFCChoice}
         onQRCodeChoice={handleQRCodeChoice}
+        onPasteChoice={handlePasteChoice}
       />
     {:else if currentModal == Modal.NFC}
       <NfcModal

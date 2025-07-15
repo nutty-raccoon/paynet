@@ -2,7 +2,6 @@
   import type { EventHandler } from "svelte/elements";
   import { formatBalance, unitPrecision } from "../../utils";
   import { create_wads } from "../../commands";
-  import { Buffer } from "buffer";
 
   interface Props {
     availableUnits: string[];
@@ -11,7 +10,7 @@
     onPaymentDataGenerated: (
       amount: string,
       asset: string,
-      paymentData: any,
+      paymentData: string,
     ) => void;
   }
 
@@ -62,8 +61,7 @@
 
       create_wads(amountString, asset).then((val) => {
         if (!!val) {
-          const messageBuffer = Buffer.from(val);
-          onPaymentDataGenerated(amountString, token.toString(), messageBuffer);
+          onPaymentDataGenerated(amountString, token.toString(), val);
         }
       });
     }

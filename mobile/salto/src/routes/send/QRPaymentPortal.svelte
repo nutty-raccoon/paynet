@@ -3,10 +3,10 @@
   import QRCode from "@castlenine/svelte-qrcode";
   import { UR, UREncoder } from "@gandlaf21/bc-ur";
   import { Buffer } from "buffer";
-  import Portal from "./Portal.svelte";
+  import Portal from "../components/Portal.svelte";
 
   interface Props {
-    paymentData: Buffer;
+    paymentData: string;
     onClose: () => void;
   }
 
@@ -45,7 +45,8 @@
   $effect(() => {
     if (!paymentData) return;
 
-    const ur = UR.fromBuffer(paymentData);
+    const buffer = Buffer.from(paymentData);
+    const ur = UR.fromBuffer(buffer);
     const encoder = new UREncoder(ur, 150, 0);
     let active = true;
 
@@ -87,7 +88,7 @@
   };
 </script>
 
-<Portal isOpen={true} onClose={handleClose} title="Payment QR Code">
+<Portal onClose={handleClose} title="Payment QR Code">
   <div class="qr-code-section">
     {#if partToDisplay}
       {#key partToDisplay}

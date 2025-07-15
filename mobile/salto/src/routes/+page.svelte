@@ -1,6 +1,6 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
-  import PayModal from "./components/PayModal.svelte";
+  import PayModal from "./send/PayModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceChange, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
@@ -16,7 +16,7 @@
 
   const Modal = {
     ROOT: 0,
-    PAY: 1,
+    SEND: 1,
     RECEIVE: 2,
   } as const;
   type Modal = (typeof Modal)[keyof typeof Modal];
@@ -117,14 +117,14 @@
             {errorMessage}
           </div>
         {/if}
-        <button class="pay-button" onclick={() => openModal(Modal.PAY)}
-          >Pay</button
+        <button class="pay-button" onclick={() => openModal(Modal.SEND)}
+          >Send</button
         >
         <button class="receive-button" onclick={() => openModal(Modal.RECEIVE)}
           >Receive</button
         >
       </div>
-    {:else if currentModal == Modal.PAY}
+    {:else if currentModal == Modal.SEND}
       <PayModal availableBalances={totalBalance} onClose={goBackToRoot} />
     {:else if currentModal == Modal.RECEIVE}
       <ReceiveModal onClose={goBackToRoot} />

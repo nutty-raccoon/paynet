@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Balance, BalanceChange, NodeData, NodeId } from "./types";
+import type { Balance, NodeData, NodeId } from "./types";
 import type { QuoteId } from "./types/quote";
 
 export async function getNodesBalance() {
