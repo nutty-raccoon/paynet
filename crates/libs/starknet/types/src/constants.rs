@@ -107,7 +107,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
         // This address is guaranted to be correct, if and only if,
         // you are using our `starknet-on-chain-setup` rust deployment executable.
         // It is automaticaly used when setting up the network using this repo's `docker-compose.yml`
-        invoice_payment_contract_address: Felt::from_hex_unchecked("0x076d2f676fb9d9a4323307f723df93f47454729b8e6d716faf7defd620eb5000"),
+        invoice_payment_contract_address: Felt::from_hex_unchecked("0x026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e"),
         // The default starknet-devnet config reuses Sepolia asset addresses
         // TODO: will only work for `eth` and `strk` assets. So we will change it later on.
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,

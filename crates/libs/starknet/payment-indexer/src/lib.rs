@@ -45,7 +45,7 @@ impl ApibaraIndexerService {
         uri: Uri,
         chain_id: ChainId,
         starting_block: u64,
-        target_asset_and_payee_pairs: Vec<(Felt, Felt)>,
+        target_asset_and_payee_pairs: Vec<Felt>,
     ) -> Result<Self, Error> {
         db::create_tables(&mut db_conn)?;
 
@@ -60,24 +60,21 @@ impl ApibaraIndexerService {
             .with_filter(|mut filter| {
                 let remittance_event_key = FieldElement::from_hex(REMITTANCE_EVENT_KEY).unwrap();
 
-                target_asset_and_payee_pairs
-                    .iter()
-                    .for_each(|(recipient, asset)| {
-                        filter
-                            .with_header(HeaderFilter::weak())
-                            .add_event(|event| {
-                                event
-                                    .with_from_address(FieldElement::from_bytes(
-                                        &invoice_payment_contract_address.to_bytes_be(),
-                                    ))
-                                    .with_keys(vec![
-                                        remittance_event_key.clone(),
-                                        FieldElement::from_hex(&recipient.to_hex_string()).unwrap(),
-                                        FieldElement::from_hex(&asset.to_hex_string()).unwrap(),
-                                    ])
-                            })
-                            .build();
-                    });
+                target_asset_and_payee_pairs.iter().for_each(|asset| {
+                    filter
+                        .with_header(HeaderFilter::weak())
+                        .add_event(|event| {
+                            event
+                                .with_from_address(FieldElement::from_bytes(
+                                    &invoice_payment_contract_address.to_bytes_be(),
+                                ))
+                                .with_keys(vec![
+                                    remittance_event_key.clone(),
+                                    FieldElement::from_hex(&asset.to_hex_string()).unwrap(),
+                                ])
+                        })
+                        .build();
+                });
 
                 filter
             });
@@ -109,8 +106,8 @@ pub struct PaymentEvent {
     pub block_id: String,
     pub tx_hash: Felt,
     pub event_idx: u64,
-    pub payee: Felt,
     pub asset: Felt,
+    pub payee: Felt,
     pub invoice_id: Felt,
     pub payer: Felt,
     pub amount: StarknetU256,

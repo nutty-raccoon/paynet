@@ -5,7 +5,7 @@ use inputs::process_melt_inputs;
 use liquidity_source::{LiquiditySource, WithdrawInterface};
 use nuts::Amount;
 use nuts::nut00::Proof;
-use nuts::nut05::MeltResponse;
+use nuts::nut05::{MeltQuoteState, MeltResponse};
 use starknet_types::Unit;
 use tracing::{Level, event};
 use uuid::Uuid;
@@ -93,10 +93,13 @@ impl GrpcState {
     ) -> Result<MeltResponse, Error> {
         let mut conn = self.pg_pool.acquire().await?;
 
+        let mut tx = db_node::start_db_tx_from_conn(&mut conn)
+            .await
+            .map_err(Error::TxBegin)?;
         // Get the existing quote from database
         // TODO: keep a record of our fees somewhere
         let (unit, required_amount, _fee, state, expiry, _quote_hash, payment_request) =
-            db_node::melt_quote::get_data::<Unit>(&mut conn, quote_id).await?;
+            db_node::melt_quote::get_data::<Unit>(&mut tx, quote_id).await?;
 
         // Check if quote is still valid
         if expiry < unix_time() {
@@ -109,10 +112,6 @@ impl GrpcState {
         }
 
         // Process and validate inputs
-        let mut tx = db_node::start_db_tx_from_conn(&mut conn)
-            .await
-            .map_err(Error::TxBegin)?;
-
         let (total_amount, insert_spent_proof_query) = process_melt_inputs(
             &mut tx,
             self.signer.clone(),
@@ -129,6 +128,7 @@ impl GrpcState {
 
         // Mark inputs as spent
         insert_spent_proof_query.execute(&mut tx).await?;
+        db_node::melt_quote::set_state(&mut tx, quote_id, MeltQuoteState::Pending).await?;
         tx.commit().await?;
 
         // Process the actual payment

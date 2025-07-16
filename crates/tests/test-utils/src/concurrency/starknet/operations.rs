@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use futures::future::join_all;
 use node_client::{
@@ -466,20 +466,197 @@ pub async fn melt_same_input(
     }
 
     let mut multi_melt = Vec::new();
-    for melt_quote_id in melt_quote_ids.into_iter() {
+    for melt_quote_id in melt_quote_ids.iter() {
         let melt_request = MeltRequest {
             method: method.clone(),
-            quote: melt_quote_id,
+            quote: melt_quote_id.clone(),
             inputs: vec![proof.clone()],
         };
         multi_melt.push(make_melt(node_client.clone(), melt_request));
     }
     let res = join_all(multi_melt).await;
-    let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+    let ok_vec: Vec<(usize, &MeltResponse)> = res
+        .iter()
+        .enumerate()
+        .filter_map(|(i, res)| res.as_ref().ok().map(|r| (i, r)))
+        .collect();
     if ok_vec.len() != 1 {
         return Err(Error::Concurrence(
             crate::common::error::ConcurrencyError::Melt,
         ));
+    }
+    println!("succes: {}", ok_vec.len());
+
+    let (quote_index, _) = ok_vec.first().unwrap();
+
+    // Wait for payment to go through
+    loop {
+        let response = node_client
+            .melt_quote_state(node_client::MeltQuoteStateRequest {
+                method: method.clone(),
+                quote: melt_quote_ids[*quote_index].clone(),
+            })
+            .await?
+            .into_inner();
+
+        if response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    Ok(())
+}
+
+// Tests melt operation integrity by attempting to spend the same quote multiple times concurrently
+
+pub async fn melt_same_quote(
+    mut node_client: NodeClient<Channel>,
+
+    env: EnvVariables,
+) -> Result<()> {
+    let melt_amount = 128u64;
+    let n_concurent = 64;
+    let total_amount_to_mint = Amount::from(melt_amount * n_concurent);
+
+    // MINTING
+    let active_keyset =
+        get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
+
+    let node_pubkey_for_amount = PublicKey::from_hex(
+        &node_client
+            .keys(GetKeysRequest {
+                keyset_id: Some(active_keyset.id.clone()),
+            })
+            .await?
+            .into_inner()
+            .keysets
+            .first()
+            .unwrap()
+            .keys
+            .iter()
+            .find(|key| key.amount == melt_amount)
+            .unwrap()
+            .pubkey,
+    )
+    .map_err(|e| Error::Other(e.into()))?;
+
+    let original_mint_quote_response =
+        mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), total_amount_to_mint)
+            .await?;
+
+    let mut blind_messages = Vec::with_capacity(n_concurent as usize);
+    let mut rs = Vec::with_capacity(n_concurent as usize);
+    let mut secrets = Vec::with_capacity(n_concurent as usize);
+
+    for _ in 0..n_concurent {
+        let secret = Secret::generate();
+
+        let (blinded_secret, r) =
+            blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
+
+        blind_messages.push(BlindedMessage {
+            amount: melt_amount,
+            keyset_id: active_keyset.id.clone(),
+            blinded_secret: blinded_secret.to_bytes().to_vec(),
+        });
+
+        rs.push(r);
+        secrets.push(secret);
+    }
+
+    let mint_request = MintRequest {
+        method: "starknet".to_string(),
+        quote: original_mint_quote_response.clone().quote,
+        outputs: blind_messages,
+    };
+
+    let mint_response = make_mint(mint_request, node_client.clone()).await?;
+
+    let proofs: Vec<_> = mint_response
+        .signatures
+        .into_iter()
+        .enumerate()
+        .map(|(i, s)| Proof {
+            amount: Amount::from(melt_amount).into(),
+
+            keyset_id: active_keyset.id.clone(),
+
+            secret: secrets[i].to_string(),
+
+            unblind_signature: unblind_message(
+                &PublicKey::from_slice(&s.blind_signature).unwrap(),
+                &rs[i],
+                &node_pubkey_for_amount,
+            )
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+        })
+        .collect();
+
+    // MELT
+    let payee =
+        Felt::from_hex("0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691")
+            .map_err(|e| Error::Other(e.into()))?;
+
+    let method = STARKNET_STR.to_string();
+
+    let asset = starknet_types::Asset::Strk;
+
+    let on_chain_amount = U256::from(128).checked_mul(asset.scale_factor()).unwrap() / 1000;
+
+    let melt_quote_response = node_client
+        .melt_quote(MeltQuoteRequest {
+            method: method.clone(),
+            unit: Unit::MilliStrk.to_string(),
+            request: serde_json::to_string(&starknet_liquidity_source::MeltPaymentRequest {
+                payee,
+                asset,
+                amount: on_chain_amount.into(),
+            })?,
+        })
+        .await?
+        .into_inner();
+
+    let melt_quote_id = melt_quote_response.quote;
+    let mut melt_requests = Vec::new();
+
+    for proof in proofs {
+        let melt_request = MeltRequest {
+            method: method.clone(),
+            quote: melt_quote_id.clone(),
+            inputs: vec![proof],
+        };
+
+        melt_requests.push(make_melt(node_client.clone(), melt_request));
+    }
+
+    let res = join_all(melt_requests).await;
+    let ok_vec: Vec<&MeltResponse> = res.iter().filter_map(|res| res.as_ref().ok()).collect();
+
+    println!("success: {}", ok_vec.len());
+
+    if ok_vec.len() != 1 {
+        return Err(Error::Concurrence(
+            crate::common::error::ConcurrencyError::Melt,
+        ));
+    }
+
+    // Wait for payment to go through
+    loop {
+        let response = node_client
+            .melt_quote_state(node_client::MeltQuoteStateRequest {
+                method: method.clone(),
+                quote: melt_quote_id.clone(),
+            })
+            .await?
+            .into_inner();
+
+        if response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
     Ok(())
 }

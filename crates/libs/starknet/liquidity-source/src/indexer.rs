@@ -43,7 +43,6 @@ pub enum Error {
 async fn init_indexer_task(
     apibara_token: String,
     chain_id: ChainId,
-    payee_address: Felt,
 ) -> Result<ApibaraIndexerService, Error> {
     let conn = rusqlite::Connection::open_in_memory().map_err(Error::OpenSqlite)?;
 
@@ -68,7 +67,7 @@ async fn init_indexer_task(
         uri,
         chain_id,
         on_chain_constants.apibara.starting_block,
-        vec![(payee_address, strk_token_address)],
+        vec![strk_token_address],
     )
     .await
     .map_err(Error::InitIndexer)?;
@@ -80,11 +79,13 @@ async fn listen_to_indexer(
     pg_pool: PgPool,
     mut indexer_service: ApibaraIndexerService,
     chain_id: ChainId,
+    cashier_account_address: Felt,
 ) -> Result<(), Error> {
     while let Some(event) = indexer_service.try_next().await? {
         match event {
             Message::Payment(payment_events) => {
-                process_payment_event(payment_events, &pg_pool, &chain_id).await?;
+                process_payment_event(payment_events, &pg_pool, &chain_id, cashier_account_address)
+                    .await?;
             }
             Message::Invalidate {
                 last_valid_block_number: _,
@@ -107,12 +108,7 @@ pub async fn run_in_ctrl_c_cancellable_task(
     // It can happen that the DNA indexer goes down at some point, or close our connection.
     // We should restart then.
     loop {
-        let indexer_service = match init_indexer_task(
-            apibara_token.clone(),
-            chain_id.clone(),
-            cashier_account_address,
-        )
-        .await
+        let indexer_service = match init_indexer_task(apibara_token.clone(), chain_id.clone()).await
         {
             Ok(ais) => ais,
             Err(e) => {
@@ -127,7 +123,7 @@ pub async fn run_in_ctrl_c_cancellable_task(
         let cloned_pg_pool = pg_pool.clone();
 
         let should_restart = select! {
-            indexer_res = listen_to_indexer(cloned_pg_pool, indexer_service, cloned_chain_id) => match indexer_res {
+            indexer_res = listen_to_indexer(cloned_pg_pool, indexer_service, cloned_chain_id, cashier_account_address) => match indexer_res {
                 Ok(()) => {
                     error!(name: "indexer-task-error", name = "indexer-task-error", error = "returned");
                     true
@@ -157,6 +153,7 @@ async fn process_payment_event(
     payment_events: Vec<PaymentEvent>,
     pg_pool: &PgPool,
     chain_id: &ChainId,
+    cashier_account_address: Felt,
 ) -> Result<(), Error> {
     let db_conn = &mut pg_pool.acquire().await?;
 
@@ -210,10 +207,15 @@ async fn process_payment_event(
             continue;
         }
 
+        #[allow(clippy::collapsible_else_if)]
         if is_mint {
-            handle_mint_payment(db_conn, quote_id, payment_event, unit, quote_amount).await?;
+            if payment_event.payee == cashier_account_address {
+                handle_mint_payment(db_conn, quote_id, payment_event, unit, quote_amount).await?;
+            }
         } else {
-            handle_melt_payment(db_conn, quote_id, payment_event, unit, quote_amount).await?;
+            if payment_event.payer == cashier_account_address {
+                handle_melt_payment(db_conn, quote_id, payment_event, unit, quote_amount).await?;
+            }
         }
     }
 

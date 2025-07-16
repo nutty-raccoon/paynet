@@ -46,9 +46,9 @@ pub mod InvoicePayment {
     pub struct Remittance {
         // Keys
         #[key]
-        pub payee: ContractAddress,
-        #[key]
         pub asset: ContractAddress,
+        #[key]
+        pub payee: ContractAddress,
         // Data
         pub invoice_id: felt252,
         pub payer: ContractAddress,

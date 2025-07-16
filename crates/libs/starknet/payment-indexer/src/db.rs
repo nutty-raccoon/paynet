@@ -4,8 +4,8 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct PaymentEvent {
     pub index: u64,
-    pub payee: String,
     pub asset: String,
+    pub payee: String,
     pub invoice_id: String,
     pub payer: String,
     pub amount_low: String,
@@ -41,12 +41,12 @@ impl TryFrom<&apibara_core::starknet::v1alpha2::Event> for PaymentEvent {
     fn try_from(value: &apibara_core::starknet::v1alpha2::Event) -> Result<Self, Self::Error> {
         Ok(Self {
             index: value.index,
-            payee: value
+            asset: value
                 .keys
                 .get(1)
                 .ok_or(TryPaymentEventFromApibaraEvent::Key(1))?
                 .to_string(),
-            asset: value
+            payee: value
                 .keys
                 .get(2)
                 .ok_or(TryPaymentEventFromApibaraEvent::Key(2))?
