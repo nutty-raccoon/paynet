@@ -62,5 +62,26 @@ export async function receive_wads(wads: string) {
       });
 
       return res;
+}
+
+export interface WadHistoryItem {
+  id: number;
+  wadType: string;
+  status: string;
+  totalAmountJson: string;
+  memo?: string;
+  createdAt: number;
+  modifiedAt: number;
+}
+
+export async function get_wad_history(limit?: number): Promise<WadHistoryItem[] | undefined> {
+      const res = await invoke("get_wad_history", {limit})
+      .then((message) => message as WadHistoryItem[])
+      .catch((error) => {
+        console.error("failed to get wad history:", error);
+        return undefined;
+      });
+
+      return res;
 } 
 

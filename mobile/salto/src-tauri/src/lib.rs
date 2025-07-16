@@ -4,7 +4,8 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, create_mint_quote, create_wads, get_nodes_balance, receive_wads, redeem_quote,
+    add_node, create_mint_quote, create_wads, get_nodes_balance, get_wad_history, receive_wads,
+    redeem_quote,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -25,10 +26,8 @@ pub fn run() {
 
         builder
             .setup(|app| {
-                let db_path = app
-                    .handle()
-                    .path()
-                    .app_data_dir()
+                // Use separate database for mobile app
+                let db_path = dirs::data_dir()
                     .map(|mut dp| {
                         dp.push("salto-wallet.sqlite3");
                         dp
@@ -41,7 +40,7 @@ pub fn run() {
             })
             .plugin(
                 tauri_plugin_sql::Builder::default()
-                    .add_migrations("sqlite:salto-wallet.sqlite3", migrations::migrations())
+                    .add_migrations("sqlite:cli-wallet.sqlite3", migrations::migrations())
                     .build(),
             )
             .invoke_handler(tauri::generate_handler![
@@ -51,6 +50,7 @@ pub fn run() {
                 redeem_quote,
                 create_wads,
                 receive_wads,
+                get_wad_history,
             ])
     };
 

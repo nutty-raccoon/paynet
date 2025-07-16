@@ -4731,7 +4731,7 @@ dependencies = [
 name = "salto"
 version = "0.1.0"
 dependencies = [
- "log",
+ "dirs",
  "num-traits",
  "nuts",
  "primitive-types 0.13.1",
@@ -6970,6 +6970,7 @@ dependencies = [
  "tokio",
  "tonic",
  "url",
+ "uuid 1.17.0",
 ]
 
 [[package]]

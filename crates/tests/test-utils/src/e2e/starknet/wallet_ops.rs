@@ -135,12 +135,14 @@ impl WalletOps {
     }
 
     pub async fn receive(&mut self, wad: &CompactWad<Unit>) -> Result<()> {
-        wallet::receive_wad(
+        wallet::receive_wad::<Unit>(
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
             wad.unit.as_str(),
             wad.proofs.clone(),
+            // No history tracking for tests
+            None,
         )
         .await?;
         Ok(())

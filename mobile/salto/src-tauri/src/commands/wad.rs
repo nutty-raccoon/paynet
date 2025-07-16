@@ -102,7 +102,14 @@ pub async fn create_wads(
 
         let db_conn = state.pool.get()?;
         let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
-        let wad = wallet::create_wad_from_proofs(node_url, unit, None, proofs);
+        let wad = wallet::create_wad_from_proofs(
+            node_url, 
+            unit, 
+            None, 
+            proofs,
+            // Enable history tracking for mobile app
+            Some(state.pool.clone()),
+        )?;
         wads.push(wad);
         balance_decrease_events.push(BalanceChange {
             node_id,
@@ -168,6 +175,8 @@ pub async fn receive_wads(
             node_id,
             wad.unit.as_str(),
             wad.proofs,
+            // Enable history tracking for mobile app
+            Some((wad.node_url.clone(), wad.unit, wad.memo.clone())),
         )
         .await?;
 
@@ -182,4 +191,57 @@ pub async fn receive_wads(
     }
 
     Ok(())
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WadHistoryItem {
+    pub id: i64,
+    pub wad_type: String,
+    pub status: String,
+    pub total_amount_json: String,
+    pub memo: Option<String>,
+    pub created_at: u64,
+    pub modified_at: u64,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetWadHistoryError {
+    #[error(transparent)]
+    R2D2(#[from] r2d2::Error),
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+}
+
+impl serde::Serialize for GetWadHistoryError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+#[tauri::command]
+pub async fn get_wad_history(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> Result<Vec<WadHistoryItem>, GetWadHistoryError> {
+    let db_conn = state.pool.get()?;
+    let wad_records = wallet::db::wad::get_recent_wads(&db_conn, limit.unwrap_or(20))?;
+
+    let history_items = wad_records
+        .into_iter()
+        .map(|record| WadHistoryItem {
+            id: record.id,
+            wad_type: record.wad_type.to_string(),
+            status: record.status.to_string(),
+            total_amount_json: record.total_amount_json,
+            memo: record.memo,
+            created_at: record.created_at,
+            modified_at: record.modified_at,
+        })
+        .collect();
+
+    Ok(history_items)
 }

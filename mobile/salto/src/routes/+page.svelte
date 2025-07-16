@@ -13,11 +13,13 @@
   import { onMount, onDestroy } from "svelte";
   import { getNodesBalance } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
+  import WadHistoryModal from "./components/WadHistoryModal.svelte";
 
   const Modal = {
     ROOT: 0,
     SEND: 1,
     RECEIVE: 2,
+    HISTORY: 3,
   } as const;
   type Modal = (typeof Modal)[keyof typeof Modal];
 
@@ -34,13 +36,10 @@
     computeTotalBalancePerUnit(nodes),
   );
   let formattedTotalBalance: string[] = $derived(
-    totalBalance
-      .entries()
-      .map(([unit, amount]) => {
-        const formatted = formatBalance({ unit, amount });
-        return `${formatted.asset}: ${formatted.amount}`;
-      })
-      .toArray(),
+    Array.from(totalBalance.entries()).map(([unit, amount]) => {
+      const formatted = formatBalance({ unit, amount });
+      return `${formatted.asset}: ${formatted.amount}`;
+    })
   );
 
   // Effect to manage scrolling based on active tab
@@ -128,11 +127,18 @@
       <SendModal availableBalances={totalBalance} onClose={goBackToRoot} />
     {:else if currentModal == Modal.RECEIVE}
       <ReceiveModal onClose={goBackToRoot} />
+    {:else if currentModal == Modal.HISTORY}
+      <WadHistoryModal onClose={goBackToRoot} />
     {/if}
   {:else if activeTab === "balances"}
     <div class="balances-container">
       <NodesBalancePage {nodes} {onAddNode} />
     </div>
+  {:else if activeTab === "history"}
+    <WadHistoryModal onClose={() => {
+      activeTab = "pay";
+      currentModal = Modal.ROOT;
+    }} />
   {/if}
 </main>
 
@@ -140,6 +146,7 @@
   {activeTab}
   onTabChange={(tab: Tab) => {
     activeTab = tab;
+    currentModal = Modal.ROOT;
   }}
 />
 

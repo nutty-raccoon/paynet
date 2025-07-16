@@ -144,6 +144,16 @@ enum Commands {
         long_about = "Decode a wad to print its contents in a friendly format"
     )]
     DecodeWad(WadArgs),
+    /// Show WAD history
+    #[command(
+        about = "Show WAD history",
+        long_about = "Display a history of all WADs (Wallet Anonymous Deposits) generated or received by the user"
+    )]
+    History {
+        /// Limit number of WADs to show
+        #[arg(long, short, default_value = "20")]
+        limit: u32,
+    },
     /// Sync all pending operations
     #[command(
         about = "Sync all pending mint and melt operations",
@@ -444,8 +454,14 @@ async fn main() -> Result<()> {
                     }
                 };
 
-                let wad =
-                    wallet::create_wad_from_proofs(node_url.clone(), unit, memo.clone(), proofs);
+                let wad = wallet::create_wad_from_proofs(
+                    node_url.clone(), 
+                    unit, 
+                    memo.clone(), 
+                    proofs,
+                    // Enable history tracking for CLI wallet
+                    Some(pool.clone()),
+                )?;
                 wads.push(wad);
             }
             if let Some(max_reached) = should_revert {
@@ -506,8 +522,10 @@ async fn main() -> Result<()> {
                     pool.clone(),
                     &mut node_client,
                     node_id,
-                    wad.unit.as_str(),
+                    unit.as_str(),
                     proofs,
+                    // Enable history tracking for CLI wallet
+                    Some((node_url.clone(), unit.clone(), memo.clone())),
                 )
                 .await
                 {
@@ -557,6 +575,32 @@ async fn main() -> Result<()> {
                 };
                 println!("\nDetailed Contents:");
                 println!("{}", serde_json::to_string_pretty(&regular_wad)?);
+            }
+        }
+        Commands::History { limit } => {
+            let db_conn = pool.get()?;
+            let wad_records = wallet::db::wad::get_recent_wads(&db_conn, limit)?;
+
+            if wad_records.is_empty() {
+                println!("No WAD history found.");
+                return Ok(());
+            }
+
+            println!("WAD History (showing {} most recent):\n", wad_records.len());
+
+            for wad_record in wad_records {
+                println!("ID: {}", wad_record.id);
+                println!("Type: {}", wad_record.wad_type);
+                println!("Status: {}", wad_record.status);
+                println!("Total Amount: {}", wad_record.total_amount_json);
+
+                if let Some(memo) = &wad_record.memo {
+                    println!("Memo: {}", memo);
+                }
+
+                println!("Created: {} (unix timestamp)", wad_record.created_at);
+                println!("Modified: {} (unix timestamp)", wad_record.modified_at);
+                println!("---");
             }
         }
         Commands::Sync => {
