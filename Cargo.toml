@@ -52,6 +52,7 @@ default-members = [
 
 [workspace.dependencies]
 axum = "0.8.1"
+tower-http = "0.6.2"
 tonic = "0.13.1"
 tonic-types = "0.13.0"
 tonic-health = "0.13.0"

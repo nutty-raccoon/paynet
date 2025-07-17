@@ -1,7 +1,6 @@
 use crate::{
     keyset_cache::CachedKeysetInfo,
-    liquidity_sources::LiquiditySources,
-    response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
+    response_cache::{CachedResponse, ResponseCache},
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, CheckStateRequest, CheckStateResponse, GetKeysRequest,
@@ -12,39 +11,24 @@ use node::{
     hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::{
-    Amount, QuoteTTLConfig,
+    Amount,
     nut00::{BlindedMessage, Proof, secret::Secret},
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
-    nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
+    nut06::{ContactInfo, NodeInfo, NodeVersion},
     nut19::{CacheResponseKey, Route},
 };
 use signer::GetRootPubKeyRequest;
-use sqlx::PgPool;
 use starknet_types::Unit;
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 use thiserror::Error;
-use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::{
-    app_state::{NutsSettingsState, QuoteTTLConfigState, SignerClient},
-    keyset_cache::KeysetCache,
-    methods::Method,
-};
+use crate::{app_state::AppState, methods::Method};
 
-#[derive(Debug, Clone)]
-pub struct GrpcState {
-    pub pg_pool: PgPool,
-    pub signer: SignerClient,
-    pub keyset_cache: KeysetCache,
-    pub nuts: NutsSettingsState,
-    pub quote_ttl: Arc<QuoteTTLConfigState>,
-    pub liquidity_sources: LiquiditySources<Unit>,
-    pub response_cache: Arc<InMemResponseCache<(Route, u64), CachedResponse>>,
-}
+pub type GrpcState = AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitKeysetError {
@@ -59,24 +43,6 @@ pub enum InitKeysetError {
 }
 
 impl GrpcState {
-    pub fn new(
-        pg_pool: PgPool,
-        signer_client: SignerClient,
-        nuts_settings: NutsSettings<Method, Unit>,
-        quote_ttl: QuoteTTLConfig,
-        liquidity_sources: LiquiditySources<Unit>,
-    ) -> Self {
-        Self {
-            pg_pool,
-            keyset_cache: Default::default(),
-            nuts: Arc::new(RwLock::new(nuts_settings)),
-            quote_ttl: Arc::new(quote_ttl.into()),
-            signer: signer_client,
-            liquidity_sources,
-            response_cache: Arc::new(InMemResponseCache::new(None)),
-        }
-    }
-
     pub async fn init_first_keysets(
         &self,
         units: &[Unit],

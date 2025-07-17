@@ -9,6 +9,7 @@ tower = { workspace = true, features = ["timeout"] }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 parking_lot = { workspace = true, features = ["arc_lock"] }
+hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -45,17 +46,23 @@ open-telemetry-tracing = { workspace = true }
 tower-otel = { workspace = true }
 opentelemetry = { workspace = true }
 
+# http optional
+axum = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true, features = ["trace", "cors"] }
+
 # tls optional
 openssl = { workspace = true, optional = true }
 tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 
-# starknet optional 
+# starknet optional
 starknet-payment-indexer = { workspace = true, optional = true }
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }
 
 [features]
-default = ["starknet"]
+default = ["grpc", "starknet"]
+grpc = []
+rest = ["dep:axum", "dep:tower-http"]
 mock = ["starknet-liquidity-source/mock"]
 starknet = ["dep:starknet-payment-indexer"]
 tls = ["dep:openssl", "dep:tonic-tls"]

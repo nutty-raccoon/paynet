@@ -9,8 +9,21 @@ mod signer_client;
 pub use signer_client::connect_to_signer;
 mod grpc;
 pub use grpc::launch_tonic_server_task;
+#[cfg(feature = "rest")]
+mod rest;
+#[cfg(feature = "rest")]
+pub use rest::launch_rest_server_task;
+use tracing::instrument;
 
 use crate::grpc_service::InitKeysetError;
+use crate::{app_state::AppState, liquidity_sources::LiquiditySources};
+use nuts::QuoteTTLConfig;
+pub use nuts_settings::nuts_settings;
+use signer::SignerClient;
+use sqlx::Postgres;
+use starknet_types::Unit;
+use tonic::transport::Channel;
+use tower_otel::trace;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -35,4 +48,33 @@ pub enum Error {
     InitKeysets(#[from] InitKeysetError),
     #[error("invalid signer uri: {0}")]
     Uri(#[from] http::uri::InvalidUri),
+}
+
+#[instrument]
+pub async fn create_app_state(
+    pg_pool: sqlx::Pool<Postgres>,
+    signer_client: SignerClient<trace::Grpc<Channel>>,
+    liquidity_sources: LiquiditySources<Unit>,
+    quote_ttl: Option<u64>,
+) -> Result<AppState, super::Error> {
+    let nuts_settings = nuts_settings();
+    let ttl = quote_ttl.unwrap_or(3600);
+    let app_state = AppState::new(
+        pg_pool,
+        signer_client,
+        nuts_settings,
+        QuoteTTLConfig {
+            mint_ttl: ttl,
+            melt_ttl: ttl,
+        },
+        liquidity_sources,
+    );
+
+    // Initialize first keysets
+    app_state
+        .init_first_keysets(&[Unit::MilliStrk], 0, 32)
+        .await
+        .map_err(|e| Error::InitKeysets(e))?;
+
+    Ok(app_state)
 }

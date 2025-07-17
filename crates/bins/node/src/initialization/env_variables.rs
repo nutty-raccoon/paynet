@@ -16,6 +16,11 @@ pub fn read_env_variables() -> Result<EnvVariables, Error> {
         .map_err(|e| Error::Env("GRPC_PORT", e))?
         .parse()
         .map_err(Error::ParseInt)?;
+    #[cfg(feature = "rest")]
+    let rest_port = std::env::var("REST_PORT")
+        .unwrap_or_else(|_| "3339".to_string()) // Default REST port
+        .parse()
+        .map_err(Error::ParseInt)?;
     let quote_ttl = match std::env::var("QUOTE_TTL") {
         Ok(v) => Some(v.parse().map_err(Error::ParseInt)?),
         Err(VarError::NotPresent) => None,
@@ -32,6 +37,8 @@ pub fn read_env_variables() -> Result<EnvVariables, Error> {
         pg_url,
         signer_url,
         grpc_port,
+        #[cfg(feature = "rest")]
+        rest_port,
         quote_ttl,
         #[cfg(feature = "tls")]
         tls_cert_path,
@@ -45,6 +52,8 @@ pub struct EnvVariables {
     pub pg_url: String,
     pub signer_url: String,
     pub grpc_port: u16,
+    #[cfg(feature = "rest")]
+    pub rest_port: u16,
     pub quote_ttl: Option<u64>,
     #[cfg(feature = "tls")]
     pub tls_cert_path: String,
