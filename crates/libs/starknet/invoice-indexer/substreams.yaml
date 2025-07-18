@@ -24,34 +24,18 @@ protobuf:
 binaries:
   default:
     type: wasm/rust-v1+wasm-bindgen-shims
-    file: ../../../target/wasm32-unknown-unknown/release/substreams.wasm
+    file: ../../../../target/wasm32-unknown-unknown/release/substreams.wasm
 
 modules:
 - name: map_invoice_contract_events
   kind: map
-  initialBlock: 840000
+  initialBlock: 0
   inputs:
     - map: starknet:filtered_transactions
   output:
    type: proto:starknet.v1.Events
-- name: db_out
-  kind: map
-  initialBlock: 840000
-  inputs:
-    - map: map_invoice_contract_events
-  output:
-    type: proto:sf.substreams.sink.database.v1.DatabaseChanges
 
-
-network: starknet-testnet
-
-sink:
-  module: db_out
-  type: sf.substreams.sink.sql.v1.Service
-  config:
-    engine: postgres
-    schema: schema.sql
-
+network: starknet-local
 
 params:
-  starknet:filtered_transactions: ev:from_address:0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a
+  starknet:filtered_transactions: ev:from_address:0x026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e

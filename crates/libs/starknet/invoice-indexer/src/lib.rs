@@ -3,17 +3,13 @@ mod pb;
 
 use crate::abi::invoice_contract_contract::Event as Invoice_ContractEvent;
 use crate::pb::sf::substreams::starknet::r#type::v1::Transactions;
-use cainome::cairo_serde::CairoSerde;
-use num_traits::cast::ToPrimitive;
 use pb::starknet::v1::*;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use starknet::core::types::EmittedEvent;
 use starknet::core::types::Felt;
-use substreams::log;
-use substreams::log::println;
 use substreams::Hex;
+use substreams::log;
 use substreams_database_change::pb::database::DatabaseChanges;
 use substreams_database_change::tables::Tables as DatabaseChangeTables;
 
@@ -24,8 +20,8 @@ struct Amount {
 }
 #[derive(Deserialize)]
 struct Remittance {
-    payee: String,
     asset: String,
+    payee: String,
     invoice_id: String,
     payer: String,
     amount: Amount,
@@ -45,8 +41,8 @@ fn parse_event(event: &Event, block_id: String, tx_hash: String) -> Option<Invoi
         block_id,
         tx_hash,
         event_index: 0,
-        payee: remittance.payee,
         asset: remittance.asset,
+        payee: remittance.payee,
         invoice_id: remittance.invoice_id,
         payer: remittance.payer,
         amount_low: remittance.amount.low.to_string(),
@@ -58,11 +54,10 @@ fn parse_event(event: &Event, block_id: String, tx_hash: String) -> Option<Invoi
 fn map_invoice_contract_events(
     transactions: Transactions,
 ) -> Result<Events, substreams::errors::Error> {
-    let mut events = Events::default();
     let mut parsed_events: Vec<InvoiceContractEvent> = vec![];
     if transactions.transactions_with_receipt.is_empty() {
         log::info!("No transactions with receipts found");
-        return Ok(events);
+        return Ok(Events::default());
     }
 
     let block_id = transactions.clock.unwrap().id.clone();
@@ -74,7 +69,7 @@ fn map_invoice_contract_events(
             let event_from_address = Hex(event.from_address.as_slice()).to_string();
 
             if event_from_address
-                != "019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a"
+                != "026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e"
             {
                 continue;
             }
@@ -133,8 +128,10 @@ fn map_invoice_contract_events(
         }
     }
     log::info!("Parsed {} invoice contract events", parsed_events.len());
-    events.events = parsed_events;
-    Ok(events)
+
+    Ok(Events {
+        events: parsed_events,
+    })
 }
 
 #[substreams::handlers::map]
@@ -147,8 +144,8 @@ fn db_out(events: Events) -> DatabaseChanges {
         hasher.update(&invoice_event.block_id);
         hasher.update(&invoice_event.tx_hash);
         hasher.update(invoice_event.event_index.to_le_bytes());
-        hasher.update(&invoice_event.payee);
         hasher.update(&invoice_event.asset);
+        hasher.update(&invoice_event.payee);
         hasher.update(&invoice_event.invoice_id);
         hasher.update(&invoice_event.payer);
         hasher.update(&invoice_event.amount_low);
@@ -160,8 +157,8 @@ fn db_out(events: Events) -> DatabaseChanges {
             .set("block_id", invoice_event.block_id)
             .set("tx_hash", invoice_event.tx_hash)
             .set("event_index", invoice_event.event_index.to_string())
-            .set("payee", invoice_event.payee)
             .set("asset", invoice_event.asset)
+            .set("payee", invoice_event.payee)
             .set("invoice_id", invoice_event.invoice_id)
             .set("payer", invoice_event.payer)
             .set("amount_low", invoice_event.amount_low)

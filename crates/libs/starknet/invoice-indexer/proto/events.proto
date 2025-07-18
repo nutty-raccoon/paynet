@@ -6,14 +6,12 @@ message Event {
   string json_description = 1;
 }
 
-
-
 message InvoiceContractEvent {
   string block_id = 1;
   string tx_hash = 2;
   uint64 event_index = 3;
-  string payee = 4;
-  string asset = 5;
+  string asset = 4;
+  string payee = 5;
   string invoice_id = 6;
   string payer = 7;
   string amount_low = 8;

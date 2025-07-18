@@ -62,8 +62,8 @@ impl<P: starknet::providers::Provider + Sync> invoice_contractReader<P> {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Remittance {
-    pub payee: cainome::cairo_serde::ContractAddress,
     pub asset: cainome::cairo_serde::ContractAddress,
+    pub payee: cainome::cairo_serde::ContractAddress,
     pub invoice_id: starknet::core::types::Felt,
     pub payer: cainome::cairo_serde::ContractAddress,
     pub amount: cainome::cairo_serde::U256,
@@ -76,11 +76,11 @@ impl cainome::cairo_serde::CairoSerde for Remittance {
         let mut __size = 0;
         __size
             += cainome::cairo_serde::ContractAddress::cairo_serialized_size(
-                &__rust.payee,
+                &__rust.asset,
             );
         __size
             += cainome::cairo_serde::ContractAddress::cairo_serialized_size(
-                &__rust.asset,
+                &__rust.payee,
             );
         __size += starknet::core::types::Felt::cairo_serialized_size(&__rust.invoice_id);
         __size
@@ -94,11 +94,11 @@ impl cainome::cairo_serde::CairoSerde for Remittance {
         let mut __out: Vec<starknet::core::types::Felt> = vec![];
         __out
             .extend(
-                cainome::cairo_serde::ContractAddress::cairo_serialize(&__rust.payee),
+                cainome::cairo_serde::ContractAddress::cairo_serialize(&__rust.asset),
             );
         __out
             .extend(
-                cainome::cairo_serde::ContractAddress::cairo_serialize(&__rust.asset),
+                cainome::cairo_serde::ContractAddress::cairo_serialize(&__rust.payee),
             );
         __out.extend(starknet::core::types::Felt::cairo_serialize(&__rust.invoice_id));
         __out
@@ -113,16 +113,16 @@ impl cainome::cairo_serde::CairoSerde for Remittance {
         __offset: usize,
     ) -> cainome::cairo_serde::Result<Self::RustType> {
         let mut __offset = __offset;
-        let payee = cainome::cairo_serde::ContractAddress::cairo_deserialize(
-            __felts,
-            __offset,
-        )?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&payee);
         let asset = cainome::cairo_serde::ContractAddress::cairo_deserialize(
             __felts,
             __offset,
         )?;
         __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&asset);
+        let payee = cainome::cairo_serde::ContractAddress::cairo_deserialize(
+            __felts,
+            __offset,
+        )?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&payee);
         let invoice_id = starknet::core::types::Felt::cairo_deserialize(
             __felts,
             __offset,
@@ -136,8 +136,8 @@ impl cainome::cairo_serde::CairoSerde for Remittance {
         let amount = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
         __offset += cainome::cairo_serde::U256::cairo_serialized_size(&amount);
         Ok(Remittance {
-            payee,
             asset,
+            payee,
             invoice_id,
             payer,
             amount,
@@ -209,22 +209,6 @@ impl TryFrom<starknet::core::types::EmittedEvent> for Event {
         {
             let mut key_offset = 0 + 1;
             let mut data_offset = 0;
-            let payee = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.keys,
-                key_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(
-                        format!(
-                            "Could not deserialize field {} for {}: {:?}", "payee",
-                            "Remittance", e
-                        ),
-                    );
-                }
-            };
-            key_offset
-                += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&payee);
             let asset = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
                 &event.keys,
                 key_offset,
@@ -241,6 +225,22 @@ impl TryFrom<starknet::core::types::EmittedEvent> for Event {
             };
             key_offset
                 += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&asset);
+            let payee = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.keys,
+                key_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(
+                        format!(
+                            "Could not deserialize field {} for {}: {:?}", "payee",
+                            "Remittance", e
+                        ),
+                    );
+                }
+            };
+            key_offset
+                += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&payee);
             let invoice_id = match starknet::core::types::Felt::cairo_deserialize(
                 &event.data,
                 data_offset,
@@ -290,8 +290,8 @@ impl TryFrom<starknet::core::types::EmittedEvent> for Event {
             data_offset += cainome::cairo_serde::U256::cairo_serialized_size(&amount);
             return Ok(
                 Event::Remittance(Remittance {
-                    payee,
                     asset,
+                    payee,
                     invoice_id,
                     payer,
                     amount,

@@ -1,0 +1,19 @@
+[package]
+name = "substreams-sink"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+http = { workspace = true } 
+anyhow = { workspace = true } 
+async-stream = { workspace = true } 
+# tonic = { workspace = true, features = ["gzip", "tls-native-roots"] } 
+tonic = { version = "0.12", features = ["gzip", "tls-roots"] }
+futures = { workspace = true }
+tokio = { workspace = true }
+tokio-retry = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+[build-dependecy]
+invo
