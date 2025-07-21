@@ -1,16 +1,14 @@
 specVersion: v0.1.0
 package:
-  name: invoice_indexer
+  name: starknet-invoice-substream
   version: v0.1.0
 
 imports:
   starknet: https://spkg.io/streamingfast/starknet-foundational-v0.1.4.spkg
-  database_change: https://github.com/streamingfast/substreams-sink-database-changes/releases/download/v1.2.1/substreams-database-change-v1.2.1.spkg
-  sql: https://github.com/streamingfast/substreams-sink-sql/releases/download/protodefs-v1.0.3/substreams-sink-sql-protodefs-v1.0.3.spkg
 
 protobuf:
   files:
-    - events.proto
+    - invoice_contract.proto
   importPaths:
     - ./proto
 
@@ -24,7 +22,7 @@ protobuf:
 binaries:
   default:
     type: wasm/rust-v1+wasm-bindgen-shims
-    file: ../../../../target/wasm32-unknown-unknown/release/substreams.wasm
+    file: ../../../target/wasm32-unknown-unknown/release/starknet_invoice_substream.wasm
 
 modules:
 - name: map_invoice_contract_events
@@ -33,7 +31,7 @@ modules:
   inputs:
     - map: starknet:filtered_transactions
   output:
-   type: proto:starknet.v1.Events
+   type: proto:invoice_contract.v1.RemittanceEvents
 
 network: starknet-local
 

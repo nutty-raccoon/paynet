@@ -1,4 +1,4 @@
-use anyhow::{Context, Error, format_err};
+use anyhow::{Context, Error};
 use prost::Message;
 
 use crate::pb::sf::substreams::v1::{
@@ -6,14 +6,16 @@ use crate::pb::sf::substreams::v1::{
     module::input::{Input, Params},
 };
 
-struct Param {
+pub struct Param {
     pub module_name: String,
     pub expression: String,
 }
 
-fn read_package(input: &str, params: Vec<Param>) -> Result<Package, Error> {
+pub fn read_package(params: Vec<Param>) -> Result<Package, Error> {
     let content =
-        std::fs::read(input).context(format_err!("read package from file '{}'", input))?;
+        include_bytes!("../../../../substreams/starknet/starknet-invoice-substream-v0.1.0.spkg")
+            .to_vec();
+
     let mut package = Package::decode(content.as_ref()).context("decode command")?;
 
     if !params.is_empty() {

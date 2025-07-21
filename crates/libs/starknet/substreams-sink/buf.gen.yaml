@@ -14,5 +14,4 @@ plugins:
   - plugin: buf.build/community/neoeinstein-prost-crate:v0.4.1
     out: src/pb
     opt:
-      - include_file=pb.rs
       - no_features

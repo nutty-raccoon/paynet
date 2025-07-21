@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO substreams_starknet_block (id, number) VALUES ($1, $2) ON CONFLICT DO NOTHING;\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5edccbb4e155f67d8fcc3987c2d229299cd1e5a410256685ad66371f21a8f9e"
+}

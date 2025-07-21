@@ -1,4 +1,11 @@
 // @generated
+pub mod invoice_contract {
+    // @@protoc_insertion_point(attribute:invoice_contract.v1)
+    pub mod v1 {
+        include!("invoice_contract.v1.rs");
+        // @@protoc_insertion_point(invoice_contract.v1)
+    }
+}
 pub mod sf {
     pub mod starknet {
         pub mod r#type {
@@ -34,12 +41,5 @@ pub mod sf {
             include!("sf.substreams.v1.rs");
             // @@protoc_insertion_point(sf.substreams.v1)
         }
-    }
-}
-pub mod starknet {
-    // @@protoc_insertion_point(attribute:starknet.v1)
-    pub mod v1 {
-        include!("starknet.v1.rs");
-        // @@protoc_insertion_point(starknet.v1)
     }
 }

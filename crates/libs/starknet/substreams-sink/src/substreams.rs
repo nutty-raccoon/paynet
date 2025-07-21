@@ -24,12 +24,7 @@ impl Display for SubstreamsEndpoint {
 }
 
 impl SubstreamsEndpoint {
-    pub async fn new<S: AsRef<str>>(url: S, token: Option<String>) -> Result<Self, anyhow::Error> {
-        let uri = url
-            .as_ref()
-            .parse::<Uri>()
-            .expect("the url should have been validated by now, so it is a valid Uri");
-
+    pub async fn new(uri: Uri, token: Option<String>) -> Result<Self, anyhow::Error> {
         let endpoint = match uri.scheme().unwrap_or(&Scheme::HTTP).as_str() {
             "http" => Channel::builder(uri),
             "https" => Channel::builder(uri)
