@@ -6,8 +6,8 @@ use tauri::{AppHandle, Emitter, State};
 use wallet::types::compact_wad::{self, CompactWads};
 
 use crate::{
-    parse_asset_amount::{parse_asset_amount, ParseAmountStringError},
     AppState,
+    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
 };
 
 use super::BalanceChange;

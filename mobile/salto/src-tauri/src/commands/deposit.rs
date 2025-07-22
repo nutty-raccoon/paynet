@@ -5,9 +5,9 @@ use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARK
 use tauri::{AppHandle, Emitter, State};
 
 use crate::{
-    commands::BalanceChange,
-    parse_asset_amount::{parse_asset_amount, ParseAmountStringError},
     AppState,
+    commands::BalanceChange,
+    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
 };
 
 #[derive(Debug, thiserror::Error)]
