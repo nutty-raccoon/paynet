@@ -56,18 +56,14 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
 /// add new networks or extend the configuration in the future.
 #[derive(Debug, Clone)]
 pub struct OnChainConstants {
-    pub apibara: ApibaraConstants,
+    pub substreams: SubstreamsConstants,
     pub invoice_payment_contract_address: Felt,
     pub assets_contract_address: AssetsAddress,
 }
 
-/// Apibara-specific configuration for data streaming
-///
-/// Apibara is used to index and stream blockchain events. Some networks
-/// may not have Apibara support, hence the `Option` type for the URI.
+/// Substreams-specific configuration for data streaming
 #[derive(Debug, Clone)]
-pub struct ApibaraConstants {
-    pub data_stream_uri: Option<&'static str>,
+pub struct SubstreamsConstants {
     pub starting_block: u64,
 }
 
@@ -79,7 +75,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
     "SN_SEPOLIA" =>  OnChainConstants {
         // Starting block is the one which contains the invoice_payment_contract deployment
         // Tx: 0x0582cb60c2fc97fd9fbb18a818197611e1971498a3e5a34272d7072d70a009f3
-        apibara: ApibaraConstants { data_stream_uri:  Some("http://sepolia.starknet.a5a.ch"), starting_block: 812115 },
+        substreams: SubstreamsConstants {  starting_block: 812115 },
         //
         // Declaration
         //
@@ -97,11 +93,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
     },
     "SN_DEVNET" =>  OnChainConstants {
-        apibara: ApibaraConstants {
-            // No fixed Apibara indexer for devnet
-            // we will read it's value at runtime
-            // from `DNA_URI` env variable
-            data_stream_uri: None,
+        substreams: SubstreamsConstants {
             starting_block: 0
         },
         // This address is guaranted to be correct, if and only if,

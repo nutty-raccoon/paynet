@@ -189,8 +189,6 @@ async fn process_payment_event(
     cashier_account_address: Felt,
     block_id: String,
 ) -> Result<(), Error> {
-    println!("remittance_events: {:?}", remittance_events);
-
     for payment_event in remittance_events.events {
         let invoice_id = Felt::from_bytes_be_slice(&payment_event.invoice_id);
         let (is_mint, quote_id, quote_amount, unit) = if let Some((quote_id, amount, unit)) =

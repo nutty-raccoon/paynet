@@ -13,8 +13,6 @@ pub enum Error {
     UnknownChainId(ChainId),
     #[error("failed to read environment variable `{0}`: {1}")]
     Env(&'static str, #[source] std::env::VarError),
-    #[error("failed init apibara indexer: {0}")]
-    InitIndexer(#[source] starknet_payment_indexer::Error),
     #[error("failed to interact with the indexer: {0}")]
     Indexer(#[from] anyhow::Error),
     #[error("failed to interact with the node database: {0}")]

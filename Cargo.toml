@@ -18,7 +18,6 @@ members = [
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
   # Starknet libs
-  "crates/libs/starknet/payment-indexer",
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substreams-sink",
@@ -49,7 +48,6 @@ default-members = [
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
   # Starknet libs
-  "crates/libs/starknet/payment-indexer",
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substreams-sink",
@@ -95,8 +93,6 @@ starknet-core = "0.13.0"
 futures = "0.3.31"
 futures-util = "0.3.31"
 anyhow = "1.0.95"
-apibara-core = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
-apibara-sdk = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
 primitive-types = "0.13.1"
 rayon = "1.10.0"
 reqwest = "0.12.12"
@@ -149,8 +145,8 @@ signer = { path = "crates/bins/signer" }
 node-client = { path = "crates/libs/node-client" }
 # Starknet
 starknet-types = { path = "crates/libs/starknet/types" }
-starknet-payment-indexer = { path = "crates/libs/starknet/payment-indexer" }
 starknet-liquidity-source = { path = "crates/libs/starknet/liquidity-source" }
+substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
 # Tracing
 open-telemetry-tracing = { path = "crates/libs/open-telemetry-tracing" }
 # Others
@@ -159,4 +155,3 @@ db-node = { path = "crates/libs/db-node" }
 wallet = { path = "crates/libs/wallet" }
 liquidity-source = { path = "crates/libs/liquidity-source" }
 test-utils = { path = "crates/tests/test-utils" }
-substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
