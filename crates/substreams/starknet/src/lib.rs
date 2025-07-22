@@ -1,3 +1,4 @@
+#[allow(clippy::enum_variant_names)]
 mod pb;
 
 use crate::pb::invoice_contract::v1::{RemittanceEvent, RemittanceEvents};

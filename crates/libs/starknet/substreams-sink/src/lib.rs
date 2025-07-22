@@ -25,6 +25,7 @@ use substreams_stream::{BlockResponse, SubstreamsStream};
 use tracing::{Level, debug, error, event};
 
 mod parse_inputs;
+#[allow(clippy::enum_variant_names)]
 mod pb;
 mod substreams;
 mod substreams_stream;
