@@ -15,25 +15,3 @@ services:
       start_period: 1s
       interval: 3s
       retries: 3
-
-  dna:
-    image: quay.io/apibara/starknet:1.6.2
-    command:
-      - start
-      - --rpc=http://starknet-devnet:5050/rpc
-      - --name=devnet
-      - --head-refresh-interval-ms=1000
-      - --wait-for-rpc
-      - --address=0.0.0.0:7171
-    environment:
-      - XDG_DATA_HOME=/data
-    volumes:
-      - dna:/data
-    ports:
-      - 7171:7171
-    depends_on:
-      starknet-devnet:
-        condition: service_healthy
-  
-volumes:
-  dna:

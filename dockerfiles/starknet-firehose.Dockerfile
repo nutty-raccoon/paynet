@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 ghcr.io/streamingfast/firehose-starknet
+FROM ghcr.io/streamingfast/firehose-starknet:main
 
 ENV STARKNET_NODE_URL=http://host.docker.internal:5050
 ENV READER_NODE_ARGUMENTS="fetch 0 --state-dir fire-starknet-state-dir --block-fetch-batch-size=1 --interval-between-fetch=0s --latest-block-retry-interval=5s --starknet-endpoints=${STARKNET_NODE_URL} --eth-endpoints=https://eth-mainnet.public.blastapi.io"
