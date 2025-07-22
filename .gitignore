@@ -21,10 +21,6 @@ target/
 .DS_Store
 .qodo
 *.wad
-<<<<<<< HEAD
-=======
 
-# tauri app generated files
-mobile/**/gen/
-
->>>>>>> 3265545 (proper sink)
+# Any susbtream package we downloaded
+*.spkg
