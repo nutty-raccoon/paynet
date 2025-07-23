@@ -8,7 +8,6 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { workspace = true, features = ["timeout"] }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
-parking_lot = { workspace = true, features = ["arc_lock"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -49,15 +48,13 @@ opentelemetry = { workspace = true }
 openssl = { workspace = true, optional = true }
 tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 
-# starknet optional 
-starknet-payment-indexer = { workspace = true, optional = true }
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }
 
 [features]
 default = ["starknet"]
 mock = ["starknet-liquidity-source/mock"]
-starknet = ["dep:starknet-payment-indexer"]
+starknet = []
 tls = ["dep:openssl", "dep:tonic-tls"]
 keyset-rotation = []
 

@@ -16,24 +16,21 @@ services:
       interval: 3s
       retries: 3
 
-  dna:
-    image: quay.io/apibara/starknet:1.6.2
-    command:
-      - start
-      - --rpc=http://starknet-devnet:5050/rpc
-      - --name=devnet
-      - --head-refresh-interval-ms=1000
-      - --wait-for-rpc
-      - --address=0.0.0.0:7171
+  starknet-firehose:
+    image: starknet-firehose
+    build:
+      context: .
+      dockerfile: ./dockerfiles/starknet-firehose.Dockerfile
     environment:
-      - XDG_DATA_HOME=/data
-    volumes:
-      - dna:/data
+      - STARKNET_NODE_URL=http://starknet-devnet:5050
     ports:
-      - 7171:7171
-    depends_on:
-      starknet-devnet:
-        condition: service_healthy
+      - "10015:10015"
+      - "10016:10016"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
 
   explorer:
     image: "explorer"
@@ -69,8 +66,4 @@ services:
     depends_on:
       starknet-devnet:
         condition: service_healthy
-      dna:
-        condition: service_started
 
-volumes:
-  dna:

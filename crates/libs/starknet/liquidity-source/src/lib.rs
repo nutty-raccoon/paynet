@@ -10,6 +10,7 @@ use std::{
 };
 
 pub use deposit::{Depositer, Error as DepositError};
+use http::Uri;
 use starknet_types::{CairoShortStringToFeltError, Unit};
 use starknet_types_core::{felt::Felt, hash::Poseidon};
 use url::Url;
@@ -39,6 +40,8 @@ pub struct StarknetCliConfig {
     pub cashier_account_address: starknet_types_core::felt::Felt,
     /// The url of the starknet rpc node we want to use
     pub starknet_rpc_node_url: Url,
+    #[serde(with = "uri_serde")]
+    pub starknet_substreams_url: Uri,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -105,5 +108,26 @@ impl liquidity_source::LiquiditySource for StarknetLiquiditySource {
         Poseidon::hades_permutation(&mut values);
 
         StarknetInvoiceId(values[0])
+    }
+}
+
+mod uri_serde {
+    use http::Uri;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::str::FromStr;
+
+    pub fn serialize<S>(uri: &Uri, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        uri.to_string().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Uri, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Uri::from_str(&s).map_err(serde::de::Error::custom)
     }
 }

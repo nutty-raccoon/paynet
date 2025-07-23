@@ -9,7 +9,6 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-tonic = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -27,7 +26,6 @@ num-traits = { workspace = true }
 # OPTL
 http = { workspace = true }
 tower = { workspace = true }
-tower-otel = { workspace = true }
 
 # Starknet
 starknet = { workspace = true }
@@ -35,10 +33,10 @@ starknet = { workspace = true }
 # Local
 db-node = { workspace = true }
 starknet-types = { workspace = true }
-starknet-payment-indexer = { workspace = true }
 liquidity-source = { workspace = true }
 nuts = { workspace = true }
-signer = { workspace = true }
+substreams-sink = { workspace = true }
+
 
 [features]
 default = []

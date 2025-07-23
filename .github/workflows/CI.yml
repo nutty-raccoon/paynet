@@ -509,6 +509,8 @@ jobs:
           sparse-checkout: |
             crates/bins/node/config/local.toml
             docker-compose.ci-testnet.yml
+            crates/substreams/starknet/firehose/firehose-starknet-fss.yaml
+            crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml
           sparse-checkout-cone-mode: false
 
       - name: Download node-starknet binary
@@ -575,6 +577,19 @@ jobs:
             --sierra-json=./contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
             --compiled-class-hash=$(cat ./contracts/invoice/compiled_class_hash.txt)
 
+      - name: Start firehose
+        run: |
+           wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
+           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.0.0/firehose-starknet_linux_x86_64.tar.gz
+
+           tar -xzf firehose-core_linux_x86_64.tar.gz
+           tar -xzf firehose-starknet_linux_x86_64.tar.gz
+
+           rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
+
+           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
+           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &         
+
       - name: Start signer service
         run: |
           RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
@@ -583,7 +598,6 @@ jobs:
       - name: Start node service (starknet)
         run: |
           RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" \
-          DNA_URI=http://localhost:7171 \
           CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
           GRPC_PORT=10003 \
           ./target/release/node --config ./crates/bins/node/config/local.toml &

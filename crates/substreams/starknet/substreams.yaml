@@ -1,0 +1,39 @@
+specVersion: v0.1.0
+package:
+  name: starknet-invoice-substream
+  version: v0.1.0
+
+imports:
+  starknet: https://spkg.io/streamingfast/starknet-foundational-v0.1.4.spkg
+
+protobuf:
+  files:
+    - invoice_contract.proto
+  importPaths:
+    - ./proto
+
+  excludePaths:
+    - sf/substreams/index
+    - sf/substreams/rpc
+    - sf/substreams/sink
+    - sf/substreams/v1
+    - google
+
+binaries:
+  default:
+    type: wasm/rust-v1+wasm-bindgen-shims
+    file: ../../../target/wasm32-unknown-unknown/release/starknet_invoice_substream.wasm
+
+modules:
+- name: map_invoice_contract_events
+  kind: map
+  initialBlock: 0
+  inputs:
+    - map: starknet:filtered_transactions
+  output:
+   type: proto:invoice_contract.v1.RemittanceEvents
+
+network: starknet-local
+
+params:
+  starknet:filtered_transactions: ev:from_address:0x026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e

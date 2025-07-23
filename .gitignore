@@ -21,3 +21,6 @@ target/
 .DS_Store
 .qodo
 *.wad
+
+# Any susbtream package we downloaded
+*.spkg

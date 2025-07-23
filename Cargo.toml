@@ -5,6 +5,8 @@ members = [
   "crates/bins/node",
   "crates/bins/signer",
   "crates/bins/cli-wallet",
+  # Substreams
+  "crates/substreams/starknet",
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
@@ -16,9 +18,9 @@ members = [
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
   # Starknet libs
-  "crates/libs/starknet/payment-indexer",
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
+  "crates/libs/starknet/substreams-sink",
   # Tests
   "crates/tests/test-utils",
   # Integration tests
@@ -33,6 +35,8 @@ default-members = [
   "crates/bins/node",
   "crates/bins/signer",
   "crates/bins/cli-wallet",
+  # Substreams
+  "crates/substreams/starknet",
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
@@ -44,9 +48,9 @@ default-members = [
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
   # Starknet libs
-  "crates/libs/starknet/payment-indexer",
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
+  "crates/libs/starknet/substreams-sink",
 ]
 
 
@@ -89,15 +93,16 @@ starknet-core = "0.13.0"
 futures = "0.3.31"
 futures-util = "0.3.31"
 anyhow = "1.0.95"
-apibara-core = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
-apibara-sdk = { git = "https://github.com/apibara/dna.git", rev = "f1b782e0e86b" }
 primitive-types = "0.13.1"
 rayon = "1.10.0"
 reqwest = "0.12.12"
 toml = "0.8.20"
 clap = "4.5.29"
 tokio-stream = "0.1.17"
+tokio-retry = "0.3.0"
 prost = "0.13.5"
+prost-build = "0.14.1"
+prost-types = "0.13.5"
 dirs = "6.0.0"
 sha2 = "0.10"
 rustainers = "0.15.1"
@@ -105,10 +110,13 @@ assert_matches = "1.5.0"
 starknet = "0.13.0"
 phf = { version = "0.11.3" }
 async-trait = "0.1.88"
+async-stream = "0.3"
 itertools = "0.14"
 dashmap = "6.1.0"
 bytes = "1.10.1"
 uint = "0.10.0"
+substreams = "0.6.0"
+chrono = "0.4.38"
 
 # OPTL
 opentelemetry = "0.29.1"
@@ -137,8 +145,8 @@ signer = { path = "crates/bins/signer" }
 node-client = { path = "crates/libs/node-client" }
 # Starknet
 starknet-types = { path = "crates/libs/starknet/types" }
-starknet-payment-indexer = { path = "crates/libs/starknet/payment-indexer" }
 starknet-liquidity-source = { path = "crates/libs/starknet/liquidity-source" }
+substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
 # Tracing
 open-telemetry-tracing = { path = "crates/libs/open-telemetry-tracing" }
 # Others

@@ -1,0 +1,22 @@
+start:
+  args:
+  - reader-node
+  - merger
+  - relayer
+  flags:
+    common-first-streamable-block: 0
+    reader-node-arguments: |
+      fetch
+       0
+       --state-dir
+       firehose-starknet-state-dir
+       --block-fetch-batch-size
+       1
+       --interval-between-fetch
+       0s
+       --latest-block-retry-interval
+       5s
+       --starknet-endpoints
+       http://localhost:5050
+       --eth-endpoints
+      https://eth-mainnet.public.blastapi.io
