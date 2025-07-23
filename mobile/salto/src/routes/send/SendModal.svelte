@@ -5,6 +5,7 @@
   import SendingMethodChoice from "./SendingMethodChoice.svelte";
   import { isNFCAvailable } from "../../stores.js";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import type { Wads } from "../../types/wad";
 
   const SelectedMethod = {
     NONE: 0,
@@ -21,7 +22,7 @@
 
   let { availableBalances, onClose }: Props = $props();
 
-  let paymentData = $state<string | null>(null);
+  let wads = $state<Wads | null>(null);
   let paymentStrings = $state<null | [string, string]>(null);
 
   // What to show
@@ -57,10 +58,10 @@
   const handlePaymentDataGenerated = (
     amountString: string,
     assetString: string,
-    data: string,
+    w: Wads,
   ) => {
     paymentStrings = [amountString, assetString];
-    paymentData = data;
+    wads = w;
   };
 </script>
 
@@ -77,7 +78,7 @@
           <p>No funds available for payment. Please deposit tokens first.</p>
           <button class="close-button-alt" onclick={onClose}>Close</button>
         </div>
-      {:else if !paymentData}
+      {:else if !wads}
         <AmountForm
           {availableUnits}
           {availableBalances}
@@ -89,10 +90,10 @@
           {paymentStrings}
           onNFCChoice={handleNFCChoice}
           onQRCodeChoice={() => selectMethod(SelectedMethod.QR_CODE)}
-          onCopyChoice={() => handleCopyChoice(paymentData as string)}
+          onCopyChoice={() => handleCopyChoice(wads as Wads)}
         />
       {/if}
-    {:else if !!paymentData}
+    {:else if !!wads}
       {#if selectedMethod === SelectedMethod.NFC}
         <NfcModal
           isReceiving={false}
@@ -100,7 +101,7 @@
         />
       {:else if selectedMethod === SelectedMethod.QR_CODE}
         <QRPaymentPortal
-          {paymentData}
+          data={wads}
           onClose={() => selectMethod(SelectedMethod.NONE)}
         />
       {:else}

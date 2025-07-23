@@ -2,6 +2,7 @@
   import type { EventHandler } from "svelte/elements";
   import { formatBalance, unitPrecision } from "../../utils";
   import { create_wads } from "../../commands";
+  import type { Wads } from "../../types/wad";
 
   interface Props {
     availableUnits: string[];
@@ -10,7 +11,7 @@
     onPaymentDataGenerated: (
       amount: string,
       asset: string,
-      paymentData: string,
+      paymentData: Wads,
     ) => void;
   }
 
@@ -59,9 +60,9 @@
         return;
       }
 
-      create_wads(amountString, asset).then((val) => {
-        if (!!val) {
-          onPaymentDataGenerated(amountString, token.toString(), val);
+      create_wads(amountString, asset).then((wads) => {
+        if (!!wads) {
+          onPaymentDataGenerated(amountString, asset, wads);
         }
       });
     }

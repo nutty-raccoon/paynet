@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Balance, NodeData, NodeId } from "./types";
 import type { QuoteId } from "./types/quote";
+import type { Wads } from "./types/wad";
 
 export async function getNodesBalance() {
      let res =  await invoke("get_nodes_balance")
@@ -46,7 +47,7 @@ export async function redeem_quote(nodeId: NodeId, quoteId: QuoteId) {
 
 export async function create_wads(amount: string, asset: string) {
       const res = await invoke("create_wads", {amount, asset})
-      .then((message) => message as string)
+      .then((message) => message as Wads)
       .catch((error) => {
         console.error(`failed to create wads:`, error);
       });

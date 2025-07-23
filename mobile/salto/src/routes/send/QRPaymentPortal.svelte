@@ -6,11 +6,11 @@
   import Portal from "../components/Portal.svelte";
 
   interface Props {
-    paymentData: string;
+    data: string;
     onClose: () => void;
   }
 
-  let { paymentData, onClose }: Props = $props();
+  let { data, onClose }: Props = $props();
 
   let partToDisplay = $state<string>();
   let windowWidth = $state(0);
@@ -43,9 +43,9 @@
 
   // Initialize QR code sequence when payment data is available
   $effect(() => {
-    if (!paymentData) return;
+    if (!data) return;
 
-    const buffer = Buffer.from(paymentData);
+    const buffer = Buffer.from(data);
     const ur = UR.fromBuffer(buffer);
     const encoder = new UREncoder(ur, 150, 0);
     let active = true;

@@ -26,7 +26,6 @@
       successMessage: "NFC tag successfully scanned",
     };
 
-    console.log("SCANNING");
     const tag = await scan(scanType, options);
     console.log(tag);
     alert("GOT TAG");
