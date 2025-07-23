@@ -18,6 +18,7 @@ if (!process.env.COIN_GECKO_API_KEY) {
   throw new Error("Missing env var: COIN_GECKO_API_KEY");
 }
 const api_key = process.env.COIN_GECKO_API_KEY;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 // Set Coingecko SDK
 export const client = new Coingecko({
@@ -48,7 +49,7 @@ fastify.register(tokenRoutes);
 
 // Start server
 try {
-  await fastify.listen({ port: 3000 });
+  await fastify.listen({ port: PORT, host: '0.0.0.0' });
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);

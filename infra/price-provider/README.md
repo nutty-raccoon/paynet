@@ -57,15 +57,15 @@ All Dockerfiles for this repository are stored in `../../dockerfiles`.
    From `infra/price-provider` directory:
 
    ```bash
-   docker build -f ../../dockerfiles/price-provider.Dockerfile -t price-provider .
+   docker build -t price-provider .
    ```
 
 2. Run the Docker Container
-   `bash
-docker run -p 3000:3000 \
---env COIN_GECKO_API_KEY=your_api_key \
-price-provider
-`
+   ```bash
+    docker run -p 3000:3000 \
+    --env COIN_GECKO_API_KEY=your_api_key \
+    price-provider
+   ```
    Server runs at http://localhost:3000
 
 ## API Routes

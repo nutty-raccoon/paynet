@@ -14,7 +14,7 @@ export async function fetch_price() {
             };
         });
         myCache.set("last_price", new_cache);
-        fastify.log.info("Pice has been updated.");
+        fastify.log.info("Price has been updated.");
     } catch (err) {
         console.error("Error: ", err);
     }
