@@ -54,10 +54,10 @@ COIN_GECKO_API_KEY=your_api_key
 All Dockerfiles for this repository are stored in `../../dockerfiles`.
 
 1. Build the Docker Image
-   From `infra/price-provider` directory:
+   From `./` directory:
 
    ```bash
-   docker build -t price-provider .
+   docker build -f ./dockerfiles/price-provider.Dockerfile -t price-provider .
    ```
 
 2. Run the Docker Container
