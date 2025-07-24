@@ -1,17 +1,14 @@
 <script lang="ts">
   import QRPaymentPortal from "./QRPaymentPortal.svelte";
-  import NfcModal from "../components/NfcModal.svelte";
   import AmountForm from "./AmountForm.svelte";
   import SendingMethodChoice from "./SendingMethodChoice.svelte";
-  import { isNFCAvailable } from "../../stores.js";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import type { Wads } from "../../types/wad";
 
   const SelectedMethod = {
     NONE: 0,
-    NFC: 1,
-    QR_CODE: 2,
-    COPY: 3,
+    QR_CODE: 1,
+    COPY: 2,
   } as const;
   type SelectedMethod = (typeof SelectedMethod)[keyof typeof SelectedMethod];
 
@@ -37,14 +34,6 @@
 
   const handleModalClose = () => {
     onClose();
-  };
-
-  const handleNFCChoice = async () => {
-    if (isNFCAvailable) {
-      selectedMethod = SelectedMethod.NFC;
-    } else {
-      alert("NFC not available on your device");
-    }
   };
 
   const handleCopyChoice = async (wads: string) => {
@@ -88,18 +77,12 @@
       {:else}
         <SendingMethodChoice
           {paymentStrings}
-          onNFCChoice={handleNFCChoice}
           onQRCodeChoice={() => selectMethod(SelectedMethod.QR_CODE)}
           onCopyChoice={() => handleCopyChoice(wads as Wads)}
         />
       {/if}
     {:else if !!wads}
-      {#if selectedMethod === SelectedMethod.NFC}
-        <NfcModal
-          isReceiving={false}
-          onClose={() => selectMethod(SelectedMethod.NONE)}
-        />
-      {:else if selectedMethod === SelectedMethod.QR_CODE}
+      {#if selectedMethod === SelectedMethod.QR_CODE}
         <QRPaymentPortal
           data={wads}
           onClose={() => selectMethod(SelectedMethod.NONE)}

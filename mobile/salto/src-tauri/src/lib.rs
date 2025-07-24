@@ -20,8 +20,6 @@ pub fn run() {
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_clipboard_manager::init());
-        #[cfg(mobile)]
-        let builder = builder.plugin(tauri_plugin_nfc::init());
 
         builder
             .setup(|app| {

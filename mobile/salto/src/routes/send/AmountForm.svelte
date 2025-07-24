@@ -3,6 +3,7 @@
   import { formatBalance, unitPrecision } from "../../utils";
   import { create_wads } from "../../commands";
   import type { Wads } from "../../types/wad";
+  import { assets } from "$app/paths";
 
   interface Props {
     availableUnits: string[];
@@ -25,10 +26,9 @@
   let selectedUnit = $state<string>(
     availableUnits.length > 0 ? availableUnits[0] : "",
   );
-  let amount = $state<number>(0);
   let paymentError = $state<string>("");
 
-  let { asset, amount: assetAmount } = $derived(
+  let { asset, amount: availableAssetAmount } = $derived(
     formatBalance({
       unit: selectedUnit,
       amount: availableBalances.get(selectedUnit) || 0,
@@ -41,22 +41,22 @@
     event.preventDefault();
     const form = event.target as HTMLFormElement;
     const formDataObject = new FormData(form);
-    const token = formDataObject.get("payment-token");
-    const amount = formDataObject.get("payment-amount");
+    const inputAsset = formDataObject.get("payment-asset");
+    const inputAmount = formDataObject.get("payment-amount");
 
     // Clear previous error
     paymentError = "";
 
-    if (amount && token) {
-      const amountString = amount.toString();
-      const amountValue = parseFloat(amountString);
+    if (inputAmount && inputAsset) {
+      const amountString = inputAmount.toString();
 
+      const amountValue = parseFloat(amountString);
       if (amountValue <= 0) {
         paymentError = "Amount must be greater than 0";
         return;
       }
-      if (amountValue > assetAmount) {
-        paymentError = `Amount cannot exceed ${assetAmount} ${selectedUnit}`;
+      if (amountValue > availableAssetAmount) {
+        paymentError = `Amount cannot exceed ${availableAssetAmount} ${selectedUnit}`;
         return;
       }
 
@@ -67,13 +67,6 @@
       });
     }
   };
-
-  const handleUnitChange = (event: Event) => {
-    const target = event.target as HTMLSelectElement;
-    selectedUnit = target.value;
-    // Reset amount when unit changes
-    amount = 0;
-  };
 </script>
 
 <div class="amount-form-container">
@@ -83,12 +76,11 @@
 
   <form onsubmit={handleFormSubmit}>
     <div class="form-group">
-      <label for="payment-token">Currency</label>
+      <label for="payment-asset">Currency</label>
       <select
-        id="payment-token"
-        name="payment-token"
+        id="payment-asset"
+        name="payment-asset"
         bind:value={selectedUnit}
-        onchange={handleUnitChange}
         required
       >
         {#each availableUnits as unit}
@@ -98,7 +90,7 @@
       </select>
       {#if selectedUnit}
         <span class="balance-info">
-          Available: {assetAmount}
+          Available: {availableAssetAmount}
           {asset}
         </span>
       {/if}
@@ -110,10 +102,9 @@
         type="number"
         id="payment-amount"
         name="payment-amount"
-        bind:value={amount}
-        placeholder="0.0"
         min="0"
-        max={assetAmount}
+        max={availableAssetAmount}
+        placeholder="0.0"
         step={1 / unitPrecision(selectedUnit)}
         required
       />

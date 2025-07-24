@@ -46,6 +46,3 @@ log = { workspace = true }
 wallet = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
-
-[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
-tauri-plugin-nfc = { workspace = true }
