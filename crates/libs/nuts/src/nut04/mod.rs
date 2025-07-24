@@ -87,12 +87,16 @@ pub struct MintQuoteResponse<Q> {
     pub request: String,
     pub state: MintQuoteState,
     pub expiry: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pubkey: Option<crate::nut01::PublicKey>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MintRequest<Q> {
     pub quote: Q,
     pub outputs: Vec<BlindedMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
