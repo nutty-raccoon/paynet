@@ -215,3 +215,16 @@ pub fn get_nodes_ids_and_available_funds_ordered_desc(
 
     Ok(res)
 }
+
+pub fn set_state(
+    conn: &Connection,
+    states: Vec<node_client::ProofCheckState>,
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(r#"UPDATE proof SET state = ?2 WHERE y = ?1"#)?;
+
+    for node_client::ProofCheckState { y, state } in states {
+        stmt.execute(params![y, state])?;
+    }
+
+    Ok(())
+}

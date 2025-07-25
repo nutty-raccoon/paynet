@@ -7,6 +7,7 @@ pub mod melt_quote;
 pub mod mint_quote;
 pub mod node;
 pub mod proof;
+pub mod wallet;
 
 pub const CREATE_TABLE_KEY: &str = r#"
         CREATE TABLE IF NOT EXISTS key (
@@ -43,6 +44,7 @@ pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
 pub fn create_tables(conn: &mut Connection) -> Result<()> {
     let tx = conn.transaction()?;
 
+    tx.execute(wallet::CREATE_TABLE_WALLET, ())?;
     tx.execute(node::CREATE_TABLE_NODE, ())?;
     tx.execute(keyset::CREATE_TABLE_KEYSET, ())?;
     tx.execute(CREATE_TABLE_KEY, ())?;

@@ -2,7 +2,9 @@ pub mod db;
 pub mod errors;
 pub mod melt;
 pub mod mint;
+pub mod node;
 mod outputs;
+pub mod seed_phrase;
 pub mod send;
 pub mod sync;
 pub mod types;
@@ -14,21 +16,21 @@ use futures::StreamExt;
 use itertools::Itertools;
 use node_client::{AcknowledgeRequest, GetKeysetsRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
-use nuts::dhke::{hash_to_curve, unblind_message};
+use nuts::dhke::{self, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut00::{self, BlindedMessage, Proof};
-use nuts::nut01::{PublicKey, SecretKey};
+use nuts::nut01::{self, PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
 use nuts::nut19::Route;
 use nuts::traits::Unit;
 use nuts::{Amount, SplitTarget};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, Transaction, params};
 use tonic::Request;
 use tonic::transport::Channel;
 use types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
-use types::{NodeUrl, PreMint, ProofState};
+use types::{BlindingData, NodeUrl, PreMint, PreMints, ProofState};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -49,20 +51,6 @@ pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node_client::BlindedMe
             amount: o.amount.into(),
             keyset_id: o.keyset_id.to_bytes().to_vec(),
             blinded_secret: o.blinded_secret.to_bytes().to_vec(),
-        })
-        .collect()
-}
-
-pub fn build_outputs_from_premints(
-    keyset_id: [u8; 8],
-    pre_mints: &[PreMint],
-) -> Vec<node_client::BlindedMessage> {
-    pre_mints
-        .iter()
-        .map(|pm| node_client::BlindedMessage {
-            amount: pm.amount.into(),
-            keyset_id: keyset_id.to_vec(),
-            blinded_secret: pm.blinded_secret.to_bytes().to_vec(),
         })
         .collect()
 }
@@ -178,43 +166,58 @@ pub async fn read_or_import_node_keyset(
     Ok((keyset.unit.clone(), max_order))
 }
 
-pub fn get_active_keyset_for_unit(
+pub fn get_active_keyset_for_unit<U: Unit>(
     db_conn: &Connection,
     node_id: u32,
-    unit: &str,
-) -> Result<KeysetId, Error> {
-    let keyset_id = db::keyset::fetch_one_active_id_for_node_and_unit(db_conn, node_id, unit)?
+    unit: U,
+) -> Result<(KeysetId, u32), Error> {
+    let r = db::keyset::fetch_one_active_id_for_node_and_unit(db_conn, node_id, unit)?
         .ok_or(Error::NoMatchingKeyset)?;
 
-    Ok(keyset_id)
+    Ok(r)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum StoreNewTokensError {
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    Nut01(#[from] nut01::Error),
+    #[error(transparent)]
+    Dhke(#[from] dhke::Error),
 }
 
 pub fn store_new_tokens(
-    db_conn: &Connection,
+    db_conn: &Transaction,
     node_id: u32,
     keyset_id: KeysetId,
     pre_mints: impl Iterator<Item = PreMint>,
     signatures: impl Iterator<Item = node_client::BlindSignature>,
-) -> Result<Vec<(PublicKey, Amount)>, Error> {
-    let signatures_iterator = signatures
-        .into_iter()
-        .map(|bs| PublicKey::from_slice(&bs.blind_signature))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let signatures_iterator = pre_mints
-        .into_iter()
-        .zip(signatures_iterator)
-        .map(|(pm, signature)| (signature, pm.secret, pm.r, pm.amount));
+) -> Result<Vec<(PublicKey, Amount)>, StoreNewTokensError> {
+    let signatures_iterator =
+        pre_mints
+            .into_iter()
+            .zip(signatures)
+            .map(|(pm, bs)| -> Result<_, nut01::Error> {
+                Ok((
+                    PublicKey::from_slice(&bs.blind_signature)?,
+                    pm.secret,
+                    pm.r,
+                    pm.amount,
+                ))
+            });
 
     store_new_proofs_from_blind_signatures(db_conn, node_id, keyset_id, signatures_iterator)
 }
 
 pub fn store_new_proofs_from_blind_signatures(
-    db_conn: &Connection,
+    tx: &Transaction,
     node_id: u32,
     keyset_id: KeysetId,
-    signatures_iterator: impl IntoIterator<Item = (PublicKey, Secret, SecretKey, Amount)>,
-) -> Result<Vec<(PublicKey, Amount)>, Error> {
+    signatures_iterator: impl IntoIterator<
+        Item = Result<(PublicKey, Secret, SecretKey, Amount), nut01::Error>,
+    >,
+) -> Result<Vec<(PublicKey, Amount)>, StoreNewTokensError> {
     const GET_PUBKEY: &str = r#"
         SELECT pubkey FROM key WHERE keyset_id = ?1 and amount = ?2 LIMIT 1;
     "#;
@@ -223,13 +226,22 @@ pub fn store_new_proofs_from_blind_signatures(
             (y, node_id, keyset_id, amount, secret, unblind_signature, state)
         VALUES
             (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        ON CONFLICT DO UPDATE SET
+            node_id = excluded.node_id,
+            keyset_id = excluded.keyset_id,
+            amount = excluded.amount,
+            secret = excluded.secret,
+            unblind_signature = excluded.unblind_signature,
+            state = excluded.state;
     "#;
-    let mut get_pubkey_stmt = db_conn.prepare(GET_PUBKEY)?;
-    let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
-
     let mut new_tokens = Vec::new();
 
-    for (blinded_message, secret, r, amount) in signatures_iterator {
+    let mut get_pubkey_stmt = tx.prepare(GET_PUBKEY)?;
+    let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
+
+    for res in signatures_iterator {
+        let (blinded_message, secret, r, amount) = res?;
+
         let node_key_pubkey = PublicKey::from_str(
             &get_pubkey_stmt
                 .query_row(params![keyset_id, amount], |row| row.get::<_, String>(0))?,
@@ -373,18 +385,23 @@ pub async fn swap_to_have_target_amount<U: Unit>(
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
 ) -> Result<Vec<(PublicKey, Amount)>, Error> {
-    let (keyset_id, input_unblind_signature) = {
+    let (blinding_data, input_unblind_signature) = {
         let db_conn = pool.get()?;
-        let keyset_id = get_active_keyset_for_unit(&db_conn, node_id, unit.as_ref())?;
+
+        let blinding_data = BlindingData::load_from_db(&db_conn, node_id, unit)?;
 
         let input_unblind_signature =
             db::proof::get_proof_and_set_state_pending(&db_conn, proof_to_swap.0)?
                 .ok_or(Error::ProofNotAvailable)?;
-        (keyset_id, input_unblind_signature)
+
+        (blinding_data, input_unblind_signature)
     };
 
-    let pre_mints =
-        PreMint::generate_for_amount(proof_to_swap.1, &SplitTarget::Value(target_amount))?;
+    let pre_mints = PreMints::generate_for_amount(
+        proof_to_swap.1,
+        &SplitTarget::Value(target_amount),
+        blinding_data,
+    )?;
 
     let inputs = vec![node_client::Proof {
         amount: proof_to_swap.1.into(),
@@ -393,13 +410,13 @@ pub async fn swap_to_have_target_amount<U: Unit>(
         unblind_signature: input_unblind_signature.1.to_bytes().to_vec(),
     }];
 
-    let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
+    let outputs = pre_mints.build_node_client_outputs();
 
     let swap_request = node_client::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
 
-    let db_conn = pool.get()?;
+    let mut db_conn = pool.get()?;
     let swap_response = match swap_result {
         Ok(r) => {
             db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Spent)?;
@@ -412,25 +429,20 @@ pub async fn swap_to_have_target_amount<U: Unit>(
         }
     };
 
-    let new_tokens = store_new_tokens(
-        &db_conn,
-        node_id,
-        keyset_id,
-        pre_mints.into_iter(),
-        swap_response.signatures.into_iter(),
-    )?;
-    drop(db_conn);
+    let tx = db_conn.transaction()?;
+    let new_tokens = pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
+    tx.commit()?;
 
     acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
 
     Ok(new_tokens)
 }
 
-pub async fn receive_wad(
+pub async fn receive_wad<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    unit: &str,
+    unit: U,
     compact_keyset_proofs: Vec<CompactKeysetProofs>,
 ) -> Result<Amount, Error> {
     const INSERT_PROOF: &str = r#"
@@ -454,7 +466,7 @@ pub async fn receive_wad(
             compact_keyset_proof.keyset_id,
         )
         .await?;
-        if keyset_unit != unit {
+        if keyset_unit != unit.as_ref() {
             return Err(Error::UnitMissmatch(keyset_unit, unit.to_string()));
         }
 
@@ -495,17 +507,18 @@ pub async fn receive_wad(
             ));
         }
     }
-    let keyset_id = {
+
+    let blinding_data = {
         let db_conn = pool.get()?;
         let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
         for params in stmt_params {
             insert_proof_stmt.execute(params)?;
         }
-        get_active_keyset_for_unit(&db_conn, node_id, unit)?
+        BlindingData::load_from_db(&db_conn, node_id, unit)?
     };
 
-    let pre_mints = PreMint::generate_for_amount(total_amount, &SplitTarget::None)?;
-    let outputs = build_outputs_from_premints(keyset_id.to_bytes(), &pre_mints);
+    let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
+    let outputs = pre_mints.build_node_client_outputs();
 
     let swap_request = node_client::SwapRequest { inputs, outputs };
     let swap_request_hash = hash_swap_request(&swap_request);
@@ -523,13 +536,7 @@ pub async fn receive_wad(
 
         let tx = db_conn.transaction()?;
         db::proof::set_proofs_to_state(&tx, &ys, ProofState::Spent)?;
-        let _new_tokens = store_new_tokens(
-            &tx,
-            node_id,
-            keyset_id,
-            pre_mints.into_iter(),
-            swap_response.signatures.into_iter(),
-        )?;
+        pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
         tx.commit()?;
     }
 

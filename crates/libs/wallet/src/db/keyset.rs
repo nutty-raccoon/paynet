@@ -1,4 +1,4 @@
-use nuts::nut02::KeysetId;
+use nuts::{nut02::KeysetId, traits::Unit};
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
 pub const CREATE_TABLE_KEYSET: &str = r#"
@@ -6,7 +6,8 @@ pub const CREATE_TABLE_KEYSET: &str = r#"
             id BLOB(8) PRIMARY KEY,
             node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             unit TEXT NOT NULL,
-            active BOOL NOT NULL
+            active BOOL NOT NULL,
+            counter INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE INDEX keyset_node_id ON keyset(node_id);
@@ -63,18 +64,20 @@ pub fn upsert_many_for_node(
     Ok(new_keyset_ids)
 }
 
-pub fn fetch_one_active_id_for_node_and_unit(
+pub fn fetch_one_active_id_for_node_and_unit<U: Unit>(
     conn: &Connection,
     node_id: u32,
-    unit: &str,
-) -> Result<Option<KeysetId>> {
+    unit: U,
+) -> Result<Option<(KeysetId, u32)>> {
     const FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT: &str = r#"
-        SELECT id FROM keyset WHERE node_id = ? AND active = TRUE AND unit = ? LIMIT 1;
+        SELECT id, counter FROM keyset WHERE node_id = ? AND active = TRUE AND unit = ? LIMIT 1;
     "#;
 
     let mut stmt = conn.prepare(FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT)?;
     let result = stmt
-        .query_row(params![node_id, unit], |row| row.get::<_, KeysetId>(0))
+        .query_row(params![node_id, unit.as_ref()], |row| {
+            Ok((row.get::<_, KeysetId>(0)?, row.get(1)?))
+        })
         .optional()?;
 
     Ok(result)
@@ -87,4 +90,33 @@ pub fn get_unit_by_id(conn: &Connection, keyset_id: KeysetId) -> Result<Option<S
         .optional()?;
 
     Ok(opt_unit)
+}
+
+pub fn get_counter(conn: &Connection, keyset_id: KeysetId) -> Result<u32> {
+    let mut stmt = conn.prepare("SELECT counter FROM keyset WHERE id = ?1 LIMIT 1")?;
+
+    let counter = stmt.query_row(params![keyset_id], |r| r.get::<_, u32>(0))?;
+
+    Ok(counter)
+}
+
+pub fn set_counter(conn: &Connection, keyset_id: KeysetId, counter: u32) -> Result<()> {
+    let mut stmt = conn.prepare("UPDATE keyset SET counter = ?2 WHERE id = ?1")?;
+
+    stmt.execute(params![keyset_id, counter])?;
+
+    Ok(())
+}
+
+pub fn get_all_ids_for_node(conn: &Connection, node_id: u32) -> Result<Vec<KeysetId>> {
+    const GET_ALL_KEYSETS_FOR_NODE: &str = r#"
+        SELECT id FROM keyset WHERE node_id = ?1;
+    "#;
+
+    let mut stmt = conn.prepare(GET_ALL_KEYSETS_FOR_NODE)?;
+    let keyset_ids = stmt
+        .query_map([node_id], |row| row.get::<_, KeysetId>(0))?
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(keyset_ids)
 }

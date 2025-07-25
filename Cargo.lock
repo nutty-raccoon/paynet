@@ -375,6 +375,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43d193de1f7487df1914d3a568b772458861d33f9c54249612cc2893d6915054"
 dependencies = [
  "bitcoin_hashes 0.13.0",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
 ]
@@ -661,6 +663,7 @@ dependencies = [
  "starknet-liquidity-source",
  "starknet-types",
  "starknet-types-core",
+ "thiserror 2.0.12",
  "tokio",
  "tonic 0.13.1",
  "tracing",
@@ -5212,6 +5215,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "wallet"
 version = "0.1.0"
 dependencies = [
+ "bip39",
  "bitcoin",
  "ciborium",
  "futures",
