@@ -28,6 +28,8 @@ pub enum Error {
     InvalidBase64(#[from] bitcoin::base64::DecodeError),
     #[error("failed to deserialize the CBOR wad representation: {0}")]
     InvalidCbor(#[from] ciborium::de::Error<std::io::Error>),
+    #[error("failed to parse individual wad token: {0}")]
+    InvalidWadToken(Box<Error>),
 }
 
 /// Token V4
@@ -124,11 +126,11 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWad<U> {
 
 impl<U: Unit + Serialize> fmt::Display for CompactWads<U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use serde::ser::Error;
-        let mut data = Vec::new();
-        ciborium::into_writer(self, &mut data).map_err(|e| fmt::Error::custom(e.to_string()))?;
-        let encoded = general_purpose::URL_SAFE.encode(data);
-        write!(f, "{}{}", CASHU_PREFIX, encoded)
+        let mut tokens = Vec::new();
+        for wad in &self.0 {
+            tokens.push(wad.to_string());
+        }
+        write!(f, "{}", tokens.join(":"))
     }
 }
 
@@ -136,6 +138,28 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // First, try to parse as colon-separated tokens (new format)
+        if s.contains(':') {
+            let token_strings: Vec<&str> = s.split(':').collect();
+
+            let mut wads = Vec::with_capacity(token_strings.len());
+            for token_str in token_strings {
+                let wad = CompactWad::from_str(token_str)
+                    .map_err(|e| Error::InvalidWadToken(Box::new(e)))?;
+                wads.push(wad);
+            }
+
+            return Ok(CompactWads(wads));
+        }
+
+        // Try to parse as a single CompactWad (new format for single tokens)
+        if s.starts_with(CASHU_PREFIX) {
+            if let Ok(wad) = CompactWad::from_str(s) {
+                return Ok(CompactWads(vec![wad]));
+            }
+        }
+
+        // Fallback to old CBOR format for backward compatibility
         let s = s
             .strip_prefix(CASHU_PREFIX)
             .ok_or(Error::UnsupportedWadFormat)?;
@@ -224,4 +248,204 @@ where
 {
     let bytes = Vec::<u8>::deserialize(deserializer)?;
     PublicKey::from_slice(&bytes).map_err(serde::de::Error::custom)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nuts::nut00::secret::Secret;
+    use nuts::nut01::PublicKey;
+    use nuts::nut02::KeysetId;
+    use nuts::{Amount, traits::Unit};
+    use std::str::FromStr;
+
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "lowercase")]
+    pub enum TestUnit {
+        Sat,
+    }
+
+    impl std::fmt::Display for TestUnit {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "sat")
+        }
+    }
+
+    impl From<TestUnit> for u32 {
+        fn from(_: TestUnit) -> Self {
+            0
+        }
+    }
+
+    impl FromStr for TestUnit {
+        type Err = &'static str;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "sat" => Ok(TestUnit::Sat),
+                _ => Err("invalid unit"),
+            }
+        }
+    }
+
+    impl Unit for TestUnit {}
+
+    impl AsRef<str> for TestUnit {
+        fn as_ref(&self) -> &str {
+            "sat"
+        }
+    }
+
+    fn create_test_compact_wad(node_url: &str, amount: u64) -> CompactWad<TestUnit> {
+        let keyset_id = KeysetId::from_bytes(&[0, 1, 2, 3, 4, 5, 6, 7]).unwrap();
+        let secret =
+            Secret::from_str("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .unwrap();
+        let pubkey = PublicKey::from_slice(&[
+            3, 23, 183, 225, 206, 31, 159, 148, 195, 42, 67, 115, 146, 41, 248, 140, 11, 3, 51, 41,
+            111, 180, 110, 143, 114, 179, 192, 72, 147, 222, 233, 25, 52,
+        ])
+        .unwrap();
+
+        // Use the correct scheme based on the tls feature
+        let node_url = if cfg!(feature = "tls") {
+            NodeUrl::from_str(&format!("https://{}", node_url)).unwrap()
+        } else {
+            NodeUrl::from_str(&format!("http://{}", node_url)).unwrap()
+        };
+
+        CompactWad {
+            node_url,
+            unit: TestUnit::Sat,
+            memo: None,
+            proofs: vec![CompactKeysetProofs {
+                keyset_id,
+                proofs: vec![CompactProof {
+                    amount: Amount::from(amount),
+                    secret,
+                    c: pubkey,
+                }],
+            }],
+        }
+    }
+
+    #[test]
+    fn test_compact_wads_colon_separated_serialization() {
+        let wad1 = create_test_compact_wad("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad("mint2.example.com", 200);
+        let wads = CompactWads::new(vec![wad1, wad2]);
+
+        let serialized = wads.to_string();
+
+        // Should contain colon separator
+        assert!(serialized.contains(':'));
+
+        // Should have two cashuB prefixes
+        let cashu_count = serialized.matches(CASHU_PREFIX).count();
+        assert_eq!(cashu_count, 2);
+
+        // Should be able to split into two tokens
+        let parts: Vec<&str> = serialized.split(':').collect();
+        assert_eq!(parts.len(), 2);
+
+        // Each part should be a valid cashuB token
+        for part in parts {
+            assert!(part.starts_with(CASHU_PREFIX));
+        }
+    }
+
+    #[test]
+    fn test_compact_wads_colon_separated_deserialization() {
+        let wad1 = create_test_compact_wad("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad("mint2.example.com", 200);
+        let original_wads = CompactWads::new(vec![wad1, wad2]);
+
+        let serialized = original_wads.to_string();
+        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+
+        assert_eq!(original_wads.0.len(), deserialized.0.len());
+        assert_eq!(original_wads.0[0].node_url, deserialized.0[0].node_url);
+        assert_eq!(original_wads.0[1].node_url, deserialized.0[1].node_url);
+    }
+
+    #[test]
+    fn test_compact_wads_single_token() {
+        let wad = create_test_compact_wad("mint1.example.com", 100);
+        let wads = CompactWads::new(vec![wad]);
+
+        let serialized = wads.to_string();
+
+        // Single token should not have colon
+        assert!(!serialized.contains(':'));
+        assert!(serialized.starts_with(CASHU_PREFIX));
+
+        // Should round-trip correctly
+        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+        assert_eq!(wads.0.len(), deserialized.0.len());
+    }
+
+    #[test]
+    fn test_compact_wads_multiple_tokens() {
+        let wad1 = create_test_compact_wad("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad("mint2.example.com", 200);
+        let wad3 = create_test_compact_wad("mint3.example.com", 300);
+        let wads = CompactWads::new(vec![wad1, wad2, wad3]);
+
+        let serialized = wads.to_string();
+
+        // Should have two colons (3 tokens)
+        let colon_count = serialized.matches(':').count();
+        assert_eq!(colon_count, 2);
+
+        // Should have three cashuB prefixes
+        let cashu_count = serialized.matches(CASHU_PREFIX).count();
+        assert_eq!(cashu_count, 3);
+
+        // Should round-trip correctly
+        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+        assert_eq!(wads.0.len(), deserialized.0.len());
+        assert_eq!(deserialized.0.len(), 3);
+    }
+
+    #[test]
+    fn test_compact_wads_backward_compatibility() {
+        // Create a CBOR-encoded multi-wad token (old format)
+        let wad1 = create_test_compact_wad("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad("mint2.example.com", 200);
+        let wads = CompactWads::new(vec![wad1, wad2]);
+
+        // Manually create old CBOR format
+        let mut data = Vec::new();
+        ciborium::into_writer(&wads, &mut data).unwrap();
+        let encoded = general_purpose::URL_SAFE.encode(data);
+        let old_format = format!("{}{}", CASHU_PREFIX, encoded);
+
+        // Should be able to parse old format
+        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&old_format).unwrap();
+        assert_eq!(wads.0.len(), deserialized.0.len());
+    }
+
+    #[test]
+    fn test_compact_wads_invalid_token_in_colon_separated() {
+        let invalid_colon_separated = "cashuBvalidtoken:invalidtoken";
+
+        let result = CompactWads::<TestUnit>::from_str(invalid_colon_separated);
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            Error::InvalidWadToken(_) => (),
+            other => panic!("Expected InvalidWadToken error, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compact_wads_empty_input() {
+        let result = CompactWads::<TestUnit>::from_str("");
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            Error::UnsupportedWadFormat => (),
+            other => panic!("Expected UnsupportedWadFormat error, got: {:?}", other),
+        }
+    }
 }
