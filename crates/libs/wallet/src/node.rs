@@ -1,6 +1,6 @@
 use bitcoin::bip32::Xpriv;
-use futures::future::join_all;
-use node_client::{CheckStateRequest, NodeClient, RestoreRequest};
+use futures::{StreamExt, future::join_all};
+use node_client::{CheckStateRequest, GetKeysetsRequest, NodeClient, RestoreRequest};
 use nuts::{
     Amount,
     dhke::{self, hash_to_curve},
@@ -15,10 +15,45 @@ use crate::{
     StoreNewTokensError,
     db::{self, keyset},
     seed_phrase, store_new_proofs_from_blind_signatures,
+    types::NodeUrl,
 };
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum RegisterNodeError {
+    #[error("failed connect to the node: {0}")]
+    NodeClient(#[from] tonic::transport::Error),
+    #[error("failed connect to database: {0}")]
+    R2d2(#[from] r2d2::Error),
+    #[error("unknown node with url: {0}")]
+    NotFound(NodeUrl),
+    #[error("fail to interact with the database: {0}")]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error("fail to refresh the node {0} keyset: {1}")]
+    RefreshNodeKeyset(u32, RefreshNodeKeysetError),
+}
+
+pub async fn register(
+    pool: Pool<SqliteConnectionManager>,
+    node_url: &NodeUrl,
+) -> Result<(NodeClient<tonic::transport::Channel>, u32), RegisterNodeError> {
+    let mut node_client = NodeClient::connect(node_url.to_string()).await?;
+
+    let node_id = {
+        let db_conn = pool.get()?;
+        db::node::insert(&db_conn, node_url)?;
+        db::node::get_id_by_url(&db_conn, node_url)?
+            .ok_or(RegisterNodeError::NotFound(node_url.clone()))?
+    };
+
+    refresh_keysets(pool, &mut node_client, node_id)
+        .await
+        .map_err(|e| RegisterNodeError::RefreshNodeKeyset(node_id, e))?;
+
+    Ok((node_client, node_id))
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RestoreNodeError {
     #[error(transparent)]
     R2d2(#[from] r2d2::Error),
     #[error(transparent)]
@@ -27,8 +62,6 @@ pub enum Error {
     SeedPhrase(#[from] seed_phrase::Error),
     #[error(transparent)]
     Client(#[from] tonic::Status),
-    #[error(transparent)]
-    Wallet(#[from] crate::Error),
     #[error(transparent)]
     StoreNewTokens(#[from] StoreNewTokensError),
     #[error(transparent)]
@@ -44,7 +77,7 @@ pub async fn restore(
     node_id: u32,
     node_client: NodeClient<Channel>,
     private_key: String,
-) -> Result<(), Error> {
+) -> Result<(), RestoreNodeError> {
     let xpriv = seed_phrase::convert_private_key_to_xpriv(private_key).unwrap();
     let keyset_ids = {
         let db_conn = pool.get()?;
@@ -75,7 +108,7 @@ async fn restore_keyset(
     mut node_client: NodeClient<Channel>,
     xpriv: Xpriv,
     keyset_id: KeysetId,
-) -> Result<(), Error> {
+) -> Result<(), RestoreNodeError> {
     let mut empty_response_counter = 0;
     let mut n_batch_done = 0;
 
@@ -123,14 +156,14 @@ async fn restore_keyset(
                     blinded_messages
                         .iter()
                         .position(|bm| bm.blinded_secret == last_bs)
-                        .ok_or(Error::UnknownBlindSecretInRestoreResponse)?
+                        .ok_or(RestoreNodeError::UnknownBlindSecretInRestoreResponse)?
                         as u32
                 };
 
             let ys = response
                 .outputs
                 .iter()
-                .map(|o| -> Result<Vec<u8>, Error> {
+                .map(|o| -> Result<Vec<u8>, RestoreNodeError> {
                     let blinded_secret = PublicKey::from_slice(&o.blinded_secret)?;
                     let (secret, _r) = secrets[&blinded_secret].clone();
                     let y: PublicKey = hash_to_curve(&secret.to_bytes())?;
@@ -169,10 +202,79 @@ async fn restore_keyset(
             let mut db_conn = pool.get()?;
             let tx = db_conn.transaction()?;
             store_new_proofs_from_blind_signatures(&tx, node_id, keyset_id, iterator)?;
-            db::keyset::set_counter(&tx, keyset_id, counter_last_known_blinded_secret as u32 + 1)?;
+            db::keyset::set_counter(&tx, keyset_id, counter_last_known_blinded_secret + 1)?;
             tx.commit()?;
         }
         n_batch_done += 1;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RefreshNodeKeysetError {
+    #[error("failed to get keysets from the node: {0}")]
+    GetKeysets(#[from] tonic::Status),
+    #[error("failed connect to database: {0}")]
+    R2d2(#[from] r2d2::Error),
+    #[error("fail to interact with the database: {0}")]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error("conversion error: {0}")]
+    InvalidKeysetValue(String),
+}
+
+pub async fn refresh_keysets(
+    pool: Pool<SqliteConnectionManager>,
+    node_client: &mut NodeClient<Channel>,
+    node_id: u32,
+) -> Result<(), RefreshNodeKeysetError> {
+    let keysets = node_client
+        .keysets(GetKeysetsRequest {})
+        .await?
+        .into_inner()
+        .keysets;
+
+    let new_keyset_ids = {
+        let db_conn = pool.get()?;
+        crate::db::keyset::upsert_many_for_node(&db_conn, node_id, keysets)?
+    };
+
+    // Parallelization of the queries
+    let mut futures = futures::stream::FuturesUnordered::new();
+    for new_keyset_id in new_keyset_ids {
+        let mut cloned_node_client = node_client.clone();
+        futures.push(async move {
+            cloned_node_client
+                .keys(node_client::GetKeysRequest {
+                    keyset_id: Some(new_keyset_id.to_bytes().to_vec()),
+                })
+                .await
+        })
+    }
+
+    while let Some(res) = futures.next().await {
+        match res {
+            // Save the keys in db
+            Ok(resp) => {
+                let resp = resp.into_inner();
+                let keyset = resp.keysets;
+                let id = KeysetId::from_bytes(&keyset[0].id).map_err(|e| {
+                    RefreshNodeKeysetError::InvalidKeysetValue(format!(
+                        "Invalid keyset ID length: {:?}",
+                        e
+                    ))
+                })?;
+                let db_conn = pool.get()?;
+                db::insert_keyset_keys(
+                    &db_conn,
+                    id,
+                    keyset[0].keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
+                )?;
+            }
+            Err(e) => {
+                log::error!("could not get keys for one of the keysets: {}", e);
+            }
+        }
     }
 
     Ok(())

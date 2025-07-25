@@ -243,7 +243,7 @@ async fn main() -> Result<()> {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
 
             let tx = db_conn.transaction()?;
-            let (node_client, node_id) = wallet::register_node(pool.clone(), &node_url).await?;
+            let (node_client, node_id) = wallet::node::register(pool.clone(), &node_url).await?;
             tx.commit()?;
 
             println!(
@@ -546,7 +546,7 @@ async fn main() -> Result<()> {
 
             for wad in wads {
                 let (mut node_client, node_id) =
-                    wallet::register_node(pool.clone(), &wad.node_url).await?;
+                    wallet::node::register(pool.clone(), &wad.node_url).await?;
                 let CompactWad {
                     node_url,
                     unit,
@@ -610,9 +610,12 @@ async fn main() -> Result<()> {
         }
         Commands::Init => {
             init::init(&db_conn)?;
+            println!("Wallet saved!");
         }
         Commands::Restore { seed_phrase } => {
-            init::restore(&db_conn, seed_phrase)?;
+            let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
+            wallet::wallet::restore(&db_conn, seed_phrase)?;
+            println!("Wallet saved!");
         }
     }
 

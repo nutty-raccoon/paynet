@@ -127,8 +127,6 @@ impl PreMints {
         node_id: u32,
         signatures: Vec<BlindSignature>,
     ) -> Result<Vec<(PublicKey, Amount)>, Error> {
-        println!("STORING NEW TOKEN");
-
         db::keyset::set_counter(
             tx,
             self.keyset_id,

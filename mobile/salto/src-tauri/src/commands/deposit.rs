@@ -136,7 +136,7 @@ pub async fn redeem_quote(
         STARKNET_STR.to_string(),
         mint_quote.id,
         node_id,
-        mint_quote.unit.as_str(),
+        mint_quote.unit,
         mint_quote.amount,
     )
     .await?;

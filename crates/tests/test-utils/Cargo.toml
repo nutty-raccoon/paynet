@@ -33,6 +33,7 @@ primitive-types = { workspace = true, optional = true }
 starknet-liquidity-source = { workspace = true, optional = true }
 starknet = { workspace = true, optional = true }
 wallet = { workspace = true, optional = true  }
+bip39 = { workspace = true  }
 
 # Db
 r2d2_sqlite = { workspace = true, optional = true }

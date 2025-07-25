@@ -8,13 +8,13 @@ pub mod seed_phrase;
 pub mod send;
 pub mod sync;
 pub mod types;
+pub mod wallet;
 
 use std::str::FromStr;
 
 use errors::Error;
-use futures::StreamExt;
 use itertools::Itertools;
-use node_client::{AcknowledgeRequest, GetKeysetsRequest, NodeClient, hash_swap_request};
+use node_client::{AcknowledgeRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -53,75 +53,6 @@ pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node_client::BlindedMe
             blinded_secret: o.blinded_secret.to_bytes().to_vec(),
         })
         .collect()
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RefreshNodeKeysetError {
-    #[error("failed to get keysets from the node: {0}")]
-    GetKeysets(#[from] tonic::Status),
-    #[error("failed connect to database: {0}")]
-    R2d2(#[from] r2d2::Error),
-    #[error("fail to interact with the database: {0}")]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error("conversion error: {0}")]
-    InvalidKeysetValue(String),
-}
-
-pub async fn refresh_node_keysets(
-    pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
-    node_id: u32,
-) -> Result<(), RefreshNodeKeysetError> {
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
-
-    let new_keyset_ids = {
-        let db_conn = pool.get()?;
-        crate::db::keyset::upsert_many_for_node(&db_conn, node_id, keysets)?
-    };
-
-    // Parallelization of the queries
-    let mut futures = futures::stream::FuturesUnordered::new();
-    for new_keyset_id in new_keyset_ids {
-        let mut cloned_node_client = node_client.clone();
-        futures.push(async move {
-            cloned_node_client
-                .keys(node_client::GetKeysRequest {
-                    keyset_id: Some(new_keyset_id.to_bytes().to_vec()),
-                })
-                .await
-        })
-    }
-
-    while let Some(res) = futures.next().await {
-        match res {
-            // Save the keys in db
-            Ok(resp) => {
-                let resp = resp.into_inner();
-                let keyset = resp.keysets;
-                let id = KeysetId::from_bytes(&keyset[0].id).map_err(|e| {
-                    RefreshNodeKeysetError::InvalidKeysetValue(format!(
-                        "Invalid keyset ID length: {:?}",
-                        e
-                    ))
-                })?;
-                let db_conn = pool.get()?;
-                db::insert_keyset_keys(
-                    &db_conn,
-                    id,
-                    keyset[0].keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
-                )?;
-            }
-            Err(e) => {
-                log::error!("could not get keys for one of the keysets: {}", e);
-            }
-        }
-    }
-
-    Ok(())
 }
 
 pub async fn read_or_import_node_keyset(
@@ -543,40 +474,6 @@ pub async fn receive_wad<U: Unit>(
     acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
 
     Ok(total_amount)
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RegisterNodeError {
-    #[error("failed connect to the node: {0}")]
-    NodeClient(#[from] tonic::transport::Error),
-    #[error("failed connect to database: {0}")]
-    R2d2(#[from] r2d2::Error),
-    #[error("unknown node with url: {0}")]
-    NotFound(NodeUrl),
-    #[error("fail to interact with the database: {0}")]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error("fail to refresh the node {0} keyset: {1}")]
-    RefreshNodeKeyset(u32, RefreshNodeKeysetError),
-}
-
-pub async fn register_node(
-    pool: Pool<SqliteConnectionManager>,
-    node_url: &NodeUrl,
-) -> Result<(NodeClient<tonic::transport::Channel>, u32), RegisterNodeError> {
-    let mut node_client = NodeClient::connect(node_url.to_string()).await?;
-
-    let node_id = {
-        let db_conn = pool.get()?;
-        db::node::insert(&db_conn, node_url)?;
-        db::node::get_id_by_url(&db_conn, node_url)?
-            .ok_or(RegisterNodeError::NotFound(node_url.clone()))?
-    };
-
-    refresh_node_keysets(pool, &mut node_client, node_id)
-        .await
-        .map_err(|e| RegisterNodeError::RefreshNodeKeyset(node_id, e))?;
-
-    Ok((node_client, node_id))
 }
 
 #[cfg(feature = "tls")]

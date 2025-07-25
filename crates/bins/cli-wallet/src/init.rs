@@ -5,30 +5,15 @@ use rusqlite::Connection;
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
     #[error(transparent)]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
     SeedPhrase(#[from] wallet::seed_phrase::Error),
+    #[error(transparent)]
+    Wallet(#[from] wallet::wallet::Error),
     #[error(transparent)]
     IO(#[from] io::Error),
 }
 
 pub fn init(db_conn: &Connection) -> Result<(), InitError> {
     let seed_phrase = wallet::seed_phrase::create_random()?;
-    let private_key = wallet::seed_phrase::derive_private_key(&seed_phrase)?;
-
-    let wallet = wallet::db::wallet::Wallet {
-        seed_phrase: seed_phrase.to_string(),
-        private_key: private_key.to_string(),
-        is_restored: false,
-        created_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-        updated_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-    };
 
     let mut input = String::new();
     println!(
@@ -52,41 +37,7 @@ pub fn init(db_conn: &Connection) -> Result<(), InitError> {
         input.clear();
     }
 
-    wallet::db::wallet::create(db_conn, wallet)?;
-
-    println!("Wallet saved!");
-
-    Ok(())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RestoreError {
-    #[error(transparent)]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
-    SeedPhrase(#[from] wallet::seed_phrase::Error),
-}
-
-pub fn restore(db_conn: &Connection, seed_phrase: String) -> Result<(), RestoreError> {
-    let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
-    let private_key = wallet::seed_phrase::derive_private_key(&seed_phrase)?;
-
-    let wallet = wallet::db::wallet::Wallet {
-        seed_phrase: seed_phrase.to_string(),
-        private_key: private_key.to_string(),
-        is_restored: true,
-        created_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-        updated_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-    };
-    wallet::db::wallet::create(db_conn, wallet)?;
-
-    println!("Wallet saved!");
+    wallet::wallet::init(db_conn, &seed_phrase)?;
 
     Ok(())
 }

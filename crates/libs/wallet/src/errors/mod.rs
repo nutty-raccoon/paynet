@@ -2,7 +2,7 @@ use node_client::UnspecifiedEnum;
 use thiserror::Error;
 use tonic::Status;
 
-use crate::StoreNewTokensError;
+use crate::{StoreNewTokensError, seed_phrase};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -53,6 +53,12 @@ pub enum Error {
     UnitMissmatch(String, String),
     #[error("failed to get a connection from the pool: {0}")]
     R2D2(#[from] r2d2::Error),
+    #[error(transparent)]
+    SeedPhrase(#[from] seed_phrase::Error),
+    #[error(transparent)]
+    Wallet(#[from] crate::wallet::Error),
+    #[error(transparent)]
+    RestoreNode(#[from] crate::node::RestoreNodeError),
 }
 
 impl From<StoreNewTokensError> for Error {

@@ -166,7 +166,7 @@ pub async fn receive_wads(
             state.pool.clone(),
             &mut node_client,
             node_id,
-            wad.unit.as_str(),
+            wad.unit,
             wad.proofs,
         )
         .await?;
