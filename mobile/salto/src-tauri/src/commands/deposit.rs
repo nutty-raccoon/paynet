@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use starknet_types::Unit;
 use nuts::nut04::MintQuoteState;
+use starknet_types::Unit;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR};
 use tauri::{AppHandle, Emitter, State};
 
@@ -98,7 +98,7 @@ pub enum RedeemQuoteError {
     #[error(transparent)]
     NodeConnect(#[from] wallet::ConnectToNodeError),
     #[error(transparent)]
-    UnitFromStr(#[from] starknet_types::UnitFromStrError)
+    UnitFromStr(#[from] starknet_types::UnitFromStrError),
 }
 
 impl serde::Serialize for RedeemQuoteError {
