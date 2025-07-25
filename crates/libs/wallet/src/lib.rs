@@ -347,22 +347,26 @@ pub async fn swap_to_have_target_amount<U: Unit>(
     let swap_request_hash = hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
 
-    let mut db_conn = pool.get()?;
-    let swap_response = match swap_result {
-        Ok(r) => {
-            db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Spent)?;
-            r.into_inner()
-        }
-        Err(e) => {
-            // TODO: delete instead when invalid input
-            db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Unspent)?;
-            return Err(e.into());
-        }
-    };
+    let new_tokens = {
+        let mut db_conn = pool.get()?;
+        let swap_response = match swap_result {
+            Ok(r) => {
+                db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Spent)?;
+                r.into_inner()
+            }
+            Err(e) => {
+                // TODO: delete instead when invalid input
+                db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Unspent)?;
+                return Err(e.into());
+            }
+        };
 
-    let tx = db_conn.transaction()?;
-    let new_tokens = pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
-    tx.commit()?;
+        let tx = db_conn.transaction()?;
+        let new_tokens = pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
+        tx.commit()?;
+
+        new_tokens
+    };
 
     acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
 

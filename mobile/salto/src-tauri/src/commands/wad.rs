@@ -138,7 +138,7 @@ pub enum ReceiveWadsError {
     #[error("this is a json error: {0}")]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
-    RegisterNode(#[from] wallet::RegisterNodeError),
+    RegisterNode(#[from] wallet::node::RegisterNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -160,7 +160,7 @@ pub async fn receive_wads(
 
     for wad in wads.0 {
         let (mut node_client, node_id) =
-            wallet::register_node(state.pool.clone(), &wad.node_url).await?;
+            wallet::node::register(state.pool.clone(), &wad.node_url).await?;
 
         let amount_received = wallet::receive_wad(
             state.pool.clone(),

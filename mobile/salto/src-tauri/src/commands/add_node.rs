@@ -16,7 +16,7 @@ pub enum Error {
     #[error(transparent)]
     Wallet(#[from] wallet::errors::Error), // TODO: create more granular errors in wallet
     #[error(transparent)]
-    RegisterNode(#[from] wallet::RegisterNodeError),
+    RegisterNode(#[from] wallet::node::RegisterNodeError),
 }
 
 impl serde::Serialize for Error {
@@ -34,7 +34,7 @@ pub async fn add_node(
     node_url: String,
 ) -> Result<(u32, Vec<Balance>), Error> {
     let node_url = NodeUrl::from_str(&node_url)?;
-    let (_client, id) = wallet::register_node(state.pool.clone(), &node_url).await?;
+    let (_client, id) = wallet::node::register(state.pool.clone(), &node_url).await?;
     let db_conn = state.pool.get()?;
     let balances = wallet::db::balance::get_for_node(&db_conn, id)?;
 
