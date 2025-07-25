@@ -2,7 +2,7 @@ import Fastify from 'fastify'
 import dotenv from 'dotenv';
 import NodeCache from 'node-cache';
 import Coingecko from '@coingecko/coingecko-typescript';
-import { fetch_price } from './services/priceService';
+import { fetchPrice } from './services/priceService';
 import { tokenRoutes } from './routes/token/token';
 import { priceRoutes } from './routes/price/price';
 import { currencyRoutes } from './routes/currency/currency';
@@ -14,18 +14,21 @@ export const fastify = Fastify({
   logger: true
 });
 
-if (!process.env.COIN_GECKO_API_KEY) {
-  throw new Error("Missing env var: COIN_GECKO_API_KEY");
+if (!process.env.COIN_PRO_GECKO_API_KEY && !process.env.COIN_DEMO_GECKO_API_KEY) {
+  throw new Error("Missing env var: COIN_DEMO_GECKO_API_KEY or COIN_PRO_GECKO_API_KEY");
 }
-const api_key = process.env.COIN_GECKO_API_KEY;
+const isPro = !!process.env.COIN_PRO_GECKO_API_KEY
+let apiKey = isPro ? process.env.COIN_PRO_GECKO_API_KEY! : process.env.COIN_DEMO_GECKO_API_KEY!;
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 // Set Coingecko SDK
 export const client = new Coingecko({
-//   proAPIKey: api_key,
-  demoAPIKey: api_key, // Optional, for Demo API access
-  environment: 'demo', // 'pro' to initialize the client with Pro API access
-});
+//   proAPIKey: apiKey,
+  ...(isPro
+    ? { proAPIKey: apiKey }
+    : { demoAPIKey: apiKey }), // Optional, for Demo API access
+  environment: isPro ? "pro" : "demo", // 'pro' to initialize the client with Pro API access
+})
 
 export type Token = {
     symbol: string;
@@ -41,7 +44,7 @@ myCache.set("tokens", tokens);
 export let currencies: string[] = ["usd"];
 myCache.set("currencies", currencies);
 
-setInterval(fetch_price, 5000);
+setInterval(fetchPrice, 5000);
 
 fastify.register(currencyRoutes);
 fastify.register(priceRoutes);

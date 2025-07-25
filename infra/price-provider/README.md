@@ -30,7 +30,11 @@ A REST API built with [Fastify](https://fastify.dev/) and [Bun](https://bun.sh/)
 Create an `.env` file (if not using Docker):
 
 ```yaml
-COIN_GECKO_API_KEY=your_api_key
+#Demo Coingecko api key
+COIN_DEMO_GECKO_API_KEY=your_api_key
+
+#Pro Coingeck api key
+COIN_PRO_GECK_API_KEY=your_api_key
 ```
 
 ---

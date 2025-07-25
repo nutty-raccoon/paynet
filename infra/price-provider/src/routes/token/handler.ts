@@ -53,8 +53,8 @@ export async function delToken(request: FastifyRequest, reply: FastifyReply) {
         return reply.code(404).send({ error: "The token doesn't exist." });
     }
 
-    const new_tokens = tokens.filter(t => !isSameToken(t, delToken));
-    myCache.set("tokens", new_tokens);
+    const newTokens = tokens.filter(t => !isSameToken(t, delToken));
+    myCache.set("tokens", newTokens);
 
     return reply.code(201).send({ status: "success" });
 }

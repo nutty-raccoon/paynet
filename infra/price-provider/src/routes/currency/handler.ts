@@ -39,8 +39,8 @@ export async function delCurrency(request: FastifyRequest, reply: FastifyReply) 
         return reply.code(404).send({ error: "The currency doesn't exist." });
     }
 
-    const new_currencies = currencies.filter(item => item !== currency);
-    myCache.set("currencies", new_currencies);
+    const newCurrencies = currencies.filter(item => item !== currency);
+    myCache.set("currencies", newCurrencies);
 
     return reply.code(201).send({ status: "success" });
 }

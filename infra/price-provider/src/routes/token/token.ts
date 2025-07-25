@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { myCache, tokens } from '../..';
+import { myCache } from '../..';
 import { addTokenSchema, delTokenSchema } from './schemas';
 import { addToken, delToken } from './handler';
 

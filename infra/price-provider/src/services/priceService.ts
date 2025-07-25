@@ -1,19 +1,31 @@
 import {fastify} from "../index";
 import { client, myCache, tokens } from "..";
 
-export async function fetch_price() {
+export async function fetchPrice() {
     try{
+        let currencies: string[] | undefined = myCache.get("currencies");
+        if (!currencies) {
+            throw new Error ("No currencies set.");
+        }
+
         let addresses = tokens.map(token => token.address).join(",");
-        const res: any = await client.simple.tokenPrice.getID("ethereum", { vs_currencies: 'usd', contract_addresses: addresses });
-        const new_cache = tokens.map(token => {
-            const new_price = res[token.address];
+        let allCurrencies: string = currencies.join(",");
+
+        // any type because the default type is not good
+        const res: any = await client.simple.tokenPrice.getID("ethereum", { vs_currencies: allCurrencies, contract_addresses: addresses });
+        console.log(res);
+        const newCache = tokens.map(token => {
+            const newPrice: {currency: string, value: number}[] = currencies.map((currency) =>{return {currency, value: res[token.address][currency]}});
+
             return {
                 symbol: token.symbol,
                 address: token.address,
-                price: new_price,
+                price: newPrice,
             };
         });
-        myCache.set("last_price", new_cache);
+
+        myCache.set("last_price", newCache);
+
         fastify.log.info("Price has been updated.");
     } catch (err) {
         console.error("Error: ", err);
