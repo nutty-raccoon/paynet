@@ -51,10 +51,15 @@ tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }
 
+# Ethereum dependencies (optional)
+ethereum-types = { workspace = true, optional = true }
+ethereum-liquidity-source = { workspace = true, optional = true }
+
 [features]
 default = ["starknet"]
-mock = ["starknet-liquidity-source/mock"]
+mock = ["starknet-liquidity-source/mock", "ethereum-liquidity-source?/mock"]
 starknet = []
+ethereum = ["dep:ethereum-types", "dep:ethereum-liquidity-source"]
 tls = ["dep:openssl", "dep:tonic-tls"]
 keyset-rotation = []
 

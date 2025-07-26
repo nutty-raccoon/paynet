@@ -5,17 +5,18 @@ use std::time::Duration;
 
 use opentelemetry::{KeyValue, metrics::Gauge};
 use sqlx::{PgPool, Pool, Postgres};
-use starknet_types::Unit;
 use tracing::error;
+
+use crate::initialization::nuts_settings::UnifiedUnit;
 
 pub struct DbMetricsObserver {
     pool: Pool<Postgres>,
-    units: Vec<Unit>,
+    units: Vec<UnifiedUnit>,
     gauge: Gauge<u64>,
 }
 
 impl DbMetricsObserver {
-    pub fn new(pool: PgPool, units: Vec<Unit>, gauge: Gauge<u64>) -> Self {
+    pub fn new(pool: PgPool, units: Vec<UnifiedUnit>, gauge: Gauge<u64>) -> Self {
         Self { pool, units, gauge }
     }
 

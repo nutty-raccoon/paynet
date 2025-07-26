@@ -1,4 +1,4 @@
-#[cfg(not(any(feature = "starknet")))]
+#[cfg(not(any(feature = "starknet", feature = "ethereum")))]
 compile_error!("At least one liquidity feature should be provided during compilation");
 
 use core::panic;
@@ -49,9 +49,20 @@ async fn main() -> Result<(), anyhow::Error> {
     // Lauch the database metrics polling task
     let meter = opentelemetry::global::meter("business");
     let gauge = meter.u64_gauge("stock").build();
+
+    // Collect units from enabled features
+    let mut units = Vec::new();
+    #[cfg(feature = "starknet")]
+    units.push(initialization::nuts_settings::UnifiedUnit::MilliStrk);
+    #[cfg(feature = "ethereum")]
+    {
+        units.push(initialization::nuts_settings::UnifiedUnit::EthereumGwei);
+        units.push(initialization::nuts_settings::UnifiedUnit::MilliUsdc);
+    }
+
     let observer = DbMetricsObserver::new(
         pg_pool.clone(),
-        vec![starknet_types::Unit::MilliStrk],
+        units,
         gauge,
     );
     let _handle = tokio::spawn(gauge::run_metrics_polling(

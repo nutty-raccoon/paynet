@@ -10,10 +10,9 @@ use node::NodeServer;
 use nuts::QuoteTTLConfig;
 use signer::SignerClient;
 use sqlx::Postgres;
-use starknet_types::Unit;
 use tonic::{service::LayerExt, transport::Channel};
 
-use crate::{grpc_service::GrpcState, liquidity_sources::LiquiditySources};
+use crate::{grpc_service::GrpcState, liquidity_sources::LiquiditySources, initialization::nuts_settings::UnifiedUnit};
 
 use super::{Error, env_variables::EnvVariables};
 
@@ -21,7 +20,7 @@ use super::{Error, env_variables::EnvVariables};
 pub async fn launch_tonic_server_task(
     pg_pool: sqlx::Pool<Postgres>,
     signer_client: SignerClient<trace::Grpc<Channel>>,
-    liquidity_sources: LiquiditySources<Unit>,
+    liquidity_sources: LiquiditySources<UnifiedUnit>,
     env_vars: EnvVariables,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();
@@ -42,8 +41,17 @@ pub async fn launch_tonic_server_task(
 
     // TODO: take into account past keyset rotations
     // init node shared
+    let mut units = Vec::new();
+    #[cfg(feature = "starknet")]
+    units.push(UnifiedUnit::MilliStrk);
+    #[cfg(feature = "ethereum")]
+    {
+        units.push(UnifiedUnit::EthereumGwei);
+        units.push(UnifiedUnit::MilliUsdc);
+    }
+
     grpc_state
-        .init_first_keysets(&[Unit::MilliStrk], 0, 32)
+        .init_first_keysets(&units, 0, 32)
         .await?;
 
     // init health reporter service

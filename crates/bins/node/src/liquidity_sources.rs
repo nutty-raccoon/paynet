@@ -4,7 +4,7 @@ use liquidity_source::LiquiditySource;
 use nuts::traits::Unit;
 use sqlx::PgPool;
 
-use crate::{initialization::ProgramArguments, methods::Method};
+use crate::{initialization::{ProgramArguments, nuts_settings::UnifiedUnit}, methods::Method};
 
 /// Enum to represent different liquidity sources with their specific unit types
 #[derive(Debug, Clone)]
