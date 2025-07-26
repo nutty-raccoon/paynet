@@ -31,7 +31,7 @@ pub struct GetForAllNodesData {
     pub balances: Vec<Balance>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Balance {
     pub unit: String,
     pub amount: Amount,

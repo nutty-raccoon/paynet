@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-e2e = ["itertools", "primitive-types", "r2d2", "r2d2_sqlite", "rusqlite", "wallet"]
+e2e = ["itertools", "primitive-types", "r2d2", "r2d2_sqlite", "rusqlite", "wallet", "bitcoin", "bip39"]
 concurrency = ["futures"]
 
 strk = ["starknet-types", "starknet", "starknet-types-core", "starknet-liquidity-source"]
@@ -33,6 +33,8 @@ primitive-types = { workspace = true, optional = true }
 starknet-liquidity-source = { workspace = true, optional = true }
 starknet = { workspace = true, optional = true }
 wallet = { workspace = true, optional = true  }
+bip39 = { workspace = true, optional = true }
+bitcoin = { workspace = true, optional = true }
 
 # Db
 r2d2_sqlite = { workspace = true, optional = true }

@@ -70,11 +70,14 @@ pub async fn get_by_blind_secrets(
         .join(", ");
     let sql = format!(
         r#"
-        SELECT amount, keyset_id, c, y FROM blind_signature
-        JOIN (
-          VALUES ({})
-        ) AS v(y, position) ON blind_signature.y = v.y
-        ORDER BY v.position;"#,
+        WITH lookup AS (
+          SELECT * FROM (VALUES 
+            {}
+          ) AS t(y, position)
+        )
+        SELECT amount, keyset_id, c, blind_signature.y FROM blind_signature
+        JOIN lookup ON blind_signature.y = lookup.y
+        ORDER BY lookup.position;"#,
         placeholders
     );
     let mut query = sqlx::query(sql.as_str());

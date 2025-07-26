@@ -1,9 +1,12 @@
+use std::str::FromStr;
+
 use anyhow::{Result, anyhow};
 use node_client::NodeClient;
 use nuts::nut04::MintQuoteState;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use starknet_types::Unit;
 use tonic::transport::Channel;
 use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::db::mint_quote::PendingMintQuote;
@@ -46,7 +49,6 @@ async fn sync_mint_quotes(
     node_id: u32,
     pending_mint_quotes: &[PendingMintQuote],
 ) -> Result<()> {
-    println!("pending: {:?}", pending_mint_quotes);
     for pending_mint_quote in pending_mint_quotes {
         let new_state = {
             let db_conn = pool.get()?;
@@ -73,6 +75,8 @@ async fn sync_mint_quotes(
                 pending_mint_quote.id
             );
 
+            let unit = Unit::from_str(&pending_mint_quote.unit)?;
+
             // Redeem the quote
             if let Err(e) = wallet::mint::redeem_quote(
                 pool.clone(),
@@ -80,7 +84,7 @@ async fn sync_mint_quotes(
                 STARKNET_STR.to_string(),
                 pending_mint_quote.id.clone(),
                 node_id,
-                &pending_mint_quote.unit,
+                unit,
                 pending_mint_quote.amount,
             )
             .await

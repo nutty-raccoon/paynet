@@ -11,8 +11,9 @@
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import { getNodesBalance } from "../commands";
+  import { getNodesBalance, checkWalletExists } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
+  import InitPage from "./init/InitPage.svelte";
 
   const Modal = {
     ROOT: 0,
@@ -28,6 +29,7 @@
 
   let activeTab: Tab = $state("pay");
   let errorMessage = $state("");
+  let walletExists = $state<boolean | null>(null); // null = loading, true/false = result
 
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
@@ -59,6 +61,11 @@
     decreaseNodeBalance(nodes, balanceIncrease);
   };
 
+  const onWalletInitialized = (initialTab: Tab = "pay") => {
+    walletExists = true;
+    activeTab = initialTab;
+  };
+
   // SendModal control functions
   function openModal(modal: Modal) {
     currentModal = modal;
@@ -75,12 +82,19 @@
     goBackToRoot();
   }
 
-  onMount(() => {
-    getNodesBalance().then((nodesData) => {
-      if (!!nodesData) {
-        nodesData.forEach(onAddNode);
-      }
-    });
+  onMount(async () => {
+    // First check if wallet exists
+    const exists = await checkWalletExists();
+    walletExists = exists;
+
+    if (exists) {
+      // Only load wallet data if wallet exists
+      getNodesBalance().then((nodesData) => {
+        if (!!nodesData) {
+          nodesData.forEach(onAddNode);
+        }
+      });
+    }
 
     listen<BalanceChange>("balance-increase", (event) => {
       onNodeBalanceIncrease(event.payload);
@@ -88,6 +102,7 @@
     listen<BalanceChange>("balance-decrease", (event) => {
       onNodeBalanceDecrease(event.payload);
     });
+
     // Add popstate listener for back button handling
     window.addEventListener("popstate", handlePopState);
   });
@@ -105,43 +120,57 @@
 </script>
 
 <main class="container">
-  {#if activeTab === "pay"}
-    {#if currentModal == Modal.ROOT}
-      <div class="pay-container">
-        <div class="total-balance-card">
-          <h2 class="balance-title">TOTAL BALANCE</h2>
-          <p class="total-balance-amount">{formattedTotalBalance}</p>
-        </div>
-        {#if errorMessage}
-          <div class="error-message">
-            {errorMessage}
-          </div>
-        {/if}
-        <button class="pay-button" onclick={() => openModal(Modal.SEND)}
-          >Send</button
-        >
-        <button class="receive-button" onclick={() => openModal(Modal.RECEIVE)}
-          >Receive</button
-        >
-      </div>
-    {:else if currentModal == Modal.SEND}
-      <SendModal availableBalances={totalBalance} onClose={goBackToRoot} />
-    {:else if currentModal == Modal.RECEIVE}
-      <ReceiveModal onClose={goBackToRoot} />
-    {/if}
-  {:else if activeTab === "balances"}
-    <div class="balances-container">
-      <NodesBalancePage {nodes} {onAddNode} />
+  {#if walletExists === null}
+    <!-- Loading state -->
+    <div class="loading-container">
+      <p>Loading...</p>
     </div>
+  {:else if walletExists === false}
+    <!-- Show initialization page -->
+    <InitPage {onWalletInitialized} />
+  {:else}
+    <!-- Show main app content -->
+    {#if activeTab === "pay"}
+      {#if currentModal == Modal.ROOT}
+        <div class="pay-container">
+          <div class="total-balance-card">
+            <h2 class="balance-title">TOTAL BALANCE</h2>
+            <p class="total-balance-amount">{formattedTotalBalance}</p>
+          </div>
+          {#if errorMessage}
+            <div class="error-message">
+              {errorMessage}
+            </div>
+          {/if}
+          <button class="pay-button" onclick={() => openModal(Modal.SEND)}
+            >Send</button
+          >
+          <button
+            class="receive-button"
+            onclick={() => openModal(Modal.RECEIVE)}>Receive</button
+          >
+        </div>
+      {:else if currentModal == Modal.SEND}
+        <SendModal availableBalances={totalBalance} onClose={goBackToRoot} />
+      {:else if currentModal == Modal.RECEIVE}
+        <ReceiveModal onClose={goBackToRoot} />
+      {/if}
+    {:else if activeTab === "balances"}
+      <div class="balances-container">
+        <NodesBalancePage {nodes} {onAddNode} />
+      </div>
+    {/if}
   {/if}
 </main>
 
-<NavBar
-  {activeTab}
-  onTabChange={(tab: Tab) => {
-    activeTab = tab;
-  }}
-/>
+{#if walletExists}
+  <NavBar
+    {activeTab}
+    onTabChange={(tab: Tab) => {
+      activeTab = tab;
+    }}
+  />
+{/if}
 
 <style>
   :root {
@@ -293,6 +322,16 @@
   .receive-button:active {
     transform: scale(0.98);
     background-color: #0d4814;
+  }
+
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 50vh;
+    font-size: 1.2rem;
+    color: #666;
   }
 
   @media (prefers-color-scheme: dark) {

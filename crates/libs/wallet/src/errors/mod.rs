@@ -2,6 +2,8 @@ use node_client::UnspecifiedEnum;
 use thiserror::Error;
 use tonic::Status;
 
+use crate::{StoreNewTokensError, seed_phrase};
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -34,6 +36,8 @@ pub enum Error {
     Nut01(#[from] nuts::nut01::Error),
     #[error("nut02 error: {0}")]
     Nut02(#[from] nuts::nut02::Error),
+    #[error("nut13 error: {0}")]
+    Nut13(#[from] nuts::nut13::Error),
     #[error("bdhke error: {0}")]
     Dhke(#[from] nuts::dhke::Error),
     #[error("conversion error: {0}")]
@@ -49,6 +53,22 @@ pub enum Error {
     UnitMissmatch(String, String),
     #[error("failed to get a connection from the pool: {0}")]
     R2D2(#[from] r2d2::Error),
+    #[error(transparent)]
+    SeedPhrase(#[from] seed_phrase::Error),
+    #[error(transparent)]
+    Wallet(#[from] crate::wallet::Error),
+    #[error(transparent)]
+    RestoreNode(#[from] crate::node::RestoreNodeError),
+}
+
+impl From<StoreNewTokensError> for Error {
+    fn from(value: StoreNewTokensError) -> Self {
+        match value {
+            StoreNewTokensError::Rusqlite(error) => Error::Database(error),
+            StoreNewTokensError::Nut01(error) => Error::Nut01(error),
+            StoreNewTokensError::Dhke(error) => Error::Dhke(error),
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
