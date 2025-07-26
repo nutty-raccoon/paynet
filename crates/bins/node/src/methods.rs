@@ -3,9 +3,12 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use starknet_types::STARKNET_STR;
 
+const ETHEREUM_STR: &str = "ethereum";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Method {
     Starknet,
+    Ethereum,
 }
 
 impl Serialize for Method {
@@ -15,6 +18,7 @@ impl Serialize for Method {
     {
         match self {
             Method::Starknet => Serialize::serialize(STARKNET_STR, serializer),
+            Method::Ethereum => Serialize::serialize(ETHEREUM_STR, serializer),
         }
     }
 }
@@ -27,6 +31,7 @@ impl<'de> Deserialize<'de> for Method {
         let s = <&str>::deserialize(deserializer)?;
         match s {
             STARKNET_STR => Ok(Method::Starknet),
+            ETHEREUM_STR => Ok(Method::Ethereum),
             _ => Err(serde::de::Error::invalid_value(
                 serde::de::Unexpected::Str(s),
                 &"a supported method",
@@ -39,6 +44,7 @@ impl core::fmt::Display for Method {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Method::Starknet => core::fmt::Display::fmt(STARKNET_STR, f),
+            Method::Ethereum => core::fmt::Display::fmt(ETHEREUM_STR, f),
         }
     }
 }
@@ -51,11 +57,11 @@ impl FromStr for Method {
     type Err = FromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == STARKNET_STR {
-            return Ok(Self::Starknet);
-        };
-
-        Err(FromStrError)
+        match s {
+            STARKNET_STR => Ok(Self::Starknet),
+            ETHEREUM_STR => Ok(Self::Ethereum),
+            _ => Err(FromStrError),
+        }
     }
 }
 

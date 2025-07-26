@@ -1,0 +1,104 @@
+services:
+  db:
+    image: "postgres"
+    environment:
+      - POSTGRES_USER=postgres
+      # Required by pg_isready
+      - PGUSER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=node
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  # Ethereum local devnet using Hardhat
+  ethereum-devnet:
+    image: "ethereum/client-go:latest"
+    command: >
+      --dev
+      --dev.period=2
+      --http
+      --http.addr=0.0.0.0
+      --http.port=8545
+      --http.api=eth,net,web3,personal,miner
+      --ws
+      --ws.addr=0.0.0.0
+      --ws.port=8546
+      --ws.api=eth,net,web3,personal,miner
+      --allow-insecure-unlock
+      --unlock=0x0000000000000000000000000000000000000000
+      --password=/dev/null
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      start_period: 5s
+      interval: 10s
+      retries: 5
+
+  signer:
+    image: "signer"
+    restart: always
+    environment:
+      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+      - GRPC_PORT=10001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=signer
+    ports:
+      - "10001:10001"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/signer.Dockerfile
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  node:
+    image: "node"
+    restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/node.Dockerfile
+      args:
+        - CARGO_FEATURES=ethereum
+    volumes:
+      - ./crates/bins/node/config/ethereum-docker.toml:/etc/paynet/ethereum-config.toml
+    environment:
+      - PG_URL=postgres://postgres:password@db/node
+      - SIGNER_URL=http://signer:10001
+      - ETHEREUM_CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000000000000000000000000000000000001
+      - GRPC_PORT=10003
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
+    command:
+      - --ethereum-config
+      - /etc/paynet/ethereum-config.toml
+    ports:
+      - "10003:10003"
+    depends_on:
+      db:
+        condition: service_healthy
+      signer:
+        condition: service_healthy
+      ethereum-devnet:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+volumes:
+  database_data:
+    driver: local

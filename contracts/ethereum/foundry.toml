@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.19"
+
+[dependencies]
+forge-std = { git = "https://github.com/foundry-rs/forge-std", tag = "v1.5.3" }
+openzeppelin-contracts = { git = "https://github.com/OpenZeppelin/openzeppelin-contracts", tag = "v4.9.0" }
+
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config

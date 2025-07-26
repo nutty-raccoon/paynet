@@ -1,0 +1,14 @@
+# Ethereum PayNet Node Configuration
+
+# Ethereum network configuration
+chain_id = "ETH_DEVNET"
+
+# Cashier account address (the address that will receive payments)
+# This should match the address derived from ETHEREUM_CASHIER_PRIVATE_KEY
+cashier_account_address = "0x1111111111111111111111111111111111111111"
+
+# Ethereum RPC node URL
+ethereum_rpc_node_url = "http://ethereum-devnet:8545"
+
+# Ethereum substreams URL (placeholder - would be actual substreams endpoint)
+ethereum_substreams_url = "http://ethereum-substreams:8080"

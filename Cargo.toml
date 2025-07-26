@@ -7,6 +7,7 @@ members = [
   "crates/bins/cli-wallet",
   # Substreams
   "crates/substreams/starknet",
+  "crates/substreams/ethereum",
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
@@ -21,6 +22,9 @@ members = [
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substreams-sink",
+  # Ethereum libs
+  "crates/libs/ethereum/liquidity-source",
+  "crates/libs/ethereum/types",
   # Tests
   "crates/tests/test-utils",
   # Integration tests
@@ -37,6 +41,7 @@ default-members = [
   "crates/bins/cli-wallet",
   # Substreams
   "crates/substreams/starknet",
+  "crates/substreams/ethereum",
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
@@ -51,6 +56,9 @@ default-members = [
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substreams-sink",
+  # Ethereum libs
+  "crates/libs/ethereum/liquidity-source",
+  "crates/libs/ethereum/types",
 ]
 
 
@@ -118,6 +126,9 @@ uint = "0.10.0"
 substreams = "0.6.0"
 chrono = "0.4.38"
 
+# Ethereum
+ethers = "2.0"
+
 # OPTL
 opentelemetry = "0.29.1"
 opentelemetry_sdk = { version = "0.29.0" }
@@ -147,6 +158,9 @@ node-client = { path = "crates/libs/node-client" }
 starknet-types = { path = "crates/libs/starknet/types" }
 starknet-liquidity-source = { path = "crates/libs/starknet/liquidity-source" }
 substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
+# Ethereum
+ethereum-types = { path = "crates/libs/ethereum/types" }
+ethereum-liquidity-source = { path = "crates/libs/ethereum/liquidity-source" }
 # Tracing
 open-telemetry-tracing = { path = "crates/libs/open-telemetry-tracing" }
 # Others
