@@ -39,5 +39,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: wallet::db::proof::CREATE_TABLE_PROOF,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "create_table_wallet",
+            sql: wallet::db::wallet::CREATE_TABLE_WALLET,
+            kind: MigrationKind::Up,
+        },
     ]
 }

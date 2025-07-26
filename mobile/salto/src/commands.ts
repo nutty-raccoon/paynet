@@ -65,3 +65,36 @@ export async function receive_wads(wads: string) {
       return res;
 } 
 
+export type InitWalletResponse = {
+  seedPhrase: string;
+}
+
+export async function checkWalletExists() {
+  const res = await invoke("check_wallet_exists")
+    .then((message) => message as boolean)
+    .catch((error) => {
+      console.error("failed to check wallet exists:", error);
+      return false;
+    });
+
+  return res;
+}
+
+export async function initWallet() {
+  const res = await invoke("init_wallet")
+    .then((message) => message as InitWalletResponse)
+    .catch((error) => {
+      console.error("failed to init wallet:", error);
+    });
+
+  return res;
+}
+
+export async function restoreWallet(seedPhrase: string) {
+  const res = await invoke("restore_wallet", { seedPhrase })
+    .catch((error) => {
+      console.error("failed to restore wallet:", error);
+    });
+
+  return res;
+}
