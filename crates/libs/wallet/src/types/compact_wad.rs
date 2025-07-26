@@ -237,7 +237,8 @@ mod tests {
     use nuts::nut02::KeysetId;
     use nuts::{Amount, traits::Unit};
     use std::str::FromStr;
-
+    
+    // Simple TestUnit implementation using nuts error types
     #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
     #[serde(rename_all = "lowercase")]
     pub enum TestUnit {
