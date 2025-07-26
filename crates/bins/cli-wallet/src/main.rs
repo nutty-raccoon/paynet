@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use bitcoin::bip32::Xpriv;
 use clap::{Args, Parser, Subcommand, ValueHint};
 use node_client::NodeClient;
 use nuts::Amount;
@@ -259,7 +260,13 @@ async fn main() -> Result<()> {
             };
             if should_restore {
                 println!("Restoring proofs");
-                wallet::node::restore(pool, node_id, node_client, wallet.private_key).await?;
+                wallet::node::restore(
+                    pool,
+                    node_id,
+                    node_client,
+                    Xpriv::from_str(&wallet.private_key)?,
+                )
+                .await?;
                 println!("Restoring done.");
 
                 let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;

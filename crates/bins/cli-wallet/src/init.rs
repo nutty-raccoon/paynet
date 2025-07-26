@@ -17,7 +17,7 @@ pub fn init(db_conn: &Connection) -> Result<(), InitError> {
 
     let mut input = String::new();
     println!(
-        "Here is your seed phrase: {}\nWith it your will be able to recover your funds, should you lose access to this device or destroy your local database.\n Make sure to save it somewhere safe.",
+        "Here is your seed phrase:\n->| {} |<-\nWith it your will be able to recover your funds, should you lose access to this device or destroy your local database.\n Make sure to save it somewhere safe.",
         seed_phrase
     );
     println!("Have you stored this seed phrase in a safe place? (y/n)");

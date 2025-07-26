@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use anyhow::anyhow;
 use bip39::Mnemonic;
+use bitcoin::bip32::Xpriv;
 use itertools::Itertools;
 use node_client::NodeClient;
 use nuts::Amount;
@@ -59,7 +62,7 @@ impl WalletOps {
             self.db_pool.clone(),
             self.node_id,
             self.node_client.clone(),
-            private_key,
+            Xpriv::from_str(&private_key)?,
         )
         .await
         .map_err(|e| Error::Wallet(e.into()))?;

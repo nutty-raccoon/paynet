@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bitcoin::bip32::Xpriv;
 use tauri::State;
 use wallet::{db::balance::Balance, types::NodeUrl};
 
@@ -19,6 +20,8 @@ pub enum Error {
     RegisterNode(#[from] wallet::node::RegisterNodeError),
     #[error("failed to restore node: {0}")]
     RestoreNode(#[from] wallet::node::RestoreNodeError),
+    #[error("invalid private key stored in db: {0}")]
+    Bip32(#[from] bitcoin::bip32::Error),
 }
 
 impl serde::Serialize for Error {
@@ -41,7 +44,8 @@ pub async fn add_node(
     let wallet = wallet::db::wallet::get(&*state.pool.get()?)?.unwrap();
 
     if wallet.is_restored {
-        wallet::node::restore(state.pool.clone(), id, client, wallet.private_key).await?;
+        let xpriv = Xpriv::from_str(&wallet.private_key)?;
+        wallet::node::restore(state.pool.clone(), id, client, xpriv).await?;
     }
 
     let balances = wallet::db::balance::get_for_node(&*state.pool.get()?, id)?;

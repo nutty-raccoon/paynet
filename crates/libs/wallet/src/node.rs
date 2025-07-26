@@ -76,9 +76,8 @@ pub async fn restore(
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
     node_client: NodeClient<Channel>,
-    private_key: String,
+    xpriv: Xpriv,
 ) -> Result<(), RestoreNodeError> {
-    let xpriv = seed_phrase::convert_private_key_to_xpriv(private_key).unwrap();
     let keyset_ids = {
         let db_conn = pool.get()?;
         keyset::get_all_ids_for_node(&db_conn, node_id)?

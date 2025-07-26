@@ -30,12 +30,13 @@ pub async fn run_e2e() -> Result<()> {
     wallet_ops.receive(&wad).await?;
     wallet_ops
         .melt(
-            10.into(),
+            5.into(),
             starknet_types::Asset::Strk,
             "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691".to_string(),
         )
         .await?;
     let pre_restore_balances = wallet_ops.balance()?;
+    assert!(!pre_restore_balances.is_empty());
 
     let env = read_env_variables()?;
     let db_pool = db_connection()?;
@@ -43,6 +44,8 @@ pub async fn run_e2e() -> Result<()> {
 
     let (node_client, node_id) = wallet::node::register(db_pool.clone(), &node_url).await?;
     let wallet_ops = WalletOps::new(db_pool.clone(), node_id, node_client);
+
+    assert!(wallet_ops.balance()?.is_empty());
     wallet_ops.restore(seed_phrase).await?;
     let post_restore_balances = wallet_ops.balance()?;
     assert_eq!(pre_restore_balances, post_restore_balances);

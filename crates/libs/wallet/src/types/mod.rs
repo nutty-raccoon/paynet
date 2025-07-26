@@ -31,13 +31,6 @@ pub struct BlindingData {
 }
 
 impl BlindingData {
-    pub fn keyset_id(&self) -> KeysetId {
-        self.keyset_id
-    }
-    pub fn counter(&self) -> u32 {
-        self.keyset_counter
-    }
-
     pub fn load_from_db<U: Unit>(
         db_conn: &Connection,
         node_id: u32,

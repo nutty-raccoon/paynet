@@ -650,6 +650,7 @@ name = "cli-wallet"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bitcoin",
  "clap",
  "dirs",
  "itertools",
@@ -4493,6 +4494,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bip39",
+ "bitcoin",
  "futures",
  "itertools",
  "log",
