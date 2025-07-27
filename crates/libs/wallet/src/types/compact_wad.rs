@@ -345,7 +345,6 @@ mod tests {
     }
 
     // https://github.com/cashubtc/cdk/blob/main/crates/cashu/src/nuts/nut00/token.rs
-    #[cfg(not(feature = "tls"))]
     mod cdk_compatibility {
         use super::*;
 
