@@ -32,6 +32,43 @@ pub enum Error {
     InvalidWadToken(Box<Error>),
 }
 
+impl<U: Unit> CompactWads<U> {
+    pub fn new(wads: Vec<CompactWad<U>>) -> Self {
+        Self(wads)
+    }
+}
+
+impl<U: Unit + Serialize> fmt::Display for CompactWads<U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in 0..self.0.len() {
+            let token_as_string = self.0[i].to_string();
+            write!(f, "{}", token_as_string)?;
+            if i < self.0.len() - 1 {
+                write!(f, ":")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let token_strings: Vec<&str> = s.split(':').collect();
+
+        let mut wads = Vec::with_capacity(token_strings.len());
+        for token_str in token_strings {
+            let wad =
+                CompactWad::from_str(token_str).map_err(|e| Error::InvalidWadToken(Box::new(e)))?;
+            wads.push(wad);
+        }
+
+        Ok(CompactWads(wads))
+    }
+}
+
 /// Token V4
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactWad<U: Unit> {
@@ -52,12 +89,6 @@ pub struct CompactWad<U: Unit> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct CompactWads<U: Unit>(pub Vec<CompactWad<U>>);
-
-impl<U: Unit> CompactWads<U> {
-    pub fn new(wads: Vec<CompactWad<U>>) -> Self {
-        Self(wads)
-    }
-}
 
 impl<U: Unit> CompactWad<U> {
     /// Proofs from token
@@ -121,33 +152,6 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWad<U> {
         let decoded = GeneralPurpose::new(&alphabet::URL_SAFE, decode_config).decode(s)?;
         let token = ciborium::from_reader(&decoded[..])?;
         Ok(token)
-    }
-}
-
-impl<U: Unit + Serialize> fmt::Display for CompactWads<U> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut tokens = Vec::new();
-        for wad in &self.0 {
-            tokens.push(wad.to_string());
-        }
-        write!(f, "{}", tokens.join(":"))
-    }
-}
-
-impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let token_strings: Vec<&str> = s.split(':').collect();
-
-        let mut wads = Vec::with_capacity(token_strings.len());
-        for token_str in token_strings {
-            let wad =
-                CompactWad::from_str(token_str).map_err(|e| Error::InvalidWadToken(Box::new(e)))?;
-            wads.push(wad);
-        }
-
-        Ok(CompactWads(wads))
     }
 }
 
