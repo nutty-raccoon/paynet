@@ -28,8 +28,6 @@ pub enum Error {
     InvalidBase64(#[from] bitcoin::base64::DecodeError),
     #[error("failed to deserialize the CBOR wad representation: {0}")]
     InvalidCbor(#[from] ciborium::de::Error<std::io::Error>),
-    #[error("failed to parse individual wad token: {0}")]
-    InvalidWadToken(Box<Error>),
 }
 
 impl<U: Unit> CompactWads<U> {
@@ -60,8 +58,7 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
 
         let mut wads = Vec::with_capacity(token_strings.len());
         for token_str in token_strings {
-            let wad =
-                CompactWad::from_str(token_str).map_err(|e| Error::InvalidWadToken(Box::new(e)))?;
+            let wad = CompactWad::from_str(token_str)?;
             wads.push(wad);
         }
 
@@ -489,8 +486,8 @@ mod tests {
         let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
         assert!(result.is_err());
         match result.unwrap_err() {
-            Error::InvalidWadToken(_) => (),
-            other => panic!("Expected InvalidWadToken error, got: {:?}", other),
+            Error::UnsupportedWadFormat => (),
+            other => panic!("Expected UnsupposrtedWadFormat error, got: {:?}", other),
         }
     }
 
@@ -505,8 +502,8 @@ mod tests {
         let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
         assert!(result.is_err());
         match result.unwrap_err() {
-            Error::InvalidWadToken(_) => (),
-            other => panic!("Expected InvalidWadToken error, got: {:?}", other),
+            Error::UnsupportedWadFormat => (),
+            other => panic!("Expected UnsupportedWadFormat error, got: {:?}", other),
         }
     }
 }
