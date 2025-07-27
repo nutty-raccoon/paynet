@@ -70,16 +70,16 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactWad<U: Unit> {
     /// Mint Url
-    #[serde(rename = "n")]
+    #[serde(rename = "m")]
     pub node_url: NodeUrl,
     /// Token Unit
     #[serde(rename = "u")]
     pub unit: U,
     /// Memo for token
-    #[serde(rename = "m", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "d", skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
     /// Proofs grouped by keyset_id
-    #[serde(rename = "p")]
+    #[serde(rename = "t")]
     pub proofs: Vec<CompactKeysetProofs>,
 }
 
@@ -344,6 +344,59 @@ mod tests {
         }
     }
 
+    // https://github.com/cashubtc/cdk/blob/main/crates/cashu/src/nuts/nut00/token.rs
+    mod cdk_compatibility {
+        use super::*;
+
+        #[test]
+        fn test_token_v4_str_round_trip() {
+            let token_str = "cashuBpGF0gaJhaUgArSaMTR9YJmFwgaNhYQFhc3hAOWE2ZGJiODQ3YmQyMzJiYTc2ZGIwZGYxOTcyMTZiMjlkM2I4Y2MxNDU1M2NkMjc4MjdmYzFjYzk0MmZlZGI0ZWFjWCEDhhhUP_trhpXfStS6vN6So0qWvc2X3O4NfM-Y1HISZ5JhZGlUaGFuayB5b3VhbXVodHRwOi8vbG9jYWxob3N0OjMzMzhhdWNzYXQ=";
+            let wad = CompactWad::<TestUnit>::from_str(token_str).unwrap();
+
+            assert_eq!(
+                wad.node_url,
+                NodeUrl::from_str("http://localhost:3338").unwrap()
+            );
+            assert_eq!(
+                wad.proofs[0].keyset_id,
+                KeysetId::from_str("00ad268c4d1f5826").unwrap()
+            );
+
+            let encoded = &wad.to_string();
+
+            let token_data = CompactWad::from_str(encoded).unwrap();
+
+            assert_eq!(token_data, wad);
+        }
+
+        #[test]
+        fn test_token_v4_multi_keyset() {
+            let token_str_multi_keysets = "cashuBo2F0gqJhaUgA_9SLj17PgGFwgaNhYQFhc3hAYWNjMTI0MzVlN2I4NDg0YzNjZjE4NTAxNDkyMThhZjkwZjcxNmE1MmJmNGE1ZWQzNDdlNDhlY2MxM2Y3NzM4OGFjWCECRFODGd5IXVW-07KaZCvuWHk3WrnnpiDhHki6SCQh88-iYWlIAK0mjE0fWCZhcIKjYWECYXN4QDEzMjNkM2Q0NzA3YTU4YWQyZTIzYWRhNGU5ZjFmNDlmNWE1YjRhYzdiNzA4ZWIwZDYxZjczOGY0ODMwN2U4ZWVhY1ghAjRWqhENhLSsdHrr2Cw7AFrKUL9Ffr1XN6RBT6w659lNo2FhAWFzeEA1NmJjYmNiYjdjYzY0MDZiM2ZhNWQ1N2QyMTc0ZjRlZmY4YjQ0MDJiMTc2OTI2ZDNhNTdkM2MzZGNiYjU5ZDU3YWNYIQJzEpxXGeWZN5qXSmJjY8MzxWyvwObQGr5G1YCCgHicY2FtdWh0dHA6Ly9sb2NhbGhvc3Q6MzMzOGF1Y3NhdA==";
+
+            let wad = CompactWad::<TestUnit>::from_str(token_str_multi_keysets).unwrap();
+            let amount = wad.value().expect("valid amount");
+
+            assert_eq!(amount, Amount::from(4u64));
+
+            let unit = wad.unit();
+            assert_eq!(&TestUnit::Sat, unit);
+
+            assert_eq!(
+                wad.node_url,
+                NodeUrl::from_str("http://localhost:3338").unwrap()
+            );
+
+            assert_eq!(
+                wad.proofs[0].keyset_id,
+                KeysetId::from_str("00ffd48b8f5ecf80").unwrap()
+            );
+            assert_eq!(
+                wad.proofs[1].keyset_id,
+                KeysetId::from_str("00ad268c4d1f5826").unwrap()
+            );
+        }
+    }
+
     // OK tests
 
     #[test]
@@ -352,7 +405,6 @@ mod tests {
         let original_token = create_test_compact_wad_single_proof("mint.example.com", 100);
         let wads = CompactWads::new(vec![original_token.clone()]);
 
-        // Serialize to string
         let serialized = wads.to_string();
         assert!(serialized.starts_with(CASHU_PREFIX));
         assert!(!serialized.contains(':'));
@@ -361,8 +413,7 @@ mod tests {
         let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
-        assert_eq!(wads.0.len(), deserialized.0.len());
-        assert_eq!(wads.0[0], deserialized.0[0]);
+        assert_eq!(wads, deserialized);
     }
 
     #[test]
@@ -381,9 +432,7 @@ mod tests {
         let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
-        assert_eq!(wads.0.len(), deserialized.0.len());
-        assert_eq!(wads.0[0], deserialized.0[0]);
-        assert_eq!(wads.0[0].proofs[0].proofs.len(), 3);
+        assert_eq!(wads, deserialized);
     }
 
     #[test]
@@ -402,9 +451,7 @@ mod tests {
         let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
-        assert_eq!(wads.0.len(), deserialized.0.len());
-        assert_eq!(wads.0[0], deserialized.0[0]);
-        assert_eq!(wads.0[1], deserialized.0[1]);
+        assert_eq!(wads, deserialized);
     }
 
     #[test]
@@ -424,10 +471,7 @@ mod tests {
         let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
-        assert_eq!(wads.0.len(), deserialized.0.len());
-        assert_eq!(wads.0[0], deserialized.0[0]);
-        assert_eq!(wads.0[1], deserialized.0[1]);
-        assert_eq!(wads.0[2], deserialized.0[2]);
+        assert_eq!(wads, deserialized);
     }
 
     // KO tests
