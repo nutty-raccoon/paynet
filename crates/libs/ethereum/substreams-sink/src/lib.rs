@@ -34,20 +34,20 @@ pub async fn launch(
     chain_id: ChainId,
     cashier_account_address: String, // Ethereum address as hex string
 ) -> Result<()> {
-    let package = parse_inputs::read_package(vec![])?;
+    let package: pb::sf::substreams::v1::Package = parse_inputs::read_package(vec![])?;
 
-    let token = match env::var("SUBSTREAMS_API_TOKEN") {
+    let token: Option<String> = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,
         Err(e) => Err(e)?,
         Ok(val) if val.is_empty() => None,
         Ok(val) => Some(val),
     };
 
-    let endpoint = Arc::new(SubstreamsEndpoint::new(endpoint_url, token).await?);
+    let endpoint: Arc<SubstreamsEndpoint> = Arc::new(SubstreamsEndpoint::new(endpoint_url, token).await?);
 
     const OUTPUT_MODULE_NAME: &str = "map_invoice_contract_events";
 
-    let initial_block = package
+    let initial_block: u64 = package
         .modules
         .as_ref()
         .unwrap()
@@ -57,11 +57,11 @@ pub async fn launch(
         .ok_or_else(|| format_err!("module '{}' not found in package", OUTPUT_MODULE_NAME))?
         .initial_block;
 
-    let mut db_conn = pg_pool.acquire().await?;
+    let mut db_conn: sqlx::pool::PoolConnection<sqlx::Postgres> = pg_pool.acquire().await?;
 
     let cursor: Option<String> = load_persisted_cursor(&mut db_conn).await?;
 
-    let mut stream = SubstreamsStream::new(
+    let mut stream: SubstreamsStream = SubstreamsStream::new(
         endpoint,
         cursor,
         package.modules,
@@ -100,10 +100,10 @@ async fn process_block_scoped_data(
     chain_id: &ChainId,
     cashier_account_address: &str,
 ) -> Result<(), Error> {
-    let output = data.output.as_ref().unwrap().map_output.as_ref().unwrap();
+    let output: &prost_types::Any = data.output.as_ref().unwrap().map_output.as_ref().unwrap();
 
-    let clock = data.clock.as_ref().unwrap();
-    let timestamp = clock.timestamp.as_ref().unwrap();
+    let clock: &pb::sf::substreams::v1::Clock = data.clock.as_ref().unwrap();
+    let timestamp: &prost_types::Timestamp = clock.timestamp.as_ref().unwrap();
     let date = DateTime::from_timestamp(timestamp.seconds, timestamp.nanos as u32)
         .expect("received timestamp should always be valid");
 
@@ -115,7 +115,7 @@ async fn process_block_scoped_data(
                 .bind(date)
     .execute(&mut *conn).await?;
 
-    let events = RemittanceEvents::decode(output.value.as_slice())?;
+    let events: RemittanceEvents = RemittanceEvents::decode(output.value.as_slice())?;
 
     println!(
         "Block #{} - Payload {} ({} bytes) - Drift {}s",
@@ -254,10 +254,10 @@ async fn process_payment_event(
 
         #[allow(clippy::collapsible_else_if)]
         if is_mint {
-            let payee_address = payment_event.payee.strip_prefix("0x").unwrap_or(&payment_event.payee);
-            let cashier_address = cashier_account_address.strip_prefix("0x").unwrap_or(cashier_account_address);
+            let payee_address: &str = payment_event.payee.strip_prefix("0x").unwrap_or(&payment_event.payee);
+            let cashier_address: &str = cashier_account_address.strip_prefix("0x").unwrap_or(cashier_account_address);
             if payee_address.eq_ignore_ascii_case(cashier_address) {
-                let db_event = PaymentEvent {
+                let db_event: PaymentEvent = PaymentEvent {
                     block_id: block_id.clone(),
                     tx_hash: payment_event.tx_hash,
                     index: payment_event.log_index as i64,
@@ -273,10 +273,10 @@ async fn process_payment_event(
             }
         } else {
             if let Some(payee_address) = on_chain_constants.payee_address.as_ref() {
-                let event_payee = payment_event.payee.strip_prefix("0x").unwrap_or(&payment_event.payee);
-                let expected_payee = payee_address.strip_prefix("0x").unwrap_or(payee_address);
+                let event_payee: &str = payment_event.payee.strip_prefix("0x").unwrap_or(&payment_event.payee);
+                let expected_payee: &str = payee_address.strip_prefix("0x").unwrap_or(payee_address);
                 if event_payee.eq_ignore_ascii_case(expected_payee) {
-                    let db_event = PaymentEvent {
+                    let db_event: PaymentEvent = PaymentEvent {
                         block_id: block_id.clone(),
                         tx_hash: payment_event.tx_hash,
                         index: payment_event.log_index as i64,
@@ -306,7 +306,7 @@ async fn handle_mint_payment(
 ) -> Result<(), Error> {
     db_node::mint_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
 
-    let current_paid =
+    let current_paid: primitive_types::U256 =
         db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
             .await?
             .map(|(low, _high)| -> Result<primitive_types::U256, Error> {
@@ -324,7 +324,7 @@ async fn handle_mint_payment(
                 }
             })?;
 
-    let to_pay = unit.convert_amount_into_u256(quote_amount);
+    let to_pay: primitive_types::U256 = unit.convert_amount_into_u256(quote_amount);
     if current_paid >= to_pay {
         db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;
         event!(
@@ -347,13 +347,13 @@ async fn handle_melt_payment(
 ) -> Result<(), Error> {
     db_node::melt_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
 
-    let current_paid =
+    let current_paid: primitive_types::U256 =
         db_node::melt_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
             .await?
             .map(|(low, _high)| -> Result<primitive_types::U256, Error> {
                 // For Ethereum, we only use the low part since it's a single 256-bit value
-                let amount_hex = low.strip_prefix("0x").unwrap_or(&low);
-                let amount_bytes = hex::decode(amount_hex)?;
+                let amount_hex: &str = low.strip_prefix("0x").unwrap_or(&low);
+                let amount_bytes: Vec<u8> = hex::decode(amount_hex)?;
                 Ok(primitive_types::U256::from_big_endian(&amount_bytes))
             })
             .try_fold(primitive_types::U256::zero(), |acc, a| {
