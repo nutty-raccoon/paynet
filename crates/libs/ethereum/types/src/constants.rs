@@ -19,6 +19,26 @@ impl AssetsAddress {
             Asset::Usdt => self.usdt,
         }
     }
+
+    /// Get the asset for a specific contract address (hex string)
+    pub fn get_asset_for_contract_address_hex(&self, address_hex: &str) -> Option<Asset> {
+        let address = crate::ethereum_address_from_hex(address_hex).ok()?;
+        self.get_asset_for_contract_address(address)
+    }
+
+    /// Get the asset for a specific contract address
+    pub fn get_asset_for_contract_address(&self, address: EthereumAddress) -> Option<Asset> {
+        if self.usdc == Some(address) {
+            Some(Asset::Usdc)
+        } else if self.usdt == Some(address) {
+            Some(Asset::Usdt)
+        } else if address == EthereumAddress::zero() {
+            // ETH is represented as address(0) in events
+            Some(Asset::Eth)
+        } else {
+            None
+        }
+    }
 }
 
 /// Substreams-specific configuration for data streaming
@@ -36,6 +56,7 @@ pub struct OnChainConstants {
     pub substreams: SubstreamsConstants,
     pub invoice_payment_contract_address: EthereumAddress,
     pub assets_contract_address: AssetsAddress,
+    pub payee_address: Option<&'static str>, // For melt operations
 }
 
 /// Asset addresses for Ethereum Sepolia testnet
@@ -100,6 +121,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf_ma
             0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78
         ]),
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
+        payee_address: Some("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
     },
     "ETH_MAINNET" => OnChainConstants {
         // Starting block for Mainnet (example block)
@@ -110,6 +132,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf_ma
             0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01
         ]),
         assets_contract_address: MAINNET_ASSETS_ADDRESSES,
+        payee_address: Some("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
     },
     "ETH_DEVNET" => OnChainConstants {
         substreams: SubstreamsConstants { starting_block: 0 },
@@ -119,6 +142,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf_ma
             0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
         ]),
         assets_contract_address: DEVNET_ASSETS_ADDRESSES,
+        payee_address: Some("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
     },
 };
 

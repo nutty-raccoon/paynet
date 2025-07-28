@@ -32,3 +32,8 @@ modules:
     - map: ethereum:filtered_logs
   output:
    type: proto:invoice_contract.v1.RemittanceEvents
+
+network: ethereum-local
+
+params:
+  ethereum:filtered_logs: topic0:0xf67804c4291a6e963fa4351308ed292a548b89d76c77c794c59167f4c6caf108

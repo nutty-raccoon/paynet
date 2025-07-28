@@ -45,6 +45,25 @@ services:
       interval: 10s
       retries: 5
 
+  ethereum-firehose:
+    image: ethereum-firehose
+    build:
+      context: .
+      dockerfile: ./dockerfiles/ethereum-firehose.Dockerfile
+    environment:
+      - ETHEREUM_NODE_URL=http://ethereum-devnet:8545
+    ports:
+      - "10017:10017"
+      - "10018:10018"
+    depends_on:
+      ethereum-devnet:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10017"]
+      start_period: 10s
+      interval: 10s
+      retries: 5
+
   signer:
     image: "signer"
     restart: always

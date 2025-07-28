@@ -5,14 +5,10 @@ use crate::pb::invoice_contract::v1::{RemittanceEvent, RemittanceEvents};
 use crate::pb::sf::ethereum::r#type::v2::Log;
 
 // Remittance event signature: Remittance(address,address,bytes32,address,uint256)
-// keccak256("Remittance(address,address,bytes32,address,uint256)") = 0x...
+// keccak256("Remittance(address,address,bytes32,address,uint256)") = 0xf67804c4291a6e963fa4351308ed292a548b89d76c77c794c59167f4c6caf108
 const REMITTANCE_EVENT_SIGNATURE: [u8; 32] = [
-    // This would be the actual keccak256 hash of the event signature
-    // For now using placeholder bytes
-    0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34,
-    0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
-    0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
-    0xde, 0xf0,
+    0xf6, 0x78, 0x04, 0xc4, 0x29, 0x1a, 0x6e, 0x96, 0x3f, 0xa4, 0x35, 0x13, 0x08, 0xed, 0x29, 0x2a,
+    0x54, 0x8b, 0x89, 0xd7, 0x6c, 0x77, 0xc7, 0x94, 0xc5, 0x91, 0x67, 0xf4, 0xc6, 0xca, 0xf1, 0x08,
 ];
 
 #[substreams::handlers::map]
@@ -74,8 +70,19 @@ fn parse_remittance_event(log: &Log) -> Option<RemittanceEvent> {
     let payer = format!("0x{}", hex::encode(&log.data[12..32])); // First 32 bytes, last 20 for address
     let amount = format!("0x{}", hex::encode(&log.data[32..64])); // Second 32 bytes for uint256
 
+    // Get transaction hash from the log's transaction receipt
+    let tx_hash = if let Some(receipt) = &log.receipt {
+        if let Some(transaction) = &receipt.transaction {
+            format!("0x{}", hex::encode(&transaction.hash))
+        } else {
+            "0x".to_string()
+        }
+    } else {
+        "0x".to_string() // fallback if no receipt
+    };
+
     Some(RemittanceEvent {
-        tx_hash: format!("0x{}", hex::encode(&log.receipt.transaction.hash)),
+        tx_hash,
         log_index: log.index,
         asset,
         payee,

@@ -25,6 +25,7 @@ members = [
   # Ethereum libs
   "crates/libs/ethereum/liquidity-source",
   "crates/libs/ethereum/types",
+  "crates/libs/ethereum/substreams-sink",
   # Tests
   "crates/tests/test-utils",
   # Integration tests
@@ -116,7 +117,7 @@ sha2 = "0.10"
 rustainers = "0.15.1"
 assert_matches = "1.5.0"
 starknet = "0.13.0"
-phf = { version = "0.11.3" }
+phf = { version = "0.11.3", features = ["macros"] }
 async-trait = "0.1.88"
 async-stream = "0.3"
 itertools = "0.14"
@@ -161,6 +162,7 @@ substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
 # Ethereum
 ethereum-types = { path = "crates/libs/ethereum/types" }
 ethereum-liquidity-source = { path = "crates/libs/ethereum/liquidity-source" }
+ethereum-substreams-sink = { path = "crates/libs/ethereum/substreams-sink" }
 # Tracing
 open-telemetry-tracing = { path = "crates/libs/open-telemetry-tracing" }
 # Others

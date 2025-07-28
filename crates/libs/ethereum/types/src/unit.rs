@@ -33,6 +33,11 @@ impl Unit {
         }
     }
 
+    /// Checks if this unit supports the given asset
+    pub fn is_asset_supported(&self, asset: Asset) -> bool {
+        self.asset() == asset
+    }
+
     /// Converts a protocol amount to the blockchain's native representation
     ///
     /// This handles the conversion from user-facing units to the actual values
