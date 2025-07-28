@@ -1,6 +1,5 @@
 use std::{
     env::{self, VarError},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -18,7 +17,7 @@ use sqlx::{
         chrono::{DateTime, Utc},
     },
 };
-use ethereum_types::{ChainId, EthereumU256, Unit, constants::ON_CHAIN_CONSTANTS};
+use ethereum_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
 use tracing::{Level, debug, error, event};
@@ -142,12 +141,12 @@ async fn delete_invalid_blocks(
     conn: &mut PgConnection,
     last_valid_block_number: u64,
 ) -> Result<(), anyhow::Error> {
-    sqlx::query!(
+    sqlx::query(
         r#"
             DELETE FROM substreams_ethereum_block WHERE number > $1;
         "#,
-        i64::try_from(last_valid_block_number).unwrap()
     )
+    .bind(i64::try_from(last_valid_block_number).unwrap())
     .execute(conn)
     .await?;
 
@@ -155,14 +154,14 @@ async fn delete_invalid_blocks(
 }
 
 async fn persist_cursor(conn: &mut PgConnection, cursor: String) -> Result<(), anyhow::Error> {
-    sqlx::query!(
+    sqlx::query(
         r#"
             INSERT INTO substreams_cursor (name, cursor) VALUES ($1, $2)
             ON CONFLICT (name) DO UPDATE SET cursor = excluded.cursor
         "#,
-        "ethereum",
-        cursor
     )
+    .bind("ethereum")
+    .bind(cursor)
     .execute(conn)
     .await?;
 
@@ -170,16 +169,16 @@ async fn persist_cursor(conn: &mut PgConnection, cursor: String) -> Result<(), a
 }
 
 async fn load_persisted_cursor(conn: &mut PgConnection) -> Result<Option<String>, anyhow::Error> {
-    let opt_record = sqlx::query!(
+    let opt_record = sqlx::query_scalar::<_, String>(
         r#"
             SELECT cursor FROM substreams_cursor WHERE name = $1
         "#,
-        "ethereum"
     )
+    .bind("ethereum")
     .fetch_optional(conn)
     .await?;
 
-    Ok(opt_record.map(|r| r.cursor))
+    Ok(opt_record)
 }
 
 async fn process_payment_event(
@@ -310,7 +309,7 @@ async fn handle_mint_payment(
     let current_paid =
         db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
             .await?
-            .map(|(low, high)| -> Result<primitive_types::U256, Error> {
+            .map(|(low, _high)| -> Result<primitive_types::U256, Error> {
                 // For Ethereum, we only use the low part since it's a single 256-bit value
                 let amount_hex = low.strip_prefix("0x").unwrap_or(&low);
                 let amount_bytes = hex::decode(amount_hex)?;
@@ -351,7 +350,7 @@ async fn handle_melt_payment(
     let current_paid =
         db_node::melt_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
             .await?
-            .map(|(low, high)| -> Result<primitive_types::U256, Error> {
+            .map(|(low, _high)| -> Result<primitive_types::U256, Error> {
                 // For Ethereum, we only use the low part since it's a single 256-bit value
                 let amount_hex = low.strip_prefix("0x").unwrap_or(&low);
                 let amount_bytes = hex::decode(amount_hex)?;
