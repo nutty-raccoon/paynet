@@ -298,18 +298,21 @@ jobs:
           sparse-checkout: |
             contracts/ethereum/invoice
           sparse-checkout-cone-mode: false
+          submodules: "recursive"
 
       - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
-      - name: Check Formatting
-        working-directory: ./contracts/ethereum/invoice
-        run: forge fmt --check
 
       - name: Install dependencies
         working-directory: ./contracts/ethereum/invoice
         run: forge install
+
+      - name: Show Forge version
+        working-directory: ./contracts/ethereum/invoice
+        run: forge --version
+
+      - name: Check Formatting
+        working-directory: ./contracts/ethereum/invoice
+        run: forge fmt --check
 
       - name: Build contracts
         working-directory: ./contracts/ethereum/invoice
