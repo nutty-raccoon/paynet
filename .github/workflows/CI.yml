@@ -301,7 +301,7 @@ jobs:
 
       - uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: stable
 
       - name: Check Formatting
         working-directory: ./contracts/ethereum/invoice
@@ -314,6 +314,10 @@ jobs:
       - name: Build contracts
         working-directory: ./contracts/ethereum/invoice
         run: forge build
+      
+      - name: Test contracts
+        working-directory: ./contracts/ethereum/invoice
+        run: forge test
 
       - name: Upload contract artifacts
         uses: actions/upload-artifact@v4
