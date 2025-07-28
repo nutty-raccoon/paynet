@@ -11,6 +11,9 @@ use crate::Unit;
 pub enum Asset {
     Strk,
     Eth,
+    Btc,
+    Usdc,
+    Usdt,
 }
 
 impl core::fmt::Display for Asset {
@@ -30,18 +33,25 @@ impl Asset {
         match self {
             Asset::Strk => "strk",
             Asset::Eth => "eth",
+            Asset::Btc => "btc",
+            Asset::Usdc => "usdc",
+            Asset::Usdt => "usdt",
         }
     }
 
     pub fn precision(&self) -> u8 {
         match self {
             Asset::Strk | Asset::Eth => 18,
+            Asset::Btc => 8,
+            Asset::Usdc | Asset::Usdt => 6,
         }
     }
 
     pub fn scale_factor(&self) -> U256 {
         match self {
             Asset::Strk | Asset::Eth => U256::from(1_000_000_000_000_000_000u64),
+            Asset::Btc => U256::from(100_000_000u64),
+            Asset::Usdc | Asset::Usdt => U256::from(1_000_000u64),
         }
     }
 
@@ -49,6 +59,8 @@ impl Asset {
         match self {
             Asset::Strk => Unit::MilliStrk,
             Asset::Eth => Unit::Gwei,
+            Asset::Btc => Unit::Satoshi,
+            Asset::Usdc | Asset::Usdt => Unit::MicroUsd,
         }
     }
 
@@ -96,9 +108,12 @@ impl FromStr for Asset {
     type Err = AssetFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "strk" | "STRK" => Ok(Asset::Strk),
-            "eth" | "ETH" => Ok(Asset::Eth),
+        match s.to_lowercase().as_str() {
+            "strk" => Ok(Asset::Strk),
+            "eth" => Ok(Asset::Eth),
+            "btc" => Ok(Asset::Btc),
+            "usdc" => Ok(Asset::Usdc),
+            "usdt" => Ok(Asset::Usdt),
             _ => Err(AssetFromStrError),
         }
     }

@@ -13,6 +13,8 @@ use crate::Asset;
 
 const GWEI_STR: &str = "gwei";
 const MILLI_STR: &str = "millistrk";
+const SATOSHI_STR: &str = "satoshi";
+const MICRO_USD_STR: &str = "microusd";
 
 /// Represents units supported by the node for user-facing operations
 ///
@@ -22,6 +24,8 @@ const MILLI_STR: &str = "millistrk";
 pub enum Unit {
     MilliStrk,
     Gwei,
+    Satoshi,
+    MicroUsd,
 }
 
 /// Maps a unit to its corresponding blockchain asset
@@ -34,13 +38,18 @@ impl Unit {
         match self {
             Unit::MilliStrk => Asset::Strk,
             Unit::Gwei => Asset::Eth,
+            Unit::Satoshi => Asset::Btc,
+            Unit::MicroUsd => Asset::Usdc, 
         }
     }
+
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Unit::MilliStrk => MILLI_STR,
             Unit::Gwei => GWEI_STR,
+            Unit::Satoshi => SATOSHI_STR,
+            Unit::MicroUsd => MICRO_USD_STR,
         }
     }
 }
@@ -59,6 +68,8 @@ impl From<Unit> for u32 {
         match value {
             Unit::MilliStrk => 0,
             Unit::Gwei => 1,
+            Unit::Satoshi => 2,
+            Unit::MicroUsd => 3,
         }
     }
 }
@@ -72,14 +83,17 @@ impl FromStr for Unit {
     type Err = UnitFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let unit = match s {
+        let unit = match s.to_lowercase().as_str() {
             MILLI_STR => Self::MilliStrk,
             GWEI_STR => Self::Gwei,
+            SATOSHI_STR => Self::Satoshi,
+            MICRO_USD_STR => Self::MicroUsd,
             _ => return Err(UnitFromStrError),
         };
 
         Ok(unit)
     }
+
 }
 
 impl std::fmt::Display for Unit {
@@ -105,8 +119,10 @@ const MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE: u64 = 1_000_000_000_000_000;
 impl Unit {
     pub fn scale_factor(&self) -> u64 {
         match self {
-            Unit::MilliStrk => MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE,
+            Unit::MilliStrk => 1_000_000_000_000_000,
             Unit::Gwei => 1_000_000_000,
+            Unit::Satoshi => 1,
+            Unit::MicroUsd => 1,
         }
     }
 
@@ -114,8 +130,11 @@ impl Unit {
         match self {
             Unit::MilliStrk => 15,
             Unit::Gwei => 9,
+            Unit::Satoshi => 0,
+            Unit::MicroUsd => 0,
         }
     }
+
 
     /// Converts an amount of unit to its blockchain-native representation
     pub fn convert_amount_into_u256(&self, amount: Amount) -> U256 {
@@ -128,7 +147,11 @@ impl Unit {
     pub fn is_asset_supported(&self, asset: Asset) -> bool {
         matches!(
             (self, asset),
-            (Unit::MilliStrk, Asset::Strk) | (Unit::Gwei, Asset::Eth)
+            (Unit::MilliStrk, Asset::Strk) 
+            | (Unit::Gwei, Asset::Eth)
+            | (Unit::Satoshi, Asset::Btc)
+            | (Unit::MicroUsd, Asset::Usdc)
+            | (Unit::MicroUsd, Asset::Usdt)
         )
     }
 }
