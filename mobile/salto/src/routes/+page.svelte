@@ -11,13 +11,16 @@
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import { getNodesBalance } from "../commands";
+  import { getCurrencies, getNodesBalance, getPrices } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
+  import type { Price } from "../types/price";
+  import SettingsModal from "./settings/SettingsModal.svelte";
 
   const Modal = {
     ROOT: 0,
     SEND: 1,
     RECEIVE: 2,
+    SETTINGS: 3,
   } as const;
   type Modal = (typeof Modal)[keyof typeof Modal];
 
@@ -29,19 +32,38 @@
   let activeTab: Tab = $state("pay");
   let errorMessage = $state("");
 
+  let tokenPrices: Price[] = $state([]);
+  let fiatCurrencies: string[] = $state([]);
+  let selectedCurrency: string = $state("usd");
+
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
-    computeTotalBalancePerUnit(nodes),
+    computeTotalBalancePerUnit(nodes)
   );
-  let formattedTotalBalance: string[] = $derived(
-    totalBalance
+  let formattedBalance: {
+    totalAmount: number;
+    formattedTotalBalance: string[];
+  } = $derived.by(() => {
+    console.log(selectedCurrency);
+    let totalAmount: number = 0;
+    let formattedTotalBalance: string[] = totalBalance
       .entries()
       .map(([unit, amount]) => {
         const formatted = formatBalance({ unit, amount });
+        let price = tokenPrices.find(
+          (p) => formatted.asset === p.symbol.toUpperCase()
+        );
+        if (typeof price === "object") {
+          let value = price.price.find(
+            (asset) => selectedCurrency === asset.currency
+          );
+          totalAmount += formatted.amount * (value ? value.value : 0);
+        }
         return `${formatted.asset}: ${formatted.amount}`;
       })
-      .toArray(),
-  );
+      .toArray();
+    return { totalAmount, formattedTotalBalance };
+  });
 
   // Effect to manage scrolling based on active tab
   $effect(() => {
@@ -82,6 +104,16 @@
       }
     });
 
+    getPrices();
+
+    getCurrencies().then((resp) => {
+      fiatCurrencies = resp ? resp : fiatCurrencies;
+    });
+
+    listen<{ prices: Price[] }>("new-price", (event) => {
+      tokenPrices = event.payload.prices ? event.payload.prices : tokenPrices;
+    });
+
     listen<BalanceChange>("balance-increase", (event) => {
       onNodeBalanceIncrease(event.payload);
     });
@@ -104,13 +136,22 @@
   });
 </script>
 
+<button class="settings" onclick={() => openModal(Modal.SETTINGS)}
+  >Settings</button
+>
 <main class="container">
   {#if activeTab === "pay"}
     {#if currentModal == Modal.ROOT}
       <div class="pay-container">
         <div class="total-balance-card">
           <h2 class="balance-title">TOTAL BALANCE</h2>
-          <p class="total-balance-amount">{formattedTotalBalance}</p>
+          <p class="total-balance-amount">
+            {formattedBalance.formattedTotalBalance}
+          </p>
+          <p class="total-currency-amount">
+            {formattedBalance.totalAmount.toFixed(2)}
+            {selectedCurrency}
+          </p>
         </div>
         {#if errorMessage}
           <div class="error-message">
@@ -135,6 +176,14 @@
     </div>
   {/if}
 </main>
+
+{#if currentModal == Modal.SETTINGS}
+  <SettingsModal
+    bind:selectedCurrency
+    {fiatCurrencies}
+    onClose={goBackToRoot}
+  />
+{/if}
 
 <NavBar
   {activeTab}
@@ -233,6 +282,13 @@
     margin: 0;
   }
 
+  .total-currency-amount {
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: #0f0f0f;
+    margin-top: 1rem;
+  }
+
   .error-message {
     background-color: #fee2e2;
     color: #dc2626;
@@ -293,6 +349,16 @@
   .receive-button:active {
     transform: scale(0.98);
     background-color: #0d4814;
+  }
+
+  .settings {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
   }
 
   @media (prefers-color-scheme: dark) {

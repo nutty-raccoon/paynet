@@ -4,10 +4,12 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, create_mint_quote, create_wads, get_nodes_balance, receive_wads, redeem_quote,
+    add_node, create_mint_quote, create_wads, get_currencies, get_nodes_balance, get_prices,
+    receive_wads, redeem_quote, PriceResponce,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use std::sync::Mutex;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -36,7 +38,10 @@ pub fn run() {
                     .expect("dirs::data_dir should map to a valid path on this machine");
                 let manager = SqliteConnectionManager::file(db_path);
                 let pool = r2d2::Pool::new(manager)?;
-                app.manage(AppState { pool });
+                app.manage(AppState {
+                    pool,
+                    get_prices_starded: Mutex::new(false),
+                });
                 Ok(())
             })
             .plugin(
@@ -51,6 +56,8 @@ pub fn run() {
                 redeem_quote,
                 create_wads,
                 receive_wads,
+                get_prices,
+                get_currencies,
             ])
     };
 
@@ -61,4 +68,5 @@ pub fn run() {
 #[derive(Debug)]
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
+    get_prices_starded: Mutex<bool>,
 }

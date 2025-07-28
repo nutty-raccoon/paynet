@@ -1,11 +1,15 @@
-import {fastify} from "../index";
-import { client, myCache, tokens } from "..";
+import {fastify, type Token} from "../index";
+import { client, myCache } from "..";
 
 export async function fetchPrice() {
     try{
         let currencies: string[] | undefined = myCache.get("currencies");
         if (!currencies) {
-            throw new Error ("No currencies set.");
+            throw new Error ("No currency set.");
+        }
+        const tokens: Token[] | undefined = myCache.get("tokens");
+        if (!tokens) {
+            throw new Error ("No token set.")
         }
 
         let addresses = tokens.map(token => token.address).join(",");

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { myCache } from '../..';
-import { addTokenSchema, delTokenSchema } from './schemas';
-import { addToken, delToken } from './handler';
+// import { addTokenSchema, delTokenSchema } from './schemas';
+// import { addToken, delToken } from './handler';
 
 export async function tokenRoutes(fastify: FastifyInstance) {
     // GET
@@ -11,6 +11,6 @@ export async function tokenRoutes(fastify: FastifyInstance) {
     });
 
     // POST
-    fastify.post('/del/token', { schema: delTokenSchema }, delToken);
-    fastify.post('/add/token', { schema: addTokenSchema }, addToken);
+    // fastify.post('/del/token', { schema: delTokenSchema }, delToken);
+    // fastify.post('/add/token', { schema: addTokenSchema }, addToken);
 }

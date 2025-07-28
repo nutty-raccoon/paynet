@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { myCache } from "../..";
-import { addCurrency, delCurrency } from "./handler";
-import { addCurrencySchema, delCurrencySchema } from "./schemas";
+// import { addCurrency, delCurrency } from "./handler";
+// import { addCurrencySchema, delCurrencySchema } from "./schemas";
 
 export async function currencyRoutes(fastify: FastifyInstance) {
     // GET
@@ -11,6 +11,6 @@ export async function currencyRoutes(fastify: FastifyInstance) {
     });
 
     // POST
-    fastify.post('/del/currency', { schema: delCurrencySchema }, delCurrency);
-    fastify.post('/add/currency', { schema: addCurrencySchema }, addCurrency);
+    // fastify.post('/del/currency', { schema: delCurrencySchema }, delCurrency);
+    // fastify.post('/add/currency', { schema: addCurrencySchema }, addCurrency);
 }

@@ -18,6 +18,8 @@ primitive-types = "0.13.1"
 num-traits = "0.2.19"
 uint = "0.10.0"
 log = "0.4.25"
+reqwest = "0.12.12"
+tokio = "1.44.1"
 
 # serde
 serde_json = "1.0.134"
