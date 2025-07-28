@@ -289,6 +289,41 @@ jobs:
             contracts/starknet/invoice/compiled_class_hash.txt
           retention-days: 1
 
+  build-ethereum-contracts:
+    name: Build Ethereum contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            contracts/ethereum/invoice
+          sparse-checkout-cone-mode: false
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Check Formatting
+        working-directory: ./contracts/ethereum/invoice
+        run: forge fmt --check
+
+      - name: Install dependencies
+        working-directory: ./contracts/ethereum/invoice
+        run: forge install
+
+      - name: Build contracts
+        working-directory: ./contracts/ethereum/invoice
+        run: forge build
+
+      - name: Upload contract artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethereum-contracts
+          path: |
+            contracts/ethereum/invoice/out/InvoicePayment.sol/InvoicePayment.json
+            contracts/ethereum/invoice/out/InvoicePayment.sol/IInvoicePayment.json
+          retention-days: 1
+
   unit-test:
     name: Unit tests
     runs-on: ubuntu-latest
