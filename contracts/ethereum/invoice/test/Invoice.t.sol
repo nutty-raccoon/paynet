@@ -13,7 +13,9 @@ contract InvoiceTest is Test {
     address public sender = address(0x2); // Sender address (payer in tests)
 
     // Event expected to be emitted by InvoicePayment on payment
-    event Remittance(address indexed asset, address indexed payee, uint256 invoiceId, uint256 amount, address payer);
+    event Remittance(
+        address indexed asset, address indexed payee, uint256 invoiceId, uint256 amount, address indexed payer
+    );
 
     // Deploy fresh contract and token before each test
     function setUp() public {
@@ -39,7 +41,7 @@ contract InvoiceTest is Test {
         uint256 invoiceId = uint256(keccak256(abi.encodePacked(quoteIdHash, expiry, uint256(2))));
 
         // Expect the Remittance event to be emitted with these parameters
-        vm.expectEmit(true, true, true, false);
+        vm.expectEmit(true, true, true, true);
         emit Remittance(address(token), recipient, invoiceId, amount, sender);
 
         // Call the payInvoice function

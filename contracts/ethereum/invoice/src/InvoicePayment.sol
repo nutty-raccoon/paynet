@@ -10,7 +10,9 @@ interface IInvoicePayment {
 
 contract InvoicePayment is IInvoicePayment {
     // Event emitted when a payment is made for an invoice
-    event Remittance(address indexed asset, address indexed payee, uint256 invoiceId, uint256 amount, address payer);
+    event Remittance(
+        address indexed asset, address indexed payee, uint256 invoiceId, uint256 amount, address indexed payer
+    );
 
     // Pay an invoice by transferring ERC20 tokens from payer to payee
     function payInvoice(uint256 quoteIdHash, uint64 expiry, address asset, uint256 amount, address payee) external {
