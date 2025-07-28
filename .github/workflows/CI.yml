@@ -298,7 +298,6 @@ jobs:
           sparse-checkout: |
             contracts/ethereum/invoice
           sparse-checkout-cone-mode: false
-          submodules: "recursive"
 
       - uses: foundry-rs/foundry-toolchain@v1
 
