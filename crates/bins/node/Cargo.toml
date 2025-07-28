@@ -48,13 +48,15 @@ opentelemetry = { workspace = true }
 openssl = { workspace = true, optional = true }
 tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 
-## Not optional for now as it is our only form of liquidity source
-starknet-liquidity-source = { workspace = true }
+## Liquidity sources
+starknet-liquidity-source = { workspace = true, optional = true }
+ethereum-liquidity-source = { workspace = true, optional = true }
 
 [features]
 default = ["starknet"]
-mock = ["starknet-liquidity-source/mock"]
-starknet = []
+mock = ["starknet-liquidity-source?/mock", "ethereum-liquidity-source?/mock"]
+starknet = ["dep:starknet-liquidity-source"]
+ethereum = ["dep:ethereum-liquidity-source"]
 tls = ["dep:openssl", "dep:tonic-tls"]
 keyset-rotation = []
 

@@ -160,35 +160,7 @@ mod not_mock {
         }
     }
 
-    // Placeholder for Ethereum transaction processing
+    // TODO: Implement Ethereum transaction processing
     // This would be implemented similar to the Starknet version but using ethers-rs
-    pub async fn process_withdraw_requests(
-        // ethereum_client: Arc<EthereumClient>, // Would use ethers-rs client
-        mut withdraw_queue: mpsc::UnboundedReceiver<WithdrawOrder>,
-        invoice_payment_contract_address: EthereumAddress,
-    ) -> Result<(), Error> {
-        let mut orders = Vec::new();
-        
-        // TODO: Implement Ethereum transaction processing
-        // This would involve:
-        // 1. Batching withdraw orders
-        // 2. Creating Ethereum transactions
-        // 3. Signing and sending transactions
-        // 4. Waiting for confirmations
-        
-        loop {
-            withdraw_queue.recv_many(&mut orders, 10).await;
-            
-            if !orders.is_empty() {
-                tracing::info!("Processing {} Ethereum withdraw orders", orders.len());
-                
-                // Process orders (placeholder)
-                for order in &orders {
-                    tracing::debug!("Processing withdraw order: {:?}", order);
-                }
-                
-                orders.clear();
-            }
-        }
-    }
+    // For now, the processing is handled in the init.rs spawn task
 }

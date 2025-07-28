@@ -26,7 +26,7 @@ mod not_mock {
 
     use crate::{
         EthereumLiquiditySource, Error, CASHIER_PRIVATE_KEY_ENV_VAR,
-        read_ethereum_config, deposit::Depositer, withdraw::{Withdrawer, process_withdraw_requests},
+        read_ethereum_config, deposit::Depositer, withdraw::Withdrawer,
     };
 
     #[cfg(not(feature = "mock"))]
@@ -74,12 +74,16 @@ mod not_mock {
             // Create withdraw order channel
             let (withdraw_sender, withdraw_receiver) = mpsc::unbounded_channel();
 
-            // Spawn withdraw processor
-            let client_clone = client.clone();
-            let invoice_contract_address = on_chain_constants.invoice_payment_contract_address;
+            // Spawn withdraw processor (placeholder for now)
+            let _client_clone = client.clone();
+            let _invoice_contract_address = on_chain_constants.invoice_payment_contract_address;
             tokio::spawn(async move {
-                if let Err(e) = process_withdraw_requests(withdraw_receiver, invoice_contract_address).await {
-                    tracing::error!("Withdraw processor error: {}", e);
+                // TODO: Implement Ethereum withdraw processing
+                loop {
+                    if let Some(_order) = withdraw_receiver.recv().await {
+                        tracing::debug!("Received withdraw order for Ethereum processing");
+                        // Process the order here
+                    }
                 }
             });
 

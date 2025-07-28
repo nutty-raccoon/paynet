@@ -21,7 +21,6 @@ use nuts::{
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
-use starknet_types::Unit;
 use std::{str::FromStr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -33,6 +32,7 @@ use crate::{
     app_state::{NutsSettingsState, QuoteTTLConfigState, SignerClient},
     keyset_cache::KeysetCache,
     methods::Method,
+    initialization::nuts_settings::UnifiedUnit,
 };
 
 #[derive(Debug, Clone)]
@@ -42,7 +42,7 @@ pub struct GrpcState {
     pub keyset_cache: KeysetCache,
     pub nuts: NutsSettingsState,
     pub quote_ttl: Arc<QuoteTTLConfigState>,
-    pub liquidity_sources: LiquiditySources<Unit>,
+    pub liquidity_sources: LiquiditySources<UnifiedUnit>,
     pub response_cache: Arc<InMemResponseCache<(Route, u64), CachedResponse>>,
 }
 
@@ -79,7 +79,7 @@ impl GrpcState {
 
     pub async fn init_first_keysets(
         &self,
-        units: &[Unit],
+        units: &[UnifiedUnit],
         index: u32,
         max_order: u32,
     ) -> Result<(), InitKeysetError> {

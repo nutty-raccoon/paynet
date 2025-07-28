@@ -5,13 +5,12 @@ use nuts::{
     nut04::{MintQuoteResponse, MintQuoteState},
 };
 use sqlx::PgConnection;
-use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
 use tracing::{Level, event};
 use uuid::Uuid;
 
-use crate::{methods::Method, utils::unix_time};
+use crate::{methods::Method, utils::unix_time, initialization::nuts_settings::UnifiedUnit, liquidity_sources::AnyLiquiditySource};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -30,7 +29,7 @@ pub enum Error {
     #[error("Minting is currently disabled")]
     MintDisabled,
     #[error("Unsupported unit `{0}` for method `{1}`")]
-    UnitNotSupported(Unit, Method),
+    UnitNotSupported(UnifiedUnit, Method),
     #[error("Amount must be at least {0}, got {1}")]
     AmountTooLow(Amount, Amount),
     #[error("Amount must bellow {0}, got {1}")]
@@ -64,7 +63,7 @@ impl GrpcState {
         &self,
         method: Method,
         amount: Amount,
-        unit: Unit,
+        unit: UnifiedUnit,
     ) -> Result<MintQuoteResponse<Uuid>, Error> {
         // Release the lock asap
         let settings = {
@@ -97,16 +96,46 @@ impl GrpcState {
             .ok_or(Error::MethodNotSupported(method))?;
 
         let mut conn = self.pg_pool.acquire().await?;
-        let response = match method {
-            Method::Starknet => create_new_mint_quote(
-                &mut conn,
-                liquidity_source.depositer(),
-                amount,
-                unit,
-                self.quote_ttl.mint_ttl(),
-            ),
-        }
-        .await?;
+        let response = match liquidity_source {
+            #[cfg(feature = "starknet")]
+            AnyLiquiditySource::Starknet(ls) => {
+                // Convert UnifiedUnit to starknet Unit
+                let starknet_unit = match unit {
+                    UnifiedUnit::MilliStrk => starknet_types::Unit::MilliStrk,
+                    UnifiedUnit::Gwei => starknet_types::Unit::Gwei,
+                    #[cfg(feature = "ethereum")]
+                    _ => return Err(Error::UnitNotSupported(unit, method)),
+                    #[cfg(not(feature = "ethereum"))]
+                    _ => return Err(Error::UnitNotSupported(unit, method)),
+                };
+                create_new_mint_quote(
+                    &mut conn,
+                    ls.depositer(),
+                    amount,
+                    starknet_unit,
+                    self.quote_ttl.mint_ttl(),
+                ).await?
+            },
+            #[cfg(feature = "ethereum")]
+            AnyLiquiditySource::Ethereum(ls) => {
+                // Convert UnifiedUnit to ethereum Unit
+                let ethereum_unit = match unit {
+                    UnifiedUnit::MilliUsdc => ethereum_types::Unit::MilliUsdc,
+                    UnifiedUnit::EthGwei => ethereum_types::Unit::Gwei,
+                    #[cfg(feature = "starknet")]
+                    _ => return Err(Error::UnitNotSupported(unit, method)),
+                    #[cfg(not(feature = "starknet"))]
+                    _ => return Err(Error::UnitNotSupported(unit, method)),
+                };
+                create_new_mint_quote_ethereum(
+                    &mut conn,
+                    ls.depositer(),
+                    amount,
+                    ethereum_unit,
+                    self.quote_ttl.mint_ttl(),
+                ).await?
+            },
+        };
 
         event!(
             name: "mint-quote",
@@ -122,12 +151,13 @@ impl GrpcState {
     }
 }
 
-/// Initialize a new mint quote
+/// Initialize a new mint quote for Starknet
+#[cfg(feature = "starknet")]
 async fn create_new_mint_quote(
     conn: &mut PgConnection,
     depositer: impl DepositInterface,
     amount: Amount,
-    unit: Unit,
+    unit: starknet_types::Unit,
     mint_ttl: u64,
 ) -> Result<MintQuoteResponse<Uuid>, Error> {
     let expiry = unix_time() + mint_ttl;
@@ -137,11 +167,17 @@ async fn create_new_mint_quote(
         .generate_deposit_payload(quote_id, unit, amount, expiry)
         .map_err(|e| Error::LiquiditySource(e.into()))?;
 
+    // Convert starknet unit to unified unit for database storage
+    let unified_unit = match unit {
+        starknet_types::Unit::MilliStrk => UnifiedUnit::MilliStrk,
+        starknet_types::Unit::Gwei => UnifiedUnit::Gwei,
+    };
+
     db_node::mint_quote::insert_new(
         conn,
         quote_id,
         invoice_id.into(),
-        unit,
+        unified_unit,
         amount,
         &request,
         expiry,
@@ -163,6 +199,65 @@ async fn create_new_mint_quote(
         }
 
         #[cfg(all(not(feature = "mock"), feature = "starknet"))]
+        MintQuoteState::Unpaid
+    };
+
+    Ok(MintQuoteResponse {
+        quote: quote_id,
+        request,
+        state,
+        expiry,
+    })
+}
+
+/// Initialize a new mint quote for Ethereum
+#[cfg(feature = "ethereum")]
+async fn create_new_mint_quote_ethereum(
+    conn: &mut PgConnection,
+    depositer: impl DepositInterface,
+    amount: Amount,
+    unit: ethereum_types::Unit,
+    mint_ttl: u64,
+) -> Result<MintQuoteResponse<Uuid>, Error> {
+    let expiry = unix_time() + mint_ttl;
+    let quote_id = Uuid::new_v4();
+
+    let (invoice_id, request) = depositer
+        .generate_deposit_payload(quote_id, unit, amount, expiry)
+        .map_err(|e| Error::LiquiditySource(e.into()))?;
+
+    // Convert ethereum unit to unified unit for database storage
+    let unified_unit = match unit {
+        ethereum_types::Unit::MilliUsdc => UnifiedUnit::MilliUsdc,
+        ethereum_types::Unit::Gwei => UnifiedUnit::EthGwei,
+    };
+
+    db_node::mint_quote::insert_new(
+        conn,
+        quote_id,
+        invoice_id.into(),
+        unified_unit,
+        amount,
+        &request,
+        expiry,
+    )
+    .await
+    .map_err(Error::Db)?;
+
+    let state = {
+        // If running with no backend, we immediatly set the state to paid
+        #[cfg(feature = "mock")]
+        {
+            use futures::TryFutureExt;
+
+            let new_state = MintQuoteState::Paid;
+            db_node::mint_quote::set_state(conn, quote_id, new_state)
+                .map_err(Error::Sqlx)
+                .await?;
+            new_state
+        }
+
+        #[cfg(all(not(feature = "mock"), feature = "ethereum"))]
         MintQuoteState::Unpaid
     };
 
