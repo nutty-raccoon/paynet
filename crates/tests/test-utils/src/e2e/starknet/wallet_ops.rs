@@ -251,6 +251,6 @@ impl WalletOps {
         wad: &CompactWad<Unit>,
     ) -> std::result::Result<DleqVerificationResult, WalletError> {
         let mut node_client = self.node_client.clone();
-        wallet::verify_compact_wad_dleq_proofs(&wad, &mut node_client).await
+        wallet::verify_compact_wad_dleq_proofs(wad, &mut node_client).await
     }
 }

@@ -162,7 +162,7 @@ pub fn construct_proofs(
             let proof = Proof {
                 amount: promise.amount,
                 // The KeysetId from the promise is carried over to the proof
-                keyset_id: promise.keyset_id.clone(),
+                keyset_id: promise.keyset_id,
                 secret: secret.clone(),
                 // This is the final unblinded signature, ready for spending
                 c,

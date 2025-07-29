@@ -612,7 +612,7 @@ async fn main() -> Result<()> {
                     // We need a separate connection here as it's outside the main db-based flow
                     let mut node_client = wallet::connect_to_node(&wad.node_url).await?;
 
-                    match wallet::verify_compact_wad_dleq_proofs(&wad, &mut node_client).await {
+                    match wallet::verify_compact_wad_dleq_proofs(wad, &mut node_client).await {
                         Ok(verification_result) => {
                             if verification_result.is_fully_valid {
                                 println!(
@@ -630,7 +630,7 @@ async fn main() -> Result<()> {
 
                             println!("\nVerification Details:");
                             let proofs = wad.proofs();
-                            for i in 0..proofs.len() {
+                            for (i, proof) in proofs.iter().enumerate() {
                                 if let Some(invalid) = verification_result
                                     .invalid_proofs
                                     .iter()
@@ -647,7 +647,7 @@ async fn main() -> Result<()> {
                                     println!(
                                         "Proof {} ({} {}): ✓ DLEQ Valid",
                                         i + 1,
-                                        proofs[i].amount,
+                                        proof.amount,
                                         wad.unit()
                                     );
                                 }
