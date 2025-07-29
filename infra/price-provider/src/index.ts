@@ -35,7 +35,7 @@ export const client = new Coingecko({
 myCache.set("tokens", env.tokens);
 myCache.set("currencies", env.currencies);
 
-setInterval(fetchPrice, 50000);
+setInterval(fetchPrice, 5000);
 
 fastify.register(currencyRoutes);
 fastify.register(priceRoutes);

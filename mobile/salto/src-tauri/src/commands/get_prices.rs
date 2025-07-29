@@ -1,6 +1,5 @@
 use tauri::{ async_runtime, State, AppHandle, Emitter };
-use std::time::Duration;
-use std::sync::PoisonError;
+use std::{time::Duration, env, sync::PoisonError};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -30,6 +29,7 @@ impl serde::Serialize for Error {
 
 #[tauri::command]
 pub async fn get_prices(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), Error> {
+    let host = env::var("HOST").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
     let mut started = state.get_prices_starded.lock().map_err(|e| Error::Lock(e.to_string()))?;
     if *started {
         return Ok(());
@@ -41,7 +41,7 @@ pub async fn get_prices(app: AppHandle, state: tauri::State<'_, AppState>) -> Re
         let mut interval = tokio::time::interval(Duration::from_secs(10));
         loop {
             interval.tick().await;
-            match reqwest::get("http://127.0.0.1:3007/prices").await {
+            match reqwest::get(host.clone() + "/prices").await {
                 Ok(resp) => match resp.json::<PriceResponce>().await  {
                     Ok(body) => {
                         let _ = app.emit("new-price", body);
@@ -61,6 +61,7 @@ pub async fn get_prices(app: AppHandle, state: tauri::State<'_, AppState>) -> Re
 
 #[tauri::command]
 pub async fn get_currencies() -> Result<Vec<String>, Error>{
-    let resp: CurrenciesResponce = reqwest::get("http://127.0.0.1:3007/currencies").await?.json::<CurrenciesResponce>().await?;
+    let host = env::var("HOST").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
+    let resp: CurrenciesResponce = reqwest::get(host + "/currencies").await?.json::<CurrenciesResponce>().await?;
     Ok(resp.currencies)
 }
