@@ -298,6 +298,7 @@ pub fn load_tokens_from_db(
                     keyset_id,
                     secret,
                     c: unblinded_signature,
+                    dleq: None,
                 })
             },
         )

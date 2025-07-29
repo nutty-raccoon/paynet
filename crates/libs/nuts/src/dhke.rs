@@ -4,6 +4,7 @@ use std::ops::Deref;
 
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
+use bitcoin::secp256k1::scalar::OutOfRangeError;
 use bitcoin::secp256k1::{
     Parity, PublicKey as NormalizedPublicKey, Scalar, Secp256k1, XOnlyPublicKey,
 };
@@ -11,10 +12,9 @@ use thiserror::Error;
 
 use crate::SECP256K1;
 use crate::nut00::secret::Secret;
-use crate::nut00::{BlindSignature, Proof, Proofs};
+use crate::nut00::{BlindSignature, Proof};
 use crate::nut01::PublicKey;
 use crate::nut01::SecretKey;
-use crate::nut01::SetPubKeys;
 
 const DOMAIN_SEPARATOR: &[u8; 28] = b"Secp256k1_HashToCurve_Cashu_";
 
@@ -34,6 +34,18 @@ pub enum Error {
     CoudNotGetProof,
     #[error("Lengths of promises, rs, and secrets must be equal")]
     DifferentLength,
+    /// DLEQ proof verification failed
+    #[error("DLEQ proof verification failed")]
+    DleqVerificationFailed,
+    /// Invalid DLEQ proof format
+    #[error("Invalid DLEQ proof format")]
+    InvalidDleqProof,
+    /// Hex decoding error
+    #[error(transparent)]
+    Hex(#[from] hex::FromHexError),
+    /// Invalid Scalar (out of range)
+    #[error("Invalid Scalar: {0}")]
+    Scalar(#[from] OutOfRangeError),
 }
 
 /// Deterministically maps a message to a public key point on the secp256k1
@@ -113,42 +125,53 @@ pub fn unblind_message(
     Ok(blind_key.combine(&a)?.into()) // C_ + (-a)
 }
 
-/// Construct Proof
+/// Construct Proofs
 pub fn construct_proofs(
     promises: Vec<BlindSignature>,
-    rs: Vec<SecretKey>,
+    rs: Vec<SecretKey>, // blinding factors
     secrets: Vec<Secret>,
-    keys: &SetPubKeys,
-) -> Result<Proofs, Error> {
-    if (promises.len() != rs.len()) || (promises.len() != secrets.len()) {
-        tracing::error!(
-            "Different length: Promises: {}, RS: {}, secrets:{}",
-            promises.len(),
-            rs.len(),
-            secrets.len()
-        );
+    keys: &std::collections::HashMap<u64, PublicKey>,
+) -> Result<Vec<Proof>, Error> {
+    if promises.len() != rs.len() || promises.len() != secrets.len() {
         return Err(Error::DifferentLength);
     }
-    let mut proofs = vec![];
-    for ((blind_signature, r), secret) in promises.into_iter().zip(rs).zip(secrets) {
-        let blind_c: PublicKey = blind_signature.c;
-        let a: PublicKey = keys
-            .amount_key(blind_signature.amount)
-            .ok_or(Error::CoudNotGetProof)?;
 
-        let unblind_signature: PublicKey = unblind_message(&blind_c, &r, &a)?;
+    promises
+        .iter()
+        .zip(rs.iter())
+        .zip(secrets.iter())
+        .map(|((promise, r), secret)| {
+            // This part handles the DLEQ proof, adding the blinding factor `r`
+            // which is required for Carol's verification scenario.
+            let mut dleq = promise.dleq.clone();
+            if let Some(dleq_proof) = &mut dleq {
+                // The blinding factor `r` is added here. It was part of the BlindSignature
+                // from the mint, but the `r` value itself was only known by Alice.
+                dleq_proof.r = Some(hex::encode(r.to_secret_bytes()));
+            }
 
-        let proof = Proof {
-            amount: blind_signature.amount,
-            keyset_id: blind_signature.keyset_id,
-            secret,
-            c: unblind_signature,
-        };
+            // Here we use your `unblind_message` function.
+            // It takes the blinded signature from the promise (C_), the blinding
+            // factor (r), and the mint's public key for that amount (K).
+            let c = unblind_message(
+                &promise.c,
+                r,
+                &keys[&(promise.amount.into_i64_repr() as u64)],
+            )?;
 
-        proofs.push(proof);
-    }
-
-    Ok(proofs)
+            let proof = Proof {
+                amount: promise.amount,
+                // The KeysetId from the promise is carried over to the proof
+                keyset_id: promise.keyset_id.clone(),
+                secret: secret.clone(),
+                // This is the final unblinded signature, ready for spending
+                c,
+                // The DLEQ proof, now including `r`, is attached to the final proof
+                dleq,
+            };
+            Ok(proof)
+        })
+        .collect()
 }
 
 /// Sign Blind Message

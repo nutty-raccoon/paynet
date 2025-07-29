@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
+use node_client::{GetKeysRequest, NodeClient};
 use num_traits::CheckedAdd;
 
 use nuts::Amount;
@@ -8,15 +10,24 @@ use nuts::nut00::secret::Secret;
 use nuts::nut00::{Proof, Proofs};
 use nuts::nut01::PublicKey;
 use nuts::nut02::KeysetId;
+use nuts::nut12;
 use nuts::traits::Unit;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use tonic::Status;
 
 use super::NodeUrl;
 
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
+
+#[derive(Debug, Clone)]
+pub struct DleqProofError {
+    pub proof_index: usize,
+    pub amount: Amount,
+    pub error: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -28,6 +39,34 @@ pub enum Error {
     InvalidBase64(#[from] bitcoin::base64::DecodeError),
     #[error("failed to deserialize the CBOR wad representation: {0}")]
     InvalidCbor(#[from] ciborium::de::Error<std::io::Error>),
+    #[error("invalid dleq proof")]
+    DleqProofError,
+    #[error("Custom Error: {0}")]
+    Custom(String),
+
+    /// Tonic gRPC status error
+    #[error("gRPC Error: {0}")]
+    Grpc(#[from] Status),
+
+    /// NUTs error
+    #[error("Nuts Error: {0}")]
+    Nuts(#[from] nuts::Error), // A general nuts error
+
+    /// Specific NUT02 Keysets error
+    #[error("NUT02 Keysets Error: {0}")]
+    Nut02(#[from] nuts::nut02::Error),
+
+    /// Specific NUT01 error
+    #[error("NUT01 Keys Error: {0}")]
+    Nut01(#[from] nuts::nut01::Error),
+}
+
+#[derive(Debug, Clone)]
+pub struct DleqVerificationResult {
+    pub total_proofs: usize,
+    pub valid_proofs: usize,
+    pub invalid_proofs: Vec<DleqProofError>,
+    pub is_fully_valid: bool,
 }
 
 impl<U: Unit> CompactWads<U> {
@@ -211,6 +250,7 @@ impl CompactProof {
             keyset_id: *keyset_id,
             secret: self.secret.clone(),
             c: self.c,
+            dleq: None,
         }
     }
 }
@@ -228,6 +268,97 @@ where
 {
     let bytes = Vec::<u8>::deserialize(deserializer)?;
     PublicKey::from_slice(&bytes).map_err(serde::de::Error::custom)
+}
+
+/// Verify DLEQ proofs in a compact wad without consuming tokens
+/// This is the "Carol" verification scenario - validating tokens received from another user
+pub async fn verify_compact_wad_dleq_proofs<U: Unit>(
+    wad: &CompactWad<U>,
+    node_client: &mut NodeClient<tonic::transport::Channel>,
+) -> Result<DleqVerificationResult, Error> {
+    let mut results = DleqVerificationResult {
+        total_proofs: wad.proofs().len(),
+        valid_proofs: 0,
+        invalid_proofs: Vec::new(),
+        is_fully_valid: false,
+    };
+
+    // Call the `keys` method, which actually exists on your client.
+    // We pass an empty request to get all active keys.
+    let keys_response = node_client
+        .keys(GetKeysRequest { keyset_id: None })
+        .await? // Tonic status errors will be converted by `?` if your Error enum has `#[from] tonic::Status`
+        .into_inner();
+
+    // Build a lookup table from the response: HashMap<(KeysetId, Amount), PublicKey>
+    let mut pubkey_lookup: HashMap<(KeysetId, Amount), PublicKey> = HashMap::new();
+    for keyset in keys_response.keysets {
+        let keyset_id = KeysetId::from_bytes(&keyset.id)?;
+        for key in keyset.keys {
+            let amount = Amount::from(key.amount);
+            let pubkey = PublicKey::from_hex(&key.pubkey)?;
+            pubkey_lookup.insert((keyset_id, amount), pubkey);
+        }
+    }
+
+    for (i, proof) in wad.proofs().iter().enumerate() {
+        if let Some(dleq) = &proof.dleq {
+            if let Some(r) = &dleq.r {
+                // Use the new lookup table to find the correct public key for the proof's amount.
+                let amount_pubkey = match pubkey_lookup.get(&(proof.keyset_id, proof.amount)) {
+                    Some(key) => key,
+                    None => {
+                        results.invalid_proofs.push(DleqProofError {
+                            proof_index: i,
+                            amount: proof.amount,
+                            error: format!(
+                                "Public key not found for keyset {} and amount {}",
+                                proof.keyset_id, proof.amount
+                            ),
+                        });
+                        continue; // Skip to the next proof
+                    }
+                };
+
+                let verification_result = nut12::verify_dleq_proof_carol(
+                    &dleq.e,
+                    &dleq.s,
+                    r,
+                    amount_pubkey, // Use the specific public key for this amount
+                    &proof.secret.to_bytes(),
+                    &proof.c,
+                );
+
+                match verification_result {
+                    Ok(true) => results.valid_proofs += 1,
+                    Ok(false) => {
+                        // The proof was processed correctly, but the DLEQ check failed.
+                        results.invalid_proofs.push(DleqProofError {
+                            proof_index: i,
+                            amount: proof.amount,
+                            error: "DLEQ verification failed".to_string(),
+                        });
+                    }
+                    Err(e) => results.invalid_proofs.push(DleqProofError {
+                        proof_index: i,
+                        amount: proof.amount,
+                        error: e.to_string(),
+                    }),
+                }
+            } else {
+                results.invalid_proofs.push(DleqProofError {
+                    proof_index: i,
+                    amount: proof.amount,
+                    error: "DLEQ proof is missing the required blinding factor 'r'".to_string(),
+                });
+            }
+        }
+    }
+
+    results.is_fully_valid =
+        results.valid_proofs == results.total_proofs && !wad.proofs().is_empty();
+
+    Ok(results)
 }
 
 #[cfg(test)]

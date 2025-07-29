@@ -5,6 +5,7 @@ use num_traits::CheckedAdd;
 use secret::Secret;
 use serde::{Deserialize, Serialize};
 
+use crate::nut12::DleqProof;
 use crate::{Amount, dhke::hash_to_curve, nut01::PublicKey, nut02::KeysetId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +66,8 @@ pub struct Proof {
     /// Unblind signature
     #[serde(rename = "C")]
     pub c: PublicKey,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dleq: Option<DleqProof>,
 }
 
 impl Proof {
@@ -93,6 +96,8 @@ pub struct BlindSignature {
     /// The blind signature on the secret message `B_` of [BlindMessage].
     #[serde(rename = "C_")]
     pub c: PublicKey,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dleq: Option<DleqProof>,
 }
 
 /// Blind Message (also called `output`)
