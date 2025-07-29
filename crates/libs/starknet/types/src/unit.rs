@@ -14,7 +14,7 @@ use crate::Asset;
 const GWEI_STR: &str = "gwei";
 const MILLI_STR: &str = "millistrk";
 const SATOSHI_STR: &str = "satoshi";
-const MICRO_USD_STR: &str = "microusd";
+const CENT_USD_STR: &str = "centusd";
 
 /// Represents units supported by the node for user-facing operations
 ///
@@ -25,7 +25,7 @@ pub enum Unit {
     MilliStrk,
     Gwei,
     Satoshi,
-    MicroUsd,
+    CentUsd,
 }
 
 /// Maps a unit to its corresponding blockchain asset
@@ -38,8 +38,8 @@ impl Unit {
         match self {
             Unit::MilliStrk => Asset::Strk,
             Unit::Gwei => Asset::Eth,
-            Unit::Satoshi => Asset::Btc,
-            Unit::MicroUsd => Asset::Usdc, 
+            Unit::Satoshi => Asset::WBtc,
+            Unit::CentUsd => Asset::Usdc, 
         }
     }
 
@@ -49,7 +49,7 @@ impl Unit {
             Unit::MilliStrk => MILLI_STR,
             Unit::Gwei => GWEI_STR,
             Unit::Satoshi => SATOSHI_STR,
-            Unit::MicroUsd => MICRO_USD_STR,
+            Unit::CentUsd => CENT_USD_STR,
         }
     }
 }
@@ -69,7 +69,7 @@ impl From<Unit> for u32 {
             Unit::MilliStrk => 0,
             Unit::Gwei => 1,
             Unit::Satoshi => 2,
-            Unit::MicroUsd => 3,
+            Unit::CentUsd => 3,
         }
     }
 }
@@ -87,7 +87,7 @@ impl FromStr for Unit {
             MILLI_STR => Self::MilliStrk,
             GWEI_STR => Self::Gwei,
             SATOSHI_STR => Self::Satoshi,
-            MICRO_USD_STR => Self::MicroUsd,
+            CENT_USD_STR => Self::CentUsd,
             _ => return Err(UnitFromStrError),
         };
 
@@ -122,7 +122,7 @@ impl Unit {
             Unit::MilliStrk => 1_000_000_000_000_000,
             Unit::Gwei => 1_000_000_000,
             Unit::Satoshi => 1,
-            Unit::MicroUsd => 1,
+            Unit::CentUsd => 1,
         }
     }
 
@@ -131,7 +131,7 @@ impl Unit {
             Unit::MilliStrk => 15,
             Unit::Gwei => 9,
             Unit::Satoshi => 0,
-            Unit::MicroUsd => 0,
+            Unit::CentUsd => 0,
         }
     }
 
@@ -149,9 +149,9 @@ impl Unit {
             (self, asset),
             (Unit::MilliStrk, Asset::Strk) 
             | (Unit::Gwei, Asset::Eth)
-            | (Unit::Satoshi, Asset::Btc)
-            | (Unit::MicroUsd, Asset::Usdc)
-            | (Unit::MicroUsd, Asset::Usdt)
+            | (Unit::Satoshi, Asset::WBtc)
+            | (Unit::CentUsd, Asset::Usdc)
+            | (Unit::CentUsd, Asset::Usdt)
         )
     }
 }

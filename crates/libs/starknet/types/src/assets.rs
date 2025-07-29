@@ -11,7 +11,7 @@ use crate::Unit;
 pub enum Asset {
     Strk,
     Eth,
-    Btc,
+    WBtc,
     Usdc,
     Usdt,
 }
@@ -33,7 +33,7 @@ impl Asset {
         match self {
             Asset::Strk => "strk",
             Asset::Eth => "eth",
-            Asset::Btc => "btc",
+            Asset::WBtc => "wbtc",
             Asset::Usdc => "usdc",
             Asset::Usdt => "usdt",
         }
@@ -42,7 +42,7 @@ impl Asset {
     pub fn precision(&self) -> u8 {
         match self {
             Asset::Strk | Asset::Eth => 18,
-            Asset::Btc => 8,
+            Asset::WBtc => 8,
             Asset::Usdc | Asset::Usdt => 6,
         }
     }
@@ -50,7 +50,7 @@ impl Asset {
     pub fn scale_factor(&self) -> U256 {
         match self {
             Asset::Strk | Asset::Eth => U256::from(1_000_000_000_000_000_000u64),
-            Asset::Btc => U256::from(100_000_000u64),
+            Asset::WBtc => U256::from(100_000_000u64),
             Asset::Usdc | Asset::Usdt => U256::from(1_000_000u64),
         }
     }
@@ -59,8 +59,8 @@ impl Asset {
         match self {
             Asset::Strk => Unit::MilliStrk,
             Asset::Eth => Unit::Gwei,
-            Asset::Btc => Unit::Satoshi,
-            Asset::Usdc | Asset::Usdt => Unit::MicroUsd,
+            Asset::WBtc => Unit::Satoshi,
+            Asset::Usdc | Asset::Usdt => Unit::CentUsd,
         }
     }
 
@@ -111,7 +111,7 @@ impl FromStr for Asset {
         match s.to_lowercase().as_str() {
             "strk" => Ok(Asset::Strk),
             "eth" => Ok(Asset::Eth),
-            "btc" => Ok(Asset::Btc),
+            "btc" => Ok(Asset::WBtc),
             "usdc" => Ok(Asset::Usdc),
             "usdt" => Ok(Asset::Usdt),
             _ => Err(AssetFromStrError),

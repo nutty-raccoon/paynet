@@ -49,7 +49,7 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
         ),
     ),
     (
-        Asset::Btc,
+        Asset::WBtc,
         Felt::from_hex_unchecked(
             "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e960",
         ),
@@ -83,7 +83,7 @@ const DEVNET_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
         ),
     ),
     (
-        Asset::Btc,
+        Asset::WBtc,
         Felt::from_hex_unchecked(
             "0x0000000000000000000000000000000000000000000000000000000000000001",
         ),
