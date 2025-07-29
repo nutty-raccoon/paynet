@@ -10,11 +10,12 @@ pub mod sync;
 pub mod types;
 pub mod wallet;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use errors::Error;
 use itertools::Itertools;
-use node_client::{AcknowledgeRequest, NodeClient, hash_swap_request};
+use node_client::{AcknowledgeRequest, GetKeysRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -23,7 +24,7 @@ use nuts::nut01::{self, PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
 use nuts::nut19::Route;
 use nuts::traits::Unit;
-use nuts::{Amount, SplitTarget};
+use nuts::{Amount, SplitTarget, nut12};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, Transaction, params};
@@ -31,6 +32,8 @@ use tonic::Request;
 use tonic::transport::Channel;
 use types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
 use types::{BlindingData, NodeUrl, PreMint, PreMints, ProofState};
+
+use crate::types::compact_wad::{DleqProofError, DleqVerificationResult};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -602,4 +605,95 @@ pub fn create_wad_from_proofs<U: Unit>(
         memo,
         proofs: compact_proofs,
     }
+}
+
+/// Verify DLEQ proofs in a compact wad without consuming tokens
+/// This is the "Carol" verification scenario - validating tokens received from another user
+pub async fn verify_compact_wad_dleq_proofs<U: Unit>(
+    wad: &CompactWad<U>,
+    node_client: &mut NodeClient<tonic::transport::Channel>,
+) -> Result<DleqVerificationResult, Error> {
+    let mut results = DleqVerificationResult {
+        total_proofs: wad.proofs().len(),
+        valid_proofs: 0,
+        invalid_proofs: Vec::new(),
+        is_fully_valid: false,
+    };
+
+    // Call the `keys` method, which actually exists on your client.
+    // We pass an empty request to get all active keys.
+    let keys_response = node_client
+        .keys(GetKeysRequest { keyset_id: None })
+        .await? // Tonic status errors will be converted by `?` if your Error enum has `#[from] tonic::Status`
+        .into_inner();
+
+    // Build a lookup table from the response: HashMap<(KeysetId, Amount), PublicKey>
+    let mut pubkey_lookup: HashMap<(KeysetId, Amount), PublicKey> = HashMap::new();
+    for keyset in keys_response.keysets {
+        let keyset_id = KeysetId::from_bytes(&keyset.id)?;
+        for key in keyset.keys {
+            let amount = Amount::from(key.amount);
+            let pubkey = PublicKey::from_hex(&key.pubkey)?;
+            pubkey_lookup.insert((keyset_id, amount), pubkey);
+        }
+    }
+
+    for (i, proof) in wad.proofs().iter().enumerate() {
+        if let Some(dleq) = &proof.dleq {
+            if let Some(r) = &dleq.r {
+                // Use the new lookup table to find the correct public key for the proof's amount.
+                let amount_pubkey = match pubkey_lookup.get(&(proof.keyset_id, proof.amount)) {
+                    Some(key) => key,
+                    None => {
+                        results.invalid_proofs.push(DleqProofError {
+                            proof_index: i,
+                            amount: proof.amount,
+                            error: format!(
+                                "Public key not found for keyset {} and amount {}",
+                                proof.keyset_id, proof.amount
+                            ),
+                        });
+                        continue; // Skip to the next proof
+                    }
+                };
+
+                let verification_result = nut12::verify_dleq_proof_carol(
+                    &dleq.e,
+                    &dleq.s,
+                    r,
+                    amount_pubkey, // Use the specific public key for this amount
+                    &proof.secret.to_bytes(),
+                    &proof.c,
+                );
+
+                match verification_result {
+                    Ok(true) => results.valid_proofs += 1,
+                    Ok(false) => {
+                        // The proof was processed correctly, but the DLEQ check failed.
+                        results.invalid_proofs.push(DleqProofError {
+                            proof_index: i,
+                            amount: proof.amount,
+                            error: "DLEQ verification failed".to_string(),
+                        });
+                    }
+                    Err(e) => results.invalid_proofs.push(DleqProofError {
+                        proof_index: i,
+                        amount: proof.amount,
+                        error: e.to_string(),
+                    }),
+                }
+            } else {
+                results.invalid_proofs.push(DleqProofError {
+                    proof_index: i,
+                    amount: proof.amount,
+                    error: "DLEQ proof is missing the required blinding factor 'r'".to_string(),
+                });
+            }
+        }
+    }
+
+    results.is_fully_valid =
+        results.valid_proofs == results.total_proofs && !wad.proofs().is_empty();
+
+    Ok(results)
 }

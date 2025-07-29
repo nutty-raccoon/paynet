@@ -144,10 +144,16 @@ enum Commands {
     Receive(WadArgs),
     /// Decode a wad to view its contents
     #[command(
-        about = "Decode a wad to print its contents",
-        long_about = "Decode a wad to print its contents in a friendly format"
+        about = "Decode a wad to print its contents and optionally verify DLEQ proofs",
+        long_about = "Decode a wad to print its contents in a friendly format. With --verify flag, also validates DLEQ proofs without consuming the tokens."
     )]
-    DecodeWad(WadArgs),
+    DecodeWad {
+        #[command(flatten)]
+        wad_args: WadArgs,
+        /// Verify DLEQ proofs in the received tokens
+        #[arg(long, help = "Verify DLEQ proofs without consuming tokens")]
+        verify: bool,
+    },
     /// Sync all pending operations
     #[command(
         about = "Sync all pending mint and melt operations",
@@ -581,21 +587,13 @@ async fn main() -> Result<()> {
                 };
             }
         }
-        Commands::DecodeWad(WadArgs {
-            opt_wad_string,
-            opt_wad_file_path,
-        }) => {
-            let args = WadArgs {
-                opt_wad_string,
-                opt_wad_file_path,
-            };
-            let wads = args.read_wads()?;
+        Commands::DecodeWad { wad_args, verify } => {
+            let wads = wad_args.read_wads()?;
 
-            for wad in wads {
-                let regular_wad = Wad {
-                    node_url: wad.node_url.clone(),
-                    proofs: wad.proofs(),
-                };
+            for (i, wad) in wads.iter().enumerate() {
+                if i > 0 {
+                    println!("\n---\n"); // Separator for multiple wads
+                }
 
                 println!("Node URL: {}", wad.node_url);
                 if let Some(memo) = wad.memo() {
@@ -604,11 +602,68 @@ async fn main() -> Result<()> {
                 match wad.value() {
                     Ok(v) => println!("Total Value: {} {}", v, wad.unit()),
                     Err(_) => {
-                        println!("sum of all proofs in the wad overflowed");
+                        println!("The sum of all proofs in the wad overflowed.");
                         continue;
                     }
                 };
+
+                if verify {
+                    println!("\nVerifying DLEQ proofs...");
+                    // We need a separate connection here as it's outside the main db-based flow
+                    let mut node_client = wallet::connect_to_node(&wad.node_url).await?;
+
+                    match wallet::verify_compact_wad_dleq_proofs(&wad, &mut node_client).await {
+                        Ok(verification_result) => {
+                            if verification_result.is_fully_valid {
+                                println!(
+                                    "DLEQ Verification: ✓ PASSED ({}/{} proofs valid)",
+                                    verification_result.valid_proofs,
+                                    verification_result.total_proofs
+                                );
+                            } else {
+                                println!(
+                                    "DLEQ Verification: ✗ FAILED ({}/{} proofs valid)",
+                                    verification_result.valid_proofs,
+                                    verification_result.total_proofs
+                                );
+                            }
+
+                            println!("\nVerification Details:");
+                            let proofs = wad.proofs();
+                            for i in 0..proofs.len() {
+                                if let Some(invalid) = verification_result
+                                    .invalid_proofs
+                                    .iter()
+                                    .find(|p| p.proof_index == i)
+                                {
+                                    println!(
+                                        "Proof {} ({} {}): ✗ DLEQ Invalid ({})",
+                                        i + 1,
+                                        invalid.amount,
+                                        wad.unit(),
+                                        invalid.error
+                                    );
+                                } else {
+                                    println!(
+                                        "Proof {} ({} {}): ✓ DLEQ Valid",
+                                        i + 1,
+                                        proofs[i].amount,
+                                        wad.unit()
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("An error occurred during DLEQ verification: {}", e);
+                        }
+                    }
+                }
+
                 println!("\nDetailed Contents:");
+                let regular_wad = Wad {
+                    node_url: wad.node_url.clone(),
+                    proofs: wad.proofs(),
+                };
                 println!("{}", serde_json::to_string_pretty(&regular_wad)?);
             }
         }
