@@ -29,7 +29,7 @@ impl serde::Serialize for Error {
 
 #[tauri::command]
 pub async fn get_prices(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), Error> {
-    let host = env::var("HOST").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
+    let host = env::var("PRICE_PROVIDER").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
     let mut started = state.get_prices_starded.lock().map_err(|e| Error::Lock(e.to_string()))?;
     if *started {
         return Ok(());
@@ -61,7 +61,7 @@ pub async fn get_prices(app: AppHandle, state: tauri::State<'_, AppState>) -> Re
 
 #[tauri::command]
 pub async fn get_currencies() -> Result<Vec<String>, Error>{
-    let host = env::var("HOST").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
+    let host = env::var("PRICE_PROVIDER").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
     let resp: CurrenciesResponce = reqwest::get(host + "/currencies").await?.json::<CurrenciesResponce>().await?;
     Ok(resp.currencies)
 }
