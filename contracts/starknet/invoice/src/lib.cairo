@@ -2,19 +2,21 @@
 //!
 //! The sole purpose of this contract is to provide the ability to pass a transfer reference
 //! in a way similar to [eip-7699](https://github.com/ethereum/ERCs/blob/master/ERCS/erc-7699.md).
-//! 
+//!
 //! We use it during the mint process:
 //! 1. the user require a mint quote form the node, it comes with an UUID.
 //! 2. the user deposit to the node address using this Invoice contract,
 //     providing a felt build using `from_bytes_be` on the hash of this UUID as `invoice_id`
-//! 3. the node listen to on-chain deposit to its address, and use the `invoice_id` to flag the correct quote as `PAID`
-//! 4. the user call the node's `mint` route with the original UUID and receive the corresponding amount of tokens
+//! 3. the node listen to on-chain deposit to its address, and use the `invoice_id` to flag the
+//! correct quote as `PAID`
+//! 4. the user call the node's `mint` route with the original UUID and receive the corresponding
+//! amount of tokens
 
 use starknet::ContractAddress;
 
 #[starknet::interface]
 pub trait IInvoicePayment<TContractState> {
-    /// Execute an erc20 transfer and emit the rich event 
+    /// Execute an erc20 transfer and emit the rich event
     fn pay_invoice(
         ref self: TContractState,
         quote_id_hash: felt252,
@@ -78,3 +80,4 @@ pub mod InvoicePayment {
         }
     }
 }
+
