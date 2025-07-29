@@ -23,6 +23,7 @@ For those you will prefer building the mobile version of the app.
 For Android development, run:
 ```shell
 bun tauri android init
+sh scripts/edit-android-gen-files.sh
 bun tauri android dev
 ```
 

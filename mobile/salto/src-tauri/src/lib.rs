@@ -4,8 +4,8 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, create_mint_quote, create_wads, get_currencies, get_nodes_balance, get_prices,
-    receive_wads, redeem_quote, PriceResponce,
+    add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
+    get_nodes_balance, get_prices, init_wallet, receive_wads, redeem_quote, restore_wallet,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -22,8 +22,6 @@ pub fn run() {
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_clipboard_manager::init());
-        #[cfg(mobile)]
-        let builder = builder.plugin(tauri_plugin_nfc::init());
 
         builder
             .setup(|app| {
@@ -58,6 +56,9 @@ pub fn run() {
                 receive_wads,
                 get_prices,
                 get_currencies,
+                check_wallet_exists,
+                init_wallet,
+                restore_wallet,
             ])
     };
 

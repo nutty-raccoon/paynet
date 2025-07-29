@@ -1,16 +1,14 @@
 <script lang="ts">
   import QRPaymentPortal from "./QRPaymentPortal.svelte";
-  import NfcModal from "../components/NfcModal.svelte";
   import AmountForm from "./AmountForm.svelte";
   import SendingMethodChoice from "./SendingMethodChoice.svelte";
-  import { isNFCAvailable } from "../../stores.js";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import type { Wads } from "../../types/wad";
 
   const SelectedMethod = {
     NONE: 0,
-    NFC: 1,
-    QR_CODE: 2,
-    COPY: 3,
+    QR_CODE: 1,
+    COPY: 2,
   } as const;
   type SelectedMethod = (typeof SelectedMethod)[keyof typeof SelectedMethod];
 
@@ -21,7 +19,7 @@
 
   let { availableBalances, onClose }: Props = $props();
 
-  let paymentData = $state<string | null>(null);
+  let wads = $state<Wads | null>(null);
   let paymentStrings = $state<null | [string, string]>(null);
 
   // What to show
@@ -38,14 +36,6 @@
     onClose();
   };
 
-  const handleNFCChoice = async () => {
-    if (isNFCAvailable) {
-      selectedMethod = SelectedMethod.NFC;
-    } else {
-      alert("NFC not available on your device");
-    }
-  };
-
   const handleCopyChoice = async (wads: string) => {
     await writeText(wads);
   };
@@ -57,10 +47,10 @@
   const handlePaymentDataGenerated = (
     amountString: string,
     assetString: string,
-    data: string,
+    w: Wads,
   ) => {
     paymentStrings = [amountString, assetString];
-    paymentData = data;
+    wads = w;
   };
 </script>
 
@@ -77,7 +67,7 @@
           <p>No funds available for payment. Please deposit tokens first.</p>
           <button class="close-button-alt" onclick={onClose}>Close</button>
         </div>
-      {:else if !paymentData}
+      {:else if !wads}
         <AmountForm
           {availableUnits}
           {availableBalances}
@@ -87,20 +77,14 @@
       {:else}
         <SendingMethodChoice
           {paymentStrings}
-          onNFCChoice={handleNFCChoice}
           onQRCodeChoice={() => selectMethod(SelectedMethod.QR_CODE)}
-          onCopyChoice={() => handleCopyChoice(paymentData as string)}
+          onCopyChoice={() => handleCopyChoice(wads as Wads)}
         />
       {/if}
-    {:else if !!paymentData}
-      {#if selectedMethod === SelectedMethod.NFC}
-        <NfcModal
-          isReceiving={false}
-          onClose={() => selectMethod(SelectedMethod.NONE)}
-        />
-      {:else if selectedMethod === SelectedMethod.QR_CODE}
+    {:else if !!wads}
+      {#if selectedMethod === SelectedMethod.QR_CODE}
         <QRPaymentPortal
-          {paymentData}
+          data={wads}
           onClose={() => selectMethod(SelectedMethod.NONE)}
         />
       {:else}

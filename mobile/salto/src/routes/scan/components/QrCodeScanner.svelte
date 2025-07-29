@@ -26,7 +26,7 @@
 
   let scanner: Html5QrcodeScanner | null = null;
 
-  function initializeScanner(): void {
+  async function initializeScanner() {
     if (scanner) return;
 
     scanner = new Html5QrcodeScanner(

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bitcoin::bip32::Xpriv;
 use tauri::State;
 use wallet::{db::balance::Balance, types::NodeUrl};
 
@@ -15,8 +16,12 @@ pub enum Error {
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
     Wallet(#[from] wallet::errors::Error), // TODO: create more granular errors in wallet
-    #[error(transparent)]
-    RegisterNode(#[from] wallet::RegisterNodeError),
+    #[error("failed to register node: {0}")]
+    RegisterNode(#[from] wallet::node::RegisterNodeError),
+    #[error("failed to restore node: {0}")]
+    RestoreNode(#[from] wallet::node::RestoreNodeError),
+    #[error("invalid private key stored in db: {0}")]
+    Bip32(#[from] bitcoin::bip32::Error),
 }
 
 impl serde::Serialize for Error {
@@ -34,9 +39,16 @@ pub async fn add_node(
     node_url: String,
 ) -> Result<(u32, Vec<Balance>), Error> {
     let node_url = NodeUrl::from_str(&node_url)?;
-    let (_client, id) = wallet::register_node(state.pool.clone(), &node_url).await?;
-    let db_conn = state.pool.get()?;
-    let balances = wallet::db::balance::get_for_node(&db_conn, id)?;
+    let (client, id) = wallet::node::register(state.pool.clone(), &node_url).await?;
+
+    let wallet = wallet::db::wallet::get(&*state.pool.get()?)?.unwrap();
+
+    if wallet.is_restored {
+        let xpriv = Xpriv::from_str(&wallet.private_key)?;
+        wallet::node::restore(state.pool.clone(), id, client, xpriv).await?;
+    }
+
+    let balances = wallet::db::balance::get_for_node(&*state.pool.get()?, id)?;
 
     Ok((id, balances))
 }

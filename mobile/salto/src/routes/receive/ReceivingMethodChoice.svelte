@@ -1,21 +1,15 @@
 <script lang="ts">
   interface Props {
-    onNFCChoice: () => void;
     onQRCodeChoice: () => void;
     onPasteChoice: () => void;
   }
 
-  let { onNFCChoice, onQRCodeChoice, onPasteChoice }: Props = $props();
+  let { onQRCodeChoice, onPasteChoice }: Props = $props();
 </script>
 
 <div class="payment-method-choice">
   <h4>Choose Receiving Method</h4>
   <div class="method-buttons">
-    <button class="method-button nfc-button" onclick={onNFCChoice}>
-      <div class="method-icon">📱</div>
-      <span>NFC</span>
-      <small>Tap to pay</small>
-    </button>
     <button class="method-button qr-button" onclick={onQRCodeChoice}>
       <div class="method-icon">📱</div>
       <span>QR Code</span>
@@ -92,10 +86,6 @@
   .method-button small {
     color: #666;
     font-size: 0.8rem;
-  }
-
-  .nfc-button:hover {
-    background-color: #e3f2fd;
   }
 
   .qr-button:hover {

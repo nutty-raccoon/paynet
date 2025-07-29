@@ -4,7 +4,7 @@
   import { create_mint_quote, redeem_quote } from "../../commands";
 
   interface Props {
-    selectedNode: NodeData | null;
+    selectedNode: NodeData;
     onClose: () => void;
   }
 
@@ -57,49 +57,47 @@
   });
 </script>
 
-{#if !!selectedNode}
-  <div class="modal-overlay">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Deposit Tokens</h3>
-        <button class="close-button" onclick={onClose}>✕</button>
+<div class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Deposit Tokens</h3>
+      <button class="close-button" onclick={onClose}>✕</button>
+    </div>
+
+    <form onsubmit={handleFormSubmit}>
+      <div class="form-group">
+        <label for="deposit-amount">Amount</label>
+        <div class="amount-input-group">
+          <input
+            type="number"
+            id="deposit-amount"
+            name="deposit-amount"
+            placeholder="0.0"
+            min="0"
+            step="any"
+            required
+          />
+          <select name="deposit-token" required>
+            <option value="strk">STRK</option>
+            <option value="eth">ETH</option>
+          </select>
+        </div>
       </div>
 
-      <form onsubmit={handleFormSubmit}>
-        <div class="form-group">
-          <label for="deposit-amount">Amount</label>
-          <div class="amount-input-group">
-            <input
-              type="number"
-              id="deposit-amount"
-              name="deposit-amount"
-              placeholder="0.0"
-              min="0"
-              step="any"
-              required
-            />
-            <select name="deposit-token" required>
-              <option value="strk">STRK</option>
-              <option value="eth">ETH</option>
-            </select>
-          </div>
+      <div class="deposit-info">
+        <p>Depositing to: {selectedNode.url}</p>
+      </div>
+
+      {#if depositError}
+        <div class="error-message">
+          {depositError}
         </div>
+      {/if}
 
-        <div class="deposit-info">
-          <p>Depositing to: {selectedNode.url}</p>
-        </div>
-
-        {#if depositError}
-          <div class="error-message">
-            {depositError}
-          </div>
-        {/if}
-
-        <button type="submit" class="submit-button">Deposit</button>
-      </form>
-    </div>
+      <button type="submit" class="submit-button">Deposit</button>
+    </form>
   </div>
-{/if}
+</div>
 
 <style>
   .modal-overlay {

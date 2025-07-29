@@ -1,15 +1,13 @@
 <script lang="ts">
   import ReceivingMethodChoice from "./ReceivingMethodChoice.svelte";
-  import { isNFCAvailable, isMobile } from "../..//stores.js";
-  import NfcModal from "../components/NfcModal.svelte";
+  import { isMobile } from "../..//stores.js";
   import ScanModal from "../scan/ScanModal.svelte";
   import { receive_wads } from "../../commands";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
 
   const Modal = {
     METHOD_CHOICE: 0,
-    NFC: 1,
-    QR_CODE: 2,
+    QR_CODE: 1,
   } as const;
   type Modal = (typeof Modal)[keyof typeof Modal];
 
@@ -23,14 +21,6 @@
 
   const handleModalClose = () => {
     onClose();
-  };
-
-  const handleNFCChoice = () => {
-    if (isNFCAvailable) {
-      currentModal = Modal.NFC;
-    } else {
-      alert("NFC not available on your device");
-    }
   };
 
   const handleQRCodeChoice = () => {
@@ -57,14 +47,8 @@
 
     {#if currentModal === Modal.METHOD_CHOICE}
       <ReceivingMethodChoice
-        onNFCChoice={handleNFCChoice}
         onQRCodeChoice={handleQRCodeChoice}
         onPasteChoice={handlePasteChoice}
-      />
-    {:else if currentModal == Modal.NFC}
-      <NfcModal
-        onClose={() => (currentModal = Modal.METHOD_CHOICE)}
-        isReceiving={true}
       />
     {:else if currentModal == Modal.QR_CODE}
       <ScanModal

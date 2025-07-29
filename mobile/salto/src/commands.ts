@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Balance, NodeData, NodeId } from "./types";
 import type { QuoteId } from "./types/quote";
+import type { Wads } from "./types/wad";
 
 export async function getNodesBalance() {
      let res =  await invoke("get_nodes_balance")
@@ -66,7 +67,7 @@ export async function redeem_quote(nodeId: NodeId, quoteId: QuoteId) {
 
 export async function create_wads(amount: string, asset: string) {
       const res = await invoke("create_wads", {amount, asset})
-      .then((message) => message as string)
+      .then((message) => message as Wads)
       .catch((error) => {
         console.error(`failed to create wads:`, error);
       });
@@ -84,3 +85,36 @@ export async function receive_wads(wads: string) {
       return res;
 } 
 
+export type InitWalletResponse = {
+  seedPhrase: string;
+}
+
+export async function checkWalletExists() {
+  const res = await invoke("check_wallet_exists")
+    .then((message) => message as boolean)
+    .catch((error) => {
+      console.error("failed to check wallet exists:", error);
+      return false;
+    });
+
+  return res;
+}
+
+export async function initWallet() {
+  const res = await invoke("init_wallet")
+    .then((message) => message as InitWalletResponse)
+    .catch((error) => {
+      console.error("failed to init wallet:", error);
+    });
+
+  return res;
+}
+
+export async function restoreWallet(seedPhrase: string) {
+  const res = await invoke("restore_wallet", { seedPhrase })
+    .catch((error) => {
+      console.error("failed to restore wallet:", error);
+    });
+
+  return res;
+}
