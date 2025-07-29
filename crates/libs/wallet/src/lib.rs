@@ -33,7 +33,7 @@ use tonic::transport::Channel;
 use types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
 use types::{BlindingData, NodeUrl, PreMint, PreMints, ProofState};
 
-use crate::types::compact_wad::{DleqProofError, DleqVerificationResult};
+use crate::types::compact_wad::{DleqProofStatus, DleqVerificationResult};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -613,12 +613,7 @@ pub async fn verify_compact_wad_dleq_proofs<U: Unit>(
     wad: &CompactWad<U>,
     node_client: &mut NodeClient<tonic::transport::Channel>,
 ) -> Result<DleqVerificationResult, Error> {
-    let mut results = DleqVerificationResult {
-        total_proofs: wad.proofs().len(),
-        valid_proofs: 0,
-        invalid_proofs: Vec::new(),
-        is_fully_valid: false,
-    };
+    let mut errors = Vec::new();
 
     // Call the `keys` method, which actually exists on your client.
     // We pass an empty request to get all active keys.
@@ -645,14 +640,7 @@ pub async fn verify_compact_wad_dleq_proofs<U: Unit>(
                 let amount_pubkey = match pubkey_lookup.get(&(proof.keyset_id, proof.amount)) {
                     Some(key) => key,
                     None => {
-                        results.invalid_proofs.push(DleqProofError {
-                            proof_index: i,
-                            amount: proof.amount,
-                            error: format!(
-                                "Public key not found for keyset {} and amount {}",
-                                proof.keyset_id, proof.amount
-                            ),
-                        });
+                        errors.push(DleqProofStatus::new(i));
                         continue; // Skip to the next proof
                     }
                 };
@@ -667,33 +655,29 @@ pub async fn verify_compact_wad_dleq_proofs<U: Unit>(
                 );
 
                 match verification_result {
-                    Ok(true) => results.valid_proofs += 1,
-                    Ok(false) => {
-                        // The proof was processed correctly, but the DLEQ check failed.
-                        results.invalid_proofs.push(DleqProofError {
-                            proof_index: i,
-                            amount: proof.amount,
-                            error: "DLEQ verification failed".to_string(),
-                        });
-                    }
-                    Err(e) => results.invalid_proofs.push(DleqProofError {
-                        proof_index: i,
-                        amount: proof.amount,
-                        error: e.to_string(),
-                    }),
+                    Ok(true) => continue,
+                    Ok(false) => errors.push(DleqProofStatus::new_with_error(
+                        i,
+                        "DLEQ verification failed".to_string(),
+                    )),
+                    Err(e) => errors.push(DleqProofStatus::new_with_error(i, e.to_string())),
                 }
             } else {
-                results.invalid_proofs.push(DleqProofError {
-                    proof_index: i,
-                    amount: proof.amount,
-                    error: "DLEQ proof is missing the required blinding factor 'r'".to_string(),
-                });
+                errors.push(DleqProofStatus::new_with_error(
+                    i,
+                    "DLEQ proof is missing the required blinding factor 'r'".to_string(),
+                ));
             }
         }
     }
 
-    results.is_fully_valid =
-        results.valid_proofs == results.total_proofs && !wad.proofs().is_empty();
+    let result = if errors.is_empty() {
+        DleqVerificationResult::AllValid
+    } else if errors.iter().all(|status| status.error.is_none()) {
+        DleqVerificationResult::AllNone
+    } else {
+        DleqVerificationResult::SomeNotInvalid(errors)
+    };
 
-    Ok(results)
+    Ok(result)
 }

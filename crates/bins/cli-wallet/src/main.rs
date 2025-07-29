@@ -20,6 +20,9 @@ use wallet::{
     },
 };
 
+use crate::delq::verify_and_print_dleq_proofs;
+
+mod delq;
 mod init;
 mod sync;
 
@@ -608,55 +611,7 @@ async fn main() -> Result<()> {
                 };
 
                 if verify {
-                    println!("\nVerifying DLEQ proofs...");
-                    // We need a separate connection here as it's outside the main db-based flow
-                    let mut node_client = wallet::connect_to_node(&wad.node_url).await?;
-
-                    match wallet::verify_compact_wad_dleq_proofs(wad, &mut node_client).await {
-                        Ok(verification_result) => {
-                            if verification_result.is_fully_valid {
-                                println!(
-                                    "DLEQ Verification: ✓ PASSED ({}/{} proofs valid)",
-                                    verification_result.valid_proofs,
-                                    verification_result.total_proofs
-                                );
-                            } else {
-                                println!(
-                                    "DLEQ Verification: ✗ FAILED ({}/{} proofs valid)",
-                                    verification_result.valid_proofs,
-                                    verification_result.total_proofs
-                                );
-                            }
-
-                            println!("\nVerification Details:");
-                            let proofs = wad.proofs();
-                            for (i, proof) in proofs.iter().enumerate() {
-                                if let Some(invalid) = verification_result
-                                    .invalid_proofs
-                                    .iter()
-                                    .find(|p| p.proof_index == i)
-                                {
-                                    println!(
-                                        "Proof {} ({} {}): ✗ DLEQ Invalid ({})",
-                                        i + 1,
-                                        invalid.amount,
-                                        wad.unit(),
-                                        invalid.error
-                                    );
-                                } else {
-                                    println!(
-                                        "Proof {} ({} {}): ✓ DLEQ Valid",
-                                        i + 1,
-                                        proof.amount,
-                                        wad.unit()
-                                    );
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!("An error occurred during DLEQ verification: {}", e);
-                        }
-                    }
+                    verify_and_print_dleq_proofs(wad).await?;
                 }
 
                 println!("\nDetailed Contents:");

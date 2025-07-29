@@ -3,12 +3,13 @@ use std::str::FromStr;
 
 use num_traits::CheckedAdd;
 
-use nuts::Amount;
 use nuts::nut00::secret::Secret;
 use nuts::nut00::{Proof, Proofs};
 use nuts::nut01::PublicKey;
 use nuts::nut02::KeysetId;
+use nuts::nut12::{DleqProofError, Error as Nut12Error};
 use nuts::traits::Unit;
+use nuts::{Amount, nut12};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -18,13 +19,6 @@ use super::NodeUrl;
 
 use bitcoin::base64::engine::{GeneralPurpose, general_purpose};
 use bitcoin::base64::{Engine as _, alphabet};
-
-#[derive(Debug, Clone)]
-pub struct DleqProofError {
-    pub proof_index: usize,
-    pub amount: Amount,
-    pub error: String,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -36,34 +30,51 @@ pub enum Error {
     InvalidBase64(#[from] bitcoin::base64::DecodeError),
     #[error("failed to deserialize the CBOR wad representation: {0}")]
     InvalidCbor(#[from] ciborium::de::Error<std::io::Error>),
-    #[error("invalid dleq proof")]
-    DleqProofError,
     #[error("Custom Error: {0}")]
     Custom(String),
-
     /// Tonic gRPC status error
     #[error("gRPC Error: {0}")]
     Grpc(#[from] Status),
-
     /// NUTs error
     #[error("Nuts Error: {0}")]
     Nuts(#[from] nuts::Error), // A general nuts error
-
     /// Specific NUT02 Keysets error
     #[error("NUT02 Keysets Error: {0}")]
     Nut02(#[from] nuts::nut02::Error),
-
     /// Specific NUT01 error
     #[error("NUT01 Keys Error: {0}")]
     Nut01(#[from] nuts::nut01::Error),
 }
 
-#[derive(Debug, Clone)]
-pub struct DleqVerificationResult {
-    pub total_proofs: usize,
-    pub valid_proofs: usize,
-    pub invalid_proofs: Vec<DleqProofError>,
-    pub is_fully_valid: bool,
+#[derive(Debug)]
+pub enum DleqVerificationResult {
+    AllValid,
+    AllNone,
+    SomeNotInvalid(Vec<DleqProofStatus>),
+}
+
+#[derive(Debug)]
+pub struct DleqProofStatus {
+    pub index: usize,
+    pub error: Option<nut12::Error>,
+}
+
+impl DleqProofStatus {
+    pub fn new(index: usize) -> Self {
+        Self { index, error: None }
+    }
+
+    pub fn new_with_error(index: usize, error_msg: String) -> Self {
+        let error = Nut12Error::DleqVerificationFailed(DleqProofError {
+            proof_index: index,
+            error: error_msg,
+        });
+
+        Self {
+            index,
+            error: Some(error),
+        }
+    }
 }
 
 impl<U: Unit> CompactWads<U> {

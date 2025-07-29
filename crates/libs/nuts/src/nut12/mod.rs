@@ -2,11 +2,45 @@
 // https://cashubtc.github.io/nuts/12/
 
 use bitcoin::hashes::{Hash, HashEngine, sha256::Hash as Sha256Hash};
-use bitcoin::secp256k1::{PublicKey as SecpPublicKey, Scalar, SecretKey as SecpSecretKey};
+use bitcoin::secp256k1::scalar::OutOfRangeError;
+use bitcoin::secp256k1::{
+    Error as SecpError, PublicKey as SecpPublicKey, Scalar, SecretKey as SecpSecretKey,
+};
 
 use crate::SECP256K1;
-use crate::dhke::{self, Error};
+use crate::dhke;
 use crate::nut01::{PublicKey, SecretKey};
+
+use thiserror::Error;
+
+/// NUT12 Error
+#[derive(Debug, Error)]
+pub enum Error {
+    /// DLEQ proof verification failed
+    #[error("DLEQ proof verification failed")]
+    DleqVerificationFailed(DleqProofError),
+    /// Invalid DLEQ proof format
+    #[error("Invalid DLEQ proof format")]
+    InvalidDleqProof,
+    /// Hex decoding error
+    #[error(transparent)]
+    Hex(#[from] hex::FromHexError),
+    /// Invalid Scalar (out of range)
+    #[error("Invalid Scalar: {0}")]
+    Scalar(#[from] OutOfRangeError),
+    /// Secp256k1 error
+    #[error(transparent)]
+    Secp(#[from] SecpError),
+    /// DHKE error
+    #[error(transparent)]
+    Dhke(#[from] crate::dhke::Error),
+}
+
+#[derive(Debug, Clone)]
+pub struct DleqProofError {
+    pub proof_index: usize,
+    pub error: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DleqProof {
@@ -138,6 +172,8 @@ pub fn verify_dleq_proof_carol(
 mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
+
+    use bitcoin::secp256k1::Scalar;
 
     use crate::{
         Amount,
@@ -343,5 +379,203 @@ mod tests {
             "Carol's DLEQ verification with NUT-12 test vector failed: {:?}",
             result.err()
         );
+    }
+
+    #[test]
+    fn test_alice_fails_with_wrong_s() {
+        let (mint_private_key, mint_public_key) = setup_mint_keys();
+        let secret_bytes = hex::decode("00".repeat(32)).unwrap();
+        let (blind_message, _) = dhke::blind_message(&secret_bytes, None).unwrap();
+        let blinded_signature_c_prime = sign_message(&mint_private_key, &blind_message).unwrap();
+
+        let (e, s) = generate_dleq_proof(
+            &mint_private_key,
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap();
+
+        // Tamper with 's' by adding 1 to its scalar value
+        // First, treat the scalar 's' as a secret key
+        let s_as_sk = SecretKey::from_slice(&hex::decode(&s).unwrap()).unwrap();
+
+        // Then, use the idiomatic `add_tweak` method to perform scalar addition
+        let tampered_s_sk = s_as_sk.add_tweak(&Scalar::ONE).unwrap();
+        let tampered_s_hex = hex::encode(tampered_s_sk.secret_bytes());
+
+        let result = verify_dleq_proof_alice(
+            &e,
+            &tampered_s_hex, // Use tampered 's'
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap();
+
+        assert!(
+            !result,
+            "Verification should fail with a tampered 's' value"
+        );
+    }
+
+    #[test]
+    fn test_alice_fails_with_wrong_mint_pubkey() {
+        let (mint_private_key, mint_public_key) = setup_mint_keys();
+        let (_wrong_mint_private_key, wrong_mint_public_key) = setup_mint_keys();
+
+        let secret_bytes = hex::decode("00".repeat(32)).unwrap();
+        let (blind_message, _) = dhke::blind_message(&secret_bytes, None).unwrap();
+        let blinded_signature_c_prime = sign_message(&mint_private_key, &blind_message).unwrap();
+
+        let (e, s) = generate_dleq_proof(
+            &mint_private_key,
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap();
+
+        let result = verify_dleq_proof_alice(
+            &e,
+            &s,
+            &wrong_mint_public_key, // Use wrong mint public key
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap();
+
+        assert!(
+            !result,
+            "Verification should fail with a different mint's public key"
+        );
+    }
+
+    #[test]
+    fn test_carol_fails_with_wrong_blinding_factor() {
+        let (mint_private_key, mint_public_key) = setup_mint_keys();
+        let secret = Secret::from_str(&"00".repeat(32)).unwrap();
+        let secret_bytes = secret.as_bytes();
+        let (blind_message, blinding_factor_r) = dhke::blind_message(secret_bytes, None).unwrap();
+        let blinded_signature_c_prime = sign_message(&mint_private_key, &blind_message).unwrap();
+
+        let (e, s) = generate_dleq_proof(
+            &mint_private_key,
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap();
+
+        let unblinded_signature_c = unblind_message(
+            &blinded_signature_c_prime,
+            &blinding_factor_r,
+            &mint_public_key,
+        )
+        .unwrap();
+
+        // Generate a different, wrong blinding factor
+        let wrong_blinding_factor_r = SecretKey::generate();
+
+        let result = verify_dleq_proof_carol(
+            &e,
+            &s,
+            &hex::encode(wrong_blinding_factor_r.to_secret_bytes()), // Use wrong 'r'
+            &mint_public_key,
+            secret_bytes,
+            &unblinded_signature_c,
+        )
+        .unwrap();
+
+        assert!(
+            !result,
+            "Carol's verification should fail with the wrong blinding factor"
+        );
+    }
+
+    #[test]
+    fn test_carol_fails_with_wrong_secret() {
+        let (mint_private_key, mint_public_key) = setup_mint_keys();
+        let secret = Secret::from_str(&"00".repeat(32)).unwrap();
+        let secret_bytes = secret.as_bytes();
+        let (blind_message, blinding_factor_r) = dhke::blind_message(secret_bytes, None).unwrap();
+        let blinded_signature_c_prime = sign_message(&mint_private_key, &blind_message).unwrap();
+
+        let (e, s) = generate_dleq_proof(
+            &mint_private_key,
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap();
+
+        let unblinded_signature_c = unblind_message(
+            &blinded_signature_c_prime,
+            &blinding_factor_r,
+            &mint_public_key,
+        )
+        .unwrap();
+
+        // Use a different secret for verification
+        let wrong_secret_bytes = hex::decode("11".repeat(32)).unwrap();
+
+        let result = verify_dleq_proof_carol(
+            &e,
+            &s,
+            &hex::encode(blinding_factor_r.to_secret_bytes()),
+            &mint_public_key,
+            &wrong_secret_bytes, // Use wrong secret
+            &unblinded_signature_c,
+        )
+        .unwrap();
+
+        assert!(
+            !result,
+            "Carol's verification should fail with the wrong secret"
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_hex_input() {
+        let (mint_public_key, blind_message, blinded_signature_c_prime) =
+            generate_test_components();
+        verify_dleq_proof_alice(
+            "not-a-hex-string",
+            "9818e061ee51d5c8edc3342369a554998ff7b4381c8652d724cdf46429be73da",
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap(); // This unwrap should panic
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_scalar_input() {
+        let (mint_public_key, blind_message, blinded_signature_c_prime) =
+            generate_test_components();
+        // This scalar is > curve order N, making it invalid.
+        let out_of_range_scalar =
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364142";
+        let valid_s = "9818e061ee51d5c8edc3342369a554998ff7b4381c8652d724cdf46429be73da";
+        verify_dleq_proof_alice(
+            out_of_range_scalar,
+            valid_s,
+            &mint_public_key,
+            &blind_message,
+            &blinded_signature_c_prime,
+        )
+        .unwrap(); // This unwrap should panic
+    }
+
+    /// Helper to generate valid-looking components for failure tests.
+    fn generate_test_components() -> (PublicKey, PublicKey, PublicKey) {
+        let mint_public_key = SecretKey::generate().public_key();
+        let secret_bytes = hex::decode("00".repeat(32)).unwrap();
+        let (blind_message, _) = dhke::blind_message(&secret_bytes, None).unwrap();
+        let blinded_signature_c_prime =
+            sign_message(&SecretKey::generate(), &blind_message).unwrap();
+        (mint_public_key, blind_message, blinded_signature_c_prime)
     }
 }

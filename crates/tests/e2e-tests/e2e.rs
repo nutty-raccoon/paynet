@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::Result;
 use e2e_tests::{db_connection, read_env_variables};
 use test_utils::e2e::starknet::wallet_ops::WalletOps;
-use wallet::types::NodeUrl;
+use wallet::types::{NodeUrl, compact_wad::DleqVerificationResult};
 
 #[tokio::test]
 pub async fn run_e2e() -> Result<()> {
@@ -61,11 +61,10 @@ pub async fn run_e2e() -> Result<()> {
 
     // Verify the wad contains valid DLEQ proofs (Carol's scenario)
     let verification_result = wallet_ops.verify_wad_dleq_proofs(&wad).await?;
-    assert!(verification_result.is_fully_valid);
-    assert_eq!(
-        verification_result.total_proofs,
-        verification_result.valid_proofs
-    );
+    assert!(matches!(
+        verification_result,
+        DleqVerificationResult::AllValid
+    ));
 
     wallet_ops.receive(&wad).await?;
 

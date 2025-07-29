@@ -4,7 +4,6 @@ use std::ops::Deref;
 
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
-use bitcoin::secp256k1::scalar::OutOfRangeError;
 use bitcoin::secp256k1::{
     Parity, PublicKey as NormalizedPublicKey, Scalar, Secp256k1, XOnlyPublicKey,
 };
@@ -34,18 +33,6 @@ pub enum Error {
     CoudNotGetProof,
     #[error("Lengths of promises, rs, and secrets must be equal")]
     DifferentLength,
-    /// DLEQ proof verification failed
-    #[error("DLEQ proof verification failed")]
-    DleqVerificationFailed,
-    /// Invalid DLEQ proof format
-    #[error("Invalid DLEQ proof format")]
-    InvalidDleqProof,
-    /// Hex decoding error
-    #[error(transparent)]
-    Hex(#[from] hex::FromHexError),
-    /// Invalid Scalar (out of range)
-    #[error("Invalid Scalar: {0}")]
-    Scalar(#[from] OutOfRangeError),
 }
 
 /// Deterministically maps a message to a public key point on the secp256k1
@@ -126,6 +113,7 @@ pub fn unblind_message(
 }
 
 /// Construct Proofs
+#[cfg(feature = "nut12")]
 pub fn construct_proofs(
     promises: Vec<BlindSignature>,
     rs: Vec<SecretKey>, // blinding factors
