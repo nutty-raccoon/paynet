@@ -1,8 +1,5 @@
-use tauri::{ async_runtime, State, AppHandle, Emitter };
-use std::{time::Duration, env, sync::PoisonError};
-use reqwest;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+use tauri::{ async_runtime, AppHandle, Emitter };
+use std::{time::Duration, env};
 
 use crate::AppState;
 use super::{PriceResponce, CurrenciesResponce};
