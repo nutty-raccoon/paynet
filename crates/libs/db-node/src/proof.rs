@@ -207,6 +207,7 @@ mod query_builder {
                 "02194603ffa36356f4a56b7df9371fc3192472351453ec7398b8da8117e7c3e104",
             )
             .unwrap(),
+            dleq: None,
         };
         let y = proof.y().unwrap();
 

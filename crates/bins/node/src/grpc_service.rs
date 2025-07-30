@@ -261,6 +261,7 @@ impl Node for GrpcState {
                     secret: Secret::new(p.secret).map_err(ParseGrpcError::Secret)?,
                     c: PublicKey::from_slice(&p.unblind_signature)
                         .map_err(ParseGrpcError::PublicKey)?,
+                    dleq: None,
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -443,6 +444,7 @@ impl Node for GrpcState {
                     secret: Secret::new(p.secret).map_err(ParseGrpcError::Secret)?,
                     c: PublicKey::from_slice(&p.unblind_signature)
                         .map_err(ParseGrpcError::PublicKey)?,
+                    dleq: None,
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;

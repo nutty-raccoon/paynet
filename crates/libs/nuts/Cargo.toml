@@ -26,10 +26,11 @@ rand = { workspace = true }
 bip39 = { workspace = true }
 
 [features]
-default = []
+default = ["nut12"]
 starknet = ["dep:starknet-types-core"]
 sqlx = ["dep:sqlx"]
 rusqlite = ["dep:rusqlite"]
 nut9 = []
+nut12 = []
 nut13 = []
 nut19 = []

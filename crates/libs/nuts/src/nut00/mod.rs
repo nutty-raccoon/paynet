@@ -1,11 +1,12 @@
 mod errors;
 pub mod secret;
+#[cfg(feature = "nut12")]
+use crate::nut12::DleqProof;
+use crate::{Amount, dhke::hash_to_curve, nut01::PublicKey, nut02::KeysetId};
 pub use errors::Error;
 use num_traits::CheckedAdd;
 use secret::Secret;
 use serde::{Deserialize, Serialize};
-
-use crate::{Amount, dhke::hash_to_curve, nut01::PublicKey, nut02::KeysetId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CashuError {
@@ -65,6 +66,10 @@ pub struct Proof {
     /// Unblind signature
     #[serde(rename = "C")]
     pub c: PublicKey,
+    /// Optional DLEQ proof for validating the unblinded signature offline (NUT-12).
+    #[cfg(feature = "nut12")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dleq: Option<DleqProof>,
 }
 
 impl Proof {
@@ -93,6 +98,10 @@ pub struct BlindSignature {
     /// The blind signature on the secret message `B_` of [BlindMessage].
     #[serde(rename = "C_")]
     pub c: PublicKey,
+    /// Optional DLEQ proof for validating the unblinded signature offline (NUT-12).
+    #[cfg(feature = "nut12")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dleq: Option<DleqProof>,
 }
 
 /// Blind Message (also called `output`)
