@@ -17,7 +17,7 @@ pub async fn run_e2e() -> Result<()> {
 
     let seed_phrase = wallet_ops.init()?;
     wallet_ops
-        .mint(10.into(), starknet_types::Asset::Strk, env)
+        .mint(20.into(), starknet_types::Asset::Strk, env)
         .await?;
     let wad = wallet_ops
         .send(

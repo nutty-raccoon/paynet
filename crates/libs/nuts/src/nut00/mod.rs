@@ -1,12 +1,12 @@
 mod errors;
 pub mod secret;
+#[cfg(feature = "nut12")]
+use crate::nut12::DleqProof;
+use crate::{Amount, dhke::hash_to_curve, nut01::PublicKey, nut02::KeysetId};
 pub use errors::Error;
 use num_traits::CheckedAdd;
 use secret::Secret;
 use serde::{Deserialize, Serialize};
-
-use crate::nut12::DleqProof;
-use crate::{Amount, dhke::hash_to_curve, nut01::PublicKey, nut02::KeysetId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CashuError {
