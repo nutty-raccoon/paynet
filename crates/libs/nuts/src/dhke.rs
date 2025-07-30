@@ -131,12 +131,14 @@ pub fn construct_proofs(
         .map(|((promise, r), secret)| {
             // This part handles the DLEQ proof, adding the blinding factor `r`
             // which is required for Carol's verification scenario.
-            let mut dleq = promise.dleq.clone();
-            if let Some(dleq_proof) = &mut dleq {
-                // The blinding factor `r` is added here. It was part of the BlindSignature
-                // from the mint, but the `r` value itself was only known by Alice.
-                dleq_proof.r = Some(hex::encode(r.to_secret_bytes()));
-            }
+            #[cfg(feature = "nut12")]
+            let dleq = promise.dleq.clone().map(|mut p| {
+                p.r = Some(hex::encode(r.to_secret_bytes()));
+                p
+            });
+
+            #[cfg(not(feature = "nut12"))]
+            let dleq = None;
 
             // Here we use your `unblind_message` function.
             // It takes the blinded signature from the promise (C_), the blinding

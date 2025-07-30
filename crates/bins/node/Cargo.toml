@@ -21,7 +21,7 @@ log = { workspace = true }
 url = { workspace = true }
 toml = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-nuts = { workspace = true, features = ["nut9", "nut19"] }
+nuts = { workspace = true, features = ["nut9", "nut12", "nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
