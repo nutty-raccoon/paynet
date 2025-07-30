@@ -6,7 +6,7 @@ import { fetchPrice } from './services/priceService';
 import { tokenRoutes } from './routes/token/token';
 import { priceRoutes } from './routes/price/price';
 import { currencyRoutes } from './routes/currency/currency';
-import { setEnv } from './setEnv';
+import { readEnv } from './readEnv';
 
 export type Token = {
     symbol: string;
@@ -16,9 +16,9 @@ export type Token = {
 
 dotenv.config();
 
-const env = await setEnv();
+const env = await readEnv();
 
-export const myCache = new NodeCache();
+export const appCache = new NodeCache();
 export const fastify = Fastify({
   logger: true
 });
@@ -32,8 +32,8 @@ export const client = new Coingecko({
 })
 
 // Set default tokens
-myCache.set("tokens", env.tokens);
-myCache.set("currencies", env.currencies);
+appCache.set("tokens", env.tokens);
+appCache.set("currencies", env.currencies);
 
 setInterval(fetchPrice, 5000);
 

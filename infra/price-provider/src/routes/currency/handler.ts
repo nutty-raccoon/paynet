@@ -1,10 +1,10 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { client, myCache } from "../..";
+import { client, appCache } from "../..";
 
 export async function addCurrency(request: FastifyRequest, reply: FastifyReply) {
     const { currency } = request.body as { currency: string };
     
-    const currencies: string[] | undefined = myCache.get("currencies");
+    const currencies: string[] | undefined = appCache.get("currencies");
     if (!currencies) {
         throw new Error("Cache doesn't set.");
     }
@@ -21,7 +21,7 @@ export async function addCurrency(request: FastifyRequest, reply: FastifyReply) 
     }
 
     currencies.push(currency);
-    myCache.set("currencies", currencies);
+    appCache.set("currencies", currencies);
 
     return reply.code(201).send({ status: "success" });
 }
@@ -29,7 +29,7 @@ export async function addCurrency(request: FastifyRequest, reply: FastifyReply) 
 export async function delCurrency(request: FastifyRequest, reply: FastifyReply) {
     const { currency } = request.body as { currency: string };
     
-    const currencies: string[] | undefined = myCache.get("currencies");
+    const currencies: string[] | undefined = appCache.get("currencies");
     if (!currencies) {
         throw new Error("Cache doesn't set.");
     }
@@ -40,7 +40,7 @@ export async function delCurrency(request: FastifyRequest, reply: FastifyReply) 
     }
 
     const newCurrencies = currencies.filter(item => item !== currency);
-    myCache.set("currencies", newCurrencies);
+    appCache.set("currencies", newCurrencies);
 
     return reply.code(201).send({ status: "success" });
 }

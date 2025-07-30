@@ -3,15 +3,16 @@ import type { Token } from ".";
 let env = process.env;
 
 export type Env = {
-    tokens: Token[],
+    tokens: Record<string, Token[]>,
     currencies: string[],
+    // `isPro` toggles between Pro and demo CoinGecko credentials—using Pro when available grants higher rate limits and full API features.
     isPro: boolean,
     apiKey: string,
     host: string,
     port: number,
 };
 
-export async function setEnv(): Promise<Env> {
+export async function readEnv(): Promise<Env> {
     if (!env.COIN_PRO_GECKO_API_KEY && !env.COIN_DEMO_GECKO_API_KEY) {
         throw new Error("Missing env var: COIN_DEMO_GECKO_API_KEY or COIN_PRO_GECKO_API_KEY");
     }
@@ -27,8 +28,13 @@ export async function setEnv(): Promise<Env> {
 
     const rawTokens = env.TOKENS;
     const rawCurrencies = env.CURRENCIES;
-    const tokens: Token[] = JSON.parse(rawTokens);
+    const jsonTokens: Token[] = JSON.parse(rawTokens);
     const currencies: string[] = JSON.parse(rawCurrencies);
+
+    const tokens: Record<string, Token[]> = jsonTokens.reduce<Record<string, Token[]>>((acc, token) => {
+        (acc[token.chain] ??= []).push(token);
+        return acc;
+    }, {} as Record<string, Token[]>);
 
     return {
         tokens,

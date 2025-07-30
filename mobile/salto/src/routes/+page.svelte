@@ -21,6 +21,7 @@
   import type { Price } from "../types/price";
   import SettingsModal from "./settings/SettingsModal.svelte";
   import InitPage from "./init/InitPage.svelte";
+  import { fiatCurrenciesStored, selectedCurrencyStored } from "../stores";
 
   const Modal = {
     ROOT: 0,
@@ -40,8 +41,7 @@
   let walletExists = $state<boolean | null>(null); // null = loading, true/false = result
 
   let tokenPrices: Price[] = $state([]);
-  let fiatCurrencies: string[] = $state([]);
-  let selectedCurrency: string = $state("usd");
+  let fiatCurrencies: string[] = $state($fiatCurrenciesStored);
 
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
@@ -51,7 +51,6 @@
     totalAmount: number;
     formattedTotalBalance: string[];
   } = $derived.by(() => {
-    console.log(selectedCurrency);
     let totalAmount: number = 0;
     let formattedTotalBalance: string[] = totalBalance
       .entries()
@@ -62,7 +61,7 @@
         );
         if (typeof price === "object") {
           let value = price.price.find(
-            (asset) => selectedCurrency === asset.currency
+            (asset) => $selectedCurrencyStored === asset.currency
           );
           totalAmount += formatted.amount * (value ? value.value : 0);
         }
@@ -126,7 +125,7 @@
     getPrices();
 
     getCurrencies().then((resp) => {
-      fiatCurrencies = resp ? resp : fiatCurrencies;
+      if (resp) fiatCurrenciesStored.set(resp);
     });
 
     listen<{ prices: Price[] }>("new-price", (event) => {
@@ -156,9 +155,14 @@
   });
 </script>
 
-<button class="settings" onclick={() => openModal(Modal.SETTINGS)}
-  >Settings</button
->
+{#if activeTab !== "settings"}
+  <button
+    class="settings"
+    onclick={() => {
+      activeTab = "settings";
+    }}>Settings</button
+  >
+{/if}
 <main class="container">
   {#if walletExists === null}
     <!-- Loading state -->
@@ -179,7 +183,7 @@
             </p>
             <p class="total-currency-amount">
               {formattedBalance.totalAmount.toFixed(2)}
-              {selectedCurrency}
+              {$selectedCurrencyStored}
             </p>
           </div>
           {#if errorMessage}
@@ -204,17 +208,11 @@
       <div class="balances-container">
         <NodesBalancePage {nodes} {onAddNode} />
       </div>
+    {:else if activeTab === "settings"}
+      <SettingsModal />
     {/if}
   {/if}
 </main>
-
-{#if currentModal == Modal.SETTINGS}
-  <SettingsModal
-    bind:selectedCurrency
-    {fiatCurrencies}
-    onClose={goBackToRoot}
-  />
-{/if}
 
 {#if walletExists}
   <NavBar

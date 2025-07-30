@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import { myCache } from '../..';
+import { appCache } from '../..';
 // import { addTokenSchema, delTokenSchema } from './schemas';
 // import { addToken, delToken } from './handler';
 
 export async function tokenRoutes(fastify: FastifyInstance) {
     // GET
     fastify.get('/tokens', async function handler (request, reply) {
-        const tokens = myCache.get("tokens");
+        const tokens = appCache.get("tokens");
         return reply.code(200).send({ tokens });
     });
 

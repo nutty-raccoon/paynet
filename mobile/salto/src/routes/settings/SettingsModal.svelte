@@ -1,53 +1,38 @@
 <script lang="ts">
-  export let selectedCurrency: string;
-  export let fiatCurrencies: string[];
-  export let onClose: () => void;
-
-  const handleModalClose = () => {
-    onClose();
-  };
+  import { fiatCurrenciesStored, selectedCurrencyStored } from "../../stores";
 </script>
 
-<div class="modal-overlay">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>Settings</h3>
-      <button class="close-button" onclick={handleModalClose}>✕</button>
-    </div>
-    <div class="select-currency">
-      <h3>Select your currency:</h3>
-      <select name="deposit-token" bind:value={selectedCurrency} required>
-        {#each fiatCurrencies as currency}
-          <option value={currency}>
-            {currency.toUpperCase()}
-          </option>
-        {/each}
-      </select>
-    </div>
+<div class="settings-container">
+  <div class="modal-header">
+    <h3>Settings</h3>
+  </div>
+  <div class="select-currency">
+    <h3>Select your currency:</h3>
+    <select
+      name="deposit-token"
+      value={$selectedCurrencyStored}
+      on:change={(e) =>
+        selectedCurrencyStored.set((e.target as HTMLSelectElement).value)}
+      required
+    >
+      {#each $fiatCurrenciesStored as currency}
+        <option value={currency}>
+          {currency.toUpperCase()}
+        </option>
+      {/each}
+    </select>
   </div>
 </div>
 
 <style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+  .settings-container {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: white;
-    border-radius: 12px;
+    flex-direction: column;
     width: 90%;
     max-width: 400px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    gap: 1rem;
+    margin: 0 auto;
+    align-items: center;
   }
 
   .modal-header {
@@ -63,29 +48,14 @@
     color: #333;
   }
 
-  .close-button {
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    cursor: pointer;
-    color: #666;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-  }
-
-  .close-button:hover {
-    background-color: #f0f0f0;
-  }
-
   .select-currency {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
   }
 
-  .modal-content select {
-    padding: 0.75rem;
+  .select-currency select {
+    margin-left: 1rem;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 1rem;
@@ -93,7 +63,7 @@
     cursor: pointer;
   }
 
-  .modal-content select:focus {
+  .select-currency select:focus {
     border-color: #1e88e5;
     outline: none;
     box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);

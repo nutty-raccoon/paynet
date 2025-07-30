@@ -1,34 +1,45 @@
 import {fastify, type Token} from "../index";
-import { client, myCache } from "..";
+import { client, appCache } from "..";
 
 export async function fetchPrice() {
     try{
-        let currencies: string[] | undefined = myCache.get("currencies");
+        let currencies: string[] | undefined = appCache.get("currencies");
         if (!currencies) {
             throw new Error ("No currency set.");
         }
-        const tokens: Token[] | undefined = myCache.get("tokens");
+        const tokens: Record<string, Token[]> | undefined = appCache.get("tokens");
         if (!tokens) {
             throw new Error ("No token set.")
         }
-
-        let addresses = tokens.map(token => token.address).join(",");
         let allCurrencies: string = currencies.join(",");
 
-        // any type because the default type is not good
-        const res: any = await client.simple.tokenPrice.getID("ethereum", { vs_currencies: allCurrencies, contract_addresses: addresses });
-        console.log(res);
-        const newCache = tokens.map(token => {
-            const newPrice: {currency: string, value: number}[] = currencies.map((currency) =>{return {currency, value: res[token.address][currency]}});
+        let newCache: {
+            symbol: string;
+            address: string;
+            price: {
+                currency: string;
+                value: number;
+            }[];
+        }[] = [];
+        
+        for (const chain in tokens) {
+            let list = tokens[chain]!;
+            let addresses = list.map(token => token.address).join(",");
 
-            return {
-                symbol: token.symbol,
-                address: token.address,
-                price: newPrice,
-            };
-        });
+            // any type because the default type is not good
+            const res: any = await client.simple.tokenPrice.getID(chain, { vs_currencies: allCurrencies, contract_addresses: addresses });
+            list.forEach(token => {
+                const newPrice: {currency: string, value: number}[] = currencies.map((currency) =>{return {currency, value: res[token.address][currency]}});
 
-        myCache.set("last_price", newCache);
+                newCache.push({
+                    symbol: token.symbol,
+                    address: token.address,
+                    price: newPrice,
+                });
+            });
+        }
+
+        appCache.set("last_price", newCache);
 
         fastify.log.info("Price has been updated.");
     } catch (err) {

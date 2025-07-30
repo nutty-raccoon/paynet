@@ -1,4 +1,4 @@
-import { client, myCache, type Token } from "../../index";
+import { client, appCache, type Token } from "../../index";
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 function tokenAlradyExist(a: Token, b: {chain: string, address: string}) {
@@ -8,7 +8,7 @@ function tokenAlradyExist(a: Token, b: {chain: string, address: string}) {
 export async function addToken(request: FastifyRequest, reply: FastifyReply) {
     const { address, chain } = request.body as { address: string, chain: string };
     
-    const tokens: Token[] | undefined = myCache.get("tokens");
+    const tokens: Token[] | undefined = appCache.get("tokens");
     if (!tokens) {
         throw new Error("Cache doesn't set.");
     }
@@ -30,7 +30,7 @@ export async function addToken(request: FastifyRequest, reply: FastifyReply) {
         chain,
         address
     });
-    myCache.set("tokens", tokens);
+    appCache.set("tokens", tokens);
 
     return reply.code(201).send({ status: "success" });
 }
@@ -43,7 +43,7 @@ export async function delToken(request: FastifyRequest, reply: FastifyReply) {
     const { symbol, address, chain } = request.body as { symbol: string, address: string, chain: string };
     const delToken = {symbol, chain, address};
 
-    const tokens: Token[] | undefined = myCache.get("tokens");
+    const tokens: Token[] | undefined = appCache.get("tokens");
     if (!tokens) {
         throw new Error("Cache doesn't set.");
     }
@@ -54,7 +54,7 @@ export async function delToken(request: FastifyRequest, reply: FastifyReply) {
     }
 
     const newTokens = tokens.filter(t => !isSameToken(t, delToken));
-    myCache.set("tokens", newTokens);
+    appCache.set("tokens", newTokens);
 
     return reply.code(201).send({ status: "success" });
 }

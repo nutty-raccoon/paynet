@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { myCache } from "../..";
+import { getPrices } from "./handler";
+import { getPricesSchema } from "./schemas";
 
-type Price = {
+export type Price = {
     symbol: string;
     address: string;
     price: {
@@ -12,9 +13,5 @@ type Price = {
 
 export async function priceRoutes(fastify: FastifyInstance) {
     // GET
-    fastify.get('/prices', async function handler (request, reply) {
-        const prices: Price | undefined = myCache.get("last_price");
-        console.log(prices);
-        return reply.code(200).send({ prices });
-    })
+    fastify.get('/prices', { schema: getPricesSchema }, getPrices)
 }

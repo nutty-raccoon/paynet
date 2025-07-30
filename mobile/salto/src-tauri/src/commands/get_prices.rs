@@ -44,11 +44,11 @@ pub async fn get_prices(app: AppHandle, state: tauri::State<'_, AppState>) -> Re
                         let _ = app.emit("new-price", body);
                     }
                     Err(err) => {
-                        eprintln!("Erreur de parsing JSON: {}", err);
+                        eprintln!("{}", err);
                     }
                 },
                 Err(err) => {
-                    eprintln!("Erreur requête API: {}", err);
+                    eprintln!("{}", err);
                 }
             }
         }

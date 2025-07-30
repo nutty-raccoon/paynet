@@ -14,6 +14,7 @@ export async function getNodesBalance() {
      let res =  await invoke("get_prices")
        .then((message) => message)
        .catch((error) => console.error(error));
+      console.log(res);
       return res;
   }
 

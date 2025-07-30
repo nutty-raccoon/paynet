@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { myCache } from "../..";
+import { appCache } from "../..";
 // import { addCurrency, delCurrency } from "./handler";
 // import { addCurrencySchema, delCurrencySchema } from "./schemas";
 
 export async function currencyRoutes(fastify: FastifyInstance) {
     // GET
     fastify.get('/currencies', async function handler (request, reply) {
-        const currencies = myCache.get("currencies");
+        const currencies = appCache.get("currencies");
         return reply.code(200).send({ currencies });
     });
 
