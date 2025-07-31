@@ -15,6 +15,15 @@ pub mod transactions;
 
 pub const STARKNET_STR: &str = "starknet";
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DepositPayload {
+    pub quote_id_hash: Felt,
+    pub expiry: u64,
+    pub asset: Felt,
+    pub amount: StarknetU256,
+    pub payee: Felt,
+}
+
 /// Possible errors for encoding a Cairo short string.
 #[derive(Debug, thiserror::Error)]
 pub enum CairoShortStringToFeltError {

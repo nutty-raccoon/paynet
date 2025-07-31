@@ -8,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=node
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "5432:5432"
     restart: always
     volumes:
       - database_data:/var/lib/postgresql/data
@@ -22,12 +22,14 @@ services:
     image: "signer"
     restart: always
     environment:
-      - ROOT_KEY=${ROOT_KEY:-tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH}
+      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
       - GRPC_PORT=10001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=signer
     ports:
-      - "${SIGNER_PORT:-10001}:10001"
+      - "10001:10001"
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/signer.Dockerfile
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
@@ -35,20 +37,28 @@ services:
       interval: 3s
       retries: 3
 
-  node-mock:
-    image: "node.mock"
+  node:
+    image: "node"
     restart: always
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
-        - CARGO_FEATURES=starknet,mock,keyset-rotation
+        - CARGO_FEATURES=starknet
+    volumes:
+      - ../crates/bins/node/config/docker.toml:/etc/paynet/config.toml
     environment:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
+      - CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9
       - GRPC_PORT=10003
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
+    command:
+      - --config
+      - /etc/paynet/config.toml
     ports:
-      - "${NODE_PORT:-10003}:10003"
+      - "10003:10003"
     depends_on:
       db:
         condition: service_healthy

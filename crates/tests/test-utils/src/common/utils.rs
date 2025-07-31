@@ -12,7 +12,8 @@ pub mod starknet {
     use log::error;
     use starknet::{
         accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
-        providers::{JsonRpcClient, jsonrpc::HttpTransport},
+        core::types::{ExecutionResult, StarknetError, TransactionStatus},
+        providers::{JsonRpcClient, ProviderError, jsonrpc::HttpTransport},
         signers::{LocalWallet, SigningKey},
     };
     use starknet_types_core::felt::Felt;
@@ -65,16 +66,12 @@ pub mod starknet {
         P: starknet::providers::Provider,
     {
         loop {
-            use starknet::core::types::{
-                StarknetError, TransactionExecutionStatus, TransactionStatus,
-            };
-            use starknet::providers::ProviderError;
             match provider.get_transaction_status(tx_hash).await {
-                Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded)) => {
+                Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Succeeded)) => {
                     break;
                 }
-                Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted)) => {
-                    return Err(Error::Other(anyhow!("tx reverted")));
+                Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason })) => {
+                    return Err(Error::Other(anyhow!("tx reverted: {}", reason)));
                 }
                 Ok(TransactionStatus::Received) => {}
                 Ok(TransactionStatus::Rejected) => {

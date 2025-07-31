@@ -6,14 +6,20 @@ use log::{debug, error, info};
 use starknet::{
     accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
     contract::ContractFactory,
-    core::types::{
-        BlockId, BlockTag, Felt, StarknetError, TransactionExecutionStatus, TransactionStatus,
-        contract::SierraClass,
+    core::{
+        types::{
+            BlockId, BlockTag, ExecutionResult, Felt, StarknetError, TransactionStatus,
+            contract::SierraClass,
+        },
+        utils::parse_cairo_short_string,
     },
     providers::{JsonRpcClient, Provider, ProviderError, jsonrpc::HttpTransport},
     signers::{LocalWallet, SigningKey},
 };
-use starknet_types::Call;
+use starknet_types::{
+    DepositPayload, constants::ON_CHAIN_CONSTANTS,
+    transactions::generate_single_payment_transaction_calls,
+};
 use url::Url;
 
 #[derive(Parser, Debug)]
@@ -105,10 +111,23 @@ async fn pay(
     account: &SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     cmd: PayInvoiceCommand,
 ) -> Result<(), Error> {
-    let calls: [Call; 2] = serde_json::from_str(&cmd.invoice_json_string)?;
+    let chain_id = parse_cairo_short_string(&account.chain_id())?;
+    let on_chain_constants = ON_CHAIN_CONSTANTS
+        .get(&chain_id)
+        .ok_or(anyhow!("unsupported chain id: {}", chain_id))?;
+    let payload: DepositPayload = serde_json::from_str(&cmd.invoice_json_string)?;
+
+    let calls = generate_single_payment_transaction_calls(
+        on_chain_constants.invoice_payment_contract_address,
+        payload.quote_id_hash,
+        Felt::from(payload.expiry),
+        payload.asset,
+        &payload.amount,
+        payload.payee,
+    );
 
     let tx_hash = account
-        .execute_v3(calls.into_iter().map(Into::into).collect())
+        .execute_v3(calls.to_vec())
         .send()
         .await
         .inspect_err(|e| error!("send payment tx failed: {:?}", e))?
@@ -170,11 +189,11 @@ where
 {
     loop {
         match provider.get_transaction_status(transaction_hash).await {
-            Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded)) => {
+            Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Succeeded)) => {
                 return Ok(());
             }
-            Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted)) => {
-                return Err(anyhow!("tx reverted"));
+            Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason })) => {
+                return Err(anyhow!("tx reverted: {}", reason));
             }
             Ok(TransactionStatus::Received) => {}
             Ok(TransactionStatus::Rejected) => return Err(anyhow!("tx rejected")),

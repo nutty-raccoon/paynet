@@ -1,10 +1,9 @@
 services:
   starknet-devnet:
-    image: "docker.io/shardlabs/starknet-devnet-rs:0.2.4-seed0"
+    image: "docker.io/shardlabs/starknet-devnet-rs:0.4.3"
     environment:
-      - SEED=0
-      - BLOCK_GENERATION_ON=5
-      - CHAIN_ID=SN_DEVNET
+      - FORK_NETWORK=https://starknet-sepolia.public.blastapi.io/rpc/v0_8
+      - BLOCK_GENERATION_ON=1
     ports:
       - "5050:5050"
     restart: always
@@ -19,7 +18,7 @@ services:
   starknet-firehose:
     image: starknet-firehose
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/starknet-firehose.Dockerfile
     environment:
       - STARKNET_NODE_URL=http://starknet-devnet:5050
@@ -38,7 +37,7 @@ services:
     ports:
       - "3004:3004"
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/explorer.Dockerfile
     environment:
       # Use localhost here because it has to be the address from the browser POV, not from the server
@@ -52,7 +51,7 @@ services:
   starknet-setup:
     image: "starknet-setup"
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/starknet-setup.Dockerfile
     command:
       - "--chain-id=SN_DEVNET"

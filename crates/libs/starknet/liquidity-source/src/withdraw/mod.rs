@@ -33,7 +33,7 @@ mod not_mock {
 
     use starknet::{
         accounts::{Account, ConnectedAccount, SingleOwnerAccount},
-        core::types::{Felt, TransactionExecutionStatus, TransactionStatus},
+        core::types::{ExecutionResult, Felt, TransactionStatus},
         providers::{JsonRpcClient, Provider, ProviderError, jsonrpc::HttpTransport},
         signers::LocalWallet,
     };
@@ -202,12 +202,12 @@ mod not_mock {
                     sleep(Duration::from_millis(500)).await;
                     continue;
                 }
-                TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded) => {
+                TransactionStatus::AcceptedOnL2(ExecutionResult::Succeeded) => {
                     info!(name: "withdraw-tx-result", name =  "withdraw-tx-result", tx_hash = tx_hash.to_hex_string(), status = "succeeded");
                     break;
                 }
-                TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted) => {
-                    error!(name: "withdraw-tx-result", name =  "withdraw-tx-result", tx_hash = tx_hash.to_hex_string(), status = "reverted");
+                TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason }) => {
+                    error!(name: "withdraw-tx-result", name =  "withdraw-tx-result", tx_hash = tx_hash.to_hex_string(), status = "reverted", reason = reason);
                     break;
                 }
                 TransactionStatus::Rejected => {

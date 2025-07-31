@@ -4,9 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Route Handler</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <script src="/static/dist/main.bundle.js"></script>
     <div class="container">
       <header>
         <h1>🚀 Route Handler</h1>
@@ -18,7 +20,7 @@
           <h2>Usage</h2>
           <p>Access routes using the pattern:</p>
           <div class="route-pattern">
-            <code>/deposit/starknet/{network}/?calldata={calldata}</code>
+            <code>/deposit/starknet/{network}/?payload={payload}</code>
           </div>
           <p>
             <strong>Valid networks:</strong> <code>SN_SEPOLIA</code>,
@@ -28,10 +30,10 @@
           <div class="example">
             <h3>Example:</h3>
             <a
-              href="/deposit/starknet/SN_SEPOLIA/?calldata=[{%22to%22:%220x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d%22,%22selector%22:%220x219209e083275171774dab1df80982e9df2096516f06319c5c6d71ae0a8480c%22,%22calldata%22:[%220x76d2f676fb9d9a4323307f723df93f47454729b8e6d716faf7defd620eb5000%22,%220x4563918244f40000%22,%220x0%22]},{%22to%22:%220x76d2f676fb9d9a4323307f723df93f47454729b8e6d716faf7defd620eb5000%22,%22selector%22:%220xd5c0f26335ab142eb700850eded4619418b0f6e98c5b92a6347b68d2f2a0c%22,%22calldata%22:[%220x58e08339032c9021a042fc7e7b29bf654616e2a7863dfe4193f3e4f4813ad7e%22,%220x686edd02%22,%220x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d%22,%220x4563918244f40000%22,%220x0%22,%220x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691%22]}]"
+              href="/deposit/starknet/SN_DEVNET/?payload={%22quote_id_hash%22:%220x5c72a322d887f84018c4a140bd2465caf452ca7b089122032cfd64c9440fef3%22,%22expiry%22:1753733654,%22asset%22:%220x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d%22,%22amount%22:{%22low%22:%220x8ac7230489e80000%22,%22high%22:%220x0%22},%22payee%22:%220x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691%22}"
               class="example-link"
             >
-              /deposit/starknet/SN_SEPOLIA/?calldata=[{...}]
+              /deposit/starknet/SN_DEVNET/?payload={...}
             </a>
           </div>
         </div>

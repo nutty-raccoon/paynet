@@ -1,0 +1,12 @@
+# Frontend build artifacts
+node_modules/
+static/dist/
+*.log
+.DS_Store
+
+# pnpm
+.pnpm-debug.log*
+.pnpm-store/
+
+# Webpack
+.webpack/
