@@ -39,10 +39,9 @@ impl Unit {
             Unit::MilliStrk => Asset::Strk,
             Unit::Gwei => Asset::Eth,
             Unit::Satoshi => Asset::WBtc,
-            Unit::CentUsd => Asset::Usdc, 
+            Unit::CentUsd => Asset::Usdc,
         }
     }
-
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -93,7 +92,6 @@ impl FromStr for Unit {
 
         Ok(unit)
     }
-
 }
 
 impl std::fmt::Display for Unit {
@@ -114,7 +112,7 @@ impl nuts::traits::Unit for Unit {}
 // We could even arguee it's too small, but we really hope the token price will pump in the future.
 //
 // Therefore we need 10^15 as the conversion factor (10^18 / 10^3)
-const MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE: u64 = 1_000_000_000_000_000;
+// const MILLI_STRK_UNIT_TO_ASSET_CONVERSION_RATE: u64 = 1_000_000_000_000_000;
 
 impl Unit {
     pub fn scale_factor(&self) -> u64 {
@@ -135,7 +133,6 @@ impl Unit {
         }
     }
 
-
     /// Converts an amount of unit to its blockchain-native representation
     pub fn convert_amount_into_u256(&self, amount: Amount) -> U256 {
         U256::from(u64::from(amount)) * U256::from(self.scale_factor())
@@ -147,11 +144,11 @@ impl Unit {
     pub fn is_asset_supported(&self, asset: Asset) -> bool {
         matches!(
             (self, asset),
-            (Unit::MilliStrk, Asset::Strk) 
-            | (Unit::Gwei, Asset::Eth)
-            | (Unit::Satoshi, Asset::WBtc)
-            | (Unit::CentUsd, Asset::Usdc)
-            | (Unit::CentUsd, Asset::Usdt)
+            (Unit::MilliStrk, Asset::Strk)
+                | (Unit::Gwei, Asset::Eth)
+                | (Unit::Satoshi, Asset::WBtc)
+                | (Unit::CentUsd, Asset::Usdc)
+                | (Unit::CentUsd, Asset::Usdt)
         )
     }
 }

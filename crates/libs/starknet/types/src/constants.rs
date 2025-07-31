@@ -39,19 +39,19 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
     (
         Asset::Strk,
         Felt::from_hex_unchecked(
-            "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+            "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
         ),
     ),
     (
         Asset::Eth,
         Felt::from_hex_unchecked(
-            "0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7",
+            "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
         ),
     ),
     (
         Asset::WBtc,
         Felt::from_hex_unchecked(
-            "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e960",
+            "0x02b0df9e3b889c410a7a7e528a354d4a8a8e7e0b9c3a973d9a8e5e2a0a1f7e7b",
         ),
     ),
     (
@@ -68,7 +68,7 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
     ),
 ]);
 
-/// Devnet assets with placeholder addresses 
+/// Devnet assets with placeholder addresses
 const DEVNET_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
     (
         Asset::Strk,

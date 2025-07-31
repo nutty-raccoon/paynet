@@ -74,11 +74,17 @@ impl Asset {
         asset_amount: U256,
         unit: Unit,
     ) -> Result<(Amount, U256), AssetToUnitConversionError> {
-        let (quotien, rem) = asset_amount.div_mod(U256::from(unit.scale_factor()));
+        let scale_factor = match (self, unit) {
+            (Asset::Usdc, Unit::CentUsd) => 10_000u64, // 1 USDC (1e6) = 100 cents, so divide by 1e4
+            (Asset::Usdt, Unit::CentUsd) => 10_000u64, // Same for USDT
+            _ => unit.scale_factor(),
+        };
+
+        let (quotient, rem) = asset_amount.div_mod(U256::from(scale_factor));
 
         Ok((
             Amount::from(
-                u64::try_from(quotien).map_err(AssetToUnitConversionError::AmountTooBigForU64)?,
+                u64::try_from(quotient).map_err(AssetToUnitConversionError::AmountTooBigForU64)?,
             ),
             rem,
         ))

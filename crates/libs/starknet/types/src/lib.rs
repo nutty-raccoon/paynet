@@ -12,6 +12,7 @@ pub use unit::{Unit, UnitFromStrError};
 mod chain_id;
 pub mod constants;
 pub use chain_id::ChainId;
+mod assets_test;
 pub mod transactions;
 
 pub const STARKNET_STR: &str = "starknet";

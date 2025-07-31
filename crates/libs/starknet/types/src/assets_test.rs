@@ -1,0 +1,83 @@
+#[cfg(test)]
+mod tests {
+    // use super::*;
+    use crate::Asset;
+    use crate::Unit;
+    use nuts::Amount;
+    use primitive_types::U256;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_asset_from_str() {
+        assert_eq!(Asset::from_str("strk").unwrap(), Asset::Strk);
+        assert_eq!(Asset::from_str("eth").unwrap(), Asset::Eth);
+        assert_eq!(Asset::from_str("btc").unwrap(), Asset::WBtc);
+        assert_eq!(Asset::from_str("usdc").unwrap(), Asset::Usdc);
+        assert_eq!(Asset::from_str("usdt").unwrap(), Asset::Usdt);
+        assert!(Asset::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_asset_precision() {
+        assert_eq!(Asset::Strk.precision(), 18);
+        assert_eq!(Asset::Eth.precision(), 18);
+        assert_eq!(Asset::WBtc.precision(), 8);
+        assert_eq!(Asset::Usdc.precision(), 6);
+        assert_eq!(Asset::Usdt.precision(), 6);
+    }
+
+    #[test]
+    fn test_asset_scale_factor() {
+        assert_eq!(
+            Asset::Strk.scale_factor(),
+            U256::from(1_000_000_000_000_000_000u64)
+        );
+        assert_eq!(
+            Asset::Eth.scale_factor(),
+            U256::from(1_000_000_000_000_000_000u64)
+        );
+        assert_eq!(Asset::WBtc.scale_factor(), U256::from(100_000_000u64));
+        assert_eq!(Asset::Usdc.scale_factor(), U256::from(1_000_000u64));
+        assert_eq!(Asset::Usdt.scale_factor(), U256::from(1_000_000u64));
+    }
+
+    #[test]
+    fn test_asset_find_best_unit() {
+        assert_eq!(Asset::Strk.find_best_unit(), Unit::MilliStrk);
+        assert_eq!(Asset::Eth.find_best_unit(), Unit::Gwei);
+        assert_eq!(Asset::WBtc.find_best_unit(), Unit::Satoshi);
+        assert_eq!(Asset::Usdc.find_best_unit(), Unit::CentUsd);
+        assert_eq!(Asset::Usdt.find_best_unit(), Unit::CentUsd);
+    }
+
+    #[test]
+    fn test_asset_conversions() {
+        // Test STRK conversion
+        let strk_amount = U256::from(1_000_000_000_000_000_000u64); // 1 STRK
+        let (amount, unit, rem) = Asset::Strk.convert_to_amount_and_unit(strk_amount).unwrap();
+        assert_eq!(amount, Amount::from(1000u64)); // Should be 1000 milliSTRK
+        assert_eq!(unit, Unit::MilliStrk);
+        assert_eq!(rem, U256::zero());
+
+        // Test ETH conversion
+        let eth_amount = U256::from(1_000_000_000_000_000_000u64); // 1 ETH
+        let (amount, unit, rem) = Asset::Eth.convert_to_amount_and_unit(eth_amount).unwrap();
+        assert_eq!(amount, Amount::from(1_000_000_000u64)); // Should be 1,000,000,000 Gwei
+        assert_eq!(unit, Unit::Gwei);
+        assert_eq!(rem, U256::zero());
+
+        // Test WBTC conversion
+        let wbtc_amount = U256::from(100_000_000u64); // 1 WBTC
+        let (amount, unit, rem) = Asset::WBtc.convert_to_amount_and_unit(wbtc_amount).unwrap();
+        assert_eq!(amount, Amount::from(100_000_000u64)); // Should be 100,000,000 satoshis
+        assert_eq!(unit, Unit::Satoshi);
+        assert_eq!(rem, U256::zero());
+
+        // Test USDC conversion
+        let usdc_amount = U256::from(1_000_000u64); // 1 USDC
+        let (amount, unit, rem) = Asset::Usdc.convert_to_amount_and_unit(usdc_amount).unwrap();
+        assert_eq!(amount, Amount::from(100u64)); // Should be 100 cents
+        assert_eq!(unit, Unit::CentUsd);
+        assert_eq!(rem, U256::zero());
+    }
+}
