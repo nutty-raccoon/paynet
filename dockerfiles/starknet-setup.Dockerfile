@@ -11,7 +11,7 @@ RUN cargo chef prepare --recipe-path recipe.json --bin starknet-on-chain-setup
 
 #------------
 
-FROM chef AS builder 
+FROM chef AS builder
 
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
@@ -21,7 +21,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY ./Cargo.toml ./
 COPY ./crates/ ./crates/
 
-RUN cargo build --release -p starknet-on-chain-setup 
+RUN cargo build --release -p starknet-on-chain-setup
 
 # ----------------
 
@@ -34,17 +34,17 @@ WORKDIR /tools
 RUN curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.9.2/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/ && \
     curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/
 
-COPY ./contracts/ /contracts/
-WORKDIR /contracts/invoice
+COPY ./contracts/starknet/ /contracts/starknet/
+WORKDIR /contracts/starknet/invoice
 RUN /tools/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu/bin/scarb --profile release build
-RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt 
+RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt
 
 # ----------------
 
 FROM debian as executable
 
-COPY --from=scarb-builder /contracts/invoice/compiled_class_hash.txt /contract/
-COPY --from=scarb-builder /contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json /contract/
+COPY --from=scarb-builder /contracts/starknet/invoice/compiled_class_hash.txt /contract/
+COPY --from=scarb-builder /contracts/starknet/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json /contract/
 COPY --from=builder /app/target/release/starknet-on-chain-setup /rust/
 
 WORKDIR /
