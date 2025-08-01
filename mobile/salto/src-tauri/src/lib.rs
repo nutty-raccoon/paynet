@@ -6,11 +6,13 @@ mod parse_asset_amount;
 use commands::{
     add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
     get_nodes_balance, get_prices, init_wallet, receive_wads, redeem_quote, restore_wallet,
+    update_get_prices_config,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tokio::sync::RwLock;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -39,6 +41,10 @@ pub fn run() {
                 app.manage(AppState {
                     pool,
                     get_prices_starded: Mutex::new(false),
+                    get_prices_config: Arc::new(RwLock::new(PriceConfig {
+                        currencies: vec![],
+                        assets: None,
+                    })),
                 });
                 Ok(())
             })
@@ -59,6 +65,7 @@ pub fn run() {
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
+                update_get_prices_config,
             ])
     };
 
@@ -66,8 +73,15 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+#[derive(Clone, Debug)]
+pub struct PriceConfig {
+    currencies: Vec<String>,
+    assets: Option<Vec<String>>,
+}
+
 #[derive(Debug)]
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
     get_prices_starded: Mutex<bool>,
+    get_prices_config: Arc<RwLock<PriceConfig>>,
 }

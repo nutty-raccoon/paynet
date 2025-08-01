@@ -10,11 +10,10 @@ export async function getNodesBalance() {
       return res;
   }
 
-  export async function getPrices() {
-     let res =  await invoke("get_prices")
+  export async function getPrices(currencies: string[], assets?: string[]) {
+     let res =  await invoke("get_prices", {currencies, assets})
        .then((message) => message)
        .catch((error) => console.error(error));
-      console.log(res);
       return res;
   }
 
@@ -23,6 +22,11 @@ export async function getNodesBalance() {
        .then((message) => message as string[])
        .catch((error) => console.error(error));
       return res;
+  }
+
+  export async function updateGetPricesConfig(currencies: string[]) {
+    let res = await invoke("update_get_prices_config", {currencies}).then((message) => message).catch((error) => console.error(error));
+    return res;
   }
 
 export async function getTokensPrices() {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { updateGetPricesConfig } from "../../commands";
   import { fiatCurrenciesStored, selectedCurrencyStored } from "../../stores";
 </script>
 
@@ -11,8 +12,10 @@
     <select
       name="deposit-token"
       value={$selectedCurrencyStored}
-      on:change={(e) =>
-        selectedCurrencyStored.set((e.target as HTMLSelectElement).value)}
+      on:change={(e) => {
+        selectedCurrencyStored.set((e.target as HTMLSelectElement).value);
+        updateGetPricesConfig([$selectedCurrencyStored]);
+      }}
       required
     >
       {#each $fiatCurrenciesStored as currency}

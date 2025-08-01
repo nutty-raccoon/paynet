@@ -19,7 +19,7 @@
   } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import type { Price } from "../types/price";
-  import SettingsModal from "./settings/SettingsModal.svelte";
+  import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
   import { fiatCurrenciesStored, selectedCurrencyStored } from "../stores";
 
@@ -41,7 +41,6 @@
   let walletExists = $state<boolean | null>(null); // null = loading, true/false = result
 
   let tokenPrices: Price[] = $state([]);
-  let fiatCurrencies: string[] = $state($fiatCurrenciesStored);
 
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
@@ -78,6 +77,11 @@
 
   const onAddNode = (nodeData: NodeData) => {
     nodes.push(nodeData);
+    let assets: string[] = totalBalance
+      .entries()
+      .map(([unit]) => (unit == "millistrk" ? "strk" : unit))
+      .toArray();
+    getPrices([$selectedCurrencyStored], assets);
   };
 
   const onNodeBalanceIncrease = (balanceIncrease: BalanceChange) => {
@@ -121,8 +125,6 @@
         }
       });
     }
-
-    getPrices();
 
     getCurrencies().then((resp) => {
       if (resp) fiatCurrenciesStored.set(resp);
