@@ -63,10 +63,7 @@ pub async fn update_get_prices_config(
         }
     };
     let mut cfg = state.get_prices_config.write().await;
-    *cfg = PriceConfig {
-        currencies,
-        assets,
-    };
+    *cfg = PriceConfig { currencies, assets };
     Ok(())
 }
 
