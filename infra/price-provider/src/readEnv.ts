@@ -1,47 +1,116 @@
 import type { Token } from ".";
 
-let env = process.env;
-
 export type Env = {
-    tokens: Record<string, Token[]>,
-    currencies: string[],
-    // `isPro` toggles between Pro and demo CoinGecko credentials—using Pro when available grants higher rate limits and full API features.
-    isPro: boolean,
-    apiKey: string,
-    host: string,
-    port: number,
+  tokens: Record<string, Token[]>;
+  currencies: string[];
+  isPro: boolean;
+  apiKey: string;
+  host: string;
+  port: number;
 };
 
+function assert(condition: any, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
+
 export async function readEnv(): Promise<Env> {
-    if (!env.COIN_PRO_GECKO_API_KEY && !env.COIN_DEMO_GECKO_API_KEY) {
-        throw new Error("Missing env var: COIN_DEMO_GECKO_API_KEY or COIN_PRO_GECKO_API_KEY");
-    }
-    if (!env.TOKENS || !env.CURRENCIES) {
-        throw new Error("Missing env var: CURRENCIES or TOKENS");
-    }
+  const {
+    COIN_PRO_GECKO_API_KEY,
+    COIN_DEMO_GECKO_API_KEY,
+    TOKENS,
+    CURRENCIES,
+    HOST,
+    PORT,
+  } = process.env;
 
-    const isPro = !!env.COIN_PRO_GECKO_API_KEY
-    const apiKey = isPro ? env.COIN_PRO_GECKO_API_KEY! : env.COIN_DEMO_GECKO_API_KEY!;
+  assert(
+    COIN_PRO_GECKO_API_KEY || COIN_DEMO_GECKO_API_KEY,
+    'Missing env var: either COIN_PRO_GECKO_API_KEY or COIN_DEMO_GECKO_API_KEY must be set',
+  );
+  const isPro = Boolean(COIN_PRO_GECKO_API_KEY);
+  const apiKey = isPro ? COIN_PRO_GECKO_API_KEY! : COIN_DEMO_GECKO_API_KEY!;
 
-    const host = env.HOST ? env.HOST : "localhost"
-    const port = env.PORT ? parseInt(env.PORT) : 3000;
+  assert(TOKENS, 'Missing env var: TOKENS');
+  assert(CURRENCIES, 'Missing env var: CURRENCIES');
 
-    const rawTokens = env.TOKENS;
-    const rawCurrencies = env.CURRENCIES;
-    const jsonTokens: Token[] = JSON.parse(rawTokens);
-    const currencies: string[] = JSON.parse(rawCurrencies);
+  let parsedTokens: unknown;
+  try {
+    parsedTokens = JSON.parse(TOKENS!);
+  } catch {
+    throw new Error('TOKENS is not valid JSON');
+  }
+  assert(
+    Array.isArray(parsedTokens),
+    'TOKENS must be a JSON array of objects',
+  );
+  type RawToken = { symbol?: unknown; chain?: unknown; address?: unknown };
+  const tokenArray = parsedTokens as RawToken[];
+  tokenArray.forEach((t, i) => {
+    assert(
+      typeof t.symbol === 'string' && t.symbol.length > 0,
+      `TOKENS[${i}].symbol must be a non-empty string`,
+    );
+    assert(
+      typeof t.chain === 'string' && t.chain.length > 0,
+      `TOKENS[${i}].chain must be a non-empty string`,
+    );
+    assert(
+      typeof t.address === 'string' && t.address.length > 0,
+      `TOKENS[${i}].address must be a non-empty string`,
+    );
+  });
 
-    const tokens: Record<string, Token[]> = jsonTokens.reduce<Record<string, Token[]>>((acc, token) => {
-        (acc[token.chain] ??= []).push(token);
-        return acc;
-    }, {} as Record<string, Token[]>);
+  let parsedCurrencies: unknown;
+  try {
+    parsedCurrencies = JSON.parse(CURRENCIES!);
+  } catch {
+    throw new Error('CURRENCIES is not valid JSON');
+  }
+  assert(
+    Array.isArray(parsedCurrencies),
+    'CURRENCIES must be a JSON array of strings',
+  );
+  const currencies = parsedCurrencies as unknown[];
+  currencies.forEach((c, i) => {
+    assert(
+      typeof c === 'string' && c.length > 0,
+      `CURRENCIES[${i}] must be a non-empty string`,
+    );
+  });
+  assert(
+    currencies.length > 0,
+    'CURRENCIES must contain at least one currency',
+  );
 
-    return {
-        tokens,
-        currencies,
-        isPro,
-        apiKey,
-        host,
-        port,
-    }
+  const host = HOST && HOST.trim().length > 0 ? HOST : 'localhost';
+
+  const portNum = PORT !== undefined
+    ? Number(PORT)
+    : 3000;
+  assert(
+    Number.isInteger(portNum),
+    `PORT must be an integer, got "${PORT}"`,
+  );
+  // <1024 is privileged port
+  assert(
+    portNum >= 1024 && portNum <= 65_535,
+    `PORT must be between 1 and 65535, got ${portNum}`,
+  );
+
+  const tokens = (tokenArray as Token[]).reduce<Record<string, Token[]>>(
+    (acc, token) => {
+      (acc[token.chain] ||= []).push(token);
+      return acc;
+    },
+    {},
+  );
+
+  return {
+    tokens,
+    currencies: currencies as string[],
+    isPro,
+    apiKey,
+    host,
+    port: portNum,
+  };
 }
