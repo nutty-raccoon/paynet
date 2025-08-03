@@ -4,8 +4,8 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, check_wallet_exists, create_mint_quote, create_wads, get_nodes_balance, init_wallet,
-    receive_wads, redeem_quote, restore_wallet,
+    add_node, check_wallet_exists, create_mint_quote, create_wads, get_nodes_balance,
+    get_wad_history, init_wallet, receive_wads, redeem_quote, restore_wallet, sync_wads,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -53,6 +53,8 @@ pub fn run() {
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
+                get_wad_history,
+                sync_wads,
             ])
     };
 

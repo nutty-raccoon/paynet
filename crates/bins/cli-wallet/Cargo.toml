@@ -20,6 +20,7 @@ uuid = { workspace = true }
 primitive-types = { workspace = true }
 thiserror = { workspace = true }
 bitcoin = { workspace = true }
+chrono = { workspace = true }
 
 # Db
 r2d2_sqlite = { workspace = true }

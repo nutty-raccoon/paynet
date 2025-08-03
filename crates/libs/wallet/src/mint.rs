@@ -113,13 +113,13 @@ pub async fn get_quote_state(
     }
 }
 
-pub async fn redeem_quote<U: Unit>(
+pub async fn redeem_quote(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
     node_id: u32,
-    unit: U,
+    unit: &str,
     total_amount: Amount,
 ) -> Result<(), Error> {
     let blinding_data = {

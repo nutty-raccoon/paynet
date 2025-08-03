@@ -119,7 +119,7 @@ impl WalletOps {
             STARKNET_STR.to_string(),
             quote.quote,
             self.node_id,
-            unit,
+            unit.as_str(),
             amount,
         )
         .await?;
@@ -145,7 +145,7 @@ impl WalletOps {
             &mut self.node_client,
             self.node_id,
             amount,
-            unit,
+            unit.as_str(),
         )
         .await?
         .ok_or(anyhow!("not enough funds"))?;
@@ -180,8 +180,10 @@ impl WalletOps {
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
-            wad.unit,
+            &wad.node_url,
+            wad.unit.as_str(),
             wad.proofs.clone(),
+            wad.memo(),
         )
         .await?;
         Ok(())
@@ -225,7 +227,7 @@ impl WalletOps {
             melt_quote_response.quote.clone(),
             Amount::from(melt_quote_response.amount),
             method.clone(),
-            unit,
+            unit.as_str(),
         )
         .await?;
 

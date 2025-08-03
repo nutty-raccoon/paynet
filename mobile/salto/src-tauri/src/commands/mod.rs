@@ -7,7 +7,7 @@ mod wallet;
 pub use add_node::add_node;
 pub use deposit::{create_mint_quote, redeem_quote};
 pub use get_nodes_balance::get_nodes_balance;
-pub use wad::{create_wads, receive_wads};
+pub use wad::{create_wads, get_wad_history, receive_wads, sync_wads};
 pub use wallet::{check_wallet_exists, init_wallet, restore_wallet};
 
 #[derive(Debug, Clone, serde::Serialize)]

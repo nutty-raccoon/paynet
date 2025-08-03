@@ -1,4 +1,4 @@
-use nuts::{nut02::KeysetId, traits::Unit};
+use nuts::nut02::KeysetId;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
 pub const CREATE_TABLE_KEYSET: &str = r#"
@@ -64,10 +64,10 @@ pub fn upsert_many_for_node(
     Ok(new_keyset_ids)
 }
 
-pub fn fetch_one_active_id_for_node_and_unit<U: Unit>(
+pub fn fetch_one_active_id_for_node_and_unit(
     conn: &Connection,
     node_id: u32,
-    unit: U,
+    unit: &str,
 ) -> Result<Option<(KeysetId, u32)>> {
     const FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT: &str = r#"
         SELECT id, counter FROM keyset WHERE node_id = ? AND active = TRUE AND unit = ? LIMIT 1;
@@ -75,7 +75,7 @@ pub fn fetch_one_active_id_for_node_and_unit<U: Unit>(
 
     let mut stmt = conn.prepare(FETCH_ONE_ACTIVE_KEYSET_FOR_NODE_AND_UNIT)?;
     let result = stmt
-        .query_row(params![node_id, unit.as_ref()], |row| {
+        .query_row(params![node_id, unit], |row| {
             Ok((row.get::<_, KeysetId>(0)?, row.get(1)?))
         })
         .optional()?;

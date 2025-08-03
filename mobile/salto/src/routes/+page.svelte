@@ -14,6 +14,7 @@
   import { getNodesBalance, checkWalletExists } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import InitPage from "./init/InitPage.svelte";
+  import WadHistoryPage from "./components/WadHistoryPage.svelte";
 
   const Modal = {
     ROOT: 0,
@@ -47,7 +48,12 @@
 
   // Effect to manage scrolling based on active tab
   $effect(() => {
-    document.body.classList.add("no-scroll");
+    // Allow scrolling for history page
+    if (activeTab === "history") {
+      document.body.classList.remove("no-scroll");
+    } else {
+      document.body.classList.add("no-scroll");
+    }
   });
 
   const onAddNode = (nodeData: NodeData) => {
@@ -159,6 +165,8 @@
       <div class="balances-container">
         <NodesBalancePage {nodes} {onAddNode} />
       </div>
+    {:else if activeTab === "history"}
+      <WadHistoryPage />
     {/if}
   {/if}
 </main>

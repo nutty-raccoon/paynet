@@ -153,6 +153,16 @@ enum Commands {
         about = "Sync all pending mint and melt operations",
         long_about = "Check all nodes for pending mint and melt quote updates and process them accordingly"
     )]
+    /// Show wad history
+    #[command(
+        about = "Show WAD history",
+        long_about = "Display a history of all WADs (Wallet Anonymous Deposits) generated or received by the user"
+    )]
+    History {
+        /// Limit number of wads to show
+        #[arg(long, short, default_value = "20")]
+        limit: u32,
+    },
     Sync,
     #[command(
         about = "Generate a new wallet",
@@ -353,7 +363,7 @@ async fn main() -> Result<()> {
                 STARKNET_STR.to_string(),
                 mint_quote_response.quote,
                 node_id,
-                unit,
+                unit.as_str(),
                 amount,
             )
             .await?;
@@ -409,7 +419,7 @@ async fn main() -> Result<()> {
                 melt_quote_response.quote.clone(),
                 Amount::from(melt_quote_response.amount),
                 method.clone(),
-                unit,
+                unit.as_str(),
             )
             .await?;
             println!("Melt submited!");
@@ -476,7 +486,7 @@ async fn main() -> Result<()> {
                     &mut node_client,
                     node_id,
                     amount_to_use,
-                    unit,
+                    unit.as_str(),
                 )
                 .await?
                 .ok_or(anyhow!("not enough funds"))?;
@@ -504,7 +514,7 @@ async fn main() -> Result<()> {
                 };
 
                 let wad =
-                    wallet::create_wad_from_proofs(node_url.clone(), unit, memo.clone(), proofs);
+                    wallet::wad::create_from_proofs(node_url.clone(), unit, memo.clone(), proofs);
                 wads.push(wad);
             }
             if let Some(max_reached) = should_revert {
@@ -561,8 +571,16 @@ async fn main() -> Result<()> {
                     proofs,
                 } = wad;
 
-                match wallet::receive_wad(pool.clone(), &mut node_client, node_id, wad.unit, proofs)
-                    .await
+                match wallet::receive_wad(
+                    pool.clone(),
+                    &mut node_client,
+                    node_id,
+                    &node_url,
+                    wad.unit.as_str(),
+                    proofs,
+                    &memo,
+                )
+                .await
                 {
                     Ok(a) => {
                         println!("Received tokens on node `{}`", node_id);
@@ -623,6 +641,37 @@ async fn main() -> Result<()> {
             let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
             wallet::wallet::restore(&db_conn, seed_phrase)?;
             println!("Wallet saved!");
+        }
+        Commands::History { limit } => {
+            let db_conn = pool.get()?;
+
+            let wad_records = wallet::db::wad::get_recent_wads(&db_conn, limit)?;
+            if wad_records.is_empty() {
+                println!("No WAD history found.");
+                return Ok(());
+            }
+
+            println!("WAD History (showing {} most recent):\n", wad_records.len());
+            for wad_record in wad_records {
+                let amounts = wallet::db::wad::get_amounts_by_id::<Unit>(&db_conn, wad_record.id)?;
+
+                println!("Node: {} | ID: {}", wad_record.node_url, wad_record.id);
+                println!(
+                    "Type: {} | Status: {} | Total Amount: {:?}", // TODO better formating
+                    wad_record.wad_type, wad_record.status, amounts
+                );
+                println!(
+                    "Created: {} | Modified: {}",
+                    chrono::DateTime::from_timestamp(wad_record.created_at as i64, 0)
+                        .ok_or(anyhow!("invalid created value"))?,
+                    chrono::DateTime::from_timestamp(wad_record.modified_at as i64, 0)
+                        .ok_or(anyhow!("invalid created value"))?,
+                );
+                if let Some(memo) = &wad_record.memo {
+                    println!("Memo: {}", memo);
+                }
+                println!("---");
+            }
         }
     }
 

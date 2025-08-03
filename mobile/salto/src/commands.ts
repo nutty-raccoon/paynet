@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Balance, NodeData, NodeId } from "./types";
 import type { QuoteId } from "./types/quote";
-import type { Wads } from "./types/wad";
+import type { WadHistoryItem, Wads } from "./types/wad";
 
 export async function getNodesBalance() {
      let res =  await invoke("get_nodes_balance")
@@ -98,3 +98,21 @@ export async function restoreWallet(seedPhrase: string) {
 
   return res;
 }
+
+export async function get_wad_history(limit?: number): Promise<WadHistoryItem[] | undefined> {
+      const res = await invoke("get_wad_history", {limit})
+      .then((message) => message as WadHistoryItem[])
+      .catch((error) => {
+        console.error("failed to get wad history:", error);
+        return undefined;
+      });
+
+      return res;
+} 
+
+export async function sync_wads(): Promise<void> {
+      await invoke("sync_wads")
+      .catch((error) => {
+        console.error("failed to sync wads:", error);
+      });
+} 

@@ -563,8 +563,10 @@ checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -651,6 +653,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitcoin",
+ "chrono",
  "clap",
  "dirs",
  "itertools",
@@ -3309,6 +3312,7 @@ dependencies = [
  "hashlink 0.9.1",
  "libsqlite3-sys",
  "smallvec",
+ "uuid 1.17.0",
 ]
 
 [[package]]
@@ -3676,6 +3680,12 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -5193,6 +5203,7 @@ dependencies = [
  "js-sys",
  "rand 0.9.1",
  "serde",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 
@@ -5240,6 +5251,7 @@ dependencies = [
  "tonic 0.13.1",
  "tonic-tls",
  "url",
+ "uuid 1.17.0",
 ]
 
 [[package]]

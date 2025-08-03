@@ -42,6 +42,7 @@ num-traits = { workspace = true }
 uint = { workspace = true }
 log = { workspace = true }
 bitcoin = { workspace = true }
+uuid = { workspace = true }
 
 # Local
 wallet = { workspace = true }

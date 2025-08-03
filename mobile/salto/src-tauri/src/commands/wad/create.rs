@@ -1,16 +1,15 @@
 use std::{cmp::Ordering, str::FromStr};
 
 use nuts::Amount;
-use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, Unit};
+use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, Emitter, State};
-use wallet::types::compact_wad::{self, CompactWads};
+use wallet::types::compact_wad::CompactWads;
 
 use crate::{
     AppState,
     parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
+    commands::BalanceChange,
 };
-
-use super::BalanceChange;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CreateWadsError {
@@ -95,14 +94,16 @@ pub async fn create_wads(
             &mut node_client,
             node_id,
             amount_to_use,
-            unit,
+            unit.as_str(),
         )
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
 
         let db_conn = state.pool.get()?;
         let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
-        let wad = wallet::create_wad_from_proofs(node_url, unit, None, proofs);
+        let memo = None;
+        wallet::db::wad::register_wad(&db_conn, wallet::db::wad::WadType::OUT, &node_url, &memo, &proofs_ids)?;
+        let wad = wallet::wad::create_from_proofs(node_url, unit, memo, proofs);
         wads.push(wad);
         balance_decrease_events.push(BalanceChange {
             node_id,
@@ -117,69 +118,3 @@ pub async fn create_wads(
     Ok(CompactWads(wads).to_string())
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ReceiveWadsError {
-    #[error(transparent)]
-    R2D2(#[from] r2d2::Error),
-    #[error(transparent)]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
-    Wallet(#[from] wallet::errors::Error),
-    #[error(transparent)]
-    Asset(#[from] AssetFromStrError),
-    #[error("invalid amount: {0}")]
-    Amount(#[from] ParseAmountStringError),
-    #[error(transparent)]
-    AssetToUnitConversion(#[from] AssetToUnitConversionError),
-    #[error("invalid string for compacted wad")]
-    WadString(#[from] compact_wad::Error),
-    #[error(transparent)]
-    Tauri(#[from] tauri::Error),
-    #[error("this is a json error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error(transparent)]
-    RegisterNode(#[from] wallet::node::RegisterNodeError),
-}
-
-impl serde::Serialize for ReceiveWadsError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.to_string().as_ref())
-    }
-}
-
-#[tauri::command]
-pub async fn receive_wads(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    wads: String,
-) -> Result<(), ReceiveWadsError> {
-    let wads: CompactWads<Unit> = wads.parse()?;
-
-    for wad in wads.0 {
-        let (mut node_client, node_id) =
-            wallet::node::register(state.pool.clone(), &wad.node_url).await?;
-
-        let amount_received = wallet::receive_wad(
-            state.pool.clone(),
-            &mut node_client,
-            node_id,
-            wad.unit,
-            wad.proofs,
-        )
-        .await?;
-
-        app.emit(
-            "balance-increase",
-            BalanceChange {
-                node_id,
-                unit: wad.unit.as_str().to_string(),
-                amount: amount_received.into(),
-            },
-        )?;
-    }
-
-    Ok(())
-}
