@@ -7,8 +7,8 @@ use wallet::types::compact_wad::CompactWads;
 
 use crate::{
     AppState,
-    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
     commands::BalanceChange,
+    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -102,7 +102,13 @@ pub async fn create_wads(
         let db_conn = state.pool.get()?;
         let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
         let memo = None;
-        wallet::db::wad::register_wad(&db_conn, wallet::db::wad::WadType::OUT, &node_url, &memo, &proofs_ids)?;
+        wallet::db::wad::register_wad(
+            &db_conn,
+            wallet::db::wad::WadType::OUT,
+            &node_url,
+            &memo,
+            &proofs_ids,
+        )?;
         let wad = wallet::wad::create_from_proofs(node_url, unit, memo, proofs);
         wads.push(wad);
         balance_decrease_events.push(BalanceChange {
@@ -117,4 +123,3 @@ pub async fn create_wads(
 
     Ok(CompactWads(wads).to_string())
 }
-

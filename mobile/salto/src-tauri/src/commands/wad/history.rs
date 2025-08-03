@@ -1,13 +1,13 @@
 use crate::AppState;
 use starknet_types::Unit;
-use tauri::{AppHandle, State, Emitter};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WadHistoryItem {
     pub id: String,
-    pub wad_type: String,
+    pub r#type: String,
     pub status: String,
     pub total_amount_json: String,
     pub memo: Option<String>,
@@ -50,7 +50,7 @@ pub async fn get_wad_history(
 
         history_items.push(WadHistoryItem {
             id: record.id.to_string(),
-            wad_type: record.wad_type.to_string(),
+            r#type: record.r#type.to_string(),
             status: record.status.to_string(),
             total_amount_json,
             memo: record.memo,

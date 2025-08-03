@@ -35,7 +35,7 @@ pub const CREATE_TABLE_WAD_PROOF: &str = r#"
         );
     "#;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WadType {
     IN,
     OUT,
@@ -70,7 +70,7 @@ impl std::fmt::Display for WadType {
 }
 
 /// State of a wad
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WadStatus {
     /// Wad has been seen but not processed yet
     Pending,
@@ -115,7 +115,7 @@ impl std::fmt::Display for WadStatus {
 
 pub struct WadRecord {
     pub id: Uuid,
-    pub wad_type: WadType,
+    pub r#type: WadType,
     pub status: WadStatus,
     pub node_url: String,
     pub memo: Option<String>,
@@ -126,9 +126,14 @@ pub struct WadRecord {
 fn compute_wad_uuid(node_url: &NodeUrl, proofs_ys: &[PublicKey]) -> Uuid {
     const NAMESPACE_WAD: Uuid = Uuid::from_u128(336702331980467871995349228715494130514);
 
+    // Doing this guarantee that the uuid is deterministic regardless of the oreder in which the ys are provided.
+    // This is usefull as order is not deterministic when read form db.
+    let mut sorted_proofs = proofs_ys.to_vec();
+    sorted_proofs.sort();
+
     let mut buffer = Vec::new();
     buffer.extend_from_slice(node_url.0.as_str().as_bytes());
-    for y in proofs_ys {
+    for y in sorted_proofs {
         buffer.extend_from_slice(&y.to_bytes());
     }
 
@@ -183,7 +188,7 @@ pub fn register_wad(
 fn parse_wad_record(row: &rusqlite::Row) -> rusqlite::Result<WadRecord> {
     Ok(WadRecord {
         id: row.get(0)?,
-        wad_type: row.get(1)?,
+        r#type: row.get(1)?,
         status: row.get(2)?,
         node_url: row.get(3)?,
         memo: row.get(4)?,
@@ -223,13 +228,13 @@ pub fn update_wad_status(conn: &Connection, wad_id: Uuid, status: WadStatus) -> 
 }
 
 #[derive(Debug)]
-pub struct SyncData {
+pub(crate) struct SyncData {
     pub id: Uuid,
     pub r#type: WadType,
     pub node_url: NodeUrl,
 }
 
-pub fn get_pending_wads(conn: &Connection) -> Result<Vec<SyncData>> {
+pub(crate) fn get_pending_wads(conn: &Connection) -> Result<Vec<SyncData>> {
     const GET_PENDING_WADS: &str = r#"
         SELECT id, type, node_url 
         FROM wad 

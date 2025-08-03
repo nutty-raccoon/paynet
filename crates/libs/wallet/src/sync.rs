@@ -91,7 +91,7 @@ pub async fn sync_pending_wads(
     Ok(results)
 }
 
-pub async fn sync_single_wad(
+async fn sync_single_wad(
     pool: Pool<SqliteConnectionManager>,
     sync_info: SyncData,
 ) -> Result<Option<db::wad::WadStatus>, Error> {

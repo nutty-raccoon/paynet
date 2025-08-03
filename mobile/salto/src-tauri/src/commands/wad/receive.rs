@@ -1,12 +1,8 @@
 use starknet_types::{AssetFromStrError, AssetToUnitConversionError, Unit};
 use tauri::{AppHandle, Emitter, State};
-use wallet::types::compact_wad::{self, CompactWads, CompactWad};
+use wallet::types::compact_wad::{self, CompactWad, CompactWads};
 
-use crate::{
-    AppState,
-    parse_asset_amount::{ParseAmountStringError},
-    commands::BalanceChange,
-};
+use crate::{AppState, commands::BalanceChange, parse_asset_amount::ParseAmountStringError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveWadsError {
@@ -50,7 +46,12 @@ pub async fn receive_wads(
     let wads: CompactWads<Unit> = wads.parse()?;
 
     for wad in wads.0 {
-        let CompactWad { node_url, unit, memo, proofs } = wad;
+        let CompactWad {
+            node_url,
+            unit,
+            memo,
+            proofs,
+        } = wad;
         let (mut node_client, node_id) =
             wallet::node::register(state.pool.clone(), &node_url).await?;
 
@@ -77,5 +78,3 @@ pub async fn receive_wads(
 
     Ok(())
 }
-
-

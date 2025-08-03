@@ -658,7 +658,7 @@ async fn main() -> Result<()> {
                 println!("Node: {} | ID: {}", wad_record.node_url, wad_record.id);
                 println!(
                     "Type: {} | Status: {} | Total Amount: {:?}", // TODO better formating
-                    wad_record.wad_type, wad_record.status, amounts
+                    wad_record.r#type, wad_record.status, amounts
                 );
                 println!(
                     "Created: {} | Modified: {}",

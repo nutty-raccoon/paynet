@@ -21,13 +21,26 @@ pub async fn run_e2e() -> Result<()> {
         .await?;
     let wad = wallet_ops
         .send(
-            node_url,
+            node_url.clone(),
             10.into(),
             starknet_types::Asset::Strk,
             Some("Here come the money".to_string()),
         )
         .await?;
+    let wad_record = wallet::db::wad::get_recent_wads(&*db_pool.get()?, 1)?[0].clone();
+    assert_eq!(wad_record.r#type, wallet::db::wad::WadType::OUT);
+    assert_eq!(wad_record.status, wallet::db::wad::WadStatus::Pending);
+    assert_eq!(wad_record.node_url, node_url.to_string());
+
     wallet_ops.receive(&wad).await?;
+
+    let wad_records = wallet::db::wad::get_recent_wads(&*db_pool.get()?, 2)?;
+    assert_eq!(wad_records.len(), 2);
+    for record in wad_records {
+        assert_eq!(record.id, wad_record.id);
+        assert_eq!(record.status, wallet::db::wad::WadStatus::Finished);
+        assert_eq!(record.node_url, node_url.to_string());
+    }
     wallet_ops
         .melt(
             5.into(),
@@ -38,6 +51,7 @@ pub async fn run_e2e() -> Result<()> {
     let pre_restore_balances = wallet_ops.balance()?;
     assert!(!pre_restore_balances.is_empty());
 
+    // Restore
     let env = read_env_variables()?;
     let db_pool = db_connection()?;
     let node_url = NodeUrl::from_str(&env.node_url)?;

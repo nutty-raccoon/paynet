@@ -150,7 +150,8 @@ impl WalletOps {
         .await?
         .ok_or(anyhow!("not enough funds"))?;
 
-        let proofs = wallet::load_tokens_from_db(&*self.db_pool.get()?, &proofs_ids)?;
+        let db_conn = self.db_pool.get()?;
+        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
         let compact_proofs = proofs
             .into_iter()
             .chunk_by(|p| p.keyset_id)
@@ -166,6 +167,14 @@ impl WalletOps {
                     .collect(),
             })
             .collect();
+
+        wallet::db::wad::register_wad(
+            &db_conn,
+            wallet::db::wad::WadType::OUT,
+            &node_url,
+            &None,
+            &proofs_ids,
+        )?;
 
         Ok(CompactWad {
             node_url,
@@ -186,6 +195,7 @@ impl WalletOps {
             wad.memo(),
         )
         .await?;
+
         Ok(())
     }
 
@@ -242,6 +252,12 @@ impl WalletOps {
         {
             panic!("quote expired")
         }
+
+        Ok(())
+    }
+
+    pub async fn sync_wads(&mut self) -> Result<()> {
+        wallet::sync::sync_pending_wads(self.db_pool.clone()).await?;
 
         Ok(())
     }
