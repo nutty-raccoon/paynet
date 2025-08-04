@@ -120,8 +120,8 @@ async fn pay(
     let calls = generate_single_payment_transaction_calls(
         on_chain_constants.invoice_payment_contract_address,
         payload.quote_id_hash,
-        Felt::from(payload.expiry),
-        payload.asset,
+        payload.expiry,
+        payload.asset_contract_address,
         &payload.amount,
         payload.payee,
     );

@@ -12,7 +12,7 @@ pub mod starknet {
     use log::error;
     use starknet::{
         accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
-        core::types::{ExecutionResult, StarknetError, TransactionStatus},
+        core::types::{Call, ExecutionResult, StarknetError, TransactionStatus},
         providers::{JsonRpcClient, ProviderError, jsonrpc::HttpTransport},
         signers::{LocalWallet, SigningKey},
     };
@@ -45,11 +45,11 @@ pub mod starknet {
         Ok(account)
     }
 
-    pub async fn pay_invoices(calls: Vec<starknet_types::Call>, env: EnvVariables) -> Result<()> {
+    pub async fn pay_invoices(calls: Vec<Call>, env: EnvVariables) -> Result<()> {
         let account = init_account(env)?;
 
         let tx_hash = account
-            .execute_v3(calls.into_iter().map(Into::into).collect())
+            .execute_v3(calls)
             .send()
             .await
             .inspect_err(|e| error!("send payment tx failed: {:?}", e))

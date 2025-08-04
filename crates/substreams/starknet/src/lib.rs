@@ -33,11 +33,11 @@ fn map_invoice_contract_events(
             // Both safe to unwrap as the `Remittance` event has two extra keys.
             // If this comes to change it is ok to crash
             let asset = keys_iter.next().unwrap();
+            let payer = keys_iter.next().unwrap();
             let payee = keys_iter.next().unwrap();
 
             let mut data_iter = event.data.into_iter();
             let invoice_id = data_iter.next().unwrap();
-            let payer = data_iter.next().unwrap();
             let amount_low = data_iter.next().unwrap();
             let amount_high = data_iter.next().unwrap();
 
@@ -45,9 +45,9 @@ fn map_invoice_contract_events(
                 tx_hash: receipt.transaction_hash.clone(),
                 event_index: index.try_into().unwrap(),
                 asset,
+                payer,
                 payee,
                 invoice_id,
-                payer,
                 amount_low,
                 amount_high,
             });

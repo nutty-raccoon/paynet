@@ -22,7 +22,8 @@ mod not_mock {
     use num_traits::CheckedAdd;
     use nuts::{Amount, nut05::MeltQuoteState};
     use starknet_types::{
-        Asset, AssetToUnitConversionError, ChainId, Unit, constants::ON_CHAIN_CONSTANTS,
+        Asset, AssetToUnitConversionError, ChainId, Unit, WithdrawOrder,
+        constants::ON_CHAIN_CONSTANTS,
     };
 
     use liquidity_source::WithdrawInterface;
@@ -38,8 +39,7 @@ mod not_mock {
         signers::LocalWallet,
     };
     use starknet_types::transactions::{
-        WithdrawOrder, sign_and_send_payment_transactions,
-        sign_and_send_single_payment_transactions,
+        sign_and_send_payment_transactions, sign_and_send_single_payment_transactions,
     };
     use tokio::{sync::mpsc, time::sleep};
     use tracing::{error, info};

@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: starknet-invoice-substream
-  version: v0.1.0
+  version: v0.2.0
 
 imports:
   starknet: https://spkg.io/streamingfast/starknet-foundational-v0.1.4.spkg
@@ -27,13 +27,22 @@ binaries:
 modules:
 - name: map_invoice_contract_events
   kind: map
-  initialBlock: 0
   inputs:
     - map: starknet:filtered_transactions
   output:
    type: proto:invoice_contract.v1.RemittanceEvents
 
-network: starknet-local
+network: devnet
 
-params:
-  starknet:filtered_transactions: ev:from_address:0x026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e
+networks:
+  devnet:
+    initialBlock:
+      map_invoice_contract_events: 0
+    params:
+      starknet:filtered_transactions: ev:from_address:0x054eb8613832317fc641555b852b0a3b4cef5cc444fccab5e3de94430fb8fcda
+  sepolia:
+    initialBlock:
+      map_invoice_contract_events: 1364917
+    params:
+      starknet:filtered_transactions: ev:from_address:0x03b7d6935858cc0e84cba7267cc9daa76dfaf060303761608f12cf84191e3571
+      

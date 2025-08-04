@@ -363,10 +363,10 @@ async fn handle_deposit(
         },
         asset_contract: ConctractData {
             abi: vec![ierc20_contract_abi],
-            address: payload.asset,
+            address: payload.asset_contract_address,
         },
         quote_id_hash: payload.quote_id_hash,
-        expiry: Felt::from(payload.expiry),
+        expiry: payload.expiry,
         amount_low: payload.amount.low,
         amount_high: payload.amount.high,
         payee: payload.payee,

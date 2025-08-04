@@ -13,6 +13,7 @@ use nuts::{
     nut01::PublicKey,
 };
 use primitive_types::U256;
+use starknet::core::types::Call;
 use starknet_types::{STARKNET_STR, Unit};
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
@@ -104,14 +105,14 @@ pub async fn mint_same_output(
     // It is important because something break in DNA when there is too many calls, or events
     // in a single transaction.
     // That is the reason why we use `50` as the size of a batch, 100 was breaking it
-    let mut c: [starknet_types::Call; 2] =
+    let mut c: [Call; 2] =
         serde_json::from_str(&mint_quote_response_iterator.next().unwrap().request)?;
     c[0].calldata[1] *= Felt::from(100);
     calls.push(c[0].clone());
     calls.push(c[1].clone());
     let mut i = 0;
     for quote in mint_quote_response_iterator {
-        let c: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
+        let c: [Call; 2] = serde_json::from_str(&quote.request)?;
         calls.push(c[1].clone());
         i += 1;
 
@@ -372,8 +373,7 @@ pub async fn melt_same_input(
     let original_mint_quote_response =
         mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
 
-    let calls: [starknet_types::Call; 2] =
-        serde_json::from_str(&original_mint_quote_response.request)?;
+    let calls: [Call; 2] = serde_json::from_str(&original_mint_quote_response.request)?;
     pay_invoices(calls.to_vec(), env).await?;
 
     wait_transac(node_client.clone(), &original_mint_quote_response).await?;

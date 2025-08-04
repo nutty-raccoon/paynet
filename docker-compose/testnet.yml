@@ -3,7 +3,7 @@ services:
     image: "docker.io/shardlabs/starknet-devnet-rs:0.4.3"
     environment:
       - SEED=0
-      - BLOCK_GENERATION_ON=1
+      - BLOCK_GENERATION_ON=${BLOCK_TIME-1}
       - CHAIN_ID=SN_DEVNET
     ports:
       - "5050:5050"
@@ -23,6 +23,7 @@ services:
       dockerfile: ./dockerfiles/starknet-firehose.Dockerfile
     environment:
       - STARKNET_NODE_URL=http://starknet-devnet:5050
+      - LATEST_BLOCK_RETRY_INTERVAL=${BLOCK_TIME-1}s
     ports:
       - "10015:10015"
       - "10016:10016"

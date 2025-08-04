@@ -10,39 +10,12 @@ use starknet_types_core::felt::Felt;
 use tracing::{Instrument, info_span};
 use tracing::{error, info};
 
-use crate::StarknetU256;
+use crate::{StarknetU256, WithdrawOrder};
 
 const PAY_INVOICE_SELECTOR: Felt =
     Felt::from_hex_unchecked("0x000d5c0f26335ab142eb700850eded4619418b0f6e98c5b92a6347b68d2f2a0c");
 const APPROVE_SELECTOR: Felt =
     Felt::from_hex_unchecked("0x0219209e083275171774dab1df80982e9df2096516f06319c5c6d71ae0a8480c");
-
-#[derive(Debug, Clone)]
-pub struct WithdrawOrder {
-    pub quote_id_hash: Felt,
-    pub expiry: Felt,
-    pub amount: StarknetU256,
-    pub asset_contract_address: Felt,
-    pub payee: Felt,
-}
-
-impl WithdrawOrder {
-    pub fn new(
-        quote_id_hash: Felt,
-        expiry: Felt,
-        amount: StarknetU256,
-        asset_contract_address: Felt,
-        payee: Felt,
-    ) -> Self {
-        Self {
-            quote_id_hash,
-            expiry,
-            amount,
-            asset_contract_address,
-            payee,
-        }
-    }
-}
 
 pub fn generate_payment_transaction_calls<'a>(
     invoice_payment_contract_address: Felt,
@@ -164,7 +137,7 @@ async fn send_transation<A: Account + ConnectedAccount + Sync + std::fmt::Debug>
         .await?;
     // Execute the transaction
     let tx_result = account
-        .execute_v3(calls.to_vec())
+        .execute_v3(calls)
         .nonce(nonce)
         .send()
         .instrument(info_span!("send-withdraw-transaction"))

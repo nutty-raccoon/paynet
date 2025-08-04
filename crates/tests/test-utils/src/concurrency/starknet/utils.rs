@@ -4,6 +4,7 @@ use node_client::{
     SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::Amount;
+use starknet::core::types::Call;
 use starknet_types::Unit;
 use tonic::transport::Channel;
 
@@ -120,7 +121,7 @@ pub async fn mint_quote_and_deposit_and_wait(
         .await?
         .into_inner();
 
-    let calls: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
+    let calls: [Call; 2] = serde_json::from_str(&quote.request)?;
     pay_invoices(calls.to_vec(), env.clone()).await?;
 
     wait_transac(node_client.clone(), &quote).await?;

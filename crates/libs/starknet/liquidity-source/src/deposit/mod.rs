@@ -66,8 +66,8 @@ mod not_mock {
 
             let payload = DepositPayload {
                 quote_id_hash,
-                expiry,
-                asset: token_contract_address,
+                expiry: Felt::from(expiry),
+                asset_contract_address: token_contract_address,
                 amount: amount.into(),
                 payee: self.our_account_address,
             };
