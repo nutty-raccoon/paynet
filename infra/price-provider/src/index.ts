@@ -37,6 +37,13 @@ appCache.set("currencies", env.currencies);
 
 setInterval(fetchPrice, 5000);
 
+fastify.get('/health', async (request, reply) => {
+  const lastUpdate: string | undefined = appCache.get("last_update");
+  const status = lastUpdate ? 'ok' : 'error';
+  const code = status === 'ok' ? 200 : 503;
+  return reply.code(code).send({ lastUpdate, status });
+});
+
 fastify.register(currencyRoutes);
 fastify.register(priceRoutes);
 fastify.register(tokenRoutes);

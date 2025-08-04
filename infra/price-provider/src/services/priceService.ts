@@ -41,7 +41,10 @@ export async function fetchPrice() {
 
         appCache.set("last_price", newCache);
 
-        fastify.log.info("Price has been updated.");
+        const now = new Date().toISOString();
+        appCache.set("last_update", now);
+
+        fastify.log.info("Price has been updated at " + now);
     } catch (err) {
         console.error("Error: ", err);
     }

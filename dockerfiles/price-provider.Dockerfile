@@ -17,5 +17,8 @@ COPY infra/price-provider/ .
 # Expose Fastify port
 EXPOSE 3000
 
+HEALTHCHECK --interval=3s --timeout=10s --start-period=20s --retries=5 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
 # Start server
 CMD ["bun", "run", "src/index.ts"]
