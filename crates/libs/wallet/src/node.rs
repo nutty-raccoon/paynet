@@ -12,7 +12,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
 
 use crate::{
-    StoreNewTokensError,
+    StoreNewProofsError,
     db::{self, keyset},
     seed_phrase, store_new_proofs_from_blind_signatures,
     types::NodeUrl,
@@ -63,7 +63,7 @@ pub enum RestoreNodeError {
     #[error(transparent)]
     Client(#[from] tonic::Status),
     #[error(transparent)]
-    StoreNewTokens(#[from] StoreNewTokensError),
+    StoreNewTokens(#[from] StoreNewProofsError),
     #[error(transparent)]
     Nut01(#[from] nut01::Error),
     #[error(transparent)]

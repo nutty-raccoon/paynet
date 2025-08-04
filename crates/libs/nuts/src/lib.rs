@@ -35,7 +35,7 @@ pub mod traits {
     pub trait Method: Debug + Display + FromStr {}
 
     pub trait Unit:
-        FromStr + AsRef<str> + Sized + Debug + Copy + Clone + Display + Into<u32>
+        FromStr + AsRef<str> + Sized + Debug + Copy + Clone + Display + Into<u32> + Eq + PartialEq
     {
     }
 

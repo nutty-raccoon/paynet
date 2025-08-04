@@ -1,5 +1,5 @@
 <script lang="ts">
-  export type Tab = "pay" | "balances" | "settings";
+  export type Tab = "pay" | "balances" | "settings" | "history";
 
   interface Props {
     activeTab: Tab;
@@ -23,13 +23,19 @@
     <div class="icon">💸</div>
     <span>Pay</span>
   </button>
-
   <button
     class="tab-item {activeTab === 'balances' ? 'active' : ''}"
     onclick={() => handleTabClick("balances")}
   >
     <div class="icon">💰</div>
     <span>Balances</span>
+  </button>
+  <button
+    class="tab-item {activeTab === 'history' ? 'active' : ''}"
+    onclick={() => handleTabClick("history")}
+  >
+    <div class="icon">📋</div>
+    <span>History</span>
   </button>
 </nav>
 

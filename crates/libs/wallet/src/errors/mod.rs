@@ -2,7 +2,7 @@ use node_client::UnspecifiedEnum;
 use thiserror::Error;
 use tonic::Status;
 
-use crate::{StoreNewTokensError, seed_phrase};
+use crate::{StoreNewProofsError, seed_phrase};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -24,6 +24,8 @@ pub enum Error {
     ProofNotAvailable,
     #[error("invalid public key: {0}")]
     InvalidPublicKey(String),
+    #[error("invalid unit: {0}")]
+    InvalidUnit(String),
     #[error("invalid keyset ID")]
     InvalidKeysetId(#[from] std::array::TryFromSliceError),
     #[error("gRPC error: {0}")]
@@ -59,14 +61,18 @@ pub enum Error {
     Wallet(#[from] crate::wallet::Error),
     #[error(transparent)]
     RestoreNode(#[from] crate::node::RestoreNodeError),
+    #[error("unexpected proof state: {0}")]
+    UnexpectedProofState(String),
+    #[error("failed to connect to node: {0}")]
+    ConnectToNode(#[from] crate::ConnectToNodeError),
 }
 
-impl From<StoreNewTokensError> for Error {
-    fn from(value: StoreNewTokensError) -> Self {
+impl From<StoreNewProofsError> for Error {
+    fn from(value: StoreNewProofsError) -> Self {
         match value {
-            StoreNewTokensError::Rusqlite(error) => Error::Database(error),
-            StoreNewTokensError::Nut01(error) => Error::Nut01(error),
-            StoreNewTokensError::Dhke(error) => Error::Dhke(error),
+            StoreNewProofsError::Rusqlite(error) => Error::Database(error),
+            StoreNewProofsError::Nut01(error) => Error::Nut01(error),
+            StoreNewProofsError::Dhke(error) => Error::Dhke(error),
         }
     }
 }

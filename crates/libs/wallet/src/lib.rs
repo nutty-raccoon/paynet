@@ -8,12 +8,10 @@ pub mod seed_phrase;
 pub mod send;
 pub mod sync;
 pub mod types;
+pub mod wad;
 pub mod wallet;
 
-use std::str::FromStr;
-
 use errors::Error;
-use itertools::Itertools;
 use node_client::{AcknowledgeRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
@@ -22,15 +20,15 @@ use nuts::nut00::{self, BlindedMessage, Proof};
 use nuts::nut01::{self, PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
 use nuts::nut19::Route;
-use nuts::traits::Unit;
 use nuts::{Amount, SplitTarget};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, Transaction, params};
+use std::str::FromStr;
 use tonic::Request;
 use tonic::transport::Channel;
-use types::compact_wad::{CompactKeysetProofs, CompactProof, CompactWad};
-use types::{BlindingData, NodeUrl, PreMint, PreMints, ProofState};
+use types::compact_wad::CompactKeysetProofs;
+use types::{BlindingData, NodeUrl, PreMints, ProofState};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -97,10 +95,10 @@ pub async fn read_or_import_node_keyset(
     Ok((keyset.unit.clone(), max_order))
 }
 
-pub fn get_active_keyset_for_unit<U: Unit>(
+pub fn get_active_keyset_for_unit(
     db_conn: &Connection,
     node_id: u32,
-    unit: U,
+    unit: &str,
 ) -> Result<(KeysetId, u32), Error> {
     let r = db::keyset::fetch_one_active_id_for_node_and_unit(db_conn, node_id, unit)?
         .ok_or(Error::NoMatchingKeyset)?;
@@ -109,36 +107,13 @@ pub fn get_active_keyset_for_unit<U: Unit>(
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum StoreNewTokensError {
+pub enum StoreNewProofsError {
     #[error(transparent)]
     Rusqlite(#[from] rusqlite::Error),
     #[error(transparent)]
     Nut01(#[from] nut01::Error),
     #[error(transparent)]
     Dhke(#[from] dhke::Error),
-}
-
-pub fn store_new_tokens(
-    db_conn: &Transaction,
-    node_id: u32,
-    keyset_id: KeysetId,
-    pre_mints: impl Iterator<Item = PreMint>,
-    signatures: impl Iterator<Item = node_client::BlindSignature>,
-) -> Result<Vec<(PublicKey, Amount)>, StoreNewTokensError> {
-    let signatures_iterator =
-        pre_mints
-            .into_iter()
-            .zip(signatures)
-            .map(|(pm, bs)| -> Result<_, nut01::Error> {
-                Ok((
-                    PublicKey::from_slice(&bs.blind_signature)?,
-                    pm.secret,
-                    pm.r,
-                    pm.amount,
-                ))
-            });
-
-    store_new_proofs_from_blind_signatures(db_conn, node_id, keyset_id, signatures_iterator)
 }
 
 pub fn store_new_proofs_from_blind_signatures(
@@ -148,7 +123,7 @@ pub fn store_new_proofs_from_blind_signatures(
     signatures_iterator: impl IntoIterator<
         Item = Result<(PublicKey, Secret, SecretKey, Amount), nut01::Error>,
     >,
-) -> Result<Vec<(PublicKey, Amount)>, StoreNewTokensError> {
+) -> Result<Vec<(PublicKey, Amount)>, StoreNewProofsError> {
     const GET_PUBKEY: &str = r#"
         SELECT pubkey FROM key WHERE keyset_id = ?1 and amount = ?2 LIMIT 1;
     "#;
@@ -198,12 +173,12 @@ pub fn store_new_proofs_from_blind_signatures(
     Ok(new_tokens)
 }
 
-pub async fn fetch_inputs_ids_from_db_or_node<U: Unit>(
+pub async fn fetch_inputs_ids_from_db_or_node(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     target_amount: Amount,
-    unit: U,
+    unit: &str,
 ) -> Result<Option<Vec<PublicKey>>, Error> {
     let mut proofs_ids = Vec::new();
     let mut proofs_not_used = Vec::new();
@@ -212,7 +187,7 @@ pub async fn fetch_inputs_ids_from_db_or_node<U: Unit>(
     {
         let db_conn = pool.get()?;
         let total_amount_available =
-            db::proof::get_node_total_available_amount_of_unit(&db_conn, node_id, unit.as_ref())?;
+            db::proof::get_node_total_available_amount_of_unit(&db_conn, node_id, unit)?;
 
         if total_amount_available < target_amount {
             return Ok(None);
@@ -308,11 +283,11 @@ pub fn load_tokens_from_db(
     Ok(proofs)
 }
 
-pub async fn swap_to_have_target_amount<U: Unit>(
+pub async fn swap_to_have_target_amount(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    unit: U,
+    unit: &str,
     target_amount: Amount,
     proof_to_swap: &(PublicKey, Amount),
 ) -> Result<Vec<(PublicKey, Amount)>, Error> {
@@ -373,12 +348,14 @@ pub async fn swap_to_have_target_amount<U: Unit>(
     Ok(new_tokens)
 }
 
-pub async fn receive_wad<U: Unit>(
+pub async fn receive_wad(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
-    unit: U,
+    node_url: &NodeUrl,
+    unit: &str,
     compact_keyset_proofs: Vec<CompactKeysetProofs>,
+    memo: &Option<String>,
 ) -> Result<Amount, Error> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
@@ -401,7 +378,7 @@ pub async fn receive_wad<U: Unit>(
             compact_keyset_proof.keyset_id,
         )
         .await?;
-        if keyset_unit != unit.as_ref() {
+        if keyset_unit != unit {
             return Err(Error::UnitMissmatch(keyset_unit, unit.to_string()));
         }
 
@@ -443,13 +420,23 @@ pub async fn receive_wad<U: Unit>(
         }
     }
 
-    let blinding_data = {
-        let db_conn = pool.get()?;
-        let mut insert_proof_stmt = db_conn.prepare(INSERT_PROOF)?;
-        for params in stmt_params {
-            insert_proof_stmt.execute(params)?;
+    let (wad_id, blinding_data) = {
+        let mut db_conn = pool.get()?;
+        let tx = db_conn.transaction()?;
+
+        // Error if wad have already been seen
+        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_url, memo, &ys)?;
+        {
+            let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
+            for params in stmt_params {
+                insert_proof_stmt.execute(params)?;
+            }
         }
-        BlindingData::load_from_db(&db_conn, node_id, unit)?
+        let binding_data = BlindingData::load_from_db(&tx, node_id, unit)?;
+
+        tx.commit()?;
+
+        (wad_id, binding_data)
     };
 
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
@@ -472,6 +459,7 @@ pub async fn receive_wad<U: Unit>(
         let tx = db_conn.transaction()?;
         db::proof::set_proofs_to_state(&tx, &ys, ProofState::Spent)?;
         pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
+        db::wad::update_wad_status(&tx, wad_id, db::wad::WadStatus::Finished)?;
         tx.commit()?;
     }
 
@@ -572,33 +560,4 @@ pub async fn acknowledge(
         .await?;
 
     Ok(())
-}
-
-pub fn create_wad_from_proofs<U: Unit>(
-    node_url: NodeUrl,
-    unit: U,
-    memo: Option<String>,
-    proofs: Vec<Proof>,
-) -> CompactWad<U> {
-    let compact_proofs = proofs
-        .into_iter()
-        .chunk_by(|p| p.keyset_id)
-        .into_iter()
-        .map(|(keyset_id, proofs)| CompactKeysetProofs {
-            keyset_id,
-            proofs: proofs
-                .map(|p| CompactProof {
-                    amount: p.amount,
-                    secret: p.secret,
-                    c: p.c,
-                })
-                .collect(),
-        })
-        .collect();
-    CompactWad {
-        node_url,
-        unit,
-        memo,
-        proofs: compact_proofs,
-    }
 }

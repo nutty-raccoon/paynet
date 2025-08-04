@@ -99,7 +99,7 @@ impl WalletOps {
         pay_invoices(calls.to_vec(), env).await?;
 
         match wallet::mint::wait_for_quote_payment(
-            &*self.db_pool.get()?,
+            self.db_pool.clone(),
             &mut self.node_client,
             STARKNET_STR.to_string(),
             quote.quote.clone(),
@@ -119,7 +119,7 @@ impl WalletOps {
             STARKNET_STR.to_string(),
             quote.quote,
             self.node_id,
-            unit,
+            unit.as_str(),
             amount,
         )
         .await?;
@@ -145,12 +145,13 @@ impl WalletOps {
             &mut self.node_client,
             self.node_id,
             amount,
-            unit,
+            unit.as_str(),
         )
         .await?
         .ok_or(anyhow!("not enough funds"))?;
 
-        let proofs = wallet::load_tokens_from_db(&*self.db_pool.get()?, &proofs_ids)?;
+        let db_conn = self.db_pool.get()?;
+        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
         let compact_proofs = proofs
             .into_iter()
             .chunk_by(|p| p.keyset_id)
@@ -167,6 +168,14 @@ impl WalletOps {
             })
             .collect();
 
+        wallet::db::wad::register_wad(
+            &db_conn,
+            wallet::db::wad::WadType::OUT,
+            &node_url,
+            &None,
+            &proofs_ids,
+        )?;
+
         Ok(CompactWad {
             node_url,
             unit,
@@ -180,10 +189,13 @@ impl WalletOps {
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
-            wad.unit,
+            &wad.node_url,
+            wad.unit.as_str(),
             wad.proofs.clone(),
+            wad.memo(),
         )
         .await?;
+
         Ok(())
     }
 
@@ -225,7 +237,7 @@ impl WalletOps {
             melt_quote_response.quote.clone(),
             Amount::from(melt_quote_response.amount),
             method.clone(),
-            unit,
+            unit.as_str(),
         )
         .await?;
 
@@ -240,6 +252,12 @@ impl WalletOps {
         {
             panic!("quote expired")
         }
+
+        Ok(())
+    }
+
+    pub async fn sync_wads(&mut self) -> Result<()> {
+        wallet::sync::pending_wads(self.db_pool.clone()).await?;
 
         Ok(())
     }

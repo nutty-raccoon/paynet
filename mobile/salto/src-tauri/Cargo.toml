@@ -45,6 +45,7 @@ reqwest = { workspace = true, features = ["json"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 # Local
 wallet = { workspace = true }

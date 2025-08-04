@@ -23,6 +23,7 @@
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
   import { fiatCurrenciesStored, selectedCurrencyStored } from "../stores";
+  import WadHistoryPage from "./components/WadHistoryPage.svelte";
 
   const Modal = {
     ROOT: 0,
@@ -73,7 +74,12 @@
 
   // Effect to manage scrolling based on active tab
   $effect(() => {
-    document.body.classList.add("no-scroll");
+    // Allow scrolling for history page
+    if (activeTab === "history") {
+      document.body.classList.remove("no-scroll");
+    } else {
+      document.body.classList.add("no-scroll");
+    }
   });
 
   const onAddNode = (nodeData: NodeData) => {
@@ -213,6 +219,8 @@
       </div>
     {:else if activeTab === "settings"}
       <SettingsModal />
+    {:else if activeTab === "history"}
+      <WadHistoryPage />
     {/if}
   {/if}
 </main>

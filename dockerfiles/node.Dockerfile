@@ -1,6 +1,6 @@
 FROM lukemathwalker/cargo-chef:latest-rust-1.86.0 AS chef
 
-WORKDIR app
+WORKDIR /app
 
 #------------
 

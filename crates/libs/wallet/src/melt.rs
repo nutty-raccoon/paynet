@@ -35,14 +35,14 @@ pub async fn create_quote<U: Unit>(
     Ok(response)
 }
 
-pub async fn pay_quote<U: Unit>(
+pub async fn pay_quote(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     quote_id: String,
     amount: Amount,
     method: String,
-    unit: U,
+    unit: &str,
 ) -> Result<MeltResponse, Error> {
     // Gather the proofs
     let proofs_ids =

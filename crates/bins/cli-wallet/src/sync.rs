@@ -1,12 +1,9 @@
-use std::str::FromStr;
-
 use anyhow::{Result, anyhow};
 use node_client::NodeClient;
 use nuts::nut04::MintQuoteState;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use starknet_types::Unit;
 use tonic::transport::Channel;
 use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::db::mint_quote::PendingMintQuote;
@@ -39,6 +36,19 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
         sync_melt_quotes(&pool, &mut node_client, &pending_quotes).await?;
     }
 
+    // Sync pending WADs using the lib wallet function i
+    println!("Syncing pending WADs");
+    let wad_results = wallet::sync::pending_wads(pool).await?;
+
+    for result in wad_results {
+        match result.result {
+            // No status change
+            Ok(None) => {}
+            Ok(Some(status)) => println!("WAD {} updated to status: {:?}", result.wad_id, status),
+            Err(e) => eprintln!("Failed to sync WAD {}: {}", result.wad_id, e),
+        }
+    }
+
     println!("Sync completed for all nodes");
     Ok(())
 }
@@ -51,10 +61,8 @@ async fn sync_mint_quotes(
 ) -> Result<()> {
     for pending_mint_quote in pending_mint_quotes {
         let new_state = {
-            let db_conn = pool.get()?;
-
-            match wallet::mint::get_quote_state(
-                &db_conn,
+            match wallet::sync::mint_quote(
+                pool.clone(),
                 node_client,
                 pending_mint_quote.method.clone(),
                 pending_mint_quote.id.clone(),
@@ -75,8 +83,6 @@ async fn sync_mint_quotes(
                 pending_mint_quote.id
             );
 
-            let unit = Unit::from_str(&pending_mint_quote.unit)?;
-
             // Redeem the quote
             if let Err(e) = wallet::mint::redeem_quote(
                 pool.clone(),
@@ -84,7 +90,7 @@ async fn sync_mint_quotes(
                 STARKNET_STR.to_string(),
                 pending_mint_quote.id.clone(),
                 node_id,
-                unit,
+                &pending_mint_quote.unit,
                 pending_mint_quote.amount,
             )
             .await

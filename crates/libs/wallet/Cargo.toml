@@ -20,16 +20,17 @@ itertools = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 bip39 = { workspace = true, features = ["rand"] }
+uuid = { workspace = true, features = ["v5"] }
 
 # tls
-tonic-tls = { workspace = true, default-features=false, features=["openssl"], optional = true  }
+tonic-tls = { workspace = true, default-features = false, features = ["openssl"], optional = true  }
 openssl = { workspace = true, optional = true }
 openssl-sys = { workspace = true, optional = true }
 
 # Db
 r2d2_sqlite = { workspace = true }
 r2d2 = { workspace = true }
-rusqlite = { workspace = true }
+rusqlite = { workspace = true, features = ["uuid"] }
 
 [features]
 default = []
