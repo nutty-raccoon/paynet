@@ -38,7 +38,7 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
 
     // Sync pending WADs using the lib wallet function i
     println!("Syncing pending WADs");
-    let wad_results = wallet::sync::sync_pending_wads(pool).await?;
+    let wad_results = wallet::sync::pending_wads(pool).await?;
 
     for result in wad_results {
         match result.result {
@@ -61,10 +61,8 @@ async fn sync_mint_quotes(
 ) -> Result<()> {
     for pending_mint_quote in pending_mint_quotes {
         let new_state = {
-            let db_conn = pool.get()?;
-
-            match wallet::mint::get_quote_state(
-                &db_conn,
+            match wallet::sync::mint_quote(
+                pool.clone(),
                 node_client,
                 pending_mint_quote.method.clone(),
                 pending_mint_quote.id.clone(),

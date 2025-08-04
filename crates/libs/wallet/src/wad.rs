@@ -6,7 +6,7 @@ use crate::types::{
     compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
 };
 
-pub fn create_from_proofs<U: Unit>(
+pub fn create_from_parts<U: Unit>(
     node_url: NodeUrl,
     unit: U,
     memo: Option<String>,

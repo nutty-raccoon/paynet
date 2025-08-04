@@ -99,7 +99,7 @@ impl WalletOps {
         pay_invoices(calls.to_vec(), env).await?;
 
         match wallet::mint::wait_for_quote_payment(
-            &*self.db_pool.get()?,
+            self.db_pool.clone(),
             &mut self.node_client,
             STARKNET_STR.to_string(),
             quote.quote.clone(),
@@ -257,7 +257,7 @@ impl WalletOps {
     }
 
     pub async fn sync_wads(&mut self) -> Result<()> {
-        wallet::sync::sync_pending_wads(self.db_pool.clone()).await?;
+        wallet::sync::pending_wads(self.db_pool.clone()).await?;
 
         Ok(())
     }

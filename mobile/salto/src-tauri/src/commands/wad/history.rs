@@ -99,10 +99,8 @@ impl serde::Serialize for SyncWadsError {
 
 #[tauri::command]
 pub async fn sync_wads(app: AppHandle, state: State<'_, AppState>) -> Result<(), SyncWadsError> {
-    // Use the lib wallet function instead of duplicating code
-    let wad_results = wallet::sync::sync_pending_wads(state.pool.clone()).await?;
+    let wad_results = wallet::sync::pending_wads(state.pool.clone()).await?;
 
-    // Emit events for UI updates
     for result in wad_results {
         match result.result {
             Ok(None) => {}

@@ -86,6 +86,7 @@ pub async fn create_wads(
 
     let mut wads = Vec::with_capacity(amount_to_use_per_node.len());
     let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
+    let mut ys_per_node = Vec::with_capacity(amount_to_use_per_node.len());
     for (node_id, node_url, amount_to_use) in amount_to_use_per_node {
         let mut node_client = wallet::connect_to_node(&node_url).await?;
 
@@ -101,21 +102,24 @@ pub async fn create_wads(
 
         let db_conn = state.pool.get()?;
         let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
-        let memo = None;
-        wallet::db::wad::register_wad(
-            &db_conn,
-            wallet::db::wad::WadType::OUT,
-            &node_url,
-            &memo,
-            &proofs_ids,
-        )?;
-        let wad = wallet::wad::create_from_proofs(node_url, unit, memo, proofs);
+        let wad = wallet::wad::create_from_parts(node_url, unit, None, proofs);
         wads.push(wad);
+        ys_per_node.push(proofs_ids);
         balance_decrease_events.push(BalanceChange {
             node_id,
             unit: unit.as_str().to_string(),
             amount: amount_to_use.into(),
         });
+    }
+    let db_conn = state.pool.get()?;
+    for (wad, ys) in wads.iter().zip(ys_per_node) {
+        wallet::db::wad::register_wad(
+            &db_conn,
+            wallet::db::wad::WadType::OUT,
+            &wad.node_url,
+            &wad.memo,
+            &ys,
+        )?;
     }
     for event in balance_decrease_events {
         app.emit("balance-decrease", event)?;

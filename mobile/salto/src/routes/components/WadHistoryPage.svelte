@@ -3,16 +3,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { get_wad_history, sync_wads } from "../../commands";
   import { formatBalance } from "../../utils";
-
-  interface WadHistoryItem {
-    id: string;
-    wadType: string;
-    status: string;
-    totalAmountJson: string;
-    memo?: string;
-    createdAt: number;
-    modifiedAt: number;
-  }
+  import type { WadHistoryItem, WadStatus } from "../../types/wad";
 
   let wadHistory: WadHistoryItem[] = $state([]);
   let loading = $state(true);
@@ -24,15 +15,13 @@
   let unsubscribeSyncError: (() => void) | null = null;
 
   onMount(async () => {
-    // Listen for WAD status updates from sync_wads
     unsubscribeWadStatusUpdated = await listen<{
       wadId: string;
       newStatus: string;
     }>("wad-status-updated", (event) => {
-      // Update the specific WAD in the history
       wadHistory = wadHistory.map((wad) =>
         wad.id === event.payload.wadId
-          ? { ...wad, status: event.payload.newStatus }
+          ? { ...wad, status: event.payload.newStatus as WadStatus }
           : wad,
       );
     });
@@ -150,8 +139,8 @@
         {#each wadHistory as wad}
           <div class="wad-item">
             <div class="wad-first-line">
-              <span class="type-icon">{getTypeIcon(wad.wadType)}</span>
-              <span class="type-text">{getTypeDisplay(wad.wadType)}</span>
+              <span class="type-icon">{getTypeIcon(wad.type)}</span>
+              <span class="type-text">{getTypeDisplay(wad.type)}</span>
               <span class="wad-amount">{formatAmount(wad.totalAmountJson)}</span
               >
               <span

@@ -1,5 +1,7 @@
-use node_client::NodeClient;
-use nuts::nut05::MeltQuoteState;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use node_client::{NodeClient, QuoteStateRequest};
+use nuts::{nut04::MintQuoteState, nut05::MeltQuoteState};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
@@ -9,6 +11,51 @@ use crate::{
     db::{self, wad::SyncData},
     errors::Error,
 };
+
+pub async fn mint_quote(
+    pool: Pool<SqliteConnectionManager>,
+    node_client: &mut NodeClient<Channel>,
+    method: String,
+    quote_id: String,
+) -> Result<Option<MintQuoteState>, Error> {
+    let response = node_client
+        .mint_quote_state(QuoteStateRequest {
+            method,
+            quote: quote_id.clone(),
+        })
+        .await;
+
+    let db_conn = pool.get()?;
+    match response {
+        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
+            db::mint_quote::delete(&db_conn, &quote_id)?;
+            Ok(None)
+        }
+        Ok(response) => {
+            let response = response.into_inner();
+            let state = MintQuoteState::try_from(
+                node_client::MintQuoteState::try_from(response.state)
+                    .map_err(|e| Error::Conversion(e.to_string()))?,
+            )?;
+
+            if state == MintQuoteState::Unpaid {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                if now >= response.expiry {
+                    db::mint_quote::delete(&db_conn, &quote_id)?;
+                    return Ok(None);
+                }
+            }
+
+            db::mint_quote::set_state(&db_conn, &response.quote, state)?;
+
+            Ok(Some(state))
+        }
+        Err(e) => Err(e)?,
+    }
+}
 
 pub async fn melt_quote(
     pool: Pool<SqliteConnectionManager>,
@@ -23,9 +70,9 @@ pub async fn melt_quote(
         })
         .await;
 
+    let mut db_conn = pool.get()?;
     match response {
         Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
-            let db_conn = pool.get()?;
             db::melt_quote::delete(&db_conn, &quote_id)?;
             Ok(None)
         }
@@ -34,12 +81,11 @@ pub async fn melt_quote(
             let state =
                 MeltQuoteState::try_from(node_client::MeltQuoteState::try_from(response.state)?)?;
 
-            let mut db_conn = pool.get()?;
             let tx = db_conn.transaction()?;
             match state {
                 MeltQuoteState::Unpaid => {
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
+                    let now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs();
                     if now >= response.expiry {
@@ -69,7 +115,7 @@ pub async fn melt_quote(
     }
 }
 
-pub async fn sync_pending_wads(
+pub async fn pending_wads(
     pool: Pool<SqliteConnectionManager>,
 ) -> Result<Vec<WadSyncResult>, Error> {
     let pending_wads = {
@@ -147,7 +193,6 @@ async fn sync_single_wad(
 }
 
 #[derive(Debug, Clone)]
-
 pub struct WadSyncResult {
     pub wad_id: Uuid,
     pub result: Result<Option<db::wad::WadStatus>, String>,

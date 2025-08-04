@@ -168,7 +168,11 @@ enum Commands {
         about = "Generate a new wallet",
         long_about = "Generate a new wallet. This will create a new wallet with a new seed phrase and private key."
     )]
-    Init,
+    Init {
+        /// Skip asking for confirmation of seed phrase saving
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        yes: bool,
+    },
     #[command(
         about = "Restore a wallet",
         long_about = "Restore a wallet. This will restore a wallet from a seed phrase and private key."
@@ -235,7 +239,7 @@ async fn main() -> Result<()> {
     let wallet_count = wallet::db::wallet::count_wallets(&db_conn)?;
 
     match cli.command {
-        Commands::Init | Commands::Restore { .. } => {
+        Commands::Init { .. } | Commands::Restore { .. } => {
             if wallet_count > 0 {
                 println!("Wallet already exists");
                 return Ok(());
@@ -344,7 +348,7 @@ async fn main() -> Result<()> {
             );
 
             match wallet::mint::wait_for_quote_payment(
-                &db_conn,
+                pool.clone(),
                 &mut node_client,
                 STARKNET_STR.to_string(),
                 mint_quote_response.quote.clone(),
@@ -514,7 +518,7 @@ async fn main() -> Result<()> {
                 };
 
                 let wad =
-                    wallet::wad::create_from_proofs(node_url.clone(), unit, memo.clone(), proofs);
+                    wallet::wad::create_from_parts(node_url.clone(), unit, memo.clone(), proofs);
                 wads.push(wad);
             }
             if let Some(max_reached) = should_revert {
@@ -633,8 +637,8 @@ async fn main() -> Result<()> {
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
         }
-        Commands::Init => {
-            init::init(&db_conn)?;
+        Commands::Init { yes } => {
+            init::init(&db_conn, yes)?;
             println!("Wallet saved!");
         }
         Commands::Restore { seed_phrase } => {

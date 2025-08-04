@@ -1,18 +1,15 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use node_client::{
-    MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, QuoteStateRequest,
-    hash_mint_request,
+    MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, hash_mint_request,
 };
 use nuts::{Amount, SplitTarget, nut04::MintQuoteState, nut19::Route, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::Connection;
 use tonic::transport::Channel;
 
 use crate::{
     acknowledge, db,
     errors::Error,
+    sync,
     types::{BlindingData, PreMints},
 };
 
@@ -46,14 +43,16 @@ pub enum QuotePaymentIssue {
 }
 
 pub async fn wait_for_quote_payment(
-    db_conn: &Connection,
+    pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
 ) -> Result<QuotePaymentIssue, Error> {
     loop {
         let state =
-            match get_quote_state(db_conn, node_client, method.clone(), quote_id.clone()).await? {
+            match sync::mint_quote(pool.clone(), node_client, method.clone(), quote_id.clone())
+                .await?
+            {
                 Some(new_state) => new_state,
                 None => {
                     return Ok(QuotePaymentIssue::Expired);
@@ -66,50 +65,6 @@ pub async fn wait_for_quote_payment(
 
         // Wait a bit
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-}
-
-pub async fn get_quote_state(
-    db_conn: &Connection,
-    node_client: &mut NodeClient<Channel>,
-    method: String,
-    quote_id: String,
-) -> Result<Option<MintQuoteState>, Error> {
-    let response = node_client
-        .mint_quote_state(QuoteStateRequest {
-            method,
-            quote: quote_id.clone(),
-        })
-        .await;
-
-    match response {
-        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
-            db::mint_quote::delete(db_conn, &quote_id)?;
-            Ok(None)
-        }
-        Ok(response) => {
-            let response = response.into_inner();
-            let state = MintQuoteState::try_from(
-                node_client::MintQuoteState::try_from(response.state)
-                    .map_err(|e| Error::Conversion(e.to_string()))?,
-            )?;
-
-            if state == MintQuoteState::Unpaid {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
-                if now >= response.expiry {
-                    db::mint_quote::delete(db_conn, &quote_id)?;
-                    return Ok(None);
-                }
-            }
-
-            db::mint_quote::set_state(db_conn, &response.quote, state)?;
-
-            Ok(Some(state))
-        }
-        Err(e) => Err(e)?,
     }
 }
 

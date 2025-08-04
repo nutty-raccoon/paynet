@@ -7,15 +7,13 @@ export enum WadType {
 
 export enum WadStatus {
     PENDING = "PENDING",
-    CANCELLED = "CANCELLED",
     FINISHED = "FINISHED",
     FAILED = "FAILED",
-    PARTIAL = "PARTIAL",
 }
 
 export interface WadHistoryItem {
     id: string;
-    wadType: WadType;
+    type: WadType;
     status: WadStatus;
     totalAmountJson: string;
     memo?: string;
