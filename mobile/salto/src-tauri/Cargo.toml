@@ -44,6 +44,7 @@ log = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
+tracing = { workspace = true }
 
 # Local
 wallet = { workspace = true }

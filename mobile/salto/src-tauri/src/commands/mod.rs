@@ -8,7 +8,9 @@ mod wallet;
 pub use add_node::add_node;
 pub use deposit::{create_mint_quote, redeem_quote};
 pub use get_nodes_balance::get_nodes_balance;
-pub use get_prices::{get_currencies, get_prices, update_get_prices_config};
+pub use get_prices::{
+    get_currencies, get_prices_add_assets, get_prices_add_currencies, PriceResponce,
+};
 pub use wad::{create_wads, receive_wads};
 pub use wallet::{check_wallet_exists, init_wallet, restore_wallet};
 

@@ -1,3 +1,4 @@
+mod background_tasks;
 mod commands;
 mod errors;
 mod migrations;
@@ -5,14 +6,16 @@ mod parse_asset_amount;
 
 use commands::{
     add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
-    get_nodes_balance, get_prices, init_wallet, receive_wads, redeem_quote, restore_wallet,
-    update_get_prices_config,
+    get_nodes_balance, get_prices_add_assets, get_prices_add_currencies, init_wallet, receive_wads,
+    redeem_quote, restore_wallet, PriceResponce,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use std::{collections::HashSet, env, sync::Arc};
+use tauri::{async_runtime, Manager};
 use tokio::sync::RwLock;
+
+use crate::background_tasks::start_price_fetcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -40,12 +43,16 @@ pub fn run() {
                 let pool = r2d2::Pool::new(manager)?;
                 app.manage(AppState {
                     pool,
-                    get_prices_starded: Mutex::new(false),
                     get_prices_config: Arc::new(RwLock::new(PriceConfig {
-                        currencies: vec![],
-                        assets: None,
+                        currencies: HashSet::from(["usd".to_string()]),
+                        assets: HashSet::new(),
                     })),
                 });
+                let config = app.state::<AppState>().get_prices_config.clone();
+                let host =
+                    env::var("PRICE_PROVIDER").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
+                let app_thread = app.handle().clone();
+                async_runtime::spawn(start_price_fetcher(config, host, app_thread));
                 Ok(())
             })
             .plugin(
@@ -60,12 +67,12 @@ pub fn run() {
                 redeem_quote,
                 create_wads,
                 receive_wads,
-                get_prices,
                 get_currencies,
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
-                update_get_prices_config,
+                get_prices_add_assets,
+                get_prices_add_currencies
             ])
     };
 
@@ -75,13 +82,12 @@ pub fn run() {
 
 #[derive(Clone, Debug)]
 pub struct PriceConfig {
-    currencies: Vec<String>,
-    assets: Option<Vec<String>>,
+    currencies: HashSet<String>,
+    assets: HashSet<String>,
 }
 
 #[derive(Debug)]
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
-    get_prices_starded: Mutex<bool>,
     get_prices_config: Arc<RwLock<PriceConfig>>,
 }

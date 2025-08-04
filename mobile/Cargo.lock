@@ -4927,6 +4927,7 @@ dependencies = [
  "tauri-plugin-sql",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
  "uint 0.10.0",
  "wallet",
 ]

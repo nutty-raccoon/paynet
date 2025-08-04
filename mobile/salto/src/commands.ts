@@ -24,8 +24,13 @@ export async function getNodesBalance() {
       return res;
   }
 
-  export async function updateGetPricesConfig(currencies: string[]) {
-    let res = await invoke("update_get_prices_config", {currencies}).then((message) => message).catch((error) => console.error(error));
+  export async function getPricesAddAssets( assets: string[]) {
+    let res = await invoke("get_prices_add_assets", { newAssets: assets }).then((message) => message).catch((error) => console.error(error));
+    return res;
+  }
+
+  export async function getPricesAddCurrencies(currencies: string[]) {
+    let res = await invoke("get_prices_add_currencies", { newCurrencies: currencies }).then((message) => message).catch((error) => console.error(error));
     return res;
   }
 
