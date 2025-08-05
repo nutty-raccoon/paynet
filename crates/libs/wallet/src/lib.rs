@@ -11,7 +11,7 @@ pub mod types;
 pub mod wad;
 pub mod wallet;
 
-use errors::Error;
+use errors::{Error, handle_proof_verification_errors};
 use node_client::{AcknowledgeRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
@@ -331,7 +331,7 @@ pub async fn swap_to_have_target_amount(
             }
             Err(e) => {
                 // TODO: delete instead when invalid input
-                db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Unspent)?;
+                handle_proof_verification_errors(&e, &[proof_to_swap.0], &db_conn)?;
                 return Err(e.into());
             }
         };
