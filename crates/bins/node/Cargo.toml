@@ -36,6 +36,7 @@ dashmap = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
+tonic-types = { workspace = true }
 
 # OPTL
 tracing = { workspace = true }

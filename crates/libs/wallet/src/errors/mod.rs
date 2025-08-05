@@ -1,8 +1,11 @@
 use node_client::UnspecifiedEnum;
+use nuts::nut01::PublicKey;
+use rusqlite::Connection;
 use thiserror::Error;
 use tonic::Status;
+use tonic_types::StatusExt;
 
-use crate::{StoreNewProofsError, seed_phrase};
+use crate::{StoreNewProofsError, db, seed_phrase};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -62,6 +65,10 @@ pub enum Error {
     UnexpectedProofState(String),
     #[error("failed to connect to node: {0}")]
     ConnectToNode(#[from] crate::ConnectToNodeError),
+    #[error("invalid field format: '[' or ']' not found")]
+    InvalidFormat,
+    #[error("invalid index: {0}")]
+    ParseError(#[from] std::num::ParseIntError),
 }
 
 impl From<StoreNewProofsError> for Error {
@@ -75,3 +82,108 @@ impl From<StoreNewProofsError> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub fn handle_proof_verification_errors(
+    status: &Status,
+    proofs_ids: &[PublicKey],
+    conn: &Connection,
+) -> Result<()> {
+    let error_details = status.get_error_details();
+
+    if let Some(bad_request) = error_details.bad_request() {
+        let mut crypto_failed_indices = Vec::new();
+        let mut already_spent_indices = Vec::new();
+
+        for violation in &bad_request.field_violations {
+            let proof_index = extract_proof_index(&violation.field)?;
+
+            match &violation.description {
+                desc if desc.contains("failed cryptographic verification") => {
+                    crypto_failed_indices.push(proof_index);
+                }
+                desc if desc.contains("already spent") => {
+                    already_spent_indices.push(proof_index);
+                }
+                _ => {
+                    log::error!(
+                        "Unknown proof error for index {}: {}",
+                        proof_index,
+                        violation.description
+                    );
+                }
+            }
+        }
+
+        if !crypto_failed_indices.is_empty() {
+            handle_crypto_invalid_proofs(crypto_failed_indices, proofs_ids, conn)?;
+        }
+
+        if !already_spent_indices.is_empty() {
+            handle_already_spent_proofs(already_spent_indices, proofs_ids, conn)?;
+        }
+    }
+    Ok(())
+}
+
+fn handle_crypto_invalid_proofs(
+    indices: Vec<u32>,
+    proofs_ids: &[PublicKey],
+    conn: &Connection,
+) -> Result<()> {
+    log::info!(
+        "Removing {} cryptographically invalid proofs: {:?}",
+        indices.len(),
+        indices
+    );
+
+    remove_invalid_proofs(indices, proofs_ids, conn)?;
+    Ok(())
+}
+
+fn handle_already_spent_proofs(
+    indices: Vec<u32>,
+    proofs_ids: &[PublicKey],
+    conn: &Connection,
+) -> Result<()> {
+    log::info!(
+        "Removing {} already spent proofs: {:?}",
+        indices.len(),
+        indices
+    );
+
+    remove_invalid_proofs(indices, proofs_ids, conn)?;
+    Ok(())
+}
+
+fn remove_invalid_proofs(
+    indices: Vec<u32>,
+    proofs_ids: &[PublicKey],
+    conn: &Connection,
+) -> Result<()> {
+    log::info!("Removing {} invalid proofs: {:?}", indices.len(), indices);
+
+    let invalid_proofs = proofs_ids
+        .iter()
+        .enumerate()
+        .filter_map(|(i, id)| {
+            if indices.contains(&(i as u32)) {
+                Some(*id)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<PublicKey>>();
+
+    db::proof::delete_proofs(conn, &invalid_proofs)?;
+    Ok(())
+}
+
+fn extract_proof_index(field: &str) -> Result<u32> {
+    if let Some(start) = field.find('[') {
+        if let Some(end) = field.find(']') {
+            let index_str = &field[start + 1..end];
+            return Ok(index_str.parse::<u32>()?);
+        }
+    }
+    Err(Error::InvalidFormat)
+}

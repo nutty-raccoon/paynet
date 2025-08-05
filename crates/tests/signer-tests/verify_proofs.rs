@@ -76,7 +76,7 @@ async fn verify_ok() -> Result<()> {
             proofs: vec![proof],
         })
         .await?;
-    assert!(res.get_ref().is_valid);
+    assert!(res.get_ref().invalid_proof_indices.is_empty());
     Ok(())
 }
 
@@ -154,7 +154,7 @@ async fn verify_signature_valid_format_but_invalid_content() -> Result<()> {
         })
         .await?;
 
-    assert!(!res.get_ref().is_valid);
+    assert!(!res.get_ref().invalid_proof_indices.is_empty());
     Ok(())
 }
 
@@ -172,7 +172,7 @@ async fn verify_structurally_valid_but_incorrect_signature() -> Result<()> {
         })
         .await?;
 
-    assert!(!res.get_ref().is_valid);
+    assert!(!res.get_ref().invalid_proof_indices.is_empty());
     Ok(())
 }
 
@@ -195,7 +195,8 @@ async fn verify_malformed_signature() -> Result<()> {
     let err = result.unwrap_err();
     assert_eq!(err.code(), tonic::Code::InvalidArgument);
     assert!(
-        err.message().contains("invalid signature"),
+        err.message()
+            .contains("validation errors found in proof batch"),
         "Unexpected error: {:?}",
         err
     );

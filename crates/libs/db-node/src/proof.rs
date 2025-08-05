@@ -30,6 +30,53 @@ pub async fn is_any_already_spent(
     Ok(record.exists)
 }
 
+pub async fn get_already_spent_indices(
+    conn: &mut PgConnection,
+    secret_derived_pubkeys: impl Iterator<Item = PublicKey>,
+) -> Result<Vec<u32>, sqlx::Error> {
+    let ys: Vec<PublicKey> = secret_derived_pubkeys.collect();
+
+    if ys.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders: String = (1..=ys.len())
+        .map(|i| format!("(${}, {})", i, i))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let sql = format!(
+        r#"
+        WITH LOOKUP AS (
+            SELECT * FROM (
+                VALUES {}
+            ) AS t(y, position)
+        )
+        SELECT lookup.position FROM lookup
+        LEFT JOIN proof ON proof.y = lookup.y
+        WHERE proof.state = ${}
+        ORDER BY lookup.position;
+        "#,
+        placeholders,
+        ys.len() + 1
+    );
+
+    let mut query = sqlx::query(&sql);
+    for y in ys.iter() {
+        query = query.bind(y.to_bytes());
+    }
+    query = query.bind(ProofState::Spent as i16);
+
+    let mut spent_indices = Vec::new();
+    let rows = query.fetch_all(conn).await?;
+    for row in rows {
+        let position: i32 = row.try_get("position")?;
+        spent_indices.push((position - 1) as u32);
+    }
+
+    Ok(spent_indices)
+}
+
 pub async fn insert_proof(
     conn: &mut PgConnection,
     y: PublicKey,
