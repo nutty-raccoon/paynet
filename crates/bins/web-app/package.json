@@ -1,5 +1,5 @@
 {
-  "name": "paynet-website-server",
+  "name": "paynet-web-app",
   "version": "1.0.0",
   "description": "Frontend build pipeline for Paynet Starknet deposit handler",
   "packageManager": "pnpm@8.15.0",

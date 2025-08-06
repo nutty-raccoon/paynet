@@ -2,26 +2,63 @@ services:
   starknet-devnet:
     image: "docker.io/shardlabs/starknet-devnet-rs:0.4.3"
     environment:
+      - SEED=0
       - FORK_NETWORK=https://starknet-sepolia.public.blastapi.io/rpc/v0_8
-      - BLOCK_GENERATION_ON=1
+      - BLOCK_GENERATION_ON=${BLOCK_TIME:-1}
     ports:
       - "5050:5050"
     restart: always
     healthcheck:
-      # Doing http calls without having to install curl or wget
-      # https://github.com/dart-lang/dart-docker/issues/58#issuecomment-1410663799
       test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/localhost/5050;echo -e "GET /is_alive HTTP/1.1\r\nHost: localhost:5050\r\nConnection: close\r\n\r\n" >&3; grep "200 OK" <&3']
-      start_period: 1s
-      interval: 3s
+      start_period: 5s
+      interval: 5s
       retries: 3
+
+  block-fetcher:
+    image: curlimages/curl:latest
+    user: root
+    volumes:
+      - starknet-network-data:/shared
+    command: >
+     sh -c "
+        echo 'Fetching fork block number and chain ID from devnet config...' &&
+        CONFIG_JSON=$$(curl -s http://starknet-devnet:5050/config) &&
+        FORK_BLOCK=$$(echo \"$$CONFIG_JSON\" | \
+          grep -o '\"block_number\":[0-9]*' | \
+          cut -d':' -f2) &&
+        CHAIN_ID=$$(echo \"$$CONFIG_JSON\" | \
+          grep -o '\"chain_id\":\"[^\"]*\"' | \
+          cut -d'\"' -f4) &&
+        if [ -n \"$$FORK_BLOCK\" ]; then
+          echo $$FORK_BLOCK > /shared/fork_block.txt &&
+          echo 'Fork block number: '$$FORK_BLOCK
+        else
+          echo 'Failed to fetch fork block, using default: 0' &&
+          echo 0 > /shared/fork_block.txt
+        fi &&
+        if [ -n \"$$CHAIN_ID\" ]; then
+          echo $$CHAIN_ID > /shared/chain_id.txt &&
+          echo 'Chain ID: '$$CHAIN_ID
+        else
+          echo 'Failed to fetch chain ID, using default: SN_SEPOLIA' &&
+          echo SN_SEPOLIA > /shared/chain_id.txt
+        fi
+      "
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
 
   starknet-firehose:
     image: starknet-firehose
     build:
       context: ..
       dockerfile: ./dockerfiles/starknet-firehose.Dockerfile
+    volumes:
+      - starknet-network-data:/shared
     environment:
-      - STARKNET_NODE_URL=http://starknet-devnet:5050
+      - LATEST_BLOCK_RETRY_INTERVAL=${BLOCK_TIME:-1}s
+      - BLOCK_FETCH_BATCH_SIZE=20
+      - ADVERTISE_CHAIN_NAME=starknet-sepolia-fork
     ports:
       - "10015:10015"
       - "10016:10016"
@@ -30,6 +67,11 @@ services:
       start_period: 1s
       interval: 3s
       retries: 3
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+      block-fetcher:
+        condition: service_completed_successfully
 
   explorer:
     image: "explorer"
@@ -40,11 +82,12 @@ services:
       context: ..
       dockerfile: ./dockerfiles/explorer.Dockerfile
     environment:
-      # Use localhost here because it has to be the address from the browser POV, not from the server
       - VITE_RPC_URL=http://localhost:5050
       - VITE_IS_EMBEDDED=false
-      - VITE_CHAIN_ID=SN_DEVNET
+      - VITE_CHAIN_ID=SN_SEPOLIA
     depends_on:
       starknet-devnet:
         condition: service_healthy
 
+volumes:
+  starknet-network-data:

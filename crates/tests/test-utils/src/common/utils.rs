@@ -4,6 +4,7 @@ pub struct EnvVariables {
     pub rpc_url: String,
     pub private_key: String,
     pub account_address: String,
+    pub chain_id: String,
 }
 
 #[cfg(feature = "strk")]
@@ -12,7 +13,10 @@ pub mod starknet {
     use log::error;
     use starknet::{
         accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
-        core::types::{Call, ExecutionResult, StarknetError, TransactionStatus},
+        core::{
+            types::{Call, ExecutionResult, StarknetError, TransactionStatus},
+            utils::cairo_short_string_to_felt,
+        },
         providers::{JsonRpcClient, ProviderError, jsonrpc::HttpTransport},
         signers::{LocalWallet, SigningKey},
     };
@@ -38,7 +42,7 @@ pub mod starknet {
             provider,
             signer,
             address,
-            Felt::from_bytes_be_slice("SN_DEVNET".as_bytes()),
+            cairo_short_string_to_felt(env.chain_id.as_str()).unwrap(),
             ExecutionEncoding::New,
         );
 

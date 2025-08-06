@@ -31,6 +31,7 @@ pub async fn init_indexer_task(
     pg_pool: PgPool,
     substreams_endpoint: Uri,
     chain_id: ChainId,
+    start_block: i64,
     cashier_account_address: Felt,
 ) -> Result<(), Error> {
     tokio::spawn(async move {
@@ -40,6 +41,7 @@ pub async fn init_indexer_task(
               pg_pool,
               substreams_endpoint,
               chain_id,
+              start_block,
               cashier_account_address,
           ).fuse() => match indexer_res {
                 Ok(()) => {

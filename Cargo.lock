@@ -2367,7 +2367,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bitcoin_hashes 0.16.0",
- "clap",
  "dashmap",
  "db-node",
  "dotenvy",
@@ -5549,6 +5548,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "web-app"
+version = "0.1.0"
+dependencies = [
+ "askama",
+ "askama_axum",
+ "axum 0.7.9",
+ "serde",
+ "serde_json",
+ "starknet-core 0.15.0",
+ "starknet-types",
+ "tokio",
+ "tower 0.5.2",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5575,24 +5592,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e8983c3ab33d6fb807cfcdad2491c4ea8cbc8ed839181c7dfd9c67c83e261b2"
 dependencies = [
  "rustls-pki-types",
-]
-
-[[package]]
-name = "website-server"
-version = "0.1.0"
-dependencies = [
- "askama",
- "askama_axum",
- "axum 0.7.9",
- "serde",
- "serde_json",
- "starknet-core 0.15.0",
- "starknet-types",
- "tokio",
- "tower 0.5.2",
- "tower-http 0.5.2",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

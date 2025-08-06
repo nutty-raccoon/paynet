@@ -12,7 +12,7 @@ pub struct Param {
 }
 
 pub fn read_package(params: Vec<Param>) -> Result<Package, Error> {
-    let content = include_bytes!("../starknet-invoice-substream-v0.2.0.spkg").to_vec();
+    let content = include_bytes!("../starknet-invoice-substream-v0.2.2.spkg").to_vec();
 
     let mut package = Package::decode(content.as_ref()).context("decode command")?;
 

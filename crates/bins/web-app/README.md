@@ -1,4 +1,4 @@
-# Paynet Website Server
+# Paynet Web App
 
 A Rust web server for handling Starknet deposit routes with a modern frontend build pipeline.
 

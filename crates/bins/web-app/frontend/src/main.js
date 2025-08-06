@@ -117,9 +117,6 @@ async function initializeStarknetFeatures() {
         return;
     }
     
-    const invoiceContractAddress = depositData.invoice_contract.address;
-    const abi = depositData.invoice_contract.abi;
-    
     if (!walletStatus || !connectButton || !depositButton) {
         console.log('No wallet elements found - skipping Starknet initialization');
         return;
@@ -150,7 +147,7 @@ async function initializeStarknetFeatures() {
                 const invoiceContract = new Contract(depositData.invoice_contract.abi, depositData.invoice_contract.address, myWalletAccount.walletProvider);
                 // generate the calldatas
                 const claimCall = assetContract.populate('approve', {
-                  spender: myWalletAccount.address,
+                  spender: depositData.invoice_contract.address,
                   amount: {
                       low: depositData.amount_low,
                       high: depositData.amount_high,

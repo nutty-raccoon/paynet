@@ -30,10 +30,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/deposit/:method/:network/", get(handle_deposit))
-        .nest_service(
-            "/static",
-            ServeDir::new("crates/bins/website-server/static"),
-        )
+        .nest_service("/static", ServeDir::new("crates/bins/web-app/static"))
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
 
     // Run it with hyper on localhost:3000
@@ -88,7 +85,6 @@ async fn handle_deposit(
 
     // Validate network parameter using ChainId
     let chain_id = match ChainId::from_str(&params.network) {
-        Ok(ChainId::Sepolia) | Ok(ChainId::Devnet) => ChainId::from_str(&params.network).unwrap(),
         Ok(ChainId::Custom(_)) | Ok(ChainId::Mainnet) | Err(_) => {
             return Html(format!(
                 r#"
@@ -120,6 +116,8 @@ async fn handle_deposit(
                 params.network
             ));
         }
+        Ok(ChainId::Sepolia) => ChainId::Sepolia,
+        Ok(ChainId::Devnet) => ChainId::Devnet,
     };
 
     let payload_raw = query_params

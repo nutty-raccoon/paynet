@@ -47,6 +47,9 @@ services:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
       - GRPC_PORT=10003
+      # Open telemetry
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
     ports:
       - "${NODE_PORT:-10003}:10003"
     depends_on:

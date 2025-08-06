@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: starknet-invoice-substream
-  version: v0.2.0
+  version: v0.2.2
 
 imports:
   starknet: https://spkg.io/streamingfast/starknet-foundational-v0.1.4.spkg
@@ -45,4 +45,3 @@ networks:
       map_invoice_contract_events: 1364917
     params:
       starknet:filtered_transactions: ev:from_address:0x03b7d6935858cc0e84cba7267cc9daa76dfaf060303761608f12cf84191e3571
-      

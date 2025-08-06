@@ -6,28 +6,65 @@ mod withdraw;
 
 use std::{
     fmt::{LowerHex, UpperHex},
-    path::PathBuf,
+    num::ParseIntError,
+    str::FromStr,
 };
 
 pub use deposit::{Depositer, Error as DepositError};
-use http::Uri;
+use http::{Uri, uri};
 use starknet_types::{CairoShortStringToFeltError, Unit};
-use starknet_types_core::{felt::Felt, hash::Poseidon};
+use starknet_types_core::{
+    felt::{Felt, FromStrError},
+    hash::Poseidon,
+};
 use url::Url;
 pub use withdraw::{Error as WithdrawalError, MeltPaymentRequest, Withdrawer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadStarknetConfigError {
-    #[error("failed to read Starknet config file: {0}")]
-    IO(#[from] std::io::Error),
-    #[error("failed to deserialize Starknet config file content: {0}")]
-    Toml(#[from] toml::de::Error),
+    #[error("Failed to read environment variable `{0}`: {1}")]
+    Env(&'static str, #[source] std::env::VarError),
+    #[error("Invalid chain id string: {0}")]
+    ChainId(#[from] CairoShortStringToFeltError),
+    #[error("Invalid felt string: {0}")]
+    Felt(#[from] FromStrError),
+    #[error("Invalid url string: {0}")]
+    Url(#[from] url::ParseError),
+    #[error("Invalid uri string: {0}")]
+    Uri(#[from] uri::InvalidUri),
+    #[error("Invalid block number string: {0}")]
+    StartBloc(#[from] ParseIntError),
 }
 
-pub fn read_starknet_config(path: PathBuf) -> Result<StarknetCliConfig, ReadStarknetConfigError> {
-    let file_content = std::fs::read_to_string(&path)?;
+const STARKNET_CASHIER_PRIVATE_KEY_ENV_VAR: &str = "STARKNET_CASHIER_PRIVATE_KEY";
+const STARKNET_CHAIN_ID_ENV_VAR: &str = "STARKNET_CHAIN_ID";
+const STARKNET_INDEXER_START_BLOCK_ENV_VAR: &str = "STARKNET_INDEXER_START_BLOCK";
+const STARKNET_CASHIER_ACCOUNT_ADDRESS_ENV_VAR: &str = "STARKNET_CASHIER_ACCOUNT_ADDRESS";
+const STARKNET_SUBSTREAMS_URL_ENV_VAR: &str = "STARKNET_SUBSTREAMS_URL";
+const STARKNET_RPC_NODE_URL_ENV_VAR: &str = "STARKNET_RPC_NODE_URL";
 
-    let config: StarknetCliConfig = toml::from_str(&file_content)?;
+pub(crate) fn read_env_variables() -> Result<StarknetCliConfig, ReadStarknetConfigError> {
+    let chain_id = std::env::var(STARKNET_CHAIN_ID_ENV_VAR)
+        .map_err(|e| ReadStarknetConfigError::Env(STARKNET_CHAIN_ID_ENV_VAR, e))?;
+    let indexer_start_block = std::env::var(STARKNET_INDEXER_START_BLOCK_ENV_VAR)
+        .map_err(|e| ReadStarknetConfigError::Env(STARKNET_INDEXER_START_BLOCK_ENV_VAR, e))?;
+    let cashier_account_address = std::env::var(STARKNET_CASHIER_ACCOUNT_ADDRESS_ENV_VAR)
+        .map_err(|e| ReadStarknetConfigError::Env(STARKNET_CASHIER_ACCOUNT_ADDRESS_ENV_VAR, e))?;
+    let cashier_private_key = std::env::var(STARKNET_CASHIER_PRIVATE_KEY_ENV_VAR)
+        .map_err(|e| ReadStarknetConfigError::Env(STARKNET_CASHIER_PRIVATE_KEY_ENV_VAR, e))?;
+    let rpc_node_url = std::env::var(STARKNET_RPC_NODE_URL_ENV_VAR)
+        .map_err(|e| ReadStarknetConfigError::Env(STARKNET_RPC_NODE_URL_ENV_VAR, e))?;
+    let substreams_url = std::env::var(STARKNET_SUBSTREAMS_URL_ENV_VAR)
+        .map_err(|e| ReadStarknetConfigError::Env(STARKNET_SUBSTREAMS_URL_ENV_VAR, e))?;
+
+    let config = StarknetCliConfig {
+        chain_id: starknet_types::ChainId::from_str(&chain_id)?,
+        indexer_start_block: indexer_start_block.parse()?,
+        cashier_account_address: Felt::from_str(&cashier_account_address)?,
+        cashier_private_key: Felt::from_str(&cashier_private_key)?,
+        rpc_node_url: Url::from_str(&rpc_node_url)?,
+        substreams_url: Uri::from_str(&substreams_url)?,
+    };
 
     Ok(config)
 }
@@ -36,12 +73,14 @@ pub fn read_starknet_config(path: PathBuf) -> Result<StarknetCliConfig, ReadStar
 pub struct StarknetCliConfig {
     /// The chain we are using as backend
     pub chain_id: starknet_types::ChainId,
+    pub indexer_start_block: i64,
     /// The address of the on-chain account managing deposited assets
     pub cashier_account_address: starknet_types_core::felt::Felt,
+    pub cashier_private_key: starknet_types_core::felt::Felt,
     /// The url of the starknet rpc node we want to use
-    pub starknet_rpc_node_url: Url,
+    pub rpc_node_url: Url,
     #[serde(with = "uri_serde")]
-    pub starknet_substreams_url: Uri,
+    pub substreams_url: Uri,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -58,8 +97,6 @@ pub enum Error {
     #[error("invalid chain id value: {0}")]
     ChainId(CairoShortStringToFeltError),
 }
-
-pub const CASHIER_PRIVATE_KEY_ENV_VAR: &str = "CASHIER_PRIVATE_KEY";
 
 #[derive(Debug, Clone)]
 pub struct StarknetInvoiceId(Felt);

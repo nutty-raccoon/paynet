@@ -5,7 +5,7 @@ members = [
   "crates/bins/node",
   "crates/bins/signer",
   "crates/bins/cli-wallet",
-  "crates/bins/website-server",
+  "crates/bins/web-app",
   # Substreams
   "crates/substreams/starknet",
   # Utils

@@ -4,8 +4,7 @@ use node_client::{
     SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::Amount;
-use starknet::core::types::Call;
-use starknet_types::Unit;
+use starknet_types::{DepositPayload, Unit, constants::ON_CHAIN_CONSTANTS};
 use tonic::transport::Channel;
 
 use crate::{
@@ -121,8 +120,15 @@ pub async fn mint_quote_and_deposit_and_wait(
         .await?
         .into_inner();
 
-    let calls: [Call; 2] = serde_json::from_str(&quote.request)?;
-    pay_invoices(calls.to_vec(), env.clone()).await?;
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
+    let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
+    pay_invoices(
+        deposit_payload
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
+            .to_vec(),
+        env.clone(),
+    )
+    .await?;
 
     wait_transac(node_client.clone(), &quote).await?;
     Ok(quote)
