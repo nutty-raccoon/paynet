@@ -7,7 +7,7 @@ use tonic::transport::Channel;
 
 use crate::methods::Method;
 
-pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
+pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit, serde_json::Value>>>;
 pub type SignerClient = signer::SignerClient<tower_otel::trace::Grpc<Channel>>;
 
 /// Quote Time To Live config

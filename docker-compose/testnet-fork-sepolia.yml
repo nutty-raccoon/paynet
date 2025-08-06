@@ -62,11 +62,6 @@ services:
     ports:
       - "10015:10015"
       - "10016:10016"
-    healthcheck:
-      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
-      start_period: 1s
-      interval: 3s
-      retries: 3
     depends_on:
       starknet-devnet:
         condition: service_healthy
@@ -85,6 +80,21 @@ services:
       - VITE_RPC_URL=http://localhost:5050
       - VITE_IS_EMBEDDED=false
       - VITE_CHAIN_ID=SN_SEPOLIA
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+
+  web-app:
+    image: "web-app"
+    build:
+      context: ..
+      dockerfile: ./dockerfiles/web-app.Dockerfile
+    restart: always
+    ports:
+      - "3005:3005"
+    environment:
+      - RUST_LOG=info
+      - PORT=3005
     depends_on:
       starknet-devnet:
         condition: service_healthy

@@ -153,8 +153,8 @@ main {
 #wallet-connect-btn {
   margin-left: 10px;
   padding: 8px 16px;
-  background: #667eea;
-  background-color: #667eea;
+  background: #48bb78;
+  background-color: #48bb78;
   color: white;
   border: 0;
   border-style: none;
@@ -175,13 +175,11 @@ main {
   line-height: normal;
 }
 
-/* Hover states */
 #wallet-connect-btn:hover:not(:disabled) {
-  background: #5a67d8;
-  background-color: #5a67d8;
+  background: #38a169;
+  background-color: #38a169;
 }
 
-/* Disabled states */
 #wallet-connect-btn:disabled {
   background: #a0aec0;
   background-color: #a0aec0;
@@ -189,15 +187,55 @@ main {
   opacity: 0.7;
 }
 
-/* Connected states */
 #wallet-connect-btn.connected {
-  background: #28a745;
-  background-color: #28a745;
+  background: #dc3545;
+  background-color: #dc3545;
 }
 
 #wallet-connect-btn.connected:hover:not(:disabled) {
-  background: #218838;
-  background-color: #218838;
+  background: #c82333;
+  background-color: #c82333;
+}
+
+#deposit-btn {
+  margin-left: 10px;
+  padding: 8px 16px;
+  background: #48bb78;
+  background-color: #48bb78;
+  color: white;
+  border: 0;
+  border-style: none;
+  border-width: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: normal;
+  text-decoration: none;
+  outline: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: normal;
+}
+
+#deposit-btn:hover:not(:disabled) {
+  background: #38a169;
+  background-color: #38a169;
+}
+
+#deposit-btn:disabled {
+  background: #a0aec0;
+  background-color: #a0aec0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+#deposit-btn[hidden] {
+  display: none !important;
 }
 
 footer {

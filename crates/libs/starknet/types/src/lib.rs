@@ -17,7 +17,7 @@ pub mod transactions;
 pub const STARKNET_STR: &str = "starknet";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WithdrawOrder {
+pub struct PayInvoiceCallData {
     pub quote_id_hash: Felt,
     pub expiry: Felt,
     pub asset_contract_address: Felt,
@@ -25,7 +25,7 @@ pub struct WithdrawOrder {
     pub payee: Felt,
 }
 
-impl WithdrawOrder {
+impl PayInvoiceCallData {
     pub fn new(
         quote_id_hash: Felt,
         expiry: Felt,
@@ -54,7 +54,11 @@ impl WithdrawOrder {
     }
 }
 
-pub type DepositPayload = WithdrawOrder;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepositPayload {
+    pub chain_id: ChainId,
+    pub call_data: PayInvoiceCallData,
+}
 
 /// Possible errors for encoding a Cairo short string.
 #[derive(Debug, thiserror::Error)]

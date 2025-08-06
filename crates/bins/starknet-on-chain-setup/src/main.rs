@@ -119,11 +119,11 @@ async fn pay(
 
     let calls = generate_single_payment_transaction_calls(
         on_chain_constants.invoice_payment_contract_address,
-        payload.quote_id_hash,
-        payload.expiry,
-        payload.asset_contract_address,
-        &payload.amount,
-        payload.payee,
+        payload.call_data.quote_id_hash,
+        payload.call_data.expiry,
+        payload.call_data.asset_contract_address,
+        &payload.call_data.amount,
+        payload.call_data.payee,
     );
 
     let tx_hash = account

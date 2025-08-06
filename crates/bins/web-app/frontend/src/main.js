@@ -204,6 +204,7 @@ async function initializeStarknetFeatures() {
                     try {
                         console.log("in disconnect");
                         await disconnect();
+                        depositButton.hidden = true;
                         walletStatus.textContent = 'Disconnected';
                         connectButton.textContent = 'Connect Wallet';
                         connectButton.className = 'wallet-btn';

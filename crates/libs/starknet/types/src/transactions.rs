@@ -10,7 +10,7 @@ use starknet_types_core::felt::Felt;
 use tracing::{Instrument, info_span};
 use tracing::{error, info};
 
-use crate::{StarknetU256, WithdrawOrder};
+use crate::{PayInvoiceCallData, StarknetU256};
 
 const PAY_INVOICE_SELECTOR: Felt =
     Felt::from_hex_unchecked("0x000d5c0f26335ab142eb700850eded4619418b0f6e98c5b92a6347b68d2f2a0c");
@@ -19,7 +19,7 @@ const APPROVE_SELECTOR: Felt =
 
 pub fn generate_payment_transaction_calls<'a>(
     invoice_payment_contract_address: Felt,
-    orders: impl ExactSizeIterator<Item = &'a WithdrawOrder> + Clone,
+    orders: impl ExactSizeIterator<Item = &'a PayInvoiceCallData> + Clone,
 ) -> Vec<Call> {
     let mut amounts_to_approve: Vec<(Felt, primitive_types::U256)> = vec![];
 
@@ -99,7 +99,7 @@ pub async fn sign_and_send_payment_transactions<
 >(
     account: Arc<A>,
     invoice_payment_contract_address: Felt,
-    withdrawal_orders: impl ExactSizeIterator<Item = &WithdrawOrder> + Clone,
+    withdrawal_orders: impl ExactSizeIterator<Item = &PayInvoiceCallData> + Clone,
 ) -> Result<Felt, Error<A>> {
     let calls =
         generate_payment_transaction_calls(invoice_payment_contract_address, withdrawal_orders);
@@ -112,7 +112,7 @@ pub async fn sign_and_send_single_payment_transactions<
 >(
     account: Arc<A>,
     invoice_payment_contract_address: Felt,
-    withdrawal_order: &WithdrawOrder,
+    withdrawal_order: &PayInvoiceCallData,
 ) -> Result<Felt, Error<A>> {
     let calls = generate_single_payment_transaction_calls(
         invoice_payment_contract_address,

@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use starknet_core::types::{contract::AbiEntry, Felt};
-use starknet_types::{constants::ON_CHAIN_CONSTANTS, ChainId, DepositPayload};
+use starknet_types::{constants::ON_CHAIN_CONSTANTS, ChainId, PayInvoiceCallData};
 use std::collections::HashMap;
 use std::str::FromStr;
 use tower::ServiceBuilder;
@@ -33,12 +33,14 @@ async fn main() {
         .nest_service("/static", ServeDir::new("crates/bins/web-app/static"))
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
 
-    // Run it with hyper on localhost:3000
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
+    // Get port from environment variable or use default
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let bind_address = format!("0.0.0.0:{}", port);
 
-    println!("🚀 Server running on http://127.0.0.1:3000");
+    // Run it with hyper on all interfaces
+    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
+
+    println!("🚀 Server running on http://{}", bind_address);
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -125,8 +127,7 @@ async fn handle_deposit(
         .unwrap_or(&String::new())
         .clone();
 
-    // Parse payload as DepositPayload - return error if it fails
-    let payload = match serde_json::from_str::<DepositPayload>(&payload_raw) {
+    let pay_invoice_call_data = match serde_json::from_str::<PayInvoiceCallData>(&payload_raw) {
         Ok(payload) => payload,
         Err(err) => {
             return Html(format!(
@@ -167,7 +168,8 @@ async fn handle_deposit(
         }
     };
 
-    let formatted_payload = serde_json::to_string_pretty(&payload).unwrap_or(payload_raw.clone());
+    let formatted_payload =
+        serde_json::to_string_pretty(&pay_invoice_call_data).unwrap_or(payload_raw.clone());
     let payload_info = "<div class=\"info-item\"><label>Parsed Payload:</label><span class=\"value\">DepositPayload</span></div>".to_string();
 
     let on_chain_constants = ON_CHAIN_CONSTANTS
@@ -361,13 +363,13 @@ async fn handle_deposit(
         },
         asset_contract: ConctractData {
             abi: vec![ierc20_contract_abi],
-            address: payload.asset_contract_address,
+            address: pay_invoice_call_data.asset_contract_address,
         },
-        quote_id_hash: payload.quote_id_hash,
-        expiry: payload.expiry,
-        amount_low: payload.amount.low,
-        amount_high: payload.amount.high,
-        payee: payload.payee,
+        quote_id_hash: pay_invoice_call_data.quote_id_hash,
+        expiry: pay_invoice_call_data.expiry,
+        amount_low: pay_invoice_call_data.amount.low,
+        amount_high: pay_invoice_call_data.amount.high,
+        payee: pay_invoice_call_data.payee,
     };
 
     let html = format!(
@@ -394,11 +396,6 @@ async fn handle_deposit(
                             <span class="value">{}</span>
                         </div>
                         
-                        <div class="info-item">
-                            <label>Network:</label>
-                            <span class="value">{}</span>
-                        </div>
-
                         <div class="info-item">
                             <label>Chain ID:</label>
                             <span class="value">{}</span>
@@ -434,7 +431,6 @@ async fn handle_deposit(
         "#,
         params.method,
         params.network,
-        chain_id,
         payload_info,
         formatted_payload,
         serde_json::to_string_pretty(&deposit_data).unwrap_or_else(|_| "{}".to_string()),

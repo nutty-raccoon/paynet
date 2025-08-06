@@ -12,7 +12,8 @@ mod not_mock {
     use liquidity_source::DepositInterface;
     use nuts::Amount;
     use starknet_types::{
-        Asset, ChainId, DepositPayload, Unit, compute_invoice_id, constants::ON_CHAIN_CONSTANTS,
+        Asset, ChainId, DepositPayload, PayInvoiceCallData, Unit, compute_invoice_id,
+        constants::ON_CHAIN_CONSTANTS,
     };
     use starknet_types_core::felt::Felt;
     use uuid::Uuid;
@@ -65,11 +66,14 @@ mod not_mock {
                 Felt::from_bytes_be(Sha256::hash(quote_id.as_bytes()).as_byte_array());
 
             let payload = DepositPayload {
-                quote_id_hash,
-                expiry: Felt::from(expiry),
-                asset_contract_address: token_contract_address,
-                amount: amount.into(),
-                payee: self.our_account_address,
+                chain_id: self.chain_id.clone(),
+                call_data: PayInvoiceCallData {
+                    quote_id_hash,
+                    expiry: Felt::from(expiry),
+                    asset_contract_address: token_contract_address,
+                    amount: amount.into(),
+                    payee: self.our_account_address,
+                },
             };
 
             let payload_json_string = serde_json::to_string(&payload)?;
