@@ -82,7 +82,7 @@ export async function readEnv(): Promise<Env> {
     'CURRENCIES must contain at least one currency',
   );
 
-  const host = HOST && HOST.trim().length > 0 ? HOST : 'localhost';
+  const host = HOST && HOST.trim().length > 0 ? HOST : '0.0.0.0';
 
   const portNum = PORT !== undefined
     ? Number(PORT)

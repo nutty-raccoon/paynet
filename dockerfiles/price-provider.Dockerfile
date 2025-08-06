@@ -1,24 +1,18 @@
-# Use Bun official image
-# ---- Base image ----
 FROM oven/bun:1 AS base
 
-# Set working directory
+RUN apt-get update && apt-get install -y curl
+
 WORKDIR /app
 
-# Copy dependency files first for caching
 COPY infra/price-provider/package.json infra/price-provider/bun.lock ./
 
-# Install dependencies
 RUN bun install --frozen-lockfile
 
-# Copy source code
 COPY infra/price-provider/ .
 
-# Expose Fastify port
 EXPOSE 3000
 
 HEALTHCHECK --interval=3s --timeout=10s --start-period=20s --retries=5 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://0.0.0.0:3000/health || exit 1
 
-# Start server
 CMD ["bun", "run", "src/index.ts"]
