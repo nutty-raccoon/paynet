@@ -411,8 +411,8 @@ async fn handle_deposit(
                         <div class="info-item">
                             <label>Wallet Status:</label>
                             <span id="wallet-status" class="value">Loading...</span>
-                            <button id="wallet-connect-btn" class="wallet-btn" disabled>Connect Wallet</button>
-                            <button id="deposit-btn" class="wallet-btn" hidden>Deposit</button>
+                            <wallet-button id="wallet-connect-btn" variant="primary" disabled>Connect Wallet</wallet-button>
+                            <wallet-button id="deposit-btn" variant="primary" hidden>Deposit</wallet-button>
                         </div>
                     </div>
                 </main>

@@ -1,3 +1,6 @@
+// Import Web Components
+import { WalletButton } from './wallet-button.js';
+
 // Core functionality - always loaded
 class ToastManager {
     static show(message, type = 'success') {
@@ -94,6 +97,14 @@ async function loadStarknetCore() {
     }
 }
 
+let addSelfDestructingEventListener = (element, eventType, callback) => {
+    let handler = () => {
+        callback();
+        element.removeEventListener(eventType, handler);
+    };
+    element.addEventListener(eventType, handler);
+};
+
 async function initializeStarknetFeatures() {
     const walletStatus = document.getElementById('wallet-status');
     const connectButton = document.getElementById('wallet-connect-btn');
@@ -129,12 +140,11 @@ async function initializeStarknetFeatures() {
         const { WalletAccount, Contract } = await loadStarknetCore();
         
         walletStatus.textContent = 'Ready to connect wallet';
-        connectButton.disabled = false;
-        
-        connectButton.addEventListener('click', async () => {
+        connectButton.setDisabled(false);
+        const handleConnect = async () => {
             try {
+                connectButton.setLoading(true);
                 connectButton.textContent = 'Connecting...';
-                connectButton.disabled = true;
                 
                 const selectedWallet = await connect({ modalMode: 'alwaysAsk' });
                 const myFrontendProviderUrl = depositData.provider_url;
@@ -166,20 +176,18 @@ async function initializeStarknetFeatures() {
 
                 
                 walletStatus.textContent = `Connected to ${selectedWallet.name || 'wallet'}`;
+                connectButton.setLoading(false);
                 connectButton.textContent = 'Disconnect';
-                connectButton.className = 'wallet-btn connected';
-                connectButton.disabled = false;
+                connectButton.setVariant('danger');
                 // Show deposit button
                 depositButton.hidden = false;
                 
                 ToastManager.show('Wallet connected successfully!', 'success');
                 
-                // Set up deposit button functionality
-                depositButton.addEventListener('click', async () => {
+                const handleDeposit = async () => {
                     try {
-                        
+                        depositButton.setLoading(true);
                         depositButton.textContent = 'Depositing...';
-                        depositButton.disabled = true;
                         
                         const calls = [claimCall, payInvoiceCall];
                         console.log('Executing deposit with payload:', calls);
@@ -187,30 +195,31 @@ async function initializeStarknetFeatures() {
                         console.log('Deposit response:', resp);
                         
                         ToastManager.show('Deposit transaction submitted!', 'success');
+                        depositButton.setLoading(false);
                         depositButton.textContent = 'Deposit';
-                        depositButton.disabled = false;
                         
                     } catch (error) {
                         console.error('Deposit error:', error);
                         ToastManager.show(`Deposit failed: ${error.message}`, 'error');
+                        depositButton.setLoading(false);
                         depositButton.textContent = 'Deposit';
-                        depositButton.disabled = false;
                     }
-                });
+                }
+                // Set up deposit button functionality
+                depositButton.addEventListener(WalletButton.EVENTS.CLICK, handleDeposit);
                 
                 // Change button to disconnect
-                connectButton.removeEventListener('click', arguments.callee);
-                connectButton.addEventListener('click', async () => {
+                addSelfDestructingEventListener(connectButton, WalletButton.EVENTS.CLICK, async () => {
                     try {
                         console.log("in disconnect");
                         await disconnect();
                         depositButton.hidden = true;
+                        depositButton.removeEventListener(WalletButton.EVENTS.CLICK, handleDeposit);
                         walletStatus.textContent = 'Disconnected';
                         connectButton.textContent = 'Connect Wallet';
-                        connectButton.className = 'wallet-btn';
-                        connectButton.disabled = false;
+                        connectButton.setVariant('primary');
                         ToastManager.show('Wallet disconnected', 'success');
-                        location.reload(); // Refresh to reset state
+                        addSelfDestructingEventListener(connectButton, WalletButton.EVENTS.CLICK, handleConnect);
                     } catch (error) {
                         console.error('Disconnect error:', error);
                         ToastManager.show('Failed to disconnect wallet', 'error');
@@ -218,17 +227,19 @@ async function initializeStarknetFeatures() {
                 });
             } catch (error) {
                 console.error('Wallet connection error:', error);
+                connectButton.setLoading(false);
                 connectButton.textContent = 'Connect Wallet';
-                connectButton.className = 'wallet-btn';
-                connectButton.disabled = false;
+                connectButton.setVariant('primary');
                 ToastManager.show('Failed to connect wallet', 'error');
             }
-        });
+        };
+
+        addSelfDestructingEventListener(connectButton, WalletButton.EVENTS.CLICK, handleConnect);
         
     } catch (error) {
         console.error('Starknet initialization error:', error);
         walletStatus.textContent = `Error: ${error.message}`;
-        connectButton.disabled = true;
+        connectButton.setDisabled(true);
         ToastManager.show('Failed to initialize Starknet features', 'error');
     }
 }
