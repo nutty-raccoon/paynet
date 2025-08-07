@@ -8,7 +8,7 @@ use commands::{
     add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
     get_nodes_balance, get_wad_history, init_wallet, price_provider_add_assets,
     price_provider_add_currencies, receive_wads, redeem_quote, restore_wallet, sync_wads,
-    PriceResponce,
+    PriceConfig, PriceResponce,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -83,13 +83,6 @@ pub fn run() {
 
     app.run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[derive(Clone, Debug)]
-pub struct PriceConfig {
-    currencies: HashSet<String>,
-    assets: HashSet<String>,
-    url: String,
 }
 
 #[derive(Debug)]

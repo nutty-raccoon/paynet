@@ -9,7 +9,8 @@ pub use add_node::add_node;
 pub use deposit::{create_mint_quote, redeem_quote};
 pub use get_nodes_balance::get_nodes_balance;
 pub use get_prices::{
-    get_currencies, price_provider_add_assets, price_provider_add_currencies, PriceResponce,
+    get_currencies, price_provider_add_assets, price_provider_add_currencies, PriceConfig,
+    PriceResponce,
 };
 pub use wad::{create_wads, get_wad_history, receive_wads, sync_wads};
 

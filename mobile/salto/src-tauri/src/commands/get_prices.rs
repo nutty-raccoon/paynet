@@ -1,4 +1,13 @@
+use std::collections::HashSet;
+
 use crate::AppState;
+
+#[derive(Clone, Debug)]
+pub struct PriceConfig {
+    pub currencies: HashSet<String>,
+    pub assets: HashSet<String>,
+    pub url: String,
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,7 +73,7 @@ pub async fn price_provider_add_currencies(
 }
 
 #[tauri::command]
-pub async fn get_currencies(state: tauri::State<'_, AppState>,) -> Result<Vec<String>, Error> {
+pub async fn get_currencies(state: tauri::State<'_, AppState>) -> Result<Vec<String>, Error> {
     let cfg = state.get_prices_config.read().await;
     let host = cfg.url.clone();
     let resp: CurrenciesResponce = reqwest::get(host + "/currencies")

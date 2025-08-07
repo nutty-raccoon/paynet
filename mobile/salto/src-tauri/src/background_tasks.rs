@@ -12,20 +12,14 @@ pub enum Error {
     Tauri(#[from] tauri::Error),
 }
 
-async fn fetch_and_emit_prices(
-    url: &str,
-    app: &tauri::AppHandle,
-) -> Result<(), Error> {
+async fn fetch_and_emit_prices(url: &str, app: &tauri::AppHandle) -> Result<(), Error> {
     let resp = reqwest::get(url).await?;
     let new_prices = resp.json::<PriceResponce>().await?;
     app.emit("new-price", new_prices)?;
     Ok(())
 }
 
-pub async fn start_price_fetcher(
-    config: Arc<RwLock<PriceConfig>>,
-    app_thread: tauri::AppHandle,
-) {
+pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app_thread: tauri::AppHandle) {
     let mut interval = tokio::time::interval(Duration::from_secs(10));
 
     loop {
