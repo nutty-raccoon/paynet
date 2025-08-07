@@ -6,8 +6,9 @@ mod parse_asset_amount;
 
 use commands::{
     add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
-    get_nodes_balance, get_prices_add_assets, get_prices_add_currencies, get_wad_history,
-    init_wallet, receive_wads, redeem_quote, restore_wallet, sync_wads, PriceResponce,
+    get_nodes_balance, get_wad_history, init_wallet, price_provider_add_assets,
+    price_provider_add_currencies, receive_wads, redeem_quote, restore_wallet, sync_wads,
+    PriceResponce,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -41,18 +42,20 @@ pub fn run() {
                     .expect("dirs::data_dir should map to a valid path on this machine");
                 let manager = SqliteConnectionManager::file(db_path);
                 let pool = r2d2::Pool::new(manager)?;
+                let host =
+                    env::var("PRICE_PROVIDER").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
                 app.manage(AppState {
                     pool,
                     get_prices_config: Arc::new(RwLock::new(PriceConfig {
                         currencies: HashSet::from(["usd".to_string()]),
                         assets: HashSet::new(),
+                        url: host,
                     })),
                 });
                 let config = app.state::<AppState>().get_prices_config.clone();
-                let host =
-                    env::var("PRICE_PROVIDER").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
+
                 let app_thread = app.handle().clone();
-                async_runtime::spawn(start_price_fetcher(config, host, app_thread));
+                async_runtime::spawn(start_price_fetcher(config, app_thread));
                 Ok(())
             })
             .plugin(
@@ -71,8 +74,8 @@ pub fn run() {
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
-                get_prices_add_assets,
-                get_prices_add_currencies,
+                price_provider_add_assets,
+                price_provider_add_currencies,
                 get_wad_history,
                 sync_wads,
             ])
@@ -86,6 +89,7 @@ pub fn run() {
 pub struct PriceConfig {
     currencies: HashSet<String>,
     assets: HashSet<String>,
+    url: String,
 }
 
 #[derive(Debug)]

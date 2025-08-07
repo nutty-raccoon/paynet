@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getPricesAddCurrencies } from "../../commands";
+  import { priceProviderAddCurrencies } from "../../commands";
   import { fiatCurrenciesStored, selectedCurrencyStored } from "../../stores";
 </script>
 
@@ -14,7 +14,7 @@
       value={$selectedCurrencyStored}
       on:change={(e) => {
         selectedCurrencyStored.set((e.target as HTMLSelectElement).value);
-        getPricesAddCurrencies([$selectedCurrencyStored]);
+        priceProviderAddCurrencies([$selectedCurrencyStored]);
       }}
       required
     >

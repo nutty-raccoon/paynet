@@ -15,8 +15,7 @@
     checkWalletExists,
     getCurrencies,
     getNodesBalance,
-    getPrices,
-    getPricesAddAssets,
+    priceProviderAddAssets,
   } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import type { Price } from "../types/price";
@@ -88,7 +87,7 @@
       .entries()
       .map(([unit]) => (unit == "millistrk" ? "strk" : unit))
       .toArray();
-    getPricesAddAssets(assets);
+    priceProviderAddAssets(assets);
   };
 
   const onNodeBalanceIncrease = (balanceIncrease: BalanceChange) => {

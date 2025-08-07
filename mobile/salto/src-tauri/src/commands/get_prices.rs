@@ -1,5 +1,3 @@
-use std::env;
-
 use crate::AppState;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -46,7 +44,7 @@ impl serde::Serialize for Error {
 }
 
 #[tauri::command]
-pub async fn get_prices_add_assets(
+pub async fn price_provider_add_assets(
     state: tauri::State<'_, AppState>,
     new_assets: Vec<String>,
 ) -> Result<(), Error> {
@@ -56,18 +54,19 @@ pub async fn get_prices_add_assets(
 }
 
 #[tauri::command]
-pub async fn get_prices_add_currencies(
+pub async fn price_provider_add_currencies(
     state: tauri::State<'_, AppState>,
     new_currencies: Vec<String>,
 ) -> Result<(), Error> {
     let mut cfg = state.get_prices_config.write().await;
-    cfg.currencies.extend(new_currencies); // évite les doublons automatiquement
+    cfg.currencies.extend(new_currencies);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_currencies() -> Result<Vec<String>, Error> {
-    let host = env::var("PRICE_PROVIDER").unwrap_or_else(|_| "http://127.0.0.1:3000".into());
+pub async fn get_currencies(state: tauri::State<'_, AppState>,) -> Result<Vec<String>, Error> {
+    let cfg = state.get_prices_config.read().await;
+    let host = cfg.url.clone();
     let resp: CurrenciesResponce = reqwest::get(host + "/currencies")
         .await?
         .json::<CurrenciesResponce>()

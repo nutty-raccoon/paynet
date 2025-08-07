@@ -4,38 +4,63 @@ use tokio::sync::RwLock;
 
 use crate::{PriceConfig, PriceResponce};
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    Tauri(#[from] tauri::Error),
+}
+
 async fn fetch_and_emit_prices(
     url: &str,
-    app_thread: &tauri::AppHandle,
-) -> Result<(), reqwest::Error> {
+    app: &tauri::AppHandle,
+) -> Result<(), Error> {
     let resp = reqwest::get(url).await?;
-    let body = resp.json::<PriceResponce>().await?;
-    let _ = app_thread.emit("new-price", body);
+    let new_prices = resp.json::<PriceResponce>().await?;
+    app.emit("new-price", new_prices)?;
     Ok(())
 }
 
 pub async fn start_price_fetcher(
     config: Arc<RwLock<PriceConfig>>,
-    host: String,
     app_thread: tauri::AppHandle,
 ) {
     let mut interval = tokio::time::interval(Duration::from_secs(10));
 
     loop {
-        interval.tick().await;
-
         let cfg = config.read().await;
 
-        let mut currencies: Vec<_> = cfg.currencies.iter().cloned().collect();
-        currencies.sort();
-        let mut url = format!("{}/prices?currencies={}", host, currencies.join(","));
-
-        if !cfg.assets.is_empty() {
-            let mut assets_vec: Vec<_> = cfg.assets.iter().cloned().collect();
-            assets_vec.sort();
-            url.push_str("&assets=");
-            url.push_str(&assets_vec.join(","));
+        if !cfg.assets.is_empty() && !cfg.currencies.is_empty() {
+            break;
         }
+
+        drop(cfg);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    loop {
+        interval.tick().await;
+
+        let (host, currencies, assets) = {
+            let cfg = config.read().await;
+            (
+                cfg.url.clone(),
+                {
+                    let mut c: Vec<_> = cfg.currencies.iter().cloned().collect();
+                    c.sort();
+                    c
+                },
+                {
+                    let mut a: Vec<_> = cfg.assets.iter().cloned().collect();
+                    a.sort();
+                    a
+                },
+            )
+        };
+        let mut url = format!("{}/prices?currencies={}", host, currencies.join(","));
+        url.push_str("&assets=");
+        url.push_str(&assets.join(","));
 
         if let Err(err) = fetch_and_emit_prices(&url, &app_thread).await {
             tracing::error!("price fetch error: {}", err);
