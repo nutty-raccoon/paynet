@@ -5,15 +5,14 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
-    get_nodes_balance, get_wad_history, init_wallet, price_provider_add_assets,
+    PriceConfig, PriceResponce, add_node, check_wallet_exists, create_mint_quote, create_wads,
+    get_currencies, get_nodes_balance, get_wad_history, init_wallet, price_provider_add_assets,
     price_provider_add_currencies, receive_wads, redeem_quote, restore_wallet, sync_wads,
-    PriceConfig, PriceResponce,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use std::{collections::HashSet, env, sync::Arc};
-use tauri::{async_runtime, Manager};
+use tauri::{Manager, async_runtime};
 use tokio::sync::RwLock;
 
 use crate::background_tasks::start_price_fetcher;
