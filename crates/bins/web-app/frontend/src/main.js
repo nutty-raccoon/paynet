@@ -1,5 +1,18 @@
-// Import Web Components
-import { WalletButton } from './wallet-button.js';
+// Core functionality - always loaded
+
+// Wallet button state management helper
+function setWalletButtonState(button, state) {
+    const baseClass = 'wallet-btn';
+    const variants = {
+        disconnected: 'wallet-btn primary disconnected',
+        connecting: 'wallet-btn primary connecting loading',
+        connected: 'wallet-btn danger connected',
+        disconnecting: 'wallet-btn danger disconnecting loading',
+        deposit: 'wallet-btn primary deposit',
+        depositing: 'wallet-btn primary depositing loading'
+    };
+    button.className = variants[state] || `${baseClass} primary disconnected`;
+}
 
 // Core functionality - always loaded
 class ToastManager {
@@ -140,11 +153,11 @@ async function initializeStarknetFeatures() {
         const { WalletAccount, Contract } = await loadStarknetCore();
         
         walletStatus.textContent = 'Ready to connect wallet';
-        connectButton.setDisabled(false);
+        connectButton.disabled = false;
+        setWalletButtonState(connectButton, 'disconnected');
         const handleConnect = async () => {
             try {
-                connectButton.setLoading(true);
-                connectButton.textContent = 'Connecting...';
+                setWalletButtonState(connectButton, 'connecting');
                 
                 const selectedWallet = await connect({ modalMode: 'alwaysAsk' });
                 const myFrontendProviderUrl = depositData.provider_url;
@@ -176,18 +189,16 @@ async function initializeStarknetFeatures() {
 
                 
                 walletStatus.textContent = `Connected to ${selectedWallet.name || 'wallet'}`;
-                connectButton.setLoading(false);
-                connectButton.textContent = 'Disconnect';
-                connectButton.setVariant('danger');
+                setWalletButtonState(connectButton, 'connected');
                 // Show deposit button
                 depositButton.hidden = false;
+                setWalletButtonState(depositButton, 'deposit');
                 
                 ToastManager.show('Wallet connected successfully!', 'success');
                 
                 const handleDeposit = async () => {
                     try {
-                        depositButton.setLoading(true);
-                        depositButton.textContent = 'Depositing...';
+                        setWalletButtonState(depositButton, 'depositing');
                         
                         const calls = [claimCall, payInvoiceCall];
                         console.log('Executing deposit with payload:', calls);
@@ -195,51 +206,49 @@ async function initializeStarknetFeatures() {
                         console.log('Deposit response:', resp);
                         
                         ToastManager.show('Deposit transaction submitted!', 'success');
-                        depositButton.setLoading(false);
-                        depositButton.textContent = 'Deposit';
+                        setWalletButtonState(depositButton, 'deposit');
                         
                     } catch (error) {
                         console.error('Deposit error:', error);
                         ToastManager.show(`Deposit failed: ${error.message}`, 'error');
-                        depositButton.setLoading(false);
-                        depositButton.textContent = 'Deposit';
+                        setWalletButtonState(depositButton, 'deposit');
                     }
                 }
                 // Set up deposit button functionality
-                depositButton.addEventListener(WalletButton.EVENTS.CLICK, handleDeposit);
+                depositButton.addEventListener('click', handleDeposit);
                 
                 // Change button to disconnect
-                addSelfDestructingEventListener(connectButton, WalletButton.EVENTS.CLICK, async () => {
+                addSelfDestructingEventListener(connectButton, 'click', async () => {
                     try {
+                        setWalletButtonState(connectButton, 'disconnecting');
                         console.log("in disconnect");
                         await disconnect();
                         depositButton.hidden = true;
-                        depositButton.removeEventListener(WalletButton.EVENTS.CLICK, handleDeposit);
+                        depositButton.removeEventListener('click', handleDeposit);
                         walletStatus.textContent = 'Disconnected';
-                        connectButton.textContent = 'Connect Wallet';
-                        connectButton.setVariant('primary');
+                        setWalletButtonState(connectButton, 'disconnected');
                         ToastManager.show('Wallet disconnected', 'success');
-                        addSelfDestructingEventListener(connectButton, WalletButton.EVENTS.CLICK, handleConnect);
+                                addSelfDestructingEventListener(connectButton, 'click', handleConnect);
                     } catch (error) {
                         console.error('Disconnect error:', error);
                         ToastManager.show('Failed to disconnect wallet', 'error');
+                        setWalletButtonState(connectButton, 'connected');
                     }
                 });
             } catch (error) {
                 console.error('Wallet connection error:', error);
-                connectButton.setLoading(false);
-                connectButton.textContent = 'Connect Wallet';
-                connectButton.setVariant('primary');
+                setWalletButtonState(connectButton, 'disconnected');
                 ToastManager.show('Failed to connect wallet', 'error');
             }
         };
 
-        addSelfDestructingEventListener(connectButton, WalletButton.EVENTS.CLICK, handleConnect);
+        addSelfDestructingEventListener(connectButton, 'click', handleConnect);
         
     } catch (error) {
         console.error('Starknet initialization error:', error);
         walletStatus.textContent = `Error: ${error.message}`;
-        connectButton.setDisabled(true);
+        connectButton.disabled = true;
+        setWalletButtonState(connectButton, 'disconnected');
         ToastManager.show('Failed to initialize Starknet features', 'error');
     }
 }

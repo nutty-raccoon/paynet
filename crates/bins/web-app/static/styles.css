@@ -157,6 +157,91 @@ footer {
   opacity: 0.8;
 }
 
+/* Wallet Button Styles */
+.wallet-btn {
+  margin-left: 10px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: normal;
+  min-width: 120px;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+/* Variants */
+.wallet-btn.primary {
+  background-color: #48bb78;
+  color: white;
+}
+
+.wallet-btn.primary:hover:not(:disabled) {
+  background-color: #38a169;
+}
+
+.wallet-btn.danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.wallet-btn.danger:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.wallet-btn:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Loading state */
+.wallet-btn.loading {
+  pointer-events: none;
+}
+
+.wallet-btn.loading::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* State-based text content */
+.wallet-btn .btn-text {
+  display: inline;
+}
+
+.wallet-btn .connect-text,
+.wallet-btn .disconnect-text,
+.wallet-btn .connecting-text,
+.wallet-btn .disconnecting-text,
+.wallet-btn .deposit-text,
+.wallet-btn .depositing-text {
+  display: none;
+}
+
+/* Show appropriate text based on state */
+.wallet-btn.disconnected .connect-text { display: inline; }
+.wallet-btn.connected .disconnect-text { display: inline; }
+.wallet-btn.connecting .connecting-text { display: inline; }
+.wallet-btn.disconnecting .disconnecting-text { display: inline; }
+.wallet-btn.deposit .deposit-text { display: inline; }
+.wallet-btn.depositing .depositing-text { display: inline; }
+
 /* Responsive design */
 @media (max-width: 768px) {
   .container {
