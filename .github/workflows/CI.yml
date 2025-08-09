@@ -260,7 +260,7 @@ jobs:
 
       - uses: software-mansion/setup-scarb@v1
         with:
-          scarb-version: "2.9.2"
+          scarb-version: "2.12.0"
           scarb-lock: contracts/starknet/invoice/Scarb.lock
           cache: true
           cache-targets: true
@@ -268,7 +268,7 @@ jobs:
       - name: Install Starkli
         run: |
           mkdir -p /tmp/tools
-          curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
+          curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.4.2/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
           chmod +x /tmp/tools/starkli
       
       - name: Build contracts
