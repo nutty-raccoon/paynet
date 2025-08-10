@@ -136,17 +136,14 @@ fn handle_crypto_invalid_proofs(
         indices
     );
 
-    let invalid_proofs = proofs_ids
-        .iter()
-        .enumerate()
-        .filter_map(|(i, id)| {
-            if indices.contains(&(i as u32)) {
-                Some(*id)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<PublicKey>>();
+    let mut invalid_proofs: Vec<PublicKey> = vec![];
+    for i in &indices {
+        if let Some(id) = proofs_ids.get(*i as usize) {
+            invalid_proofs.push(*id);
+        } else {
+            log::error!("Invalid index: {}", i);
+        }
+    }
 
     db::proof::delete_proofs(conn, &invalid_proofs)?;
     Ok(())
@@ -163,17 +160,14 @@ fn handle_already_spent_proofs(
         indices
     );
 
-    let invalid_proofs = proofs_ids
-        .iter()
-        .enumerate()
-        .filter_map(|(i, id)| {
-            if indices.contains(&(i as u32)) {
-                Some(*id)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<PublicKey>>();
+    let mut invalid_proofs: Vec<PublicKey> = vec![];
+    for i in &indices {
+        if let Some(id) = proofs_ids.get(*i as usize) {
+            invalid_proofs.push(*id);
+        } else {
+            log::error!("Invalid index: {}", i);
+        }
+    }
 
     db::proof::set_proofs_to_state(conn, &invalid_proofs, crate::types::ProofState::Spent)?;
     Ok(())
