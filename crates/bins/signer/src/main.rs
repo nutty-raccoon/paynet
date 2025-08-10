@@ -24,7 +24,6 @@ mod state;
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
 const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
 
-// const PROOFS_FIELD: &str = "proofs";
 const MESSAGES_FIELD: &str = "messages";
 
 #[derive(Debug)]
