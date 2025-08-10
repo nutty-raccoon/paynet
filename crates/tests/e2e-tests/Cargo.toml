@@ -8,10 +8,10 @@ anyhow = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 dirs = { workspace = true }
 url = { workspace = true }
-wallet = { workspace = true  }
-node-client = { workspace = true  }
-test-utils = { workspace = true, features = ["e2e-starknet"]}
-starknet-types = { workspace = true  }
+wallet = { workspace = true }
+node-client = { workspace = true }
+test-utils = { workspace = true, features = ["e2e-starknet"] }
+starknet-types = { workspace = true }
 
 # Db
 r2d2_sqlite = { workspace = true }
