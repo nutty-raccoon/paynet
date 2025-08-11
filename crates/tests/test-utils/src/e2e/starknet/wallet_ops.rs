@@ -5,7 +5,7 @@ use bip39::Mnemonic;
 use bitcoin::bip32::Xpriv;
 use itertools::Itertools;
 use node_client::NodeClient;
-use nuts::Amount;
+use nuts::{Amount, nut01::PublicKey};
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
@@ -268,5 +268,32 @@ impl WalletOps {
         wallet::sync::pending_wads(self.db_pool.clone(), None).await?;
 
         Ok(())
+    }
+}
+
+pub async fn recieve_already_spent_wad(
+    wallet_ops: &mut WalletOps,
+    wad: &CompactWad<Unit>,
+) -> Result<()> {
+    let db_conn = wallet_ops.db_pool.get()?;
+    let proof_ids = wad.proofs().iter().map(|p| p.c).collect::<Vec<PublicKey>>();
+    wallet::db::proof::set_proofs_to_state(
+        &db_conn,
+        &proof_ids,
+        wallet::types::ProofState::Unspent,
+    )?;
+
+    if (wallet_ops.receive(wad).await).is_err() {
+        let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
+        for proof in proofs_state {
+            assert_eq!(
+                proof,
+                wallet::types::ProofState::Spent,
+                "Proof State should be set to `Spent`"
+            );
+        }
+        Ok(())
+    } else {
+        panic!("Double spend should have failed")
     }
 }

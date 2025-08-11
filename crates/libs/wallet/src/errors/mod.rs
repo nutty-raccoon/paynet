@@ -165,7 +165,10 @@ fn handle_already_spent_proofs(
         if let Some(id) = proofs_ids.get(*i as usize) {
             invalid_proofs.push(*id);
         } else {
-            log::error!("Invalid index: {}", i);
+            log::error!(
+                "Node returned an out of bound index for invalid proof: {}",
+                i
+            );
         }
     }
 
