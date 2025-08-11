@@ -99,6 +99,7 @@ impl WalletOps {
         let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
         pay_invoices(
             deposit_payload
+                .call_data
                 .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
                 .to_vec(),
             env,

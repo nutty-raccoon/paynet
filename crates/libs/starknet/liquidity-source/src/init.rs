@@ -31,7 +31,8 @@ mod not_mock_impl {
     use starknet_types::constants::ON_CHAIN_CONSTANTS;
 
     use crate::{
-        Depositer, Error, StarknetLiquiditySource, Withdrawer, indexer, read_env_variables,
+        Depositer, Error, StarknetLiquiditySource, Withdrawer, env_config::read_env_variables,
+        indexer,
     };
 
     impl StarknetLiquiditySource {

@@ -107,16 +107,18 @@ pub async fn mint_same_output(
     // That is the reason why we use `50` as the size of a batch, 100 was breaking it
     let deposit_payload: DepositPayload =
         serde_json::from_str(&mint_quote_response_iterator.next().unwrap().request)?;
-    let mut c =
-        deposit_payload.to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
+    let mut c = deposit_payload
+        .call_data
+        .to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
     c[0].calldata[1] *= Felt::from(100);
     calls.push(c[0].clone());
     calls.push(c[1].clone());
     let mut i = 0;
     for quote in mint_quote_response_iterator {
         let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
-        let c =
-            deposit_payload.to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
+        let c = deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
         calls.push(c[1].clone());
         i += 1;
 
@@ -382,6 +384,7 @@ pub async fn melt_same_input(
         serde_json::from_str(&original_mint_quote_response.request)?;
     pay_invoices(
         deposit_payload
+            .call_data
             .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
             .to_vec(),
         env,
