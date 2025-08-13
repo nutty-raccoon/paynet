@@ -11,6 +11,7 @@ members = [
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
+  "crates/bins/eth-on-chain-setup", 
   # Libs
   "crates/libs/node-client",
   "crates/libs/db-node",
@@ -128,7 +129,7 @@ bytes = "1.10.1"
 uint = "0.10.0"
 substreams = "0.6.0"
 chrono = "0.4.38"
-ethers = "^2.0.2"
+ethers = { version = "2.0.2", default-features = false, features = ["abigen", "rustls"] }
 ethabi = "17"
 web3 = { version = "0.19", default-features = false }
 hex-literal = "0.3.4"

@@ -1500,6 +1500,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "eth-on-chain-setup"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "eth-types",
+ "ethabi 17.2.0",
+ "ethers",
+ "hex",
+ "log",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+ "web3",
+]
+
+[[package]]
 name = "eth-substreams-sink"
 version = "0.1.0"
 dependencies = [
@@ -1778,7 +1797,6 @@ dependencies = [
  "auto_impl",
  "ethers-contract",
  "ethers-core",
- "ethers-etherscan",
  "ethers-providers",
  "ethers-signers",
  "futures-channel",
