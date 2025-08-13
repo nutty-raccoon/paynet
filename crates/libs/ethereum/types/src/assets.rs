@@ -13,7 +13,7 @@ use crate::Unit;
 #[serde(rename_all = "lowercase")]
 pub enum Asset {
     /// Ethereum (ETH)
-    Eth,
+    Weth,
 }
 
 impl core::fmt::Display for Asset {
@@ -33,7 +33,7 @@ impl Asset {
     /// Returns the canonical string representation of the asset.
     pub fn as_str(&self) -> &str {
         match self {
-            Asset::Eth => "eth",
+            Asset::Weth => "weth",
         }
     }
 
@@ -50,7 +50,7 @@ impl Asset {
 
     /// Picks the most user-friendly unit for representing this asset.
     pub fn find_best_unit(&self) -> Unit {
-        Unit::Wei
+        Unit::Gwei
     }
 
     /// Converts an on-chain asset amount into a protocol amount of a given unit.
@@ -96,7 +96,7 @@ impl FromStr for Asset {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "eth" => Ok(Asset::Eth),
+            "weth" => Ok(Asset::Weth),
             _ => Err(AssetFromStrError),
         }
     }

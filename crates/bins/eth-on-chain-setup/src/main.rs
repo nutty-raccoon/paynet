@@ -1,6 +1,7 @@
 use anyhow::{Context, Error, anyhow};
 use clap::{Parser, ValueHint};
 use env_logger;
+use ethabi::{Address as AbiAddress, Token, Uint};
 use ethers::{
     abi::Abi,
     contract::ContractFactory,
@@ -12,7 +13,6 @@ use ethers::{
 use log::{error, info};
 use serde::Deserialize;
 use std::{path::PathBuf, sync::Arc, time::Duration};
-use ethabi::{Token, Uint, Address as AbiAddress};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]

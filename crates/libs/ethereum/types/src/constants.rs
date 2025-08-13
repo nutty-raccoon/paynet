@@ -35,16 +35,16 @@ impl AssetsAddress {
 }
 
 const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress =
-    AssetsAddress([(Asset::Eth, "0xdd13E55209Fd76AfE204dBda4007C227904f0a81")]);
+    AssetsAddress([(Asset::Weth, "0xdd13E55209Fd76AfE204dBda4007C227904f0a81")]);
 
 const HOLESKY_ASSETS_ADDRESSES: AssetsAddress =
-    AssetsAddress([(Asset::Eth, "0x94373a4919B3240D86eA41593D5eBa789FEF3848")]);
+    AssetsAddress([(Asset::Weth, "0x94373a4919B3240D86eA41593D5eBa789FEF3848")]);
 
 const MAINNET_ASSETS_ADDRESSES: AssetsAddress =
-    AssetsAddress([(Asset::Eth, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")]);
+    AssetsAddress([(Asset::Weth, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")]);
 
 const DEVNET_ASSETS_ADDRESSES: AssetsAddress =
-    AssetsAddress([(Asset::Eth, "0x0000000000000000000000000000000000000000")]);
+    AssetsAddress([(Asset::Weth, "0x0000000000000000000000000000000000000000")]);
 
 /// Top-level constants container for each network configuration
 ///
@@ -74,7 +74,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
     },
     "11155111" => OnChainConstants {
         substreams: SubstreamsConstants { starting_block: 0 },
-        invoice_payment_contract_address: "0x0000000000000000000000000000000000000000",
+        invoice_payment_contract_address: "0x503028d1f0c7a55d49c872745bb99dac084f959c",
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
     },
     "17000" => OnChainConstants {

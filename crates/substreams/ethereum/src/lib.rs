@@ -20,7 +20,7 @@ fn map_invoice_contract_events(
     contract_address: String,
     blk: eth::Block,
 ) -> Result<RemittanceEvents, substreams::errors::Error> {
-    verify_parameter(&contract_address)?;
+    let decoded_address = verify_parameter(&contract_address)?;
 
     let mut remittance_events = Vec::new();
 
@@ -31,9 +31,7 @@ fn map_invoice_contract_events(
                 view.receipt
                     .logs
                     .iter()
-                    .filter(|log| {
-                        log.address == Hex::decode(&contract_address).expect("already validated")
-                    })
+                    .filter(|log| log.address == decoded_address)
                     .filter_map(|log| {
                         if let Some(event) =
                             abi::invoice_contract::events::Remittance::match_and_decode(log)
@@ -59,7 +57,7 @@ fn map_invoice_contract_events(
     })
 }
 
-pub fn verify_parameter(address: &str) -> Result<(), Error> {
+pub fn verify_parameter(address: &str) -> Result<Vec<u8>, Error> {
     let normalized = address.strip_prefix("0x").unwrap_or(address);
     if normalized.len() != 40 {
         return Err(Error::msg("invalid Ethereum address length"));
@@ -69,5 +67,5 @@ pub fn verify_parameter(address: &str) -> Result<(), Error> {
     if decoded.len() != 20 {
         return Err(Error::msg("Ethereum address must be 20 bytes"));
     }
-    Ok(())
+    Ok(decoded)
 }

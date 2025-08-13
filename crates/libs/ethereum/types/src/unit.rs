@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::Asset;
 
 /// String literals for supported Ethereum units
-const WEI_STR: &str = "wei";
 const GWEI_STR: &str = "gwei";
-const ETHER_STR: &str = "ether";
 
 /// Represents Ethereum units used in the protocol
 ///
@@ -23,23 +21,19 @@ const ETHER_STR: &str = "ether";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Unit {
-    Wei,
     Gwei,
-    Ether,
 }
 
 impl Unit {
     /// Maps each unit to the associated `Asset`
     pub fn asset(&self) -> Asset {
-        Asset::Eth
+        Asset::Weth
     }
 
     /// Returns the string representation of the unit
     pub fn as_str(&self) -> &'static str {
         match self {
-            Unit::Wei => WEI_STR,
             Unit::Gwei => GWEI_STR,
-            Unit::Ether => ETHER_STR,
         }
     }
 
@@ -50,18 +44,14 @@ impl Unit {
     /// - 1 ether = 10^18 wei
     pub fn scale_factor(&self) -> u64 {
         match self {
-            Unit::Wei => 1,
             Unit::Gwei => 1_000_000_000,
-            Unit::Ether => 1_000_000_000_000_000_000,
         }
     }
 
     /// Returns the power of 10 for the scale factor
     pub fn scale_order(&self) -> u8 {
         match self {
-            Unit::Wei => 0,
             Unit::Gwei => 9,
-            Unit::Ether => 18,
         }
     }
 
@@ -72,7 +62,7 @@ impl Unit {
 
     /// Validates that the given asset is supported by this unit
     pub fn is_asset_supported(&self, asset: Asset) -> bool {
-        matches!(asset, Asset::Eth)
+        matches!(asset, Asset::Weth)
     }
 }
 
@@ -86,9 +76,7 @@ impl AsRef<str> for Unit {
 impl From<Unit> for u32 {
     fn from(value: Unit) -> Self {
         match value {
-            Unit::Wei => 0,
             Unit::Gwei => 1,
-            Unit::Ether => 2,
         }
     }
 }
@@ -103,9 +91,7 @@ impl FromStr for Unit {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            WEI_STR => Ok(Unit::Wei),
             GWEI_STR => Ok(Unit::Gwei),
-            ETHER_STR => Ok(Unit::Ether),
             _ => Err(UnitFromStrError),
         }
     }
