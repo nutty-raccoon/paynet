@@ -1,6 +1,4 @@
-#[cfg(all(feature = "mock", feature = "starknet"))]
-compile_error!("Only one of the features 'mock' and 'starknet' can be enabled at the same time");
-#[cfg(not(any(feature = "mock", feature = "starknet")))]
+#[cfg(not(any(feature = "starknet")))]
 compile_error!("At least one liquidity feature should be provided during compilation");
 
 use core::panic;

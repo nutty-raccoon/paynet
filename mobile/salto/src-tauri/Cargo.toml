@@ -3,7 +3,7 @@ name = "salto"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -41,11 +41,10 @@ primitive-types = { workspace = true }
 num-traits = { workspace = true }
 uint = { workspace = true }
 log = { workspace = true }
+bitcoin = { workspace = true }
+uuid = { workspace = true }
 
 # Local
 wallet = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
-
-[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
-tauri-plugin-nfc = { workspace = true }

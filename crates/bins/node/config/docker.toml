@@ -1,4 +1,5 @@
 chain_id = "SN_DEVNET"
 cashier_account_address = "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"  
 starknet_rpc_node_url = "http://starknet-devnet:5050"
+starknet_substreams_url = "http://starknet-firehose:10016"
 

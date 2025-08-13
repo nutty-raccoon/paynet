@@ -199,6 +199,7 @@ pub struct NutsSettings<M: Method, U> {
     // NUT05 Settings
     #[serde(rename = "5")]
     pub nut05: nut05::Settings<M, U>,
+    #[cfg(feature = "nut9")]
     #[serde(rename = "9")]
     pub nut09: SupportedSettings,
     #[cfg(feature = "nut19")]
@@ -210,6 +211,7 @@ pub struct NutsSettings<M: Method, U> {
 pub struct NutsSettingsBuilder<M: Method, U> {
     nut04: Option<nut04::Settings<M, U>>,
     nut05: Option<nut05::Settings<M, U>>,
+    #[cfg(feature = "nut9")]
     nut09: Option<SupportedSettings>,
     #[cfg(feature = "nut19")]
     nut19: Option<nut19::Settings>,
@@ -220,6 +222,7 @@ impl<M: Method, U> Default for NutsSettingsBuilder<M, U> {
         Self {
             nut04: None,
             nut05: None,
+            #[cfg(feature = "nut9")]
             nut09: None,
             #[cfg(feature = "nut19")]
             nut19: None,
@@ -240,6 +243,8 @@ impl<M: traits::Method, U> NutsSettingsBuilder<M, U> {
         self.nut05 = Some(nut05_settings);
         self
     }
+
+    #[cfg(feature = "nut9")]
     pub fn nut_09(mut self, nut09_settings: SupportedSettings) -> Self {
         self.nut09 = Some(nut09_settings);
         self
@@ -248,6 +253,7 @@ impl<M: traits::Method, U> NutsSettingsBuilder<M, U> {
     pub fn build(self) -> Result<NutsSettings<M, U>, NutsBuilderError> {
         let nut04 = self.nut04.ok_or(NutsBuilderError::MissingConfig(4))?;
         let nut05 = self.nut05.ok_or(NutsBuilderError::MissingConfig(5))?;
+        #[cfg(feature = "nut9")]
         let nut09 = self.nut09.ok_or(NutsBuilderError::MissingConfig(9))?;
         #[cfg(feature = "nut19")]
         let nut19 = self.nut19.ok_or(NutsBuilderError::MissingConfig(19))?;
@@ -255,6 +261,7 @@ impl<M: traits::Method, U> NutsSettingsBuilder<M, U> {
         Ok(NutsSettings {
             nut04,
             nut05,
+            #[cfg(feature = "nut9")]
             nut09,
             #[cfg(feature = "nut19")]
             nut19,

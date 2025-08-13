@@ -1,16 +1,15 @@
 use std::{cmp::Ordering, str::FromStr};
 
 use nuts::Amount;
-use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, Unit};
+use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, Emitter, State};
-use wallet::types::compact_wad::{self, CompactWads};
+use wallet::types::compact_wad::CompactWads;
 
 use crate::{
-    parse_asset_amount::{parse_asset_amount, ParseAmountStringError},
     AppState,
+    commands::BalanceChange,
+    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
 };
-
-use super::BalanceChange;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CreateWadsError {
@@ -87,6 +86,7 @@ pub async fn create_wads(
 
     let mut wads = Vec::with_capacity(amount_to_use_per_node.len());
     let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
+    let mut ys_per_node = Vec::with_capacity(amount_to_use_per_node.len());
     for (node_id, node_url, amount_to_use) in amount_to_use_per_node {
         let mut node_client = wallet::connect_to_node(&node_url).await?;
 
@@ -95,91 +95,35 @@ pub async fn create_wads(
             &mut node_client,
             node_id,
             amount_to_use,
-            unit,
+            unit.as_str(),
         )
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
 
         let db_conn = state.pool.get()?;
         let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
-        let wad = wallet::create_wad_from_proofs(node_url, unit, None, proofs);
+        let wad = wallet::wad::create_from_parts(node_url, unit, None, proofs);
         wads.push(wad);
+        ys_per_node.push(proofs_ids);
         balance_decrease_events.push(BalanceChange {
             node_id,
             unit: unit.as_str().to_string(),
             amount: amount_to_use.into(),
         });
     }
+    let db_conn = state.pool.get()?;
+    for (wad, ys) in wads.iter().zip(ys_per_node) {
+        wallet::db::wad::register_wad(
+            &db_conn,
+            wallet::db::wad::WadType::OUT,
+            &wad.node_url,
+            &wad.memo,
+            &ys,
+        )?;
+    }
     for event in balance_decrease_events {
         app.emit("balance-decrease", event)?;
     }
 
     Ok(CompactWads(wads).to_string())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReceiveWadsError {
-    #[error(transparent)]
-    R2D2(#[from] r2d2::Error),
-    #[error(transparent)]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
-    Wallet(#[from] wallet::errors::Error),
-    #[error(transparent)]
-    Asset(#[from] AssetFromStrError),
-    #[error("invalid amount: {0}")]
-    Amount(#[from] ParseAmountStringError),
-    #[error(transparent)]
-    AssetToUnitConversion(#[from] AssetToUnitConversionError),
-    #[error("invalid string for compacted wad")]
-    WadString(#[from] compact_wad::Error),
-    #[error(transparent)]
-    Tauri(#[from] tauri::Error),
-    #[error("this is a json error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error(transparent)]
-    RegisterNode(#[from] wallet::RegisterNodeError),
-}
-
-impl serde::Serialize for ReceiveWadsError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.to_string().as_ref())
-    }
-}
-
-#[tauri::command]
-pub async fn receive_wads(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    wads: String,
-) -> Result<(), ReceiveWadsError> {
-    let wads: CompactWads<Unit> = wads.parse()?;
-
-    for wad in wads.0 {
-        let (mut node_client, node_id) =
-            wallet::register_node(state.pool.clone(), &wad.node_url).await?;
-
-        let amount_received = wallet::receive_wad(
-            state.pool.clone(),
-            &mut node_client,
-            node_id,
-            wad.unit.as_str(),
-            wad.proofs,
-        )
-        .await?;
-
-        app.emit(
-            "balance-increase",
-            BalanceChange {
-                node_id,
-                unit: wad.unit.as_str().to_string(),
-                amount: amount_received.into(),
-            },
-        )?;
-    }
-
-    Ok(())
 }

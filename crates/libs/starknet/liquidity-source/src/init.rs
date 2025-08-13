@@ -28,7 +28,7 @@ mod not_mock_impl {
         providers::{JsonRpcClient, jsonrpc::HttpTransport},
         signers::{LocalWallet, SigningKey},
     };
-    use starknet_types::{ChainId, constants::ON_CHAIN_CONSTANTS};
+    use starknet_types::constants::ON_CHAIN_CONSTANTS;
     use starknet_types_core::felt::Felt;
 
     use crate::{
@@ -44,12 +44,6 @@ mod not_mock_impl {
                     .map_err(|e| Error::Env(CASHIER_PRIVATE_KEY_ENV_VAR, e))?,
             )
             .map_err(|_| Error::PrivateKey)?;
-
-            let apibara_token = match config.chain_id {
-                // Not needed for local DNA service
-                ChainId::Devnet => "".to_string(),
-                _ => std::env::var("APIBARA_TOKEN").map_err(|e| Error::Env("APIBARA_TOKEN", e))?,
-            };
 
             // Create provider
             let provider = JsonRpcClient::new(HttpTransport::new(config.starknet_rpc_node_url));
@@ -69,9 +63,9 @@ mod not_mock_impl {
             let cloned_cashier_account_address = config.cashier_account_address;
             let cloned_pg_pool = pg_pool.clone();
             let _handle = tokio::spawn(async move {
-                indexer::run_in_ctrl_c_cancellable_task(
+                indexer::init_indexer_task(
                     cloned_pg_pool,
-                    apibara_token,
+                    config.starknet_substreams_url,
                     cloned_chain_id,
                     cloned_cashier_account_address,
                 )

@@ -23,7 +23,7 @@ log = { workspace = true }
 url = { workspace = true }
 toml = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-nuts = { workspace = true, features = ["nut19"] }
+nuts = { workspace = true, features = ["nut9", "nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
@@ -54,8 +54,6 @@ tower-http = { workspace = true, optional = true, features = ["trace", "cors"] }
 openssl = { workspace = true, optional = true }
 tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 
-# starknet optional
-starknet-payment-indexer = { workspace = true, optional = true }
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }
 
@@ -64,7 +62,7 @@ default = ["grpc", "starknet"]
 grpc = []
 rest = ["dep:axum", "dep:tower-http"]
 mock = ["starknet-liquidity-source/mock"]
-starknet = ["dep:starknet-payment-indexer"]
+starknet = []
 tls = ["dep:openssl", "dep:tonic-tls"]
 keyset-rotation = []
 

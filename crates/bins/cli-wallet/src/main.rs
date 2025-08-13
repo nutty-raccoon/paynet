@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use bitcoin::bip32::Xpriv;
 use clap::{Args, Parser, Subcommand, ValueHint};
 use node_client::NodeClient;
 use nuts::Amount;
@@ -19,6 +20,7 @@ use wallet::{
     },
 };
 
+mod init;
 mod sync;
 
 #[derive(Parser)]
@@ -65,6 +67,8 @@ enum NodeCommands {
         /// Url of the node
         #[arg(long, short)]
         node_url: String,
+        #[arg(long, short)]
+        restore: Option<bool>,
     },
     /// List all know nodes
     #[command(
@@ -149,7 +153,35 @@ enum Commands {
         about = "Sync all pending mint and melt operations",
         long_about = "Check all nodes for pending mint and melt quote updates and process them accordingly"
     )]
+    /// Show wad history
+    #[command(
+        about = "Show WAD history",
+        long_about = "Display a history of all WADs (Wallet Anonymous Deposits) generated or received by the user"
+    )]
+    History {
+        /// Limit number of wads to show
+        #[arg(long, short, default_value = "20")]
+        limit: u32,
+    },
     Sync,
+    #[command(
+        about = "Generate a new wallet",
+        long_about = "Generate a new wallet. This will create a new wallet with a new seed phrase and private key."
+    )]
+    Init {
+        /// Skip asking for confirmation of seed phrase saving
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        yes: bool,
+    },
+    #[command(
+        about = "Restore a wallet",
+        long_about = "Restore a wallet. This will restore a wallet from a seed phrase and private key."
+    )]
+    Restore {
+        /// The seed phrase
+        #[arg(long, short)]
+        seed_phrase: String,
+    },
 }
 
 #[derive(Args)]
@@ -204,18 +236,59 @@ async fn main() -> Result<()> {
 
     wallet::db::create_tables(&mut db_conn)?;
 
+    let wallet_count = wallet::db::wallet::count_wallets(&db_conn)?;
+
     match cli.command {
-        Commands::Node(NodeCommands::Add { node_url }) => {
+        Commands::Init { .. } | Commands::Restore { .. } => {
+            if wallet_count > 0 {
+                println!("Wallet already exists");
+                return Ok(());
+            }
+        }
+        _ => {
+            if wallet_count != 1 {
+                println!("Wallet is not initialized. Run `init` or `restore` first");
+                return Ok(());
+            }
+        }
+    }
+
+    match cli.command {
+        Commands::Node(NodeCommands::Add { node_url, restore }) => {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
 
             let tx = db_conn.transaction()?;
-            let (mut _node_client, node_id) =
-                wallet::register_node(pool.clone(), &node_url).await?;
+            let (node_client, node_id) = wallet::node::register(pool.clone(), &node_url).await?;
             tx.commit()?;
+
             println!(
                 "Successfully registered {} as node with id `{}`",
                 &node_url, node_id
             );
+
+            let wallet = wallet::db::wallet::get(&db_conn)?.unwrap();
+            let should_restore = match restore {
+                Some(true) => true,
+                Some(false) => false,
+                None => wallet.is_restored,
+            };
+            if should_restore {
+                println!("Restoring proofs");
+                wallet::node::restore(
+                    pool,
+                    node_id,
+                    node_client,
+                    Xpriv::from_str(&wallet.private_key)?,
+                )
+                .await?;
+                println!("Restoring done.");
+
+                let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
+                println!("Balance for node {}:", node_id);
+                for Balance { unit, amount } in balances {
+                    println!("  {} {}", amount, unit);
+                }
+            }
         }
         Commands::Node(NodeCommands::List {}) => {
             let nodes = wallet::db::node::fetch_all(&db_conn)?;
@@ -275,7 +348,7 @@ async fn main() -> Result<()> {
             );
 
             match wallet::mint::wait_for_quote_payment(
-                &db_conn,
+                pool.clone(),
                 &mut node_client,
                 STARKNET_STR.to_string(),
                 mint_quote_response.quote.clone(),
@@ -350,7 +423,7 @@ async fn main() -> Result<()> {
                 melt_quote_response.quote.clone(),
                 Amount::from(melt_quote_response.amount),
                 method.clone(),
-                unit,
+                unit.as_str(),
             )
             .await?;
             println!("Melt submited!");
@@ -417,7 +490,7 @@ async fn main() -> Result<()> {
                     &mut node_client,
                     node_id,
                     amount_to_use,
-                    unit,
+                    unit.as_str(),
                 )
                 .await?
                 .ok_or(anyhow!("not enough funds"))?;
@@ -445,7 +518,7 @@ async fn main() -> Result<()> {
                 };
 
                 let wad =
-                    wallet::create_wad_from_proofs(node_url.clone(), unit, memo.clone(), proofs);
+                    wallet::wad::create_from_parts(node_url.clone(), unit, memo.clone(), proofs);
                 wads.push(wad);
             }
             if let Some(max_reached) = should_revert {
@@ -494,7 +567,7 @@ async fn main() -> Result<()> {
 
             for wad in wads {
                 let (mut node_client, node_id) =
-                    wallet::register_node(pool.clone(), &wad.node_url).await?;
+                    wallet::node::register(pool.clone(), &wad.node_url).await?;
                 let CompactWad {
                     node_url,
                     unit,
@@ -506,8 +579,10 @@ async fn main() -> Result<()> {
                     pool.clone(),
                     &mut node_client,
                     node_id,
+                    &node_url,
                     wad.unit.as_str(),
                     proofs,
+                    &memo,
                 )
                 .await
                 {
@@ -561,6 +636,46 @@ async fn main() -> Result<()> {
         }
         Commands::Sync => {
             sync::sync_all_pending_operations(pool).await?;
+        }
+        Commands::Init { yes } => {
+            init::init(&db_conn, yes)?;
+            println!("Wallet saved!");
+        }
+        Commands::Restore { seed_phrase } => {
+            let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
+            wallet::wallet::restore(&db_conn, seed_phrase)?;
+            println!("Wallet saved!");
+        }
+        Commands::History { limit } => {
+            let db_conn = pool.get()?;
+
+            let wad_records = wallet::db::wad::get_recent_wads(&db_conn, limit)?;
+            if wad_records.is_empty() {
+                println!("No WAD history found.");
+                return Ok(());
+            }
+
+            println!("WAD History (showing {} most recent):\n", wad_records.len());
+            for wad_record in wad_records {
+                let amounts = wallet::db::wad::get_amounts_by_id::<Unit>(&db_conn, wad_record.id)?;
+
+                println!("Node: {} | ID: {}", wad_record.node_url, wad_record.id);
+                println!(
+                    "Type: {} | Status: {} | Total Amount: {:?}", // TODO better formating
+                    wad_record.r#type, wad_record.status, amounts
+                );
+                println!(
+                    "Created: {} | Modified: {}",
+                    chrono::DateTime::from_timestamp(wad_record.created_at as i64, 0)
+                        .ok_or(anyhow!("invalid created value"))?,
+                    chrono::DateTime::from_timestamp(wad_record.modified_at as i64, 0)
+                        .ok_or(anyhow!("invalid created value"))?,
+                );
+                if let Some(memo) = &wad_record.memo {
+                    println!("Memo: {}", memo);
+                }
+                println!("---");
+            }
         }
     }
 

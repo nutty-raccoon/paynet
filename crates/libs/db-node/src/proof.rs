@@ -6,6 +6,7 @@ use nuts::{
 };
 
 use sqlx::{PgConnection, Postgres, QueryBuilder, Row};
+
 /// Return true if one of the provided secret
 /// is already in db with state = SPENT
 pub async fn is_any_already_spent(
@@ -56,6 +57,8 @@ pub async fn insert_proof(
     Ok(())
 }
 
+/// Return the state of each proof
+/// Ordering is protected and ys not known by the db will be considered `Unspent`
 pub async fn get_proofs_by_ids(
     conn: &mut PgConnection,
     ys: &[PublicKey],
@@ -65,17 +68,20 @@ pub async fn get_proofs_by_ids(
     }
 
     let placeholders: String = (1..=ys.len())
-        .map(|i| format!("${}, {}", i, i))
+        .map(|i| format!("(${}, {})", i, i))
         .collect::<Vec<_>>()
         .join(", ");
 
     let sql = format!(
         r#"
-    SELECT v.y, proof.state FROM (
-        VALUES ({})
-    ) AS v(y, position) 
-    LEFT JOIN proof ON proof.y = v.y
-    ORDER BY v.position
+    WITH lookup AS (
+        SELECT * FROM (VALUES
+            {}
+        ) AS t(y, position)
+    )
+    SELECT lookup.y, proof.state FROM lookup
+    LEFT JOIN proof ON proof.y = lookup.y
+    ORDER BY lookup.position;
     "#,
         placeholders
     );
@@ -92,6 +98,7 @@ pub async fn get_proofs_by_ids(
         let proof_state = match state {
             Some(state_val) => ProofState::from_i32(state_val as i32)
                 .ok_or_else(|| sqlx::Error::Decode("Invalid proof state".into()))?,
+            // Unkown proofs by definition Unspent
             None => ProofState::Unspent,
         };
         ret.push(proof_state);
@@ -99,6 +106,7 @@ pub async fn get_proofs_by_ids(
 
     Ok(ret)
 }
+
 /// Generate a query following this model:
 /// INSERT INTO proof (y, amount, keyset_id, secret, c, state)
 /// VALUES  ($1, $2, $3, $4, $5, 1), ($6, $7, $8, $9, $10, 1)

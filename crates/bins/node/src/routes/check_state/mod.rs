@@ -23,6 +23,7 @@ impl From<Error> for Status {
         }
     }
 }
+
 impl GrpcState {
     pub async fn inner_check_state(
         &self,
@@ -32,7 +33,7 @@ impl GrpcState {
 
         let proof_data = db_node::proof::get_proofs_by_ids(&mut conn, &ys)
             .await
-            .unwrap();
+            .map_err(Error::ProofStateRetrieval)?;
 
         let proof_states: Result<Vec<_>, Error> = proof_data
             .iter()

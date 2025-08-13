@@ -24,8 +24,8 @@ pub enum Error {
     /// Invalid URL structure
     #[error("invalid URL")]
     InvalidUrl,
-    #[error("invalide transmision scheme. {0} is expected, got {1}")]
-    InvalidScheme(&'static str, String),
+    #[error("invalide transmision scheme {0}")]
+    InvalidScheme(String),
 }
 
 /// MintUrl Url
@@ -38,18 +38,14 @@ fn parse_node_url(url_string: &str) -> Result<Url, Error> {
     let url_string = url_string.trim_end_matches('/');
 
     let url = Url::parse(url_string)?;
-    #[cfg(feature = "tls")]
-    if url.scheme() != "https" {
-        return Err(Error::InvalidScheme("https", url.scheme().to_string()));
+
+    if url.scheme() != "https" && url.scheme() != "http" {
+        return Err(Error::InvalidScheme(url.scheme().to_string()));
     }
+
     #[cfg(feature = "tls")]
     if url.domain().is_none() {
         return Err(Error::InvalidUrl);
-    }
-
-    #[cfg(not(feature = "tls"))]
-    if url.scheme() != "http" {
-        return Err(Error::InvalidScheme("http", url.scheme().to_string()));
     }
 
     Ok(url)

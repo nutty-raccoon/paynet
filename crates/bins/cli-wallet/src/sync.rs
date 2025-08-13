@@ -36,6 +36,19 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
         sync_melt_quotes(&pool, &mut node_client, &pending_quotes).await?;
     }
 
+    // Sync pending WADs using the lib wallet function i
+    println!("Syncing pending WADs");
+    let wad_results = wallet::sync::pending_wads(pool).await?;
+
+    for result in wad_results {
+        match result.result {
+            // No status change
+            Ok(None) => {}
+            Ok(Some(status)) => println!("WAD {} updated to status: {:?}", result.wad_id, status),
+            Err(e) => eprintln!("Failed to sync WAD {}: {}", result.wad_id, e),
+        }
+    }
+
     println!("Sync completed for all nodes");
     Ok(())
 }
@@ -46,13 +59,10 @@ async fn sync_mint_quotes(
     node_id: u32,
     pending_mint_quotes: &[PendingMintQuote],
 ) -> Result<()> {
-    println!("pending: {:?}", pending_mint_quotes);
     for pending_mint_quote in pending_mint_quotes {
         let new_state = {
-            let db_conn = pool.get()?;
-
-            match wallet::mint::get_quote_state(
-                &db_conn,
+            match wallet::sync::mint_quote(
+                pool.clone(),
                 node_client,
                 pending_mint_quote.method.clone(),
                 pending_mint_quote.id.clone(),

@@ -1,0 +1,8 @@
+start:
+  args:
+  - firehose
+  - substreams-tier1
+  - substreams-tier2
+  flags:
+    common-first-streamable-block: 0
+    advertise-chain-name: starknet-devnet

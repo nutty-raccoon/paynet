@@ -96,3 +96,16 @@ pub async fn start_db_tx_from_conn(
 pub async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), sqlx::migrate::MigrateError> {
     sqlx::migrate!("./db/migrations/").run(pool).await
 }
+
+#[derive(Debug)]
+pub struct PaymentEvent {
+    pub block_id: String,
+    pub tx_hash: String,
+    pub index: i64,
+    pub asset: String,
+    pub payee: String,
+    pub invoice_id: [u8; 32],
+    pub payer: String,
+    pub amount_low: String,
+    pub amount_high: String,
+}

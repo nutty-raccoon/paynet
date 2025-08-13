@@ -39,12 +39,3 @@ fn create_rest_app(app_state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
         .with_state(app_state)
 }
-
-pub async fn launch_rest_server_task(
-    _app_state: crate::app_state::AppState,
-    _rest_port: u16,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // HTTP feature not enabled
-    tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
-    Ok(())
-}

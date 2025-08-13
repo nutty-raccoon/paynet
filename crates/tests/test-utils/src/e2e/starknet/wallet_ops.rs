@@ -1,4 +1,8 @@
+use std::str::FromStr;
+
 use anyhow::anyhow;
+use bip39::Mnemonic;
+use bitcoin::bip32::Xpriv;
 use itertools::Itertools;
 use node_client::NodeClient;
 use nuts::Amount;
@@ -9,6 +13,7 @@ use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 use wallet::{
     self,
+    db::balance::Balance,
     types::{
         NodeUrl,
         compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
@@ -36,6 +41,42 @@ impl WalletOps {
         }
     }
 
+    pub fn init(&self) -> Result<Mnemonic> {
+        let seed_phrase =
+            wallet::seed_phrase::create_random().map_err(|e| Error::Wallet(e.into()))?;
+
+        let db_conn = &*self.db_pool.get()?;
+        wallet::wallet::init(db_conn, &seed_phrase).map_err(|e| Error::Wallet(e.into()))?;
+
+        Ok(seed_phrase)
+    }
+
+    pub async fn restore(&self, seed_phrase: Mnemonic) -> Result<()> {
+        let private_key = {
+            let db_conn = &*self.db_pool.get()?;
+            wallet::wallet::restore(db_conn, seed_phrase).map_err(|e| Error::Wallet(e.into()))?;
+            wallet::db::wallet::get(db_conn)?.unwrap().private_key
+        };
+
+        wallet::node::restore(
+            self.db_pool.clone(),
+            self.node_id,
+            self.node_client.clone(),
+            Xpriv::from_str(&private_key)?,
+        )
+        .await
+        .map_err(|e| Error::Wallet(e.into()))?;
+
+        Ok(())
+    }
+
+    pub fn balance(&self) -> Result<Vec<Balance>> {
+        let db_conn = &*self.db_pool.get()?;
+        let balances = wallet::db::balance::get_for_node(db_conn, self.node_id)?;
+
+        Ok(balances)
+    }
+
     pub async fn mint(&mut self, amount: U256, asset: Asset, env: EnvVariables) -> Result<()> {
         let amount = amount
             .checked_mul(asset.scale_factor())
@@ -58,7 +99,7 @@ impl WalletOps {
         pay_invoices(calls.to_vec(), env).await?;
 
         match wallet::mint::wait_for_quote_payment(
-            &*self.db_pool.get()?,
+            self.db_pool.clone(),
             &mut self.node_client,
             STARKNET_STR.to_string(),
             quote.quote.clone(),
@@ -104,12 +145,13 @@ impl WalletOps {
             &mut self.node_client,
             self.node_id,
             amount,
-            unit,
+            unit.as_str(),
         )
         .await?
         .ok_or(anyhow!("not enough funds"))?;
 
-        let proofs = wallet::load_tokens_from_db(&*self.db_pool.get()?, &proofs_ids)?;
+        let db_conn = self.db_pool.get()?;
+        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
         let compact_proofs = proofs
             .into_iter()
             .chunk_by(|p| p.keyset_id)
@@ -126,6 +168,14 @@ impl WalletOps {
             })
             .collect();
 
+        wallet::db::wad::register_wad(
+            &db_conn,
+            wallet::db::wad::WadType::OUT,
+            &node_url,
+            &None,
+            &proofs_ids,
+        )?;
+
         Ok(CompactWad {
             node_url,
             unit,
@@ -139,10 +189,13 @@ impl WalletOps {
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
+            &wad.node_url,
             wad.unit.as_str(),
             wad.proofs.clone(),
+            wad.memo(),
         )
         .await?;
+
         Ok(())
     }
 
@@ -184,7 +237,7 @@ impl WalletOps {
             melt_quote_response.quote.clone(),
             Amount::from(melt_quote_response.amount),
             method.clone(),
-            unit,
+            unit.as_str(),
         )
         .await?;
 
@@ -199,6 +252,12 @@ impl WalletOps {
         {
             panic!("quote expired")
         }
+
+        Ok(())
+    }
+
+    pub async fn sync_wads(&mut self) -> Result<()> {
+        wallet::sync::pending_wads(self.db_pool.clone()).await?;
 
         Ok(())
     }

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO substreams_cursor (name, cursor) VALUES ($1, $2)\n            ON CONFLICT (name) DO UPDATE SET cursor = excluded.cursor\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "14712cf8afafe7eccdebed0996ba039893e40bfd6908becc25ac9e01aec94a52"
+}

@@ -1,4 +1,3 @@
-#[cfg(feature = "rest")]
 use axum::{
     Router,
     extract::{Path, State},
@@ -7,10 +6,8 @@ use axum::{
     routing::{get, post},
 };
 
-#[cfg(feature = "rest")]
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "rest")]
 use nuts::{
     Amount,
     nut00::{BlindedMessage, Proof, secret::Secret},
@@ -19,39 +16,31 @@ use nuts::{
     nut19::Route,
 };
 
-#[cfg(feature = "rest")]
 use std::str::FromStr;
 
-#[cfg(feature = "rest")]
 use uuid::Uuid;
 
-#[cfg(feature = "rest")]
 use crate::{app_state::AppState, response_cache::CachedResponse};
 
-#[cfg(feature = "rest")]
 use node::{
     BlindSignature as GrpcBlindSignature, KeysetKeys as GrpcKeysetKeys,
     SwapResponse as GrpcSwapResponse,
 };
 
-#[cfg(feature = "rest")]
 use starknet_types::Unit;
 
 /// HTTP error response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct ErrorResponse {
     error: String,
 }
 
 /// Cashu NUT-01: Get keysets
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct GetKeysetsResponse {
     keysets: Vec<KeysetInfo>,
 }
 
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct KeysetInfo {
     id: String,
@@ -60,13 +49,11 @@ struct KeysetInfo {
 }
 
 /// Cashu NUT-01: Get keys for keysets
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct GetKeysResponse {
     keysets: Vec<KeysetKeys>,
 }
 
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct KeysetKeys {
     id: String,
@@ -76,7 +63,6 @@ struct KeysetKeys {
 }
 
 /// Cashu NUT-03: Swap request
-#[cfg(feature = "rest")]
 #[derive(Deserialize, Debug)]
 struct SwapRequest {
     inputs: Vec<ProofHttp>,
@@ -84,14 +70,12 @@ struct SwapRequest {
 }
 
 /// Cashu NUT-03: Swap response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct SwapResponse {
     signatures: Vec<BlindSignatureHttp>,
 }
 
 /// HTTP representation of Proof
-#[cfg(feature = "rest")]
 #[derive(Deserialize, Debug)]
 struct ProofHttp {
     amount: u64,
@@ -103,7 +87,6 @@ struct ProofHttp {
 }
 
 /// HTTP representation of BlindedMessage
-#[cfg(feature = "rest")]
 #[derive(Deserialize, Debug)]
 struct BlindedMessageHttp {
     amount: u64,
@@ -114,7 +97,6 @@ struct BlindedMessageHttp {
 }
 
 /// HTTP representation of BlindSignature
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct BlindSignatureHttp {
     amount: u64,
@@ -125,7 +107,6 @@ struct BlindSignatureHttp {
 }
 
 /// Cashu NUT-04: Mint quote request
-#[cfg(feature = "rest")]
 #[derive(Deserialize)]
 struct MintQuoteRequest {
     unit: String,
@@ -135,7 +116,6 @@ struct MintQuoteRequest {
 }
 
 /// Cashu NUT-04: Mint quote response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct MintQuoteResponse {
     quote: String,
@@ -145,7 +125,6 @@ struct MintQuoteResponse {
 }
 
 /// Cashu NUT-04: Mint request
-#[cfg(feature = "rest")]
 #[derive(Deserialize, Debug)]
 struct MintRequest {
     quote: String,
@@ -153,14 +132,12 @@ struct MintRequest {
 }
 
 /// Cashu NUT-04: Mint response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct MintResponse {
     signatures: Vec<BlindSignatureHttp>,
 }
 
 /// Cashu NUT-05: Melt request
-#[cfg(feature = "rest")]
 #[derive(Deserialize, Debug)]
 struct MeltRequest {
     quote: String,
@@ -168,7 +145,6 @@ struct MeltRequest {
 }
 
 /// Cashu NUT-05: Melt response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct MeltResponse {
     quote: String,
@@ -181,7 +157,6 @@ struct MeltResponse {
 }
 
 /// Cashu NUT-06: Node info response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct NodeInfoResponse {
     // This will be the JSON string from the gRPC response
@@ -190,7 +165,6 @@ struct NodeInfoResponse {
 }
 
 /// Cashu NUT-07: Check state request
-#[cfg(feature = "rest")]
 #[derive(Deserialize)]
 struct CheckStateRequest {
     #[serde(rename = "Ys")]
@@ -198,13 +172,11 @@ struct CheckStateRequest {
 }
 
 /// Cashu NUT-07: Check state response
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct CheckStateResponse {
     states: Vec<ProofState>,
 }
 
-#[cfg(feature = "rest")]
 #[derive(Serialize)]
 struct ProofState {
     #[serde(rename = "Y")]
@@ -212,7 +184,6 @@ struct ProofState {
     state: String,
 }
 
-#[cfg(feature = "rest")]
 fn hash_swap_request_http(request: &SwapRequest) -> u64 {
     // For now, use a simple hash - we should match the gRPC implementation
     use std::collections::hash_map::DefaultHasher;
@@ -223,7 +194,6 @@ fn hash_swap_request_http(request: &SwapRequest) -> u64 {
     hasher.finish()
 }
 
-#[cfg(feature = "rest")]
 fn hash_mint_request_http(request: &MintRequest) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -233,7 +203,6 @@ fn hash_mint_request_http(request: &MintRequest) -> u64 {
     hasher.finish()
 }
 
-#[cfg(feature = "rest")]
 fn hash_melt_request_http(request: &MeltRequest) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -244,7 +213,6 @@ fn hash_melt_request_http(request: &MeltRequest) -> u64 {
 }
 
 /// Convert HTTP proof to internal Proof
-#[cfg(feature = "rest")]
 fn convert_proof_from_http(proof_http: ProofHttp) -> Result<Proof, String> {
     Ok(Proof {
         amount: Amount::from(proof_http.amount),
@@ -256,7 +224,6 @@ fn convert_proof_from_http(proof_http: ProofHttp) -> Result<Proof, String> {
 }
 
 /// Convert HTTP blinded message to internal BlindedMessage
-#[cfg(feature = "rest")]
 fn convert_blinded_message_from_http(
     bm_http: BlindedMessageHttp,
 ) -> Result<BlindedMessage, String> {
@@ -270,7 +237,6 @@ fn convert_blinded_message_from_http(
 }
 
 /// NUT-01: Get keysets
-#[cfg(feature = "rest")]
 async fn get_keysets(
     State(app_state): State<AppState>,
 ) -> Result<Json<GetKeysetsResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -304,7 +270,6 @@ async fn get_keysets(
 }
 
 /// NUT-01: Get keys
-#[cfg(feature = "rest")]
 async fn get_keys(
     State(app_state): State<AppState>,
     keyset_id: Option<Path<String>>,
@@ -377,7 +342,6 @@ async fn get_keys(
 }
 
 /// NUT-03: Swap tokens
-#[cfg(feature = "rest")]
 async fn swap(
     State(app_state): State<AppState>,
     Json(request): Json<SwapRequest>,
@@ -487,7 +451,6 @@ async fn swap(
     Ok(Json(swap_response))
 }
 
-#[cfg(feature = "rest")]
 pub fn create_router() -> Router<AppState> {
     Router::new()
         .route("/v1/keys", get(get_keys))
