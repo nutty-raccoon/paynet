@@ -39,9 +39,8 @@ fn map_invoice_contract_events(
                             abi::invoice_contract::events::Remittance::match_and_decode(log)
                         {
                             return Some(RemittanceEvent {
-                                evt_tx_hash: Hex(&view.transaction.hash).to_string(),
-                                evt_index: log.block_index,
-                                evt_block_number: blk.number,
+                                tx_hash: Hex(&view.transaction.hash).to_string(),
+                                event_index: log.block_index,
                                 amount: event.amount.to_string(),
                                 asset: event.asset,
                                 invoice_id: event.invoice_id.to_vec(),

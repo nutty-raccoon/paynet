@@ -1,4 +1,4 @@
-use crate::pb::{invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData};
+use crate::pb::invoice_contract::v1::RemittanceEvents;
 use anyhow::{Error, Result, anyhow, format_err};
 use db_node::PaymentEvent;
 use eth_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
@@ -19,15 +19,15 @@ use std::{
     env::{self, VarError},
     sync::Arc,
 };
-use substreams::SubstreamsEndpoint;
-use substreams_stream::{BlockResponse, SubstreamsStream};
+use substreams_lib::{
+    SubstreamsEndpoint, parse_inputs,
+    pb::sf::substreams::rpc::v2::BlockScopedData,
+    stream::{BlockResponse, SubstreamsStream},
+};
 use tracing::{Level, debug, error, event};
 
-mod parse_inputs;
 #[allow(clippy::enum_variant_names)]
 mod pb;
-mod substreams;
-mod substreams_stream;
 
 pub async fn launch(
     pg_pool: PgPool,
@@ -35,7 +35,8 @@ pub async fn launch(
     chain_id: ChainId,
     cashier_account_address: Address,
 ) -> Result<()> {
-    let package = parse_inputs::read_package(vec![])?;
+    let path = "../eth-invoice-substreams-v0.1.4.spkg";
+    let package = parse_inputs::read_package(path, vec![])?;
 
     let token = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,
@@ -242,8 +243,8 @@ async fn process_payment_event(
             if payee == cashier_account_address {
                 let db_event = PaymentEvent {
                     block_id: block_id.clone(),
-                    tx_hash: hex::encode(&payment_event.evt_tx_hash),
-                    index: i64::from(payment_event.evt_index),
+                    tx_hash: hex::encode(&payment_event.tx_hash),
+                    index: i64::from(payment_event.event_index),
                     asset: hex::encode(&payment_event.asset),
                     payee: hex::encode(&payment_event.payee),
                     invoice_id,
@@ -258,8 +259,8 @@ async fn process_payment_event(
             if payer == cashier_account_address {
                 let db_event = PaymentEvent {
                     block_id: block_id.clone(),
-                    tx_hash: hex::encode(&payment_event.evt_tx_hash),
-                    index: i64::from(payment_event.evt_index),
+                    tx_hash: hex::encode(&payment_event.tx_hash),
+                    index: i64::from(payment_event.event_index),
                     asset: hex::encode(&payment_event.asset),
                     payee: hex::encode(&payment_event.payee),
                     invoice_id,

@@ -1,3 +1,9 @@
+pub mod parse_inputs;
+pub mod stream;
+
+#[allow(clippy::enum_variant_names)]
+pub mod pb;
+
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use http::{Uri, uri::Scheme};

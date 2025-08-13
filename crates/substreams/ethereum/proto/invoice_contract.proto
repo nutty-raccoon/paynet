@@ -7,13 +7,12 @@ message RemittanceEvents {
 }
 
 message RemittanceEvent {
-    string evt_tx_hash = 1;
-    uint32 evt_index = 2;
-    uint64 evt_block_number = 3;
-    bytes asset = 4;
-    bytes payee = 5;
-    bytes invoice_id = 6;
-    string amount = 7;
-    bytes payer = 8;
+    string tx_hash = 1;
+    uint32 event_index = 2;
+    bytes asset = 3;
+    bytes payee = 4;
+    bytes invoice_id = 5;
+    string amount = 6;
+    bytes payer = 7;
 }
   

@@ -15,7 +15,7 @@ use crate::pb::sf::substreams::rpc::v2::{
 };
 use crate::pb::sf::substreams::v1::Modules;
 
-use crate::substreams::SubstreamsEndpoint;
+use crate::SubstreamsEndpoint;
 
 pub enum BlockResponse {
     New(BlockScopedData),

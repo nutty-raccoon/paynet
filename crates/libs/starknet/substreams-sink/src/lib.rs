@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::pb::{invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData};
+use crate::pb::invoice_contract::v1::RemittanceEvents;
 use anyhow::{Error, Result, anyhow, format_err};
 use db_node::PaymentEvent;
 use futures::StreamExt;
@@ -20,15 +20,15 @@ use sqlx::{
 };
 use starknet::core::types::Felt;
 use starknet_types::{ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
-use substreams::SubstreamsEndpoint;
-use substreams_stream::{BlockResponse, SubstreamsStream};
+use substreams_lib::{
+    SubstreamsEndpoint, parse_inputs,
+    pb::sf::substreams::rpc::v2::BlockScopedData,
+    stream::{BlockResponse, SubstreamsStream},
+};
 use tracing::{Level, debug, error, event};
 
-mod parse_inputs;
 #[allow(clippy::enum_variant_names)]
 mod pb;
-mod substreams;
-mod substreams_stream;
 
 pub async fn launch(
     pg_pool: PgPool,
@@ -36,7 +36,8 @@ pub async fn launch(
     chain_id: ChainId,
     cashier_account_address: Felt,
 ) -> Result<()> {
-    let package = parse_inputs::read_package(vec![])?;
+    let path = "../starknet-invoice-substream-v0.1.0.spkg";
+    let package = parse_inputs::read_package(path, vec![])?;
 
     let token = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,

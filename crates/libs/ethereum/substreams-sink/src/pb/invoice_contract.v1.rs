@@ -10,20 +10,18 @@ pub struct RemittanceEvents {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RemittanceEvent {
     #[prost(string, tag="1")]
-    pub evt_tx_hash: ::prost::alloc::string::String,
+    pub tx_hash: ::prost::alloc::string::String,
     #[prost(uint32, tag="2")]
-    pub evt_index: u32,
-    #[prost(uint64, tag="3")]
-    pub evt_block_number: u64,
-    #[prost(bytes="vec", tag="4")]
+    pub event_index: u32,
+    #[prost(bytes="vec", tag="3")]
     pub asset: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes="vec", tag="5")]
+    #[prost(bytes="vec", tag="4")]
     pub payee: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes="vec", tag="6")]
+    #[prost(bytes="vec", tag="5")]
     pub invoice_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(string, tag="7")]
+    #[prost(string, tag="6")]
     pub amount: ::prost::alloc::string::String,
-    #[prost(bytes="vec", tag="8")]
+    #[prost(bytes="vec", tag="7")]
     pub payer: ::prost::alloc::vec::Vec<u8>,
 }
 // @@protoc_insertion_point(module)
