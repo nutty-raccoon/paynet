@@ -1,0 +1,20 @@
+[package]
+name = "eth-on-chain-setup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ethers = { workspace = true }
+web3 = { workspace =  true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+anyhow = { workspace = true }
+url = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+hex = {workspace = true}
+ethabi = {workspace = true}
+# Local crate
+eth-types = { workspace = true }
