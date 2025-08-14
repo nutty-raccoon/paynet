@@ -646,6 +646,8 @@ jobs:
           STARKNET_CASHIER_PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 "
           STARKNET_RPC_NODE_URL: http://localhost:5050 
           STARKNET_SUBSTREAMS_URL: http://localhost:10016          
+          STARKNET_CHAIN_ID: SN_DEVNET
+          STARKNET_INDEXER_START_BLOCK: 0
         run: |
           # Starknet 
           ./target/release/node &
