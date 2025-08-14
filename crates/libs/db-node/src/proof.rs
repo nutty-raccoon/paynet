@@ -54,18 +54,17 @@ pub async fn get_already_spent_indices(
         )
         SELECT lookup.position FROM lookup
         LEFT JOIN proof ON proof.y = lookup.y
-        WHERE proof.state = ${}
+        WHERE proof.state = {}
         ORDER BY lookup.position;
         "#,
         placeholders,
-        ys.len() + 1
+        ProofState::Spent as i16,
     );
 
     let mut query = sqlx::query(&sql);
     for y in ys.iter() {
         query = query.bind(y.to_bytes());
     }
-    query = query.bind(ProofState::Spent as i16);
 
     let mut spent_indices = Vec::new();
     let rows = query.fetch_all(conn).await?;
