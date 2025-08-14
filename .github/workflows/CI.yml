@@ -549,7 +549,7 @@ jobs:
         with:
           sparse-checkout: |
             crates/bins/node/config/local.toml
-            docker-compose.ci-testnet.yml
+            docker-compose.ci-testnet-starknet.yml
             crates/substreams/starknet/firehose/firehose-starknet-fss.yaml
             crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml
           sparse-checkout-cone-mode: false
@@ -600,7 +600,7 @@ jobs:
 
       - name: Start testnet services
         run: |
-          docker compose -f docker-compose.ci-testnet.yml up -d
+          docker compose -f docker-compose.ci-testnet-starknet.yml up -d
 
       - name: Wait for testnet services to be healthy
         run: |
@@ -718,5 +718,5 @@ jobs:
             kill $(cat node.pid) || true
             rm node.pid
           fi
-          docker compose -f docker-compose.ci-testnet.yml down
+          docker compose -f docker-compose.ci-testnet-starknet.yml down
           docker system prune -f
