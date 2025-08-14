@@ -7,9 +7,11 @@ members = [
   "crates/bins/cli-wallet",
   # Substreams
   "crates/substreams/starknet",
+  "crates/substreams/ethereum",
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
+  "crates/bins/eth-on-chain-setup", 
   # Libs
   "crates/libs/node-client",
   "crates/libs/db-node",
@@ -21,6 +23,9 @@ members = [
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substreams-sink",
+  # Ethereum libs
+  "crates/libs/ethereum/substreams-sink",
+  "crates/libs/ethereum/types",
   # Tests
   "crates/tests/test-utils",
   # Integration tests
@@ -28,7 +33,7 @@ members = [
   "crates/tests/node-tests",
   # E2e tests
   "crates/tests/e2e-tests",
-  "crates/tests/concurrency-tests",
+  "crates/tests/concurrency-tests", 
 ]
 
 default-members = [
@@ -38,6 +43,7 @@ default-members = [
   "crates/bins/cli-wallet",
   # Substreams
   "crates/substreams/starknet",
+  "crates/substreams/ethereum",
   # Utils
   "crates/bins/gen-btc-xpriv",
   "crates/bins/starknet-on-chain-setup",
@@ -52,6 +58,9 @@ default-members = [
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
   "crates/libs/starknet/substreams-sink",
+  # Ethereum libs
+  "crates/libs/ethereum/substreams-sink",
+  "crates/libs/ethereum/types",
 ]
 
 
@@ -118,6 +127,11 @@ bytes = "1.10.1"
 uint = "0.10.0"
 substreams = "0.6.0"
 chrono = "0.4.38"
+ethers = { version = "2.0.2", default-features = false, features = ["abigen", "rustls"] }
+ethabi = "17"
+web3 = { version = "0.19", default-features = false }
+hex-literal = "0.3.4"
+substreams-ethereum = "0.10.2"
 
 # OPTL
 opentelemetry = "0.29.1"
@@ -147,7 +161,10 @@ node-client = { path = "crates/libs/node-client" }
 # Starknet
 starknet-types = { path = "crates/libs/starknet/types" }
 starknet-liquidity-source = { path = "crates/libs/starknet/liquidity-source" }
-substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
+starknet-substreams-sink = { path = "crates/libs/starknet/substreams-sink" }
+# Ethereum
+eth-types = { path = "crates/libs/ethereum/types" }
+eth-substreams-sink = { path = "crates/libs/ethereum/substreams-sink" }
 # Tracing
 open-telemetry-tracing = { path = "crates/libs/open-telemetry-tracing" }
 # Others

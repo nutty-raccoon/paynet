@@ -5,17 +5,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Interface defining the pay_invoice function
 interface IInvoicePayment {
-    function payInvoice(uint256 quoteIdHash, uint64 expiry, address asset, uint256 amount, address payee) external;
+    function payInvoice(bytes32 quoteIdHash, uint64 expiry, address asset, uint256 amount, address payee) external;
 }
 
 contract InvoicePayment is IInvoicePayment {
     // Event emitted when a payment is made for an invoice
     event Remittance(
-        address indexed asset, address indexed payee, uint256 invoiceId, uint256 amount, address indexed payer
+        address indexed asset, address indexed payee, bytes32 invoiceId, uint256 amount, address indexed payer
     );
 
     // Pay an invoice by transferring ERC20 tokens from payer to payee
-    function payInvoice(uint256 quoteIdHash, uint64 expiry, address asset, uint256 amount, address payee) external {
+    function payInvoice(bytes32 quoteIdHash, uint64 expiry, address asset, uint256 amount, address payee) external {
         address payer = msg.sender;
 
         IERC20 token = IERC20(asset);
@@ -23,7 +23,7 @@ contract InvoicePayment is IInvoicePayment {
         require(expiry >= block.timestamp, "Invoice expired");
 
         // Generate a unique invoice ID using the quoteIdHash, expiry, and a constant
-        uint256 invoiceId = uint256(keccak256(abi.encodePacked(quoteIdHash, expiry, uint256(2))));
+        bytes32 invoiceId = keccak256(abi.encodePacked(quoteIdHash, expiry, uint256(2)));
 
         require(token.transferFrom(payer, payee, amount), "Transfer failed");
 

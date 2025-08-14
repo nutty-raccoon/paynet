@@ -1,0 +1,76 @@
+services:
+  eth-devnet:
+    image: "ghcr.io/streamingfast/go-ethereum:geth-v1.16.1-fh3.0-2"
+    entrypoint: [geth]
+    command:
+      - --dev
+      - --dev.period=3
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.api=eth,net,web3,debug,admin
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --ws 
+      - --ws.addr=0.0.0.0 
+      - --ws.port=8546 
+      - --ws.api=web3,eth,net,admin,debug
+    ports:
+     - "8545:8545"
+     - "8546:8546" 
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8545"]
+      start_period: 1s
+      interval: 5s
+      timeout: 15s
+      retries: 5
+
+  eth-firehose:
+    image: eth-firehose
+    build:
+      context: .
+      dockerfile: ./dockerfiles/ethereum-firehose.Dockerfile
+    ports:
+      - "10015:10015"
+      - "10016:10016"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  # explorer:
+  #   image: "explorer"
+  #   restart: always
+  #   ports:
+  #     - "3004:3004"
+  #   build:
+  #     context: .
+  #     dockerfile: ./dockerfiles/explorer.Dockerfile
+  #   environment:
+  #     # Use localhost here because it has to be the address from the browser POV, not from the server
+  #     - VITE_RPC_URL=http://localhost:8545
+  #     - VITE_IS_EMBEDDED=false
+  #     - VITE_CHAIN_ID=1337
+  #   depends_on:
+  #     eth-devnet:
+  #       condition: service_healthy
+
+  eth-setup:
+    image: "eth-setup"
+    build:
+      context: .
+      dockerfile: ./dockerfiles/ethereum-setup.Dockerfile
+    command:
+      - "--chain-id=1337"
+      - "--url=http://eth-devnet:8545"
+      - "--private-key=0xb71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291" #--dev private key
+    # This is a one shot service
+    restart: "no"
+    stdin_open: false
+    tty: false
+    depends_on:
+      eth-devnet:
+        condition: service_healthy
+        
+

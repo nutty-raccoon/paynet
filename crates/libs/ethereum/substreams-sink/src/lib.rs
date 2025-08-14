@@ -1,15 +1,12 @@
-use std::{
-    env::{self, VarError},
-    str::FromStr,
-    sync::Arc,
-};
-
 use crate::pb::{invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData};
 use anyhow::{Error, Result, anyhow, format_err};
 use db_node::PaymentEvent;
+use eth_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
+use ethers::types::Address;
 use futures::StreamExt;
 use http::Uri;
 use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
+use primitive_types::U256;
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,
@@ -18,11 +15,12 @@ use sqlx::{
         chrono::{DateTime, Utc},
     },
 };
-use starknet::core::types::Felt;
-use starknet_types::{ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
+use std::{
+    env::{self, VarError},
+    sync::Arc,
+};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
-
 use tracing::{Level, debug, error, event};
 
 mod parse_inputs;
@@ -35,7 +33,7 @@ pub async fn launch(
     pg_pool: PgPool,
     endpoint_url: Uri,
     chain_id: ChainId,
-    cashier_account_address: Felt,
+    cashier_account_address: Address,
 ) -> Result<()> {
     let package = parse_inputs::read_package(vec![])?;
 
@@ -101,7 +99,7 @@ async fn process_block_scoped_data(
     conn: &mut PgConnection,
     data: &BlockScopedData,
     chain_id: &ChainId,
-    cashier_account_address: Felt,
+    cashier_account_address: Address,
 ) -> Result<(), Error> {
     let output = data.output.as_ref().unwrap().map_output.as_ref().unwrap();
 
@@ -111,7 +109,7 @@ async fn process_block_scoped_data(
         .expect("received timestamp should always be valid");
 
     sqlx::query(r#"
-            INSERT INTO substreams_starknet_block (id, number, timestamp) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
+            INSERT INTO substreams_eth_block (id, number, timestamp) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
         "#)
         .bind(&clock.id)
             .bind(i64::try_from(clock.number).unwrap())
@@ -146,7 +144,7 @@ async fn delete_invalid_blocks(
 ) -> Result<(), anyhow::Error> {
     sqlx::query!(
         r#"
-            DELETE FROM substreams_starknet_block WHERE number > $1;
+            DELETE FROM substreams_eth_block WHERE number > $1;
         "#,
         i64::try_from(last_valid_block_number).unwrap()
     )
@@ -162,7 +160,7 @@ async fn persist_cursor(conn: &mut PgConnection, cursor: String) -> Result<(), a
             INSERT INTO substreams_cursor (name, cursor) VALUES ($1, $2)
             ON CONFLICT (name) DO UPDATE SET cursor = excluded.cursor
         "#,
-        "starknet",
+        "ethereum",
         cursor
     )
     .execute(conn)
@@ -176,7 +174,7 @@ async fn load_persisted_cursor(conn: &mut PgConnection) -> Result<Option<String>
         r#"
             SELECT cursor FROM substreams_cursor WHERE name = $1
         "#,
-        "starknet"
+        "ethereum"
     )
     .fetch_optional(conn)
     .await?;
@@ -188,29 +186,21 @@ async fn process_payment_event(
     remittance_events: RemittanceEvents,
     conn: &mut PgConnection,
     chain_id: &ChainId,
-    cashier_account_address: Felt,
+    cashier_account_address: Address,
     block_id: String,
 ) -> Result<(), Error> {
     for payment_event in remittance_events.events {
-        let invoice_id = Felt::from_bytes_be_slice(&payment_event.invoice_id);
+        let invoice_id: [u8; 32] = payment_event.invoice_id.as_slice().try_into()?;
         let (is_mint, quote_id, quote_amount, unit) = if let Some((quote_id, amount, unit)) =
-            db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(
-                conn,
-                &invoice_id.to_bytes_be(),
-            )
-            .await?
+            db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(conn, &invoice_id).await?
         {
             (true, quote_id, amount, unit)
         } else if let Some((quote_id, amount, unit)) =
-            db_node::melt_quote::get_quote_infos_by_invoice_id::<Unit>(
-                conn,
-                &invoice_id.to_bytes_be(),
-            )
-            .await?
+            db_node::melt_quote::get_quote_infos_by_invoice_id::<Unit>(conn, &invoice_id).await?
         {
             (false, quote_id, amount, unit)
         } else {
-            error!("no quote for invoice_id {:#x}", invoice_id);
+            error!("no quote for invoice_id  0x{}", hex::encode(invoice_id));
             continue;
         };
 
@@ -218,7 +208,7 @@ async fn process_payment_event(
             .get(chain_id.as_str())
             .ok_or(anyhow!("unkonwn chain id {}", chain_id))?;
 
-        let asset = Felt::from_bytes_be_slice(&payment_event.asset);
+        let asset = Address::from_slice(&payment_event.asset);
         let asset = match on_chain_constants
             .assets_contract_address
             .get_asset_for_contract_address(asset)
@@ -244,40 +234,38 @@ async fn process_payment_event(
             continue;
         }
 
+        let amount_u256 = U256::from_dec_str(&payment_event.amount).unwrap();
+
         #[allow(clippy::collapsible_else_if)]
         if is_mint {
-            let payee = Felt::from_bytes_be_slice(&payment_event.payee);
+            let payee = Address::from_slice(&payment_event.payee);
             if payee == cashier_account_address {
                 let db_event = PaymentEvent {
                     block_id: block_id.clone(),
-                    tx_hash: Felt::from_bytes_be_slice(&payment_event.tx_hash).to_hex_string(),
-                    index: i64::try_from(payment_event.event_index).unwrap(),
-                    asset: Felt::from_bytes_be_slice(&payment_event.asset).to_hex_string(),
-                    payee: Felt::from_bytes_be_slice(&payment_event.payee).to_hex_string(),
-                    invoice_id: Felt::from_bytes_be_slice(&payment_event.invoice_id).to_bytes_be(),
-                    payer: Felt::from_bytes_be_slice(&payment_event.payer).to_hex_string(),
-                    amount_low: Felt::from_bytes_be_slice(&payment_event.amount_low)
-                        .to_hex_string(),
-                    amount_high: Felt::from_bytes_be_slice(&payment_event.amount_high)
-                        .to_hex_string(),
+                    tx_hash: hex::encode(&payment_event.tx_hash),
+                    index: i64::from(payment_event.event_index),
+                    asset: hex::encode(&payment_event.asset),
+                    payee: hex::encode(&payment_event.payee),
+                    invoice_id,
+                    payer: hex::encode(&payment_event.payer),
+                    amount_low: hex::encode(amount_u256.to_little_endian()),
+                    amount_high: hex::encode(amount_u256.to_big_endian()),
                 };
                 handle_mint_payment(conn, quote_id, db_event, unit, quote_amount).await?;
             }
         } else {
-            let payer = Felt::from_bytes_be_slice(&payment_event.payer);
+            let payer = Address::from_slice(&payment_event.payer);
             if payer == cashier_account_address {
                 let db_event = PaymentEvent {
                     block_id: block_id.clone(),
-                    tx_hash: Felt::from_bytes_be_slice(&payment_event.tx_hash).to_hex_string(),
-                    index: i64::try_from(payment_event.event_index).unwrap(),
-                    asset: Felt::from_bytes_be_slice(&payment_event.asset).to_hex_string(),
-                    payee: Felt::from_bytes_be_slice(&payment_event.payee).to_hex_string(),
-                    invoice_id: Felt::from_bytes_be_slice(&payment_event.invoice_id).to_bytes_be(),
-                    payer: Felt::from_bytes_be_slice(&payment_event.payer).to_hex_string(),
-                    amount_low: Felt::from_bytes_be_slice(&payment_event.amount_low)
-                        .to_hex_string(),
-                    amount_high: Felt::from_bytes_be_slice(&payment_event.amount_high)
-                        .to_hex_string(),
+                    tx_hash: hex::encode(&payment_event.tx_hash),
+                    index: i64::from(payment_event.event_index),
+                    asset: hex::encode(&payment_event.asset),
+                    payee: hex::encode(&payment_event.payee),
+                    invoice_id,
+                    payer: hex::encode(&payment_event.payer),
+                    amount_low: hex::encode(amount_u256.to_little_endian()),
+                    amount_high: hex::encode(amount_u256.to_big_endian()),
                 };
                 handle_melt_payment(conn, quote_id, db_event, unit, quote_amount).await?;
             }
@@ -287,8 +275,6 @@ async fn process_payment_event(
     Ok(())
 }
 
-// Yeah I know it's basically the same code copied and pasted.
-// For now it's fine, better this than adding trait and struct and so on.
 async fn handle_mint_payment(
     db_conn: &mut PgConnection,
     quote_id: Uuid,
@@ -301,21 +287,26 @@ async fn handle_mint_payment(
     let current_paid =
         db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
             .await?
-            .map(|(low, high)| -> Result<primitive_types::U256, Error> {
-                let amount_as_strk_256 = StarknetU256 {
-                    low: Felt::from_str(&low)?,
-                    high: Felt::from_str(&high)?,
-                };
+            .map(|(low_hex, high_hex)| -> Result<U256, Error> {
+                let low_bytes = hex::decode(low_hex)?;
+                let high_bytes = hex::decode(high_hex)?;
 
-                Ok(primitive_types::U256::from(amount_as_strk_256))
+                let from_low = U256::from_little_endian(&low_bytes);
+                let from_high = U256::from_big_endian(&high_bytes);
+
+                if from_low != from_high {
+                    return Err(anyhow!(
+                        "Mismatch between low-endian and high-endian decoded U256 values"
+                    ));
+                }
+
+                Ok(from_low)
             })
-            .try_fold(primitive_types::U256::zero(), |acc, a| {
-                match a {
-        Ok(v) => v.checked_add(acc).ok_or(anyhow!(
-            "u256 value overflowed during the computation of the total amount paid for invoice"
-        )),
-        Err(e) => Err(e),
-    }
+            .try_fold(U256::zero(), |acc, res| match res {
+                Ok(val) => val
+                    .checked_add(acc)
+                    .ok_or_else(|| anyhow!("U256 overflow while summing total paid amount")),
+                Err(err) => Err(err),
             })?;
 
     let to_pay = unit.convert_amount_into_u256(quote_amount);
@@ -339,34 +330,40 @@ async fn handle_melt_payment(
     unit: Unit,
     quote_amount: Amount,
 ) -> Result<(), Error> {
-    db_node::melt_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-    let current_paid =
-        db_node::melt_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
-            .await?
-            .map(|(low, high)| -> Result<primitive_types::U256, Error> {
-                let amount_as_strk_256 = StarknetU256 {
-                    low: Felt::from_str(&low)?,
-                    high: Felt::from_str(&high)?,
-                };
+    db_node::mint_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
 
-                Ok(primitive_types::U256::from(amount_as_strk_256))
+    let current_paid =
+        db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
+            .await?
+            .map(|(low_hex, high_hex)| -> Result<U256, Error> {
+                let low_bytes = hex::decode(low_hex)?;
+                let high_bytes = hex::decode(high_hex)?;
+
+                let from_low = U256::from_little_endian(&low_bytes);
+                let from_high = U256::from_big_endian(&high_bytes);
+
+                if from_low != from_high {
+                    return Err(anyhow!(
+                        "Mismatch between low-endian and high-endian decoded U256 values"
+                    ));
+                }
+
+                Ok(from_low)
             })
-            .try_fold(primitive_types::U256::zero(), |acc, a| {
-                match a {
-        Ok(v) => v.checked_add(acc).ok_or(anyhow!(
-            "u256 value overflowed during the computation of the total amount paid for invoice"
-        )),
-                Err(e) => Err(e),
-            }
+            .try_fold(U256::zero(), |acc, res| match res {
+                Ok(val) => val
+                    .checked_add(acc)
+                    .ok_or_else(|| anyhow!("U256 overflow while summing total paid amount")),
+                Err(err) => Err(err),
             })?;
 
     let to_pay = unit.convert_amount_into_u256(quote_amount);
     if current_paid >= to_pay {
         db_node::melt_quote::set_state(db_conn, quote_id, MeltQuoteState::Paid).await?;
         event!(
-            name: "melt-quote-paid",
+            name: "mint-quote-paid",
             Level::INFO,
-            name = "melt-quote-paid",
+            name = "mint-quote-paid",
             %quote_id,
         );
     }

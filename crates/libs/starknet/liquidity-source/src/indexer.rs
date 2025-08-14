@@ -36,7 +36,7 @@ pub async fn init_indexer_task(
     tokio::spawn(async move {
         select! {
           indexer_res =
-          substreams_sink::launch(
+          starknet_substreams_sink::launch(
               pg_pool,
               substreams_endpoint,
               chain_id,
