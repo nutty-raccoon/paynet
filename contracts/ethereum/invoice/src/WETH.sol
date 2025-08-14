@@ -15,8 +15,13 @@ contract WETH9 {
     mapping(address => mapping(address => uint256)) public allowance;
 
     // Auto-wrap any ETH sent directly
-    receive() external payable { deposit(); }
-    fallback() external payable { deposit(); }
+    receive() external payable {
+        deposit();
+    }
+
+    fallback() external payable {
+        deposit();
+    }
 
     function deposit() public payable {
         balanceOf[msg.sender] += msg.value;
@@ -28,7 +33,7 @@ contract WETH9 {
         balanceOf[msg.sender] -= wad;
 
         // Use call over transfer to avoid 2300-gas stipend issues
-        (bool ok, ) = msg.sender.call{value: wad}("");
+        (bool ok,) = msg.sender.call{value: wad}("");
         require(ok, "ETH transfer failed");
 
         emit Withdrawal(msg.sender, wad);
