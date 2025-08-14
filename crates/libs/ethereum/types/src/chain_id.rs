@@ -6,7 +6,7 @@ use std::str::FromStr;
 const MAINNET: &str = "1";
 const SEPOLIA: &str = "11155111";
 const HOLESKY: &str = "17000";
-const DEVNET: &str = "31337";
+const DEVNET: &str = "1337";
 
 /// Represents an Ethereum network identifier.
 ///
@@ -20,7 +20,7 @@ pub enum ChainId {
     Sepolia,
     /// Ethereum Holesky testnet (chain ID = 17000)
     Holesky,
-    /// Local development network (chain ID = 31337)
+    /// Local development network (chain ID = 1337)
     Devnet,
     /// Custom chain identifier, represented as a string
     Custom(String),
@@ -42,7 +42,7 @@ impl ChainId {
             1 => ChainId::Mainnet,
             11155111 => ChainId::Sepolia,
             17000 => ChainId::Holesky,
-            31337 => ChainId::Devnet,
+            1337 => ChainId::Devnet,
             _ => ChainId::Custom(id.to_string()),
         }
     }
@@ -82,7 +82,7 @@ impl FromStr for ChainId {
             "1" | "mainnet" => Ok(ChainId::Mainnet),
             "11155111" | "sepolia" => Ok(ChainId::Sepolia),
             "17000" | "holesky" => Ok(ChainId::Holesky),
-            "31337" | "devnet" => Ok(ChainId::Devnet),
+            "1337" | "devnet" => Ok(ChainId::Devnet),
             _ => ChainId::new_custom(input),
         }
     }

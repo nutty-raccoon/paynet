@@ -88,21 +88,48 @@ async fn init_client(args: &AccountArgs) -> Result<EthClient, Error> {
 
 #[derive(Deserialize)]
 struct RawBytecode {
-    bytecode: String,
-}
-fn load_bytecode(path: &PathBuf) -> Result<Bytes, Error> {
-    let content = std::fs::read_to_string(path)?;
-    let maybe_json = serde_json::from_str::<RawBytecode>(&content);
-    let hex = match maybe_json {
-        Ok(obj) => obj.bytecode,
-        Err(_) => content.trim().to_string(),
-    };
-    Ok(hex.strip_prefix("0x").unwrap_or(&hex).parse()?)
+    object: String,
 }
 
-fn load_abi(path: &PathBuf) -> Result<Abi, Error> {
-    let f = std::fs::File::open(path)?;
-    Ok(serde_json::from_reader(f)?)
+#[derive(Deserialize)]
+struct Artifact {
+    abi: Abi,
+    #[serde(default)]
+    bytecode: Option<RawBytecode>,
+}
+
+pub fn load_bytecode(path: &PathBuf) -> Result<Bytes, Error> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("read bytecode file: {}", path.display()))?;
+
+    if let Ok(raw) = serde_json::from_str::<RawBytecode>(&content) {
+        let hex = raw.object;
+        return Ok(hex.strip_prefix("0x").unwrap_or(&hex).parse()?);
+    }
+
+    if let Ok(art) = serde_json::from_str::<Artifact>(&content) {
+        if let Some(bc) = art.bytecode {
+            let hex = bc.object;
+            return Ok(hex.strip_prefix("0x").unwrap_or(&hex).parse()?);
+        }
+        return Err(anyhow!("artifact missing bytecode.object"));
+    }
+
+    let hex = content.trim();
+    Ok(hex.strip_prefix("0x").unwrap_or(hex).parse()?)
+}
+
+pub fn load_abi(path: &PathBuf) -> Result<Abi, Error> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("read ABI file: {}", path.display()))?;
+
+    if let Ok(abi) = serde_json::from_str::<Abi>(&content) {
+        return Ok(abi);
+    }
+
+    let art: Artifact =
+        serde_json::from_str(&content).with_context(|| "parse artifact with { abi, bytecode }")?;
+    Ok(art.abi)
 }
 
 #[tokio::main]
@@ -143,7 +170,7 @@ async fn pay(client: &EthClient, cmd: PayInvoiceCommand) -> Result<(), Error> {
     let tx = TransactionRequest::new()
         .to(to)
         .data(data)
-        .value(U256::zero()); // set if your contract needs native ETH
+        .value(U256::zero());
 
     let pending = client
         .send_transaction(tx, None)

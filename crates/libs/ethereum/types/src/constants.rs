@@ -82,7 +82,7 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
         invoice_payment_contract_address: "0x0000000000000000000000000000000000000000",
         assets_contract_address: HOLESKY_ASSETS_ADDRESSES,
     },
-    "31337" => OnChainConstants {
+    "1337" => OnChainConstants {
         substreams: SubstreamsConstants { starting_block: 0 },
         invoice_payment_contract_address: "0x0000000000000000000000000000000000000000",
         assets_contract_address: DEVNET_ASSETS_ADDRESSES,

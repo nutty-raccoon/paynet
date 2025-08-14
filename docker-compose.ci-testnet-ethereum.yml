@@ -1,0 +1,19 @@
+services:
+  eth-devnet:
+    image: "ghcr.io/streamingfast/go-ethereum:geth-v1.16.1-fh3.0-2"
+    entrypoint: [geth]
+    command:
+      - --dev
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.api=eth,net,web3,debug
+      - --http.corsdomain=*
+      - --http.vhosts=*
+    ports:
+     - "8545:8545"
+    restart: always
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://localhost:8545"]
+      start_period: 1s
+      interval: 3s
+      retries: 3

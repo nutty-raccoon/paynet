@@ -19,7 +19,6 @@ members = [
   "crates/libs/wallet",
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
-  "crates/libs/substreams-lib",
   # Starknet libs
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
@@ -55,7 +54,6 @@ default-members = [
   "crates/libs/wallet",
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
-  "crates/libs/substreams-lib",
   # Starknet libs
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
@@ -175,4 +173,3 @@ db-node = { path = "crates/libs/db-node" }
 wallet = { path = "crates/libs/wallet" }
 liquidity-source = { path = "crates/libs/liquidity-source" }
 test-utils = { path = "crates/tests/test-utils" }
-substreams-lib = {path = "crates/libs/substreams-lib"}

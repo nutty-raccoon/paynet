@@ -1,0 +1,16 @@
+start:
+  args:
+  - merger
+  - firehose
+  - reader-node
+  - relayer
+  - index-builder
+  flags:
+    log-to-file: true
+    common-first-streamable-block: 0
+    merger-time-between-store-pruning: 1s
+    reader-node-arguments:
+      --dev
+      --http
+      --http.addr=0.0.0.0
+      --http.api eth,web3,net
