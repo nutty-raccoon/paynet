@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GNU
-pragma solidity ^0.4.18;
+pragma solidity ^0.8.13;
 
 contract WETH9 {
     string public name = "Wrapped Ether";
@@ -14,9 +14,9 @@ contract WETH9 {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
-    function() public payable {
-        deposit();
-    }
+    // Auto-wrap any ETH sent directly
+    receive() external payable { deposit(); }
+    fallback() external payable { deposit(); }
 
     function deposit() public payable {
         balanceOf[msg.sender] += msg.value;
@@ -24,9 +24,13 @@ contract WETH9 {
     }
 
     function withdraw(uint256 wad) public {
-        require(balanceOf[msg.sender] >= wad);
+        require(balanceOf[msg.sender] >= wad, "insufficient balance");
         balanceOf[msg.sender] -= wad;
-        msg.sender.transfer(wad);
+
+        // Use call over transfer to avoid 2300-gas stipend issues
+        (bool ok, ) = msg.sender.call{value: wad}("");
+        require(ok, "ETH transfer failed");
+
         emit Withdrawal(msg.sender, wad);
     }
 
@@ -45,10 +49,10 @@ contract WETH9 {
     }
 
     function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
-        require(balanceOf[src] >= wad);
+        require(balanceOf[src] >= wad, "insufficient balance");
 
-        if (src != msg.sender && allowance[src][msg.sender] != uint256(-1)) {
-            require(allowance[src][msg.sender] >= wad);
+        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
+            require(allowance[src][msg.sender] >= wad, "allowance exceeded");
             allowance[src][msg.sender] -= wad;
         }
 
@@ -56,7 +60,6 @@ contract WETH9 {
         balanceOf[dst] += wad;
 
         emit Transfer(src, dst, wad);
-
         return true;
     }
 }
