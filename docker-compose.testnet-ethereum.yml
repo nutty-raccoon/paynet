@@ -4,19 +4,26 @@ services:
     entrypoint: [geth]
     command:
       - --dev
+      - --dev.period=3
       - --http
       - --http.addr=0.0.0.0
-      - --http.api=eth,net,web3,debug
+      - --http.api=eth,net,web3,debug,admin
       - --http.corsdomain=*
       - --http.vhosts=*
+      - --ws 
+      - --ws.addr=0.0.0.0 
+      - --ws.port=8546 
+      - --ws.api=web3,eth,net,admin,debug
     ports:
      - "8545:8545"
+     - "8546:8546" 
     restart: always
     healthcheck:
-      test: ["CMD", "cast", "block-number", "--rpc-url", "http://localhost:8545"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8545"]
       start_period: 1s
-      interval: 3s
-      retries: 3
+      interval: 5s
+      timeout: 15s
+      retries: 5
 
   eth-firehose:
     image: eth-firehose

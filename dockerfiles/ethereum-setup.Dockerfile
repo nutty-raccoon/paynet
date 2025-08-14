@@ -31,11 +31,13 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Set up architecture detection
 WORKDIR /tools
-RUN curl -s -L https://github.com/foundry-rs/foundry/releases/download/v1.3.0/foundry_v1.3.0_linux_amd64.tar.gz | tar xz -C /tools/
+RUN wget -q https://github.com/foundry-rs/foundry/releases/download/v1.3.1/foundry_v1.3.1_linux_amd64.tar.gz \
+    && tar -xzf foundry_v1.3.1_linux_amd64.tar.gz -C /tools \
+    && rm foundry_v1.3.1_linux_amd64.tar.gz
 
 COPY ./contracts/ethereum/ /contracts/ethereum/
 WORKDIR /contracts/ethereum/invoice
-RUN /tools/foundry_v1.3.0_linux_amd64/forge build
+RUN /tools/forge build
 
 # ----------------
 

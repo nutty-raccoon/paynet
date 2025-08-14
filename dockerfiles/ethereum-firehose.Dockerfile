@@ -1,10 +1,13 @@
-FROM ghcr.io/streamingfast/firehose-ethereum:8191665
+# Use the Firehose Ethereum image
+FROM ghcr.io/streamingfast/firehose-ethereum:e120c71-geth-v1.16.1-fh3.0-2
 
-# ENV ETHEREUM_NODE_URL=http://host.docker.internal:8545
-ENV READER_NODE_ARGUMENTS="--dev --http --http.addr=0.0.0.0 --http.api eth,web3,net" 
-
+# Expose the gRPC ports
+EXPOSE 10015
 EXPOSE 10016
 
-ENTRYPOINT [ "/bin/sh", "-c" ]
-
-CMD ["/app/fireeth start reader-node merger relayer --config-file='' --reader-node-path=/app/fireeth --common-first-streamable-block=0 --reader-node-arguments=\"${READER_NODE_ARGUMENTS}\" & wait"]
+# Start firehose with Substreams enabled
+CMD ["start", \
+     "--config-file=", \
+     "firehose", "relayer", "merger", \
+     "--substreams-rpc-endpoints=http://host.docker.internal:8545", \
+     "--common-first-streamable-block=0"]
