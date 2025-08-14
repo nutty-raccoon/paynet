@@ -620,7 +620,7 @@ jobs:
       - name: Start firehose
         run: |
            wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
-           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.0.0/firehose-starknet_linux_x86_64.tar.gz
+           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.1.1/firehose-starknet_linux_x86_64.tar.gz
 
            tar -xzf firehose-core_linux_x86_64.tar.gz
            tar -xzf firehose-starknet_linux_x86_64.tar.gz

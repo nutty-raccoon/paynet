@@ -5,4 +5,4 @@ start:
   - substreams-tier2
   flags:
     common-first-streamable-block: 0
-    advertise-chain-name: starknet-devnet
+    advertise-chain-name: devnet
