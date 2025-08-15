@@ -63,7 +63,11 @@ fn build_ys_placeholder_string_for_in_statement(len: usize) -> String {
     placeholders
 }
 
-pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofState) -> Result<()> {
+pub fn set_proofs_to_state(
+    conn: &Connection,
+    ys: &[PublicKey],
+    state: ProofState,
+) -> Result<usize> {
     let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
 
     // Prepare the statement with dynamic placeholders
@@ -77,8 +81,8 @@ pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofStat
         stmt.raw_bind_parameter(i + 2, y)?;
     }
 
-    stmt.raw_execute()?;
-    Ok(())
+    let rows_affected = stmt.raw_execute()?;
+    Ok(rows_affected)
 }
 
 /// Return the proofs data related to the ids
