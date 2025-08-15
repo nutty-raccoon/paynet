@@ -24,7 +24,11 @@ nuts = { workspace = true, features = ["nut9", "nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
-sqlx = { workspace = true, features = ["postgres", "uuid", "tls-native-tls"], default-features = false }
+sqlx = { workspace = true, features = [
+    "postgres",
+    "uuid",
+    "tls-native-tls",
+], default-features = false }
 rusqlite = { workspace = true }
 starknet-types-core = { workspace = true }
 bitcoin_hashes = { workspace = true }
@@ -36,6 +40,7 @@ dashmap = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
+tonic-types = { workspace = true }
 
 # OPTL
 tracing = { workspace = true }
@@ -45,7 +50,7 @@ opentelemetry = { workspace = true }
 
 # tls optional
 openssl = { workspace = true, optional = true }
-tonic-tls= { workspace = true, features = ["openssl"], optional = true }
+tonic-tls = { workspace = true, features = ["openssl"], optional = true }
 
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }

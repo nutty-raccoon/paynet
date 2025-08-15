@@ -2411,6 +2411,7 @@ dependencies = [
  "tonic-build",
  "tonic-health",
  "tonic-tls",
+ "tonic-types",
  "tower 0.5.2",
  "tower-otel",
  "tracing",
@@ -5462,6 +5463,7 @@ dependencies = [
  "tokio",
  "tonic 0.13.1",
  "tonic-tls",
+ "tonic-types",
  "url",
  "uuid 1.17.0",
 ]

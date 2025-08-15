@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use e2e_tests::{db_connection, read_env_variables};
-use test_utils::e2e::starknet::wallet_ops::WalletOps;
+use test_utils::e2e::starknet::wallet_ops::{WalletOps, recieve_already_spent_wad};
 use wallet::types::NodeUrl;
 
 #[tokio::test]
@@ -42,6 +42,9 @@ pub async fn run_e2e() -> Result<()> {
         assert_eq!(record.status, wallet::db::wad::WadStatus::Finished);
         assert_eq!(record.node_url, node_url.to_string());
     }
+
+    recieve_already_spent_wad(&mut wallet_ops, &wad).await?;
+
     // Melt
     wallet_ops
         .melt(
