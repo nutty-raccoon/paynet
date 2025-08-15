@@ -353,10 +353,8 @@ async fn main() -> Result<()> {
 
             #[cfg(debug_assertions)]
             {
-                use urlencoding::encode;
-
                 let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
-                let encoded_payload = encode(&payload_json);
+                let encoded_payload = urlencoding::encode(&payload_json);
 
                 let url = format!(
                     "http://localhost:3005/deposit/{}/{}/?payload={}",
