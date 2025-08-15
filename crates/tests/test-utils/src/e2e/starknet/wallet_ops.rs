@@ -287,19 +287,23 @@ pub async fn recieve_already_spent_wad(
         wallet::types::ProofState::Unspent,
     )?;
 
-    assert_eq!(rows_affected, proof_ids.len());
+    println!("{rows_affected}");
+    assert_eq!(rows_affected, wad.proofs().len());
 
-    if (wallet_ops.receive(wad).await).is_err() {
-        let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
-        for proof in proofs_state {
-            assert_eq!(
-                proof,
-                wallet::types::ProofState::Spent,
-                "Proof State should be set to `Spent`"
-            );
+    match wallet_ops.receive(wad).await {
+        Err(e) => {
+            eprintln!("Recieve Error: {e:?}");
+            let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
+            for (index, proof) in proofs_state.iter().enumerate() {
+                println!("Proof {}: {:?}", index, proof);
+                assert_eq!(
+                    *proof,
+                    wallet::types::ProofState::Spent,
+                    "Proof State should be set to `Spent`"
+                );
+            }
+            Ok(())
         }
-        Ok(())
-    } else {
-        panic!("Double spend should have failed")
+        Ok(_) => panic!("Double spend should have failed"),
     }
 }
