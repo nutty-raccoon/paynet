@@ -276,12 +276,18 @@ pub async fn recieve_already_spent_wad(
     wad: &CompactWad<Unit>,
 ) -> Result<()> {
     let db_conn = wallet_ops.db_pool.get()?;
-    let proof_ids = wad.proofs().iter().map(|p| p.c).collect::<Vec<PublicKey>>();
-    wallet::db::proof::set_proofs_to_state(
+    let proof_ids = wad
+        .proofs()
+        .iter()
+        .map(|p| p.y().unwrap())
+        .collect::<Vec<PublicKey>>();
+    let rows_affected = wallet::db::proof::set_proofs_to_state(
         &db_conn,
         &proof_ids,
         wallet::types::ProofState::Unspent,
     )?;
+
+    assert_eq!(rows_affected, proof_ids.len());
 
     if (wallet_ops.receive(wad).await).is_err() {
         let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
