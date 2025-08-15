@@ -98,12 +98,7 @@ All Dockerfiles for this repository are stored in `./dockerfiles`.
 
    ```bash
    docker run -p 3007:3007 \
-     --env COIN_DEMO_GECKO_API_KEY=your_demo_api_key \
-     --env COIN_PRO_GECK_API_KEY=your_pro_api_key \
-     --env PORT=3007 \
-     --env HOST=0.0.0.0 \
-     --env CURRENCIES='["usd","eur"]' \
-     --env TOKENS='[{"symbol":"eth","chain":"ethereum","address":"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"},{"symbol":"strk","chain":"ethereum","address":"0xca14007eff0db1f8135f4c25b34de49ab0d42766"}]' \
+     --env-file ./infra/price-provider/.env.local\
      price-provider
    ```
 

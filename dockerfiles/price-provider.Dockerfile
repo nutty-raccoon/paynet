@@ -10,7 +10,7 @@ RUN bun install --frozen-lockfile
 
 COPY infra/price-provider/ .
 
-EXPOSE 3000
+EXPOSE 3007
 
 HEALTHCHECK --interval=3s --timeout=10s --start-period=20s --retries=5 \
     CMD curl -f http://0.0.0.0:3000/health || exit 1
