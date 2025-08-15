@@ -1,7 +1,7 @@
 use nuts::nut01::PublicKey;
 use tonic::Status;
 
-use crate::grpc_service::GrpcState;
+use crate::app_state::AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -24,7 +24,7 @@ impl From<Error> for Status {
     }
 }
 
-impl GrpcState {
+impl AppState {
     pub async fn inner_check_state(
         &self,
         ys: Vec<PublicKey>,

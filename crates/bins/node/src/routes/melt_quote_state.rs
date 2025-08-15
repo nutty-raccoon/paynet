@@ -3,7 +3,7 @@ use starknet_types::Unit;
 use tonic::Status;
 use uuid::Uuid;
 
-use crate::{grpc_service::GrpcState, methods::Method};
+use crate::{app_state::AppState, methods::Method};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,7 +19,7 @@ impl From<Error> for Status {
     }
 }
 
-impl GrpcState {
+impl AppState {
     pub async fn inner_melt_quote_state(
         &self,
         method: Method,

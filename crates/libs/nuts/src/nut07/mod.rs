@@ -1,7 +1,9 @@
 //! NUT-07: Token state check
 
+use serde::{Deserialize, Serialize};
+
 use crate::nut01::PublicKey;
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProofState {
     Unspecified,
     Unspent,
@@ -38,11 +40,13 @@ impl From<ProofState> for i32 {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ProofCheckState {
     pub y: PublicKey,
     pub state: ProofState,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CheckStateResponse {
     pub proof_check_states: Vec<ProofCheckState>,
 }

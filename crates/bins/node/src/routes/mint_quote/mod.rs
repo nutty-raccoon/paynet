@@ -1,4 +1,4 @@
-use crate::grpc_service::GrpcState;
+use crate::app_state::AppState;
 use liquidity_source::{DepositInterface, LiquiditySource};
 use nuts::{
     Amount,
@@ -59,7 +59,7 @@ impl From<Error> for Status {
     }
 }
 
-impl GrpcState {
+impl AppState {
     pub async fn inner_mint_quote(
         &self,
         method: Method,

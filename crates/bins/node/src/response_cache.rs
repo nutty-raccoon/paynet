@@ -5,7 +5,7 @@ use std::{
 
 use crate::errors;
 use dashmap::DashMap;
-use node::{MeltResponse, MintResponse, SwapResponse};
+use nuts::{nut03::SwapResponse, nut04::MintResponse, nut05::MeltResponse};
 
 /// A trait that defines a cache for storing and retrieving responses.
 pub trait ResponseCache<K, V> {

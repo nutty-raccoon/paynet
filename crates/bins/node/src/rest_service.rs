@@ -5,29 +5,32 @@ use axum::{
     response::Json,
     routing::{get, post},
 };
-
-use serde::{Deserialize, Serialize};
-
 use nuts::{
     Amount,
-    nut00::{BlindedMessage, Proof, secret::Secret},
+    nut00::{BlindSignature, BlindedMessage, Proof, Proofs, secret::Secret},
     nut01::PublicKey,
     nut02::KeysetId,
+    nut03::{SwapRequest, SwapResponse},
+    nut04::{MintQuoteRequest, MintQuoteState, MintRequest, MintResponse},
+    nut05::{MeltQuoteState, MeltResponse},
+    nut06::{ContactInfo, NodeInfo, NodeVersion},
+    nut07::{CheckStateResponse, ProofCheckState},
     nut19::Route,
 };
-
-use std::str::FromStr;
-
+use rusqlite::ToSql;
+use serde::{Deserialize, Serialize};
+use signer::GetRootPubKeyRequest;
+use starknet_types::Unit;
+use std::{fmt::Debug, str::FromStr};
+use tonic::{Request, Status};
 use uuid::Uuid;
 
-use crate::{app_state::AppState, response_cache::CachedResponse};
-
-use node::{
-    BlindSignature as GrpcBlindSignature, KeysetKeys as GrpcKeysetKeys,
-    SwapResponse as GrpcSwapResponse,
+use crate::{
+    app_state::{AppState, KeysetKeys},
+    methods::Method,
+    response_cache::CachedResponse,
+    rest_service,
 };
-
-use starknet_types::Unit;
 
 /// HTTP error response
 #[derive(Serialize)]
@@ -38,11 +41,11 @@ struct ErrorResponse {
 /// Cashu NUT-01: Get keysets
 #[derive(Serialize)]
 struct GetKeysetsResponse {
-    keysets: Vec<KeysetInfo>,
+    keysets: Vec<Keyset>,
 }
 
 #[derive(Serialize)]
-struct KeysetInfo {
+struct Keyset {
     id: String,
     unit: String,
     active: bool,
@@ -54,127 +57,11 @@ struct GetKeysResponse {
     keysets: Vec<KeysetKeys>,
 }
 
-#[derive(Serialize)]
-struct KeysetKeys {
-    id: String,
-    unit: String,
-    active: bool,
-    keys: std::collections::HashMap<u64, String>,
-}
-
-/// Cashu NUT-03: Swap request
-#[derive(Deserialize, Debug)]
-struct SwapRequest {
-    inputs: Vec<ProofHttp>,
-    outputs: Vec<BlindedMessageHttp>,
-}
-
-/// Cashu NUT-03: Swap response
-#[derive(Serialize)]
-struct SwapResponse {
-    signatures: Vec<BlindSignatureHttp>,
-}
-
-/// HTTP representation of Proof
-#[derive(Deserialize, Debug)]
-struct ProofHttp {
-    amount: u64,
-    #[serde(rename = "id")]
-    keyset_id: String,
-    secret: String,
-    #[serde(rename = "C")]
-    c: String,
-}
-
-/// HTTP representation of BlindedMessage
-#[derive(Deserialize, Debug)]
-struct BlindedMessageHttp {
-    amount: u64,
-    #[serde(rename = "id")]
-    keyset_id: String,
-    #[serde(rename = "B_")]
-    blinded_secret: String,
-}
-
-/// HTTP representation of BlindSignature
-#[derive(Serialize)]
-struct BlindSignatureHttp {
-    amount: u64,
-    #[serde(rename = "id")]
-    keyset_id: String,
-    #[serde(rename = "C_")]
-    c: String,
-}
-
-/// Cashu NUT-04: Mint quote request
-#[derive(Deserialize)]
-struct MintQuoteRequest {
-    unit: String,
-    amount: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-}
-
-/// Cashu NUT-04: Mint quote response
-#[derive(Serialize)]
-struct MintQuoteResponse {
-    quote: String,
-    request: String,
-    state: String,
-    expiry: u64,
-}
-
-/// Cashu NUT-04: Mint request
-#[derive(Deserialize, Debug)]
-struct MintRequest {
-    quote: String,
-    outputs: Vec<BlindedMessageHttp>,
-}
-
-/// Cashu NUT-04: Mint response
-#[derive(Serialize)]
-struct MintResponse {
-    signatures: Vec<BlindSignatureHttp>,
-}
-
-/// Cashu NUT-05: Melt request
-#[derive(Deserialize, Debug)]
-struct MeltRequest {
-    quote: String,
-    inputs: Vec<ProofHttp>,
-}
-
-/// Cashu NUT-05: Melt response
-#[derive(Serialize)]
-struct MeltResponse {
-    quote: String,
-    amount: u64,
-    fee: u64,
-    state: String,
-    expiry: u64,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    transfer_ids: Vec<String>,
-}
-
-/// Cashu NUT-06: Node info response
-#[derive(Serialize)]
-struct NodeInfoResponse {
-    // This will be the JSON string from the gRPC response
-    #[serde(flatten)]
-    info: serde_json::Value,
-}
-
 /// Cashu NUT-07: Check state request
-#[derive(Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CheckStateRequest {
     #[serde(rename = "Ys")]
     ys: Vec<String>,
-}
-
-/// Cashu NUT-07: Check state response
-#[derive(Serialize)]
-struct CheckStateResponse {
-    states: Vec<ProofState>,
 }
 
 #[derive(Serialize)]
@@ -194,7 +81,8 @@ fn hash_swap_request_http(request: &SwapRequest) -> u64 {
     hasher.finish()
 }
 
-fn hash_mint_request_http(request: &MintRequest) -> u64 {
+fn hash_mint_request_http(request: &RestMintRequest) -> u64 {
+    // For now, use a simple hash - we should match the gRPC implementation
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -203,7 +91,7 @@ fn hash_mint_request_http(request: &MintRequest) -> u64 {
     hasher.finish()
 }
 
-fn hash_melt_request_http(request: &MeltRequest) -> u64 {
+fn hash_melt_request_http(request: &RestMeltRequest) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -212,31 +100,7 @@ fn hash_melt_request_http(request: &MeltRequest) -> u64 {
     hasher.finish()
 }
 
-/// Convert HTTP proof to internal Proof
-fn convert_proof_from_http(proof_http: ProofHttp) -> Result<Proof, String> {
-    Ok(Proof {
-        amount: Amount::from(proof_http.amount),
-        keyset_id: KeysetId::from_str(&proof_http.keyset_id)
-            .map_err(|e| format!("Invalid keyset_id: {}", e))?,
-        secret: Secret::new(proof_http.secret).map_err(|e| format!("Invalid secret: {}", e))?,
-        c: PublicKey::from_str(&proof_http.c).map_err(|e| format!("Invalid signature: {}", e))?,
-    })
-}
-
-/// Convert HTTP blinded message to internal BlindedMessage
-fn convert_blinded_message_from_http(
-    bm_http: BlindedMessageHttp,
-) -> Result<BlindedMessage, String> {
-    Ok(BlindedMessage {
-        amount: Amount::from(bm_http.amount),
-        keyset_id: KeysetId::from_str(&bm_http.keyset_id)
-            .map_err(|e| format!("Invalid keyset_id: {}", e))?,
-        blinded_secret: PublicKey::from_str(&bm_http.blinded_secret)
-            .map_err(|e| format!("Invalid blinded_secret: {}", e))?,
-    })
-}
-
-/// NUT-01: Get keysets
+/// NUT-02: Get keysets
 async fn get_keysets(
     State(app_state): State<AppState>,
 ) -> Result<Json<GetKeysetsResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -259,7 +123,7 @@ async fn get_keysets(
                 }),
             )
         })?
-        .map(|(id, unit, active)| KeysetInfo {
+        .map(|(id, unit, active)| Keyset {
             id: hex::encode(id),
             unit,
             active,
@@ -270,9 +134,9 @@ async fn get_keysets(
 }
 
 /// NUT-01: Get keys
+/// /v1/keys
 async fn get_keys(
     State(app_state): State<AppState>,
-    keyset_id: Option<Path<String>>,
 ) -> Result<Json<GetKeysResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut db_conn = app_state.pg_pool.acquire().await.map_err(|e| {
         (
@@ -283,65 +147,61 @@ async fn get_keys(
         )
     })?;
 
-    let keysets = match keyset_id {
-        Some(Path(keyset_id_str)) => {
-            let keyset_id_bytes = hex::decode(&keyset_id_str).map_err(|e| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorResponse {
-                        error: format!("Invalid keyset_id: {}", e),
-                    }),
-                )
-            })?;
-            app_state
-                .inner_keys_for_keyset_id(&mut db_conn, keyset_id_bytes)
-                .await
-                .map_err(|e| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: e.to_string(),
-                        }),
-                    )
-                })?
-        }
-        None => app_state
-            .inner_keys_no_keyset_id(&mut db_conn)
-            .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: e.to_string(),
-                    }),
-                )
-            })?,
-    };
+    let keysets = app_state
+        .inner_keys_no_keyset_id(&mut db_conn)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
 
-    let response_keysets = keysets
-        .into_iter()
-        .map(|keyset| {
-            let keys = keyset
-                .keys
-                .into_iter()
-                .map(|key| (key.amount, key.pubkey))
-                .collect();
+    Ok(Json(GetKeysResponse { keysets }))
+}
 
-            KeysetKeys {
-                id: hex::encode(keyset.id),
-                unit: keyset.unit,
-                active: keyset.active,
-                keys,
-            }
-        })
-        .collect();
+/// NUT-01: Get keys
+/// /v1/:keyset_id
+async fn get_keys_by_id(
+    State(app_state): State<AppState>,
+    Path(keyset_id): Path<String>,
+) -> Result<Json<GetKeysResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let mut db_conn = app_state.pg_pool.acquire().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
 
-    Ok(Json(GetKeysResponse {
-        keysets: response_keysets,
-    }))
+    let keyset_id_bytes = hex::decode(&keyset_id).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!("Invalid keyset_id: {}", e),
+            }),
+        )
+    })?;
+    let keysets = app_state
+        .inner_keys_for_keyset_id(&mut db_conn, keyset_id_bytes)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    Ok(Json(GetKeysResponse { keysets }))
 }
 
 /// NUT-03: Swap tokens
+/// /v1/swap
 async fn swap(
     State(app_state): State<AppState>,
     Json(request): Json<SwapRequest>,
@@ -350,18 +210,7 @@ async fn swap(
 
     // Try to get from cache first
     if let Some(CachedResponse::Swap(swap_response)) = app_state.get_cached_response(&cache_key) {
-        let http_response = SwapResponse {
-            signatures: swap_response
-                .signatures
-                .into_iter()
-                .map(|sig| BlindSignatureHttp {
-                    amount: sig.amount,
-                    keyset_id: hex::encode(sig.keyset_id),
-                    c: hex::encode(sig.blind_signature),
-                })
-                .collect(),
-        };
-        return Ok(Json(http_response));
+        return Ok(Json(swap_response));
     }
 
     if request.inputs.len() > 64 {
@@ -398,19 +247,9 @@ async fn swap(
     }
 
     // Convert HTTP types to internal types
-    let inputs = request
-        .inputs
-        .into_iter()
-        .map(convert_proof_from_http)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e })))?;
+    let inputs = request.inputs;
 
-    let outputs = request
-        .outputs
-        .into_iter()
-        .map(convert_blinded_message_from_http)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e })))?;
+    let outputs = request.outputs;
 
     let promises = app_state.inner_swap(&inputs, &outputs).await.map_err(|e| {
         (
@@ -421,47 +260,490 @@ async fn swap(
         )
     })?;
 
-    let signatures = promises
-        .iter()
-        .map(|p| BlindSignatureHttp {
-            amount: p.amount.into(),
-            keyset_id: hex::encode(p.keyset_id.to_bytes()),
-            c: hex::encode(p.c.to_bytes()),
-        })
-        .collect();
-
-    let swap_response = SwapResponse { signatures };
-
-    // Store in cache (convert back to gRPC format for caching)
-    let grpc_response = GrpcSwapResponse {
-        signatures: promises
-            .iter()
-            .map(|p| GrpcBlindSignature {
-                amount: p.amount.into(),
-                keyset_id: p.keyset_id.to_bytes().to_vec(),
-                blind_signature: p.c.to_bytes().to_vec(),
-            })
-            .collect(),
+    let swap_response = SwapResponse {
+        signatures: promises,
     };
 
-    if let Err(e) = app_state.cache_response(cache_key, CachedResponse::Swap(grpc_response)) {
+    if let Err(e) = app_state.cache_response(cache_key, CachedResponse::Swap(swap_response.clone()))
+    {
         tracing::warn!("Failed to cache swap response: {}", e);
     }
 
     Ok(Json(swap_response))
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RestMintQuoteRequest {
+    pub amount: u64,
+    pub unit: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RestMintQuoteResponse {
+    pub quote: String,
+    pub request: String,
+    pub state: MintQuoteState,
+    pub expiry: u64,
+}
+
+/// NUT-04: Mint Tokens
+/// /v1/mint/quote
+async fn mint_quote(
+    State(app_state): State<AppState>,
+    Path(method): Path<String>,
+    Json(request): Json<RestMintQuoteRequest>,
+) -> Result<Json<RestMintQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let method = Method::from_str(&method).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let amount = Amount::from(request.amount);
+    let unit = Unit::from_str(&request.unit).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let response = app_state
+        .inner_mint_quote(method, amount, unit)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    let mint_quote_response = RestMintQuoteResponse {
+        quote: response.quote.to_string(),
+        request: response.request.clone(),
+        state: response.state,
+        expiry: response.expiry,
+    };
+
+    Ok(Json(mint_quote_response))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RestMintRequest {
+    pub quote: String,
+    pub outputs: Vec<BlindedMessage>,
+}
+
+async fn mint(
+    State(app_state): State<AppState>,
+    Path(method): Path<String>,
+    Json(request): Json<RestMintRequest>,
+) -> Result<Json<MintResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let cache_key = (Route::Mint, hash_mint_request_http(&request));
+    if let Some(CachedResponse::Mint(mint_response)) = app_state.get_cached_response(&cache_key) {
+        return Ok(Json(mint_response));
+    }
+    if request.outputs.len() > 64 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Too many outputs: maximum allowed is 64".to_string(),
+            }),
+        ));
+    }
+    if request.outputs.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Outputs cannot be empty".to_string(),
+            }),
+        ));
+    }
+    let method = Method::from_str(&method).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let quote_id = Uuid::from_str(&request.quote).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let signatures = app_state
+        .inner_mint(method, quote_id, &request.outputs)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    let mint_response = MintResponse {
+        signatures: signatures.clone(),
+    };
+    if let Err(e) = app_state.cache_response(cache_key, CachedResponse::Mint(mint_response.clone()))
+    {
+        tracing::warn!("Failed to cache mint response: {}", e);
+    }
+
+    Ok(Json(mint_response))
+}
+
+async fn mint_quote_state(
+    State(app_state): State<AppState>,
+    Path(method): Path<String>,
+    Path(quote_id): Path<String>,
+) -> Result<Json<RestMintQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let method = Method::from_str(&method).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let quote_id = Uuid::from_str(&quote_id).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let response = app_state
+        .inner_mint_quote_state(method, quote_id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    Ok(Json(RestMintQuoteResponse {
+        quote: response.quote.to_string(),
+        request: response.request,
+        state: response.state,
+        expiry: response.expiry,
+    }))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RestMeltQuoteRequest {
+    pub request: String,
+    pub unit: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RestMeltQuoteResponse {
+    pub quote: String,
+    pub amount: u64,
+    pub unit: String,
+    pub state: MeltQuoteState,
+    pub expiry: u64,
+    pub transfer_ids: Option<Vec<String>>,
+}
+
+async fn melt_quote(
+    State(app_state): State<AppState>,
+    Path(method): Path<String>,
+    Json(request): Json<RestMeltQuoteRequest>,
+) -> Result<Json<RestMeltQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let method = Method::from_str(&method).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let unit = Unit::from_str(&request.unit).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
+    let response = app_state
+        .inner_melt_quote(method, unit, request.request)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    Ok(Json(RestMeltQuoteResponse {
+        quote: response.quote.to_string(),
+        unit: response.unit.to_string(),
+        amount: response.amount.into(),
+        state: response.state.into(),
+        expiry: response.expiry,
+        transfer_ids: response.transfer_ids,
+    }))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RestMeltRequest {
+    pub quote: String,
+    pub inputs: Proofs,
+}
+
+async fn melt(
+    State(app_state): State<AppState>,
+    Path(method): Path<String>,
+    Json(request): Json<RestMeltRequest>,
+) -> Result<Json<MeltResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let cache_key = (Route::Melt, hash_melt_request_http(&request));
+    if let Some(CachedResponse::Melt(melt_response)) = app_state.get_cached_response(&cache_key) {
+        return Ok(Json(melt_response));
+    }
+
+    if request.inputs.len() > 64 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Too many inputs: maximum allowed is 64".to_string(),
+            }),
+        ));
+    }
+
+    if request.inputs.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Inputs cannot be empty".to_string(),
+            }),
+        ));
+    }
+
+    let method = Method::from_str(&method).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let quote_id = Uuid::from_str(&request.quote).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
+    let response = app_state
+        .inner_melt(method, quote_id, &request.inputs)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    app_state
+        .cache_response(cache_key, CachedResponse::Melt(response.clone()))
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(response))
+}
+
+async fn melt_quote_state(
+    State(app_state): State<AppState>,
+    Path(method): Path<String>,
+    Path(quote_id): Path<String>,
+) -> Result<Json<RestMeltQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let method = Method::from_str(&method).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let quote_id = Uuid::from_str(&quote_id).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
+    let response = app_state
+        .inner_melt_quote_state(method, quote_id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+
+    Ok(Json(RestMeltQuoteResponse {
+        quote: response.quote.to_string(),
+        unit: response.unit.to_string(),
+        amount: response.amount.into(),
+        state: response.state.into(),
+        expiry: response.expiry,
+        transfer_ids: response.transfer_ids,
+    }))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NodeInfoResponse {
+    pub info: String,
+}
+
+async fn info(
+    State(app_state): State<AppState>,
+) -> Result<Json<NodeInfoResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let nuts_config = {
+        let nuts_read_lock = app_state.nuts.read().await;
+        nuts_read_lock.clone()
+    };
+    let pub_key = app_state
+        .signer
+        .clone()
+        .get_root_pub_key(Request::new(GetRootPubKeyRequest {}))
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?
+        .into_inner()
+        .root_pubkey;
+    let node_info = NodeInfo {
+        name: Some("Paynet Test Node".to_string()),
+        pubkey: Some(
+            PublicKey::from_str(&pub_key)
+                .map_err(|e| Status::internal(e.to_string()))
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ErrorResponse {
+                            error: e.to_string(),
+                        }),
+                    )
+                })?,
+        ),
+        version: Some(NodeVersion {
+            name: "some_name".to_string(),
+            version: "0.0.0".to_string(),
+        }),
+        description: Some("A test node".to_string()),
+        description_long: Some("This is a longer description of the test node.".to_string()),
+        contact: Some(vec![ContactInfo {
+            method: "some_method".to_string(),
+            info: "some_info".to_string(),
+        }]),
+        nuts: nuts_config,
+        icon_url: Some("http://example.com/icon.png".to_string()),
+        urls: Some(vec!["http://example.com".to_string()]),
+        motd: Some("Welcome to the node!".to_string()),
+        time: Some(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs()),
+    };
+
+    let node_info_str = serde_json::to_string(&node_info)
+        .map_err(|e| Status::internal(e.to_string()))
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+    Ok(Json(NodeInfoResponse {
+        info: node_info_str,
+    }))
+}
+
+async fn checkstate(
+    State(app_state): State<AppState>,
+    Json(request): Json<CheckStateRequest>,
+) -> Result<Json<CheckStateResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let ys = request
+        .ys
+        .iter()
+        .map(|y| PublicKey::from_str(&y).map_err(|_| "Parse Error"))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?;
+    let proof_state = app_state
+        .inner_check_state(ys)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?
+        .proof_check_states;
+
+    Ok(Json(CheckStateResponse {
+        proof_check_states: proof_state,
+    }))
+}
+
 pub fn create_router() -> Router<AppState> {
     Router::new()
         .route("/v1/keys", get(get_keys))
-        .route(
-            "/v1/keys/:keyset_id",
-            get(
-                |State(app_state): State<AppState>, Path(keyset_id): Path<String>| async move {
-                    get_keys(State(app_state), Some(Path(keyset_id))).await
-                },
-            ),
-        )
+        .route("/v1/keys/:keyset_id", get(get_keys_by_id))
+        .route("/v1/keysets", get(get_keysets))
         .route("/v1/swap", post(swap))
-    // TODO: Add remaining endpoints for mint, melt, info, checkstate
+        .route("/v1/mint/quote/:method", post(mint_quote))
+        .route("/v1/mint/:method", post(mint))
+        .route("/v1/mint/quote/:method/:quote_id", get(mint_quote_state))
+        .route("/v1/melt/quote/:method", post(melt_quote))
+        .route("/v1/melt/:method", post(melt))
+        .route("/v1/melt/quote/:method/:quote_id", get(melt_quote_state))
+        .route("/v1/info", get(info))
+        .route("/v1/checkstate", post(checkstate))
 }

@@ -3,7 +3,7 @@ use axum::Router;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::{info, warn};
+use tracing::info;
 
 pub async fn launch_rest_server_task(
     app_state: AppState,
@@ -16,10 +16,7 @@ pub async fn launch_rest_server_task(
 
     info!("HTTP REST API server listening on {}", addr);
 
-    axum::serve(listener, app).await.map_err(|e| {
-        warn!("HTTP server error: {}", e);
-        e
-    })?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }

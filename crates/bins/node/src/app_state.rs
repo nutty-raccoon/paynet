@@ -1,6 +1,7 @@
 use std::sync::{Arc, atomic::AtomicU64};
 
 use nuts::{QuoteTTLConfig, nut06::NutsSettings};
+use serde::Serialize;
 use sqlx::PgPool;
 use starknet_types::Unit;
 use tokio::sync::RwLock;
@@ -16,6 +17,40 @@ use nuts::nut19::Route;
 
 pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
 pub type SignerClient = signer::SignerClient<tower_otel::trace::Grpc<Channel>>;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Key {
+    pub amount: u64,
+    pub pubkey: String,
+}
+
+impl Into<node::Key> for Key {
+    fn into(self) -> node::Key {
+        node::Key {
+            amount: self.amount,
+            pubkey: self.pubkey,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KeysetKeys {
+    pub id: Vec<u8>,
+    pub unit: String,
+    pub active: bool,
+    pub keys: Vec<Key>,
+}
+
+impl Into<node::KeysetKeys> for KeysetKeys {
+    fn into(self) -> node::KeysetKeys {
+        node::KeysetKeys {
+            id: self.id,
+            unit: self.unit,
+            active: self.active,
+            keys: self.keys.into_iter().map(Into::into).collect(),
+        }
+    }
+}
 
 /// Quote Time To Live config
 ///

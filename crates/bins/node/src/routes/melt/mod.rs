@@ -11,11 +11,11 @@ use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::utils::unix_time;
-use crate::{grpc_service::GrpcState, methods::Method};
+use crate::{app_state::AppState, methods::Method};
 
 use errors::Error;
 
-impl GrpcState {
+impl AppState {
     /// Step 1: Create a melt quote (NUT-05)
     /// This only validates the payment request and creates a quote - no payment processing
     pub async fn inner_melt_quote(
