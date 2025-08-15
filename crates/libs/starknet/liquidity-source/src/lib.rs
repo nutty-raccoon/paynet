@@ -15,16 +15,9 @@ pub use withdraw::{Error as WithdrawalError, MeltPaymentRequest, Withdrawer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("failed to read environment variable `{0}`: {1}")]
-    Env(&'static str, #[source] std::env::VarError),
     #[cfg(not(feature = "mock"))]
-    #[error(transparent)]
+    #[error("failed to init config from env variables: {0}")]
     Config(#[from] env_config::ReadStarknetConfigError),
-    #[cfg(not(feature = "mock"))]
-    #[error(transparent)]
-    Indexer(#[from] indexer::Error),
-    #[error("invalid private key value")]
-    PrivateKey,
     #[error("invalid chain id value: {0}")]
     ChainId(CairoShortStringToFeltError),
 }

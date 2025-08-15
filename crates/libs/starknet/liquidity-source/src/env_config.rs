@@ -9,16 +9,18 @@ use url::Url;
 pub enum ReadStarknetConfigError {
     #[error("Failed to read environment variable `{0}`: {1}")]
     Env(&'static str, #[source] std::env::VarError),
-    #[error("Invalid chain id string: {0}")]
+    #[error("Invalid value for env var `{STARKNET_CHAIN_ID_ENV_VAR}`: {0}")]
     ChainId(#[from] CairoShortStringToFeltError),
-    #[error("Invalid felt string: {0}")]
-    Felt(#[from] FromStrError),
-    #[error("Invalid url string: {0}")]
-    Url(#[from] url::ParseError),
-    #[error("Invalid uri string: {0}")]
+    #[error("Invalid value for env var `{STARKNET_CASHIER_ACCOUNT_ADDRESS_ENV_VAR}`: {0}")]
+    CashierAccountAddress(FromStrError),
+    #[error("Invalid value for env var `{STARKNET_CASHIER_PRIVATE_KEY_ENV_VAR}`: {0}")]
+    CashierPrivateKey(FromStrError),
+    #[error("Invalid value for env var `{STARKNET_RPC_NODE_URL_ENV_VAR}`: {0}")]
+    RpcNodeUrl(#[from] url::ParseError),
+    #[error("Invalid value for env var `{STARKNET_SUBSTREAMS_URL_ENV_VAR}`: {0}")]
     Uri(#[from] uri::InvalidUri),
-    #[error("Invalid block number string: {0}")]
-    StartBloc(#[from] ParseIntError),
+    #[error("Invalid value for env var `{STARKNET_INDEXER_START_BLOCK_ENV_VAR}`: {0}")]
+    StartBlock(#[from] ParseIntError),
 }
 
 const STARKNET_CASHIER_PRIVATE_KEY_ENV_VAR: &str = "STARKNET_CASHIER_PRIVATE_KEY";
@@ -45,8 +47,10 @@ pub(crate) fn read_env_variables() -> Result<StarknetCliConfig, ReadStarknetConf
     let config = StarknetCliConfig {
         chain_id: starknet_types::ChainId::from_str(&chain_id)?,
         indexer_start_block: indexer_start_block.parse()?,
-        cashier_account_address: Felt::from_str(&cashier_account_address)?,
-        cashier_private_key: Felt::from_str(&cashier_private_key)?,
+        cashier_account_address: Felt::from_str(&cashier_account_address)
+            .map_err(ReadStarknetConfigError::CashierAccountAddress)?,
+        cashier_private_key: Felt::from_str(&cashier_private_key)
+            .map_err(ReadStarknetConfigError::CashierPrivateKey)?,
         rpc_node_url: Url::from_str(&rpc_node_url)?,
         substreams_url: Uri::from_str(&substreams_url)?,
     };

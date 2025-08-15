@@ -553,6 +553,10 @@ jobs:
             crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml
           sparse-checkout-cone-mode: false
 
+      - name: Start testnet services
+        run: |
+          docker compose -f docker-compose/ci-testnet.yml up -d
+
       - name: Download node-starknet binary
         uses: actions/download-artifact@v4
         with:
@@ -597,14 +601,20 @@ jobs:
           chmod +x e2e-tests/*
           chmod +x concurrency-tests/*
 
-      - name: Start testnet services
+      - name: Download firehose binaries
         run: |
-          docker compose -f docker-compose/ci-testnet.yml up -d
+           wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
+           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.1.1/firehose-starknet_linux_x86_64.tar.gz
 
-      - name: Wait for testnet services to be healthy
+           tar -xzf firehose-core_linux_x86_64.tar.gz
+           tar -xzf firehose-starknet_linux_x86_64.tar.gz
+
+           rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
+
+      - name: Start firehose
         run: |
-          echo "Waiting for testnet services to be healthy..."
-          sleep 5
+           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
+           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &         
 
       - name: Run starknet on-chain setup
         run: |
@@ -616,19 +626,6 @@ jobs:
             declare \
             --sierra-json=./contracts/starknet/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
             --compiled-class-hash=$(cat ./contracts/starknet/invoice/compiled_class_hash.txt)
-
-      - name: Start firehose
-        run: |
-           wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
-           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.1.1/firehose-starknet_linux_x86_64.tar.gz
-
-           tar -xzf firehose-core_linux_x86_64.tar.gz
-           tar -xzf firehose-starknet_linux_x86_64.tar.gz
-
-           rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
-
-           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
-           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &         
 
       - name: Start signer service
         run: |
