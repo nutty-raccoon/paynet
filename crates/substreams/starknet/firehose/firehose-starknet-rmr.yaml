@@ -18,5 +18,3 @@ start:
        5s
        --starknet-endpoints
        http://localhost:5050
-       --eth-endpoints
-      https://eth-mainnet.public.blastapi.io

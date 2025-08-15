@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Route Handler</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <script src="/static/dist/main.bundle.js"></script>
+    <div class="container">
+      <header>
+        <h1>🚀 Route Handler</h1>
+        <p>Simple web server for handling deposit routes</p>
+      </header>
+
+      <main>
+        <div class="info-section">
+          <h2>Usage</h2>
+          <p>Access routes using the pattern:</p>
+          <div class="route-pattern">
+            <code>/deposit/starknet/{network}/?payload={payload}</code>
+          </div>
+          <p>
+            <strong>Valid networks:</strong> <code>SN_SEPOLIA</code>,
+            <code>SN_DEVNET</code>, <code>SN_MAINNET</code>
+          </p>
+
+          <div class="example">
+            <h3>Example:</h3>
+            <a
+              href="/deposit/starknet/SN_DEVNET/?payload={%22quote_id_hash%22:%220x5c72a322d887f84018c4a140bd2465caf452ca7b089122032cfd64c9440fef3%22,%22expiry%22:%220x6887da16%22,%22asset_contract_address%22:%220x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d%22,%22amount%22:{%22low%22:%220x8ac7230489e80000%22,%22high%22:%220x0%22},%22payee%22:%220x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691%22}"
+              class="example-link"
+            >
+              /deposit/starknet/SN_DEVNET/?payload={...}
+            </a>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

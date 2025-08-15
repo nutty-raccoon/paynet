@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invalid Network</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>❌ Invalid Network</h1>
+        <p>Unsupported network specified</p>
+      </header>
+      <main>
+        <div class="info-section">
+          <p>Received network: <code>{{ network }}</code></p>
+          <p>
+            Allowed networks: <code>SN_SEPOLIA</code>, <code>SN_DEVNET</code>
+          </p>
+          <p><a href="/">Go back to home</a></p>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

@@ -4,6 +4,7 @@ pub struct EnvVariables {
     pub rpc_url: String,
     pub private_key: String,
     pub account_address: String,
+    pub chain_id: String,
 }
 
 #[cfg(feature = "strk")]
@@ -12,7 +13,11 @@ pub mod starknet {
     use log::error;
     use starknet::{
         accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
-        providers::{JsonRpcClient, jsonrpc::HttpTransport},
+        core::{
+            types::{Call, ExecutionResult, StarknetError, TransactionStatus},
+            utils::cairo_short_string_to_felt,
+        },
+        providers::{JsonRpcClient, ProviderError, jsonrpc::HttpTransport},
         signers::{LocalWallet, SigningKey},
     };
     use starknet_types_core::felt::Felt;
@@ -37,18 +42,18 @@ pub mod starknet {
             provider,
             signer,
             address,
-            Felt::from_bytes_be_slice("SN_DEVNET".as_bytes()),
+            cairo_short_string_to_felt(env.chain_id.as_str()).unwrap(),
             ExecutionEncoding::New,
         );
 
         Ok(account)
     }
 
-    pub async fn pay_invoices(calls: Vec<starknet_types::Call>, env: EnvVariables) -> Result<()> {
+    pub async fn pay_invoices(calls: Vec<Call>, env: EnvVariables) -> Result<()> {
         let account = init_account(env)?;
 
         let tx_hash = account
-            .execute_v3(calls.into_iter().map(Into::into).collect())
+            .execute_v3(calls)
             .send()
             .await
             .inspect_err(|e| error!("send payment tx failed: {:?}", e))
@@ -65,16 +70,12 @@ pub mod starknet {
         P: starknet::providers::Provider,
     {
         loop {
-            use starknet::core::types::{
-                StarknetError, TransactionExecutionStatus, TransactionStatus,
-            };
-            use starknet::providers::ProviderError;
             match provider.get_transaction_status(tx_hash).await {
-                Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded)) => {
+                Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Succeeded)) => {
                     break;
                 }
-                Ok(TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted)) => {
-                    return Err(Error::Other(anyhow!("tx reverted")));
+                Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason })) => {
+                    return Err(Error::Other(anyhow!("tx reverted: {}", reason)));
                 }
                 Ok(TransactionStatus::Received) => {}
                 Ok(TransactionStatus::Rejected) => {
