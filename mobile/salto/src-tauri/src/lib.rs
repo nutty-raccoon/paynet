@@ -1,15 +1,21 @@
+mod background_tasks;
 mod commands;
 mod errors;
 mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, check_wallet_exists, create_mint_quote, create_wads, get_nodes_balance,
-    get_wad_history, init_wallet, receive_wads, redeem_quote, restore_wallet, sync_wads,
+    PriceConfig, PriceResponce, add_node, check_wallet_exists, create_mint_quote, create_wads,
+    get_currencies, get_nodes_balance, get_wad_history, init_wallet, price_provider_add_assets,
+    price_provider_add_currencies, receive_wads, redeem_quote, restore_wallet, sync_wads,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tauri::Manager;
+use std::{collections::HashSet, env, sync::Arc};
+use tauri::{Manager, async_runtime};
+use tokio::sync::RwLock;
+
+use crate::background_tasks::start_price_fetcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,7 +41,20 @@ pub fn run() {
                     .expect("dirs::data_dir should map to a valid path on this machine");
                 let manager = SqliteConnectionManager::file(db_path);
                 let pool = r2d2::Pool::new(manager)?;
-                app.manage(AppState { pool });
+                let host = env::var("PRICE_PROVIDER_URL")
+                    .map_err(|_| "Missing or invalid env var: PRICE_PROVIDER_URL")?;
+                app.manage(AppState {
+                    pool,
+                    get_prices_config: Arc::new(RwLock::new(PriceConfig {
+                        currencies: HashSet::from(["usd".to_string()]),
+                        assets: HashSet::new(),
+                        url: host,
+                    })),
+                });
+                let config = app.state::<AppState>().get_prices_config.clone();
+
+                let app_thread = app.handle().clone();
+                async_runtime::spawn(start_price_fetcher(config, app_thread));
                 Ok(())
             })
             .plugin(
@@ -50,9 +69,12 @@ pub fn run() {
                 redeem_quote,
                 create_wads,
                 receive_wads,
+                get_currencies,
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
+                price_provider_add_assets,
+                price_provider_add_currencies,
                 get_wad_history,
                 sync_wads,
             ])
@@ -65,4 +87,5 @@ pub fn run() {
 #[derive(Debug)]
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
+    get_prices_config: Arc<RwLock<PriceConfig>>,
 }

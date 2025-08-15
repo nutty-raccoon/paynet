@@ -1,3 +1,4 @@
+import { priceProviderAddAssets } from "./commands";
 import type { Balance, BalanceChange, NodeData } from "./types";
 
 /**
@@ -37,6 +38,7 @@ export function increaseNodeBalance(nodes: NodeData[], balanceChange: BalanceCha
             unit: balanceChange.unit,
             amount: balanceChange.amount, 
           };
+          priceProviderAddAssets([balanceChange.unit]);
           nodeToUpdate.balances.push(newBalance);
         }
        } else {
