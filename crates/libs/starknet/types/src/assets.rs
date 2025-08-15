@@ -11,6 +11,9 @@ use crate::Unit;
 pub enum Asset {
     Strk,
     Eth,
+    WBtc,
+    Usdc,
+    Usdt,
 }
 
 impl core::fmt::Display for Asset {
@@ -30,18 +33,25 @@ impl Asset {
         match self {
             Asset::Strk => "strk",
             Asset::Eth => "eth",
+            Asset::WBtc => "wbtc",
+            Asset::Usdc => "usdc",
+            Asset::Usdt => "usdt",
         }
     }
 
     pub fn precision(&self) -> u8 {
         match self {
             Asset::Strk | Asset::Eth => 18,
+            Asset::WBtc => 8,
+            Asset::Usdc | Asset::Usdt => 6,
         }
     }
 
     pub fn scale_factor(&self) -> U256 {
         match self {
             Asset::Strk | Asset::Eth => U256::from(1_000_000_000_000_000_000u64),
+            Asset::WBtc => U256::from(100_000_000u64),
+            Asset::Usdc | Asset::Usdt => U256::from(1_000_000u64),
         }
     }
 
@@ -49,6 +59,8 @@ impl Asset {
         match self {
             Asset::Strk => Unit::MilliStrk,
             Asset::Eth => Unit::Gwei,
+            Asset::WBtc => Unit::Satoshi,
+            Asset::Usdc | Asset::Usdt => Unit::CentUsd,
         }
     }
 
@@ -62,11 +74,17 @@ impl Asset {
         asset_amount: U256,
         unit: Unit,
     ) -> Result<(Amount, U256), AssetToUnitConversionError> {
-        let (quotien, rem) = asset_amount.div_mod(U256::from(unit.scale_factor()));
+        let scale_factor = match (self, unit) {
+            (Asset::Usdc, Unit::CentUsd) => 10_000u64, // 1 USDC (1e6) = 100 cents, so divide by 1e4
+            (Asset::Usdt, Unit::CentUsd) => 10_000u64, // Same for USDT
+            _ => unit.scale_factor(),
+        };
+
+        let (quotient, rem) = asset_amount.div_mod(U256::from(scale_factor));
 
         Ok((
             Amount::from(
-                u64::try_from(quotien).map_err(AssetToUnitConversionError::AmountTooBigForU64)?,
+                u64::try_from(quotient).map_err(AssetToUnitConversionError::AmountTooBigForU64)?,
             ),
             rem,
         ))
@@ -96,9 +114,12 @@ impl FromStr for Asset {
     type Err = AssetFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "strk" | "STRK" => Ok(Asset::Strk),
-            "eth" | "ETH" => Ok(Asset::Eth),
+        match s.to_lowercase().as_str() {
+            "strk" => Ok(Asset::Strk),
+            "eth" => Ok(Asset::Eth),
+            "btc" => Ok(Asset::WBtc),
+            "usdc" => Ok(Asset::Usdc),
+            "usdt" => Ok(Asset::Usdt),
             _ => Err(AssetFromStrError),
         }
     }

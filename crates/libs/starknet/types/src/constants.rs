@@ -13,7 +13,7 @@ use starknet_types_core::felt::Felt;
 use crate::Asset;
 
 #[derive(Debug, Clone)]
-pub struct AssetsAddress([(Asset, Felt); 2]);
+pub struct AssetsAddress([(Asset, Felt); 5]);
 
 impl AssetsAddress {
     pub fn get_contract_address_for_asset(&self, asset: Asset) -> Option<Felt> {
@@ -39,6 +39,40 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
     (
         Asset::Strk,
         Felt::from_hex_unchecked(
+            "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+        ),
+    ),
+    (
+        Asset::Eth,
+        Felt::from_hex_unchecked(
+            "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
+        ),
+    ),
+    (
+        Asset::WBtc,
+        Felt::from_hex_unchecked(
+            "0x02b0df9e3b889c410a7a7e528a354d4a8a8e7e0b9c3a973d9a8e5e2a0a1f7e7b",
+        ),
+    ),
+    (
+        Asset::Usdc,
+        Felt::from_hex_unchecked(
+            "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+        ),
+    ),
+    (
+        Asset::Usdt,
+        Felt::from_hex_unchecked(
+            "0x068f5c6a61780768455de69077e07e89787839bf8166decfbf92b645209c0fb8",
+        ),
+    ),
+]);
+
+/// Devnet assets with placeholder addresses
+const DEVNET_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
+    (
+        Asset::Strk,
+        Felt::from_hex_unchecked(
             "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
         ),
     ),
@@ -46,6 +80,24 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
         Asset::Eth,
         Felt::from_hex_unchecked(
             "0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7",
+        ),
+    ),
+    (
+        Asset::WBtc,
+        Felt::from_hex_unchecked(
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+    ),
+    (
+        Asset::Usdc,
+        Felt::from_hex_unchecked(
+            "0x0000000000000000000000000000000000000000000000000000000000000002",
+        ),
+    ),
+    (
+        Asset::Usdt,
+        Felt::from_hex_unchecked(
+            "0x0000000000000000000000000000000000000000000000000000000000000003",
         ),
     ),
 ]);
@@ -72,36 +124,14 @@ pub struct SubstreamsConstants {
 /// This is the primary entry point for accessing network-specific configuration.
 /// New networks can be added here without modifying the rest of the codebase.
 pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::phf_map! {
-    "SN_SEPOLIA" =>  OnChainConstants {
-        // Starting block is the one which contains the invoice_payment_contract deployment
-        // Tx: 0x0582cb60c2fc97fd9fbb18a818197611e1971498a3e5a34272d7072d70a009f3
-        substreams: SubstreamsConstants {  starting_block: 812115 },
-        //
-        // Declaration
-        //
-        // Declaring Cairo 1 class: 0x0476fd5052392e3f46a384d8d38674d0727714af1e44583effe1ed6c1700da37
-        // Contract declaration transaction: 0x020e418cf124652a2995dc1072d9c0944aa57bac2e25156cd89bec85db4a546e
-        // Class hash declared: 0x0476fd5052392e3f46a384d8d38674d0727714af1e44583effe1ed6c1700da37
-        //
-        // Deployment
-        //
-        // Deploying class 0x0476fd5052392e3f46a384d8d38674d0727714af1e44583effe1ed6c1700da37
-        // The contract will be deployed at address 0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a
-        // Contract deployment transaction: 0x03a61d43d856d59a28d9efbd5d264825408781cfb63400ab437b19180f523ad5
-        // Contract deployed: 0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a
+    "SN_SEPOLIA" => OnChainConstants {
+        substreams: SubstreamsConstants { starting_block: 812115 },
         invoice_payment_contract_address: Felt::from_hex_unchecked("0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a"),
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
     },
-    "SN_DEVNET" =>  OnChainConstants {
-        substreams: SubstreamsConstants {
-            starting_block: 0
-        },
-        // This address is guaranted to be correct, if and only if,
-        // you are using our `starknet-on-chain-setup` rust deployment executable.
-        // It is automaticaly used when setting up the network using this repo's `docker-compose.yml`
+    "SN_DEVNET" => OnChainConstants {
+        substreams: SubstreamsConstants { starting_block: 0 },
         invoice_payment_contract_address: Felt::from_hex_unchecked("0x026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e"),
-        // The default starknet-devnet config reuses Sepolia asset addresses
-        // TODO: will only work for `eth` and `strk` assets. So we will change it later on.
-        assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
+        assets_contract_address: DEVNET_ASSETS_ADDRESSES,
     },
 };
