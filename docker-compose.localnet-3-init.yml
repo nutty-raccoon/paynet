@@ -1,0 +1,9 @@
+services:
+  localnet-init:
+    image: ghcr.io/streamingfast/go-ethereum:geth-v1.16.1-fh3.0-2
+    entrypoint: [geth]
+    command: ["init", "--datadir=/execution-data", "/el-cl-genesis-data/metadata/genesis.json"]
+    volumes:
+      - ./localnet/execution-data:/execution-data
+      - ./localnet/el-cl-genesis-data:/el-cl-genesis-data
+    restart: "no"

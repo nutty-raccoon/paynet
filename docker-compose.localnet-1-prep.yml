@@ -1,0 +1,10 @@
+services:
+  localnet-prep:
+    image: localnet-prep
+    build:
+      context: .
+      dockerfile: ./dockerfiles/localnet-prep.Dockerfile
+    volumes:
+      - ./localnet/config:/config
+    stdin_open: true
+    restart: "no"
