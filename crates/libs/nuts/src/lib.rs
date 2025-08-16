@@ -19,6 +19,7 @@ pub mod nut07;
 pub mod nut13;
 #[cfg(feature = "nut19")]
 pub mod nut19;
+pub mod nut20;
 
 pub use amount::*;
 pub use types::*;

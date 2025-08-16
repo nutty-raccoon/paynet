@@ -362,7 +362,10 @@ impl Node for GrpcState {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let promises = self.inner_mint(method, quote_id, &outputs).await?;
+        let signature = mint_request.signature.map(|s| s);
+        let promises = self
+            .inner_mint(method, quote_id, &outputs, signature)
+            .await?;
         let signatures = promises
             .iter()
             .map(|p| node::BlindSignature {

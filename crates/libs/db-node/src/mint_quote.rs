@@ -1,5 +1,5 @@
 use nuts::{
-    Amount,
+    Amount, nut01,
     nut04::{MintQuoteResponse, MintQuoteState},
     traits::Unit,
 };
@@ -57,15 +57,23 @@ pub async fn build_response_from_db(
         request: record.request,
         state: record.state,
         expiry,
+        pubkey: None,
     })
 }
 
 pub async fn get_amount_and_state(
     conn: &mut PgConnection,
     quote_id: Uuid,
-) -> Result<(Amount, MintQuoteState), Error> {
+) -> Result<(Amount, MintQuoteState, Option<nuts::nut01::PublicKey>), Error> {
     let record = sqlx::query!(
-        r#"SELECT amount, state AS "state: MintQuoteState" FROM mint_quote where id = $1"#,
+        r#"
+    SELECT
+      amount,
+      state     AS "state: MintQuoteState",
+      pubkey    AS "pubkey: Vec<u8>?\"   -- ← annotate Option<Vec<u8>>
+    FROM mint_quote
+    WHERE id = $1
+    "#,
         quote_id
     )
     .fetch_one(conn)
@@ -73,7 +81,12 @@ pub async fn get_amount_and_state(
 
     let amount = Amount::from_i64_repr(record.amount);
 
-    Ok((amount, record.state))
+    let pubkey = record
+        .pubkey
+        .map(|p| nut01::PublicKey::from_slice(&p).map_err(|_| Error::DbToRuntimeConversion))
+        .transpose()?;
+
+    Ok((amount, record.state, pubkey))
 }
 
 pub async fn set_state(

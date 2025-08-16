@@ -11,6 +11,8 @@ pub struct MintQuote {
     pub request: String,
     pub state: MintQuoteState,
     pub expiry: u64,
+    pub pubkey: Option<String>,
+    pub secret_key: Option<String>,
 }
 
 pub fn store(
@@ -23,9 +25,9 @@ pub fn store(
 ) -> Result<()> {
     const INSERT_NEW_MINT_QUOTE: &str = r#"
         INSERT INTO mint_quote
-            (id, node_id, method, amount, unit, request, state, expiry)
+            (id, node_id, method, amount, unit, request, state, expiry, pubkey, secret_key)
         VALUES
-            (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
+            (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10);
     "#;
 
     conn.execute(
@@ -39,6 +41,8 @@ pub fn store(
             &response.request,
             response.state,
             response.expiry,
+            response.pubkey.as_ref().map(|pk| pk.to_string()),
+            None::<String>,
         ),
     )?;
 
@@ -83,6 +87,8 @@ pub fn get(conn: &Connection, node_id: u32, quote_id: &str) -> Result<MintQuote>
             request: r.get::<_, _>(5)?,
             state: r.get::<_, _>(6)?,
             expiry: r.get::<_, _>(7)?,
+            pubkey: r.get::<_, Option<String>>(8)?,
+            secret_key: r.get::<_, Option<String>>(9)?,
         })
     })?;
 

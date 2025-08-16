@@ -1,0 +1,1 @@
+ALTER TABLE mint_quote DROP COLUMN IF EXISTS pubkey;
