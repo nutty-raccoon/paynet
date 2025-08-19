@@ -58,7 +58,7 @@ impl<'de> Deserialize<'de> for NodeVersion {
 
 /// Node Info [NIP-06]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NodeInfo<M: traits::Method, U> {
+pub struct NodeInfo<M: traits::Method, U, O> {
     /// name of the node and should be recognizable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -78,7 +78,7 @@ pub struct NodeInfo<M: traits::Method, U> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact: Option<Vec<ContactInfo>>,
     /// shows which NUTs the mint supports
-    pub nuts: NutsSettings<M, U>,
+    pub nuts: NutsSettings<M, U, O>,
     /// Node's icon URL
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
@@ -93,7 +93,7 @@ pub struct NodeInfo<M: traits::Method, U> {
     pub time: Option<u64>,
 }
 
-impl<M: traits::Method, U> NodeInfo<M, U> {
+impl<M: traits::Method, U, O> NodeInfo<M, U, O> {
     /// Set name
     pub fn name<S>(self, name: S) -> Self
     where
@@ -152,7 +152,7 @@ impl<M: traits::Method, U> NodeInfo<M, U> {
     }
 
     /// Set nuts
-    pub fn nuts(self, nuts: NutsSettings<M, U>) -> Self {
+    pub fn nuts(self, nuts: NutsSettings<M, U, O>) -> Self {
         Self { nuts, ..self }
     }
 
@@ -192,10 +192,10 @@ impl<M: traits::Method, U> NodeInfo<M, U> {
 
 /// Supported nuts and settings
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NutsSettings<M: Method, U> {
+pub struct NutsSettings<M: Method, U, O> {
     /// NUT04 Settings
     #[serde(rename = "4")]
-    pub nut04: nut04::Settings<M, U>,
+    pub nut04: nut04::Settings<M, U, O>,
     // NUT05 Settings
     #[serde(rename = "5")]
     pub nut05: nut05::Settings<M, U>,
@@ -208,8 +208,8 @@ pub struct NutsSettings<M: Method, U> {
 }
 
 #[derive(Debug, Clone)]
-pub struct NutsSettingsBuilder<M: Method, U> {
-    nut04: Option<nut04::Settings<M, U>>,
+pub struct NutsSettingsBuilder<M: Method, U, O> {
+    nut04: Option<nut04::Settings<M, U, O>>,
     nut05: Option<nut05::Settings<M, U>>,
     #[cfg(feature = "nut9")]
     nut09: Option<SupportedSettings>,
@@ -217,7 +217,7 @@ pub struct NutsSettingsBuilder<M: Method, U> {
     nut19: Option<nut19::Settings>,
 }
 
-impl<M: Method, U> Default for NutsSettingsBuilder<M, U> {
+impl<M: Method, U, O> Default for NutsSettingsBuilder<M, U, O> {
     fn default() -> Self {
         Self {
             nut04: None,
@@ -230,12 +230,12 @@ impl<M: Method, U> Default for NutsSettingsBuilder<M, U> {
     }
 }
 
-impl<M: traits::Method, U> NutsSettingsBuilder<M, U> {
+impl<M: traits::Method, U, O> NutsSettingsBuilder<M, U, O> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn nut_04(mut self, nut04_settings: nut04::Settings<M, U>) -> Self {
+    pub fn nut_04(mut self, nut04_settings: nut04::Settings<M, U, O>) -> Self {
         self.nut04 = Some(nut04_settings);
         self
     }
@@ -250,7 +250,7 @@ impl<M: traits::Method, U> NutsSettingsBuilder<M, U> {
         self
     }
 
-    pub fn build(self) -> Result<NutsSettings<M, U>, NutsBuilderError> {
+    pub fn build(self) -> Result<NutsSettings<M, U, O>, NutsBuilderError> {
         let nut04 = self.nut04.ok_or(NutsBuilderError::MissingConfig(4))?;
         let nut05 = self.nut05.ok_or(NutsBuilderError::MissingConfig(5))?;
         #[cfg(feature = "nut9")]
@@ -346,7 +346,7 @@ mod tests {
     }
 }"#;
 
-        let _mint_info: NodeInfo<TestMethod, TestUnit> =
+        let _mint_info: NodeInfo<TestMethod, TestUnit, serde_json::Value> =
             serde_json::from_str(mint_info_str).unwrap();
     }
 
@@ -378,7 +378,7 @@ mod tests {
         "unit": "sat",
         "min_amount": 0,
         "max_amount": 10000,
-        "description": true
+        "options": {}
         }
       ],
       "disabled": false
@@ -410,7 +410,8 @@ mod tests {
     }
   }
 }"#;
-        let info: NodeInfo<TestMethod, TestUnit> = serde_json::from_str(mint_info_str).unwrap();
+        let info: NodeInfo<TestMethod, TestUnit, serde_json::Value> =
+            serde_json::from_str(mint_info_str).unwrap();
         let mint_info_str = r#"{
   "name": "Bob's Cashu mint",
   "pubkey": "0283bf290884eed3a7ca2663fc0260de2e2064d6b355ea13f98dec004b7a7ead99",
@@ -431,7 +432,7 @@ mod tests {
         "unit": "sat",
         "min_amount": 0,
         "max_amount": 10000,
-        "description": true
+        "options": {}
         }
       ],
       "disabled": false
@@ -463,7 +464,7 @@ mod tests {
     }
   }
 }"#;
-        let mint_info: NodeInfo<TestMethod, TestUnit> =
+        let mint_info: NodeInfo<TestMethod, TestUnit, serde_json::Value> =
             serde_json::from_str(mint_info_str).unwrap();
 
         assert_eq!(info, mint_info);

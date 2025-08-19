@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deposit Route Handler</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🔗 Route Handler</h1>
+        <p>Starknet Deposit endpoint</p>
+      </header>
+
+      <main>
+        <div class="info-section">
+          <div class="info-item">
+            <label>Method:</label>
+            <span class="value">{{ method }}</span>
+          </div>
+
+          <div class="info-item">
+            <label>Chain ID:</label>
+            <span class="value">{{ network }}</span>
+          </div>
+
+          <div class="info-item payload-section">
+            <label>Payload:</label>
+            <pre class="payload-value">{{ formatted_payload }}</pre>
+          </div>
+
+          <div class="info-item">
+            <label>Wallet Status:</label>
+            <span id="wallet-status" class="value">Loading...</span>
+            <button
+              id="wallet-connect-btn"
+              class="wallet-btn primary disconnected"
+              disabled
+            >
+              <span class="connect-text">Connect Wallet</span>
+              <span class="connecting-text">Connecting...</span>
+              <span class="disconnect-text">Disconnect</span>
+              <span class="disconnecting-text">Disconnecting...</span>
+            </button>
+            <button id="deposit-btn" class="wallet-btn primary deposit" hidden>
+              <span class="deposit-text">Deposit</span>
+              <span class="depositing-text">Depositing...</span>
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <p>Built with Rust + Axum + Starknet</p>
+      </footer>
+    </div>
+
+    <script type="application/json" id="deposit-data">
+      {{ deposit_data|json|safe }}
+    </script>
+    <script src="/static/dist/main.bundle.js"></script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 FROM lukemathwalker/cargo-chef:latest-rust-1.86.0 AS chef
 
-WORKDIR app
+WORKDIR /app
 
 #------------
 
@@ -31,20 +31,20 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Set up architecture detection
 WORKDIR /tools
-RUN curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.9.2/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/ && \
-    curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/
+RUN curl -s -L https://github.com/software-mansion/scarb/releases/download/v2.12.0/scarb-v2.12.0-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/ && \
+    curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.4.2/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tools/
 
-COPY ./contracts/starknet/ /contracts/starknet/
-WORKDIR /contracts/starknet/invoice
-RUN /tools/scarb-v2.9.2-$(uname -m)-unknown-linux-gnu/bin/scarb --profile release build
-RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt
+COPY ./contracts/starknet/ /contracts/
+WORKDIR /contracts/invoice
+RUN /tools/scarb-v2.12.0-$(uname -m)-unknown-linux-gnu/bin/scarb --profile release build
+RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt 
 
 # ----------------
 
 FROM debian as executable
 
-COPY --from=scarb-builder /contracts/starknet/invoice/compiled_class_hash.txt /contract/
-COPY --from=scarb-builder /contracts/starknet/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json /contract/
+COPY --from=scarb-builder /contracts/invoice/compiled_class_hash.txt /contract/
+COPY --from=scarb-builder /contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json /contract/
 COPY --from=builder /app/target/release/starknet-on-chain-setup /rust/
 
 WORKDIR /

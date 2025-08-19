@@ -21,6 +21,8 @@ primitive-types = { workspace = true }
 thiserror = { workspace = true }
 bitcoin = { workspace = true }
 chrono = { workspace = true }
+colored = { workspace = true }
+urlencoding = { workspace = true }
 
 # Db
 r2d2_sqlite = { workspace = true }

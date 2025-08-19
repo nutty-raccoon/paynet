@@ -56,15 +56,8 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
 /// add new networks or extend the configuration in the future.
 #[derive(Debug, Clone)]
 pub struct OnChainConstants {
-    pub substreams: SubstreamsConstants,
     pub invoice_payment_contract_address: Felt,
     pub assets_contract_address: AssetsAddress,
-}
-
-/// Substreams-specific configuration for data streaming
-#[derive(Debug, Clone)]
-pub struct SubstreamsConstants {
-    pub starting_block: u64,
 }
 
 /// Map of all supported networks and their corresponding constants
@@ -74,32 +67,15 @@ pub struct SubstreamsConstants {
 pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::phf_map! {
     "SN_SEPOLIA" =>  OnChainConstants {
         // Starting block is the one which contains the invoice_payment_contract deployment
-        // Tx: 0x0582cb60c2fc97fd9fbb18a818197611e1971498a3e5a34272d7072d70a009f3
-        substreams: SubstreamsConstants {  starting_block: 812115 },
-        //
-        // Declaration
-        //
-        // Declaring Cairo 1 class: 0x0476fd5052392e3f46a384d8d38674d0727714af1e44583effe1ed6c1700da37
-        // Contract declaration transaction: 0x020e418cf124652a2995dc1072d9c0944aa57bac2e25156cd89bec85db4a546e
-        // Class hash declared: 0x0476fd5052392e3f46a384d8d38674d0727714af1e44583effe1ed6c1700da37
-        //
-        // Deployment
-        //
-        // Deploying class 0x0476fd5052392e3f46a384d8d38674d0727714af1e44583effe1ed6c1700da37
-        // The contract will be deployed at address 0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a
-        // Contract deployment transaction: 0x03a61d43d856d59a28d9efbd5d264825408781cfb63400ab437b19180f523ad5
-        // Contract deployed: 0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a
-        invoice_payment_contract_address: Felt::from_hex_unchecked("0x019dce9fd974e01665968f94784db3e94daac279cdef4289133d60954e90298a"),
+        // Tx: 0x3ff1f5d34e471b30f12bd28f69c4edfc25c40856b8ca269d92bc1fe1bd3da11
+        invoice_payment_contract_address: Felt::from_hex_unchecked("0x03b7d6935858cc0e84cba7267cc9daa76dfaf060303761608f12cf84191e3571"),
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
     },
     "SN_DEVNET" =>  OnChainConstants {
-        substreams: SubstreamsConstants {
-            starting_block: 0
-        },
         // This address is guaranted to be correct, if and only if,
         // you are using our `starknet-on-chain-setup` rust deployment executable.
         // It is automaticaly used when setting up the network using this repo's `docker-compose.yml`
-        invoice_payment_contract_address: Felt::from_hex_unchecked("0x026b2c472aa4ea32fc12f6c44707712552eff4aac48dd75c870e79b8a3fb676e"),
+        invoice_payment_contract_address: Felt::from_hex_unchecked("0x054eb8613832317fc641555b852b0a3b4cef5cc444fccab5e3de94430fb8fcda"),
         // The default starknet-devnet config reuses Sepolia asset addresses
         // TODO: will only work for `eth` and `strk` assets. So we will change it later on.
         assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,

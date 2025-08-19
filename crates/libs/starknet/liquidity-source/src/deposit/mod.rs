@@ -12,8 +12,8 @@ mod not_mock {
     use liquidity_source::DepositInterface;
     use nuts::Amount;
     use starknet_types::{
-        Asset, Call, ChainId, Unit, compute_invoice_id, constants::ON_CHAIN_CONSTANTS,
-        transactions::generate_single_payment_transaction_calls,
+        Asset, ChainId, DepositPayload, PayInvoiceCallData, Unit, compute_invoice_id,
+        constants::ON_CHAIN_CONSTANTS,
     };
     use starknet_types_core::felt::Felt;
     use uuid::Uuid;
@@ -65,21 +65,22 @@ mod not_mock {
             let quote_id_hash =
                 Felt::from_bytes_be(Sha256::hash(quote_id.as_bytes()).as_byte_array());
 
-            let calls = generate_single_payment_transaction_calls(
-                on_chain_constants.invoice_payment_contract_address,
-                quote_id_hash,
-                expiry.into(),
-                token_contract_address,
-                &amount.into(),
-                self.our_account_address,
-            );
-            let calls: Vec<Call> = calls.into_iter().map(Into::into).collect();
+            let payload = DepositPayload {
+                chain_id: self.chain_id.clone(),
+                call_data: PayInvoiceCallData {
+                    quote_id_hash,
+                    expiry: Felt::from(expiry),
+                    asset_contract_address: token_contract_address,
+                    amount: amount.into(),
+                    payee: self.our_account_address,
+                },
+            };
 
-            let calls_json_string = serde_json::to_string(&calls)?;
+            let payload_json_string = serde_json::to_string(&payload)?;
 
             let invoice_id = compute_invoice_id(quote_id_hash, expiry);
 
-            Ok((StarknetInvoiceId(invoice_id), calls_json_string))
+            Ok((StarknetInvoiceId(invoice_id), payload_json_string))
         }
     }
 }

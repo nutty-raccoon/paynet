@@ -2,8 +2,8 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
-    let url = "https://spkg.io/tdelabro/starknet-invoice-substream-v0.1.0.spkg";
-    let output_path = "starknet-invoice-substream-v0.1.0.spkg";
+    let url = "https://spkg.io/tdelabro/starknet-invoice-substream-v0.2.2.spkg";
+    let output_path = "starknet-invoice-substream-v0.2.2.spkg";
 
     println!("cargo:rerun-if-changed=build.rs");
 

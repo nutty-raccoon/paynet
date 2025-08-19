@@ -8,7 +8,7 @@ use node_client::NodeClient;
 use nuts::Amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
-use starknet_types::{Asset, STARKNET_STR, Unit};
+use starknet_types::{Asset, DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 use wallet::{
@@ -95,8 +95,16 @@ impl WalletOps {
         )
         .await?;
 
-        let calls: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
-        pay_invoices(calls.to_vec(), env).await?;
+        let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
+        let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
+        pay_invoices(
+            deposit_payload
+                .call_data
+                .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
+                .to_vec(),
+            env,
+        )
+        .await?;
 
         match wallet::mint::wait_for_quote_payment(
             self.db_pool.clone(),

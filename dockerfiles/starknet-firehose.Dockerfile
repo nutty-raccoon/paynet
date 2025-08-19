@@ -1,10 +1,15 @@
-FROM ghcr.io/streamingfast/firehose-starknet:main
+FROM ghcr.io/streamingfast/firehose-starknet:v1.1.1
 
-ENV STARKNET_NODE_URL=http://host.docker.internal:5050
-ENV READER_NODE_ARGUMENTS="fetch 0 --state-dir fire-starknet-state-dir --block-fetch-batch-size=1 --interval-between-fetch=0s --latest-block-retry-interval=5s --starknet-endpoints=${STARKNET_NODE_URL} --eth-endpoints=https://eth-mainnet.public.blastapi.io"
+ENV COMMON_FIRST_STREAMABLE_BLOCK=0
+ENV ETH_ENDPOINT_API=""
+ENV LATEST_BLOCK_RETRY_INTERVAL=1s
+ENV ADVERTISE_CHAIN_NAME=devnet
+ENV BLOCK_FETCH_BATCH_SIZE=1
 
 EXPOSE 10016
 
-ENTRYPOINT ["/bin/sh", "-c"]
+# Copy the entrypoint script
+COPY ./dockerfiles/starknet-firehose-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-CMD ["/app/firecore start reader-node merger relayer --config-file='' --reader-node-path=/app/firestarknet --common-first-streamable-block=0 --reader-node-arguments=\"$READER_NODE_ARGUMENTS\" & /app/firecore start firehose substreams-tier1 substreams-tier2 --config-file='' --common-first-streamable-block=0 --advertise-chain-name=starknet-devnet  & wait"]
+ENTRYPOINT ["/entrypoint.sh"]

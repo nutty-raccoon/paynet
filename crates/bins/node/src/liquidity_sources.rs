@@ -4,7 +4,7 @@ use liquidity_source::LiquiditySource;
 use nuts::traits::Unit;
 use sqlx::PgPool;
 
-use crate::{initialization::ProgramArguments, methods::Method};
+use crate::methods::Method;
 
 #[derive(Debug, Clone)]
 pub struct LiquiditySources<U: Unit> {
@@ -20,24 +20,13 @@ pub enum Error {
     Starknet(#[from] starknet_liquidity_source::Error),
     #[error("failed to acquire db connection: {0}")]
     SqlxAcquire(#[from] sqlx::Error),
-    #[cfg(not(feature = "mock"))]
-    #[error("feature {0} requires the arg `--config` to be given a value")]
-    MissingConfigFile(String),
 }
 
 impl<U: Unit> LiquiditySources<U> {
     #[allow(unused_variables)]
-    pub async fn init(
-        pg_pool: PgPool,
-        args: ProgramArguments,
-    ) -> Result<LiquiditySources<U>, Error> {
+    pub async fn init(pg_pool: PgPool) -> Result<LiquiditySources<U>, Error> {
         #[cfg(not(feature = "mock"))]
-        let starknet = starknet_liquidity_source::StarknetLiquiditySource::init(
-            pg_pool,
-            args.config
-                .ok_or(Error::MissingConfigFile(String::from("starknet")))?,
-        )
-        .await?;
+        let starknet = starknet_liquidity_source::StarknetLiquiditySource::init(pg_pool).await?;
         #[cfg(feature = "mock")]
         let starknet = starknet_liquidity_source::StarknetLiquiditySource::new();
 

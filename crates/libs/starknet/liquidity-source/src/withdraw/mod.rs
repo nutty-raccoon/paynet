@@ -22,7 +22,8 @@ mod not_mock {
     use num_traits::CheckedAdd;
     use nuts::{Amount, nut05::MeltQuoteState};
     use starknet_types::{
-        Asset, AssetToUnitConversionError, ChainId, Unit, constants::ON_CHAIN_CONSTANTS,
+        Asset, AssetToUnitConversionError, ChainId, PayInvoiceCallData, Unit,
+        constants::ON_CHAIN_CONSTANTS,
     };
 
     use liquidity_source::WithdrawInterface;
@@ -33,13 +34,12 @@ mod not_mock {
 
     use starknet::{
         accounts::{Account, ConnectedAccount, SingleOwnerAccount},
-        core::types::{Felt, TransactionExecutionStatus, TransactionStatus},
+        core::types::{ExecutionResult, Felt, TransactionStatus},
         providers::{JsonRpcClient, Provider, ProviderError, jsonrpc::HttpTransport},
         signers::LocalWallet,
     };
     use starknet_types::transactions::{
-        WithdrawOrder, sign_and_send_payment_transactions,
-        sign_and_send_single_payment_transactions,
+        sign_and_send_payment_transactions, sign_and_send_single_payment_transactions,
     };
     use tokio::{sync::mpsc, time::sleep};
     use tracing::{error, info};
@@ -67,7 +67,7 @@ mod not_mock {
         #[error("failed to get nonce from node: {0}")]
         GetNonce(ProviderError),
         #[error("failed to send withdraw order through channel: {0}")]
-        SendWithdrawOrder(#[from] mpsc::error::SendError<WithdrawOrder>),
+        SendWithdrawOrder(#[from] mpsc::error::SendError<PayInvoiceCallData>),
         #[error("asset {0} not found in on-chain constants")]
         AssetNotFound(Asset),
         #[error("failed to acquire a conneciton from the pool: {0}")]
@@ -85,7 +85,7 @@ mod not_mock {
     #[derive(Debug, Clone)]
     pub struct Withdrawer {
         chain_id: ChainId,
-        withdraw_order_sender: mpsc::UnboundedSender<WithdrawOrder>,
+        withdraw_order_sender: mpsc::UnboundedSender<PayInvoiceCallData>,
     }
 
     impl Withdrawer {
@@ -175,7 +175,7 @@ mod not_mock {
                 .get_contract_address_for_asset(melt_payment_request.asset)
                 .ok_or(Error::AssetNotFound(melt_payment_request.asset))?;
 
-            self.withdraw_order_sender.send(WithdrawOrder::new(
+            self.withdraw_order_sender.send(PayInvoiceCallData::new(
                 quote_id_hash,
                 expiry.into(),
                 melt_payment_request.amount,
@@ -202,12 +202,12 @@ mod not_mock {
                     sleep(Duration::from_millis(500)).await;
                     continue;
                 }
-                TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded) => {
+                TransactionStatus::AcceptedOnL2(ExecutionResult::Succeeded) => {
                     info!(name: "withdraw-tx-result", name =  "withdraw-tx-result", tx_hash = tx_hash.to_hex_string(), status = "succeeded");
                     break;
                 }
-                TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted) => {
-                    error!(name: "withdraw-tx-result", name =  "withdraw-tx-result", tx_hash = tx_hash.to_hex_string(), status = "reverted");
+                TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason }) => {
+                    error!(name: "withdraw-tx-result", name =  "withdraw-tx-result", tx_hash = tx_hash.to_hex_string(), status = "reverted", reason = reason);
                     break;
                 }
                 TransactionStatus::Rejected => {
@@ -240,7 +240,7 @@ mod not_mock {
 
     pub async fn process_withdraw_requests(
         account: Arc<SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>>,
-        mut withdraw_queue: mpsc::UnboundedReceiver<WithdrawOrder>,
+        mut withdraw_queue: mpsc::UnboundedReceiver<PayInvoiceCallData>,
         invoice_payment_contract_address: Felt,
     ) -> Result<(), Error> {
         let mut orders = Vec::new();

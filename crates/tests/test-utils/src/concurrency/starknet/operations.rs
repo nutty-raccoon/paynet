@@ -13,7 +13,7 @@ use nuts::{
     nut01::PublicKey,
 };
 use primitive_types::U256;
-use starknet_types::{STARKNET_STR, Unit};
+use starknet_types::{DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 
@@ -99,19 +99,26 @@ pub async fn mint_same_output(
     let mut calls = Vec::with_capacity(51);
     let mut mint_quote_response_iterator = mints_quote_response.iter();
 
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
     // Edit the allow call so that one call is enough to cover all invoices
     // Then we only push the payment_invoice call. This reduce by half the number of calls.
     // It is important because something break in DNA when there is too many calls, or events
     // in a single transaction.
     // That is the reason why we use `50` as the size of a batch, 100 was breaking it
-    let mut c: [starknet_types::Call; 2] =
+    let deposit_payload: DepositPayload =
         serde_json::from_str(&mint_quote_response_iterator.next().unwrap().request)?;
+    let mut c = deposit_payload
+        .call_data
+        .to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
     c[0].calldata[1] *= Felt::from(100);
     calls.push(c[0].clone());
     calls.push(c[1].clone());
     let mut i = 0;
     for quote in mint_quote_response_iterator {
-        let c: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
+        let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
+        let c = deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
         calls.push(c[1].clone());
         i += 1;
 
@@ -372,10 +379,17 @@ pub async fn melt_same_input(
     let original_mint_quote_response =
         mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
 
-    let calls: [starknet_types::Call; 2] =
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
+    let deposit_payload: DepositPayload =
         serde_json::from_str(&original_mint_quote_response.request)?;
-    pay_invoices(calls.to_vec(), env).await?;
-
+    pay_invoices(
+        deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
+            .to_vec(),
+        env,
+    )
+    .await?;
     wait_transac(node_client.clone(), &original_mint_quote_response).await?;
 
     let active_keyset =

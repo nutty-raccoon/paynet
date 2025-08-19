@@ -62,7 +62,7 @@ impl GrpcState {
     pub fn new(
         pg_pool: PgPool,
         signer_client: SignerClient,
-        nuts_settings: NutsSettings<Method, Unit>,
+        nuts_settings: NutsSettings<Method, Unit, serde_json::Value>,
         quote_ttl: QuoteTTLConfig,
         liquidity_sources: LiquiditySources<Unit>,
     ) -> Self {

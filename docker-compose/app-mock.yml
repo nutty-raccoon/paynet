@@ -27,7 +27,7 @@ services:
     ports:
       - "${SIGNER_PORT:-10001}:10001"
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/signer.Dockerfile
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
@@ -39,7 +39,7 @@ services:
     image: "node.mock"
     restart: always
     build:
-      context: .
+      context: ..
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
         - CARGO_FEATURES=starknet,mock,keyset-rotation
@@ -47,6 +47,9 @@ services:
       - PG_URL=postgres://postgres:password@db/node
       - SIGNER_URL=http://signer:10001
       - GRPC_PORT=10003
+      # Open telemetry
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
     ports:
       - "${NODE_PORT:-10003}:10003"
     depends_on:

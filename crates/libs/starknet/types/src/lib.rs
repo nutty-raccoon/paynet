@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use starknet::core::types::Call;
 use starknet_crypto::poseidon_hash;
 use starknet_types_core::felt::Felt;
 
@@ -14,6 +15,50 @@ pub use chain_id::ChainId;
 pub mod transactions;
 
 pub const STARKNET_STR: &str = "starknet";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayInvoiceCallData {
+    pub quote_id_hash: Felt,
+    pub expiry: Felt,
+    pub asset_contract_address: Felt,
+    pub amount: StarknetU256,
+    pub payee: Felt,
+}
+
+impl PayInvoiceCallData {
+    pub fn new(
+        quote_id_hash: Felt,
+        expiry: Felt,
+        amount: StarknetU256,
+        asset_contract_address: Felt,
+        payee: Felt,
+    ) -> Self {
+        Self {
+            quote_id_hash,
+            expiry,
+            asset_contract_address,
+            amount,
+            payee,
+        }
+    }
+
+    pub fn to_starknet_calls(self, invoice_payment_contract_address: Felt) -> [Call; 2] {
+        transactions::generate_single_payment_transaction_calls(
+            invoice_payment_contract_address,
+            self.quote_id_hash,
+            self.expiry,
+            self.asset_contract_address,
+            &self.amount,
+            self.payee,
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepositPayload {
+    pub chain_id: ChainId,
+    pub call_data: PayInvoiceCallData,
+}
 
 /// Possible errors for encoding a Cairo short string.
 #[derive(Debug, thiserror::Error)]
@@ -41,36 +86,6 @@ pub fn felt_from_short_string(s: &str) -> Result<Felt, CairoShortStringToFeltErr
 
     // The conversion will never fail
     Ok(Felt::from_bytes_be(&buffer))
-}
-
-// TODO: remove and use starknet-core struct when https://github.com/xJonathanLEI/starknet-rs/pull/713 is merged
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct Call {
-    /// Address of the contract being invoked.
-    pub to: Felt,
-    /// Entrypoint selector of the function being invoked.
-    pub selector: Felt,
-    /// List of calldata to be sent for the call.
-    pub calldata: Vec<Felt>,
-}
-
-impl From<starknet::core::types::Call> for Call {
-    fn from(value: starknet::core::types::Call) -> Self {
-        Self {
-            to: value.to,
-            selector: value.selector,
-            calldata: value.calldata,
-        }
-    }
-}
-impl From<Call> for starknet::core::types::Call {
-    fn from(value: Call) -> Self {
-        Self {
-            to: value.to,
-            selector: value.selector,
-            calldata: value.calldata,
-        }
-    }
 }
 
 /// Validates that a Felt value represents a valid Starknet contract address.

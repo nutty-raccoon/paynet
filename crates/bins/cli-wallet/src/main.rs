@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use bitcoin::bip32::Xpriv;
 use clap::{Args, Parser, Subcommand, ValueHint};
+use colored::*;
 use node_client::NodeClient;
 use nuts::Amount;
 use primitive_types::U256;
@@ -343,9 +344,30 @@ async fn main() -> Result<()> {
             .await?;
 
             println!(
-                "MintQuote created with id: {}\nProceed to payment:\n{}",
-                &mint_quote_response.quote, &mint_quote_response.request
+                "MintQuote created with id: {}\nYou can proceed to payment using the following payload:\n{}",
+                &mint_quote_response.quote.red(),
+                &mint_quote_response.request.yellow()
             );
+            let deposit_payload: starknet_types::DepositPayload =
+                serde_json::from_str(&mint_quote_response.request)?;
+
+            #[cfg(debug_assertions)]
+            {
+                let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
+                let encoded_payload = urlencoding::encode(&payload_json);
+
+                let url = format!(
+                    "http://localhost:3005/deposit/{}/{}/?payload={}",
+                    STARKNET_STR,
+                    deposit_payload.chain_id.as_str(),
+                    encoded_payload
+                );
+
+                println!(
+                    "Or you can pay it with your browser wallet at:\n{}",
+                    url.blue()
+                );
+            }
 
             match wallet::mint::wait_for_quote_payment(
                 pool.clone(),

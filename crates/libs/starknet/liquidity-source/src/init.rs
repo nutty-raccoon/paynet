@@ -20,7 +20,7 @@ mod mock_impl {
 
 #[cfg(not(feature = "mock"))]
 mod not_mock_impl {
-    use std::{path::PathBuf, str::FromStr, sync::Arc};
+    use std::sync::Arc;
 
     use sqlx::PgPool;
     use starknet::{
@@ -29,27 +29,22 @@ mod not_mock_impl {
         signers::{LocalWallet, SigningKey},
     };
     use starknet_types::constants::ON_CHAIN_CONSTANTS;
-    use starknet_types_core::felt::Felt;
 
     use crate::{
-        CASHIER_PRIVATE_KEY_ENV_VAR, Depositer, Error, StarknetLiquiditySource, Withdrawer,
-        indexer, read_starknet_config,
+        Depositer, Error, StarknetLiquiditySource, Withdrawer, env_config::read_env_variables,
+        indexer,
     };
 
     impl StarknetLiquiditySource {
-        pub async fn init(pg_pool: PgPool, config_path: PathBuf) -> Result<Self, Error> {
-            let config = read_starknet_config(config_path)?;
-            let private_key = Felt::from_str(
-                &std::env::var(CASHIER_PRIVATE_KEY_ENV_VAR)
-                    .map_err(|e| Error::Env(CASHIER_PRIVATE_KEY_ENV_VAR, e))?,
-            )
-            .map_err(|_| Error::PrivateKey)?;
+        pub async fn init(pg_pool: PgPool) -> Result<Self, Error> {
+            let config = read_env_variables()?;
 
             // Create provider
-            let provider = JsonRpcClient::new(HttpTransport::new(config.starknet_rpc_node_url));
+            let provider = JsonRpcClient::new(HttpTransport::new(config.rpc_node_url));
 
             // Create signer
-            let signer = LocalWallet::from(SigningKey::from_secret_scalar(private_key));
+            let signer =
+                LocalWallet::from(SigningKey::from_secret_scalar(config.cashier_private_key));
 
             let account = Arc::new(SingleOwnerAccount::new(
                 provider.clone(),
@@ -65,8 +60,9 @@ mod not_mock_impl {
             let _handle = tokio::spawn(async move {
                 indexer::init_indexer_task(
                     cloned_pg_pool,
-                    config.starknet_substreams_url,
+                    config.substreams_url,
                     cloned_chain_id,
+                    config.indexer_start_block,
                     cloned_cashier_account_address,
                 )
                 .await
