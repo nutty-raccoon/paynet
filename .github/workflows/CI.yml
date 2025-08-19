@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,7 +77,6 @@ jobs:
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
 
-        
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -135,7 +134,7 @@ jobs:
         with:
           version: "28.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - uses: dtolnay/rust-toolchain@1.86.0
 
       - name: Restore ${{ matrix.name }} binary cache
@@ -160,7 +159,6 @@ jobs:
           name: ${{ matrix.name }}-binary
           path: target/release/${{ matrix.crate_name }}
           retention-days: 1
- 
 
   build-test-binaries:
     name: Build test binaries
@@ -186,7 +184,7 @@ jobs:
         with:
           version: "28.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - uses: dtolnay/rust-toolchain@1.86.0
 
       - name: Get crate source path
@@ -216,15 +214,15 @@ jobs:
         run: |
           # Extract binary paths using the shell oneliner
           binaries=$(${{ matrix.build_cmd }} 2>&1 | grep "Executable" | sed 's/.*(\(.*\))/\1/')
-          
+
           if [ -z "$binaries" ]; then
             echo "Error: Could not find any test binaries for ${{ matrix.name }}"
             exit 1
           fi
-          
+
           # Create a directory for the artifact
           mkdir -p ./test-binaries/
-          
+
           # Copy each binary with its original name
           for binary in $binaries; do
             if [ -f "$binary" ]; then
@@ -236,7 +234,7 @@ jobs:
               echo "Warning: Binary not found: $binary"
             fi
           done
-          
+
           # List what we have
           echo "Test binaries prepared:"
           ls -l ./test-binaries/
@@ -264,22 +262,22 @@ jobs:
           scarb-lock: contracts/starknet/invoice/Scarb.lock
           cache: true
           cache-targets: true
-      
+
       - name: Install Starkli
         run: |
           mkdir -p /tmp/tools
           curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.4.2/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
           chmod +x /tmp/tools/starkli
-      
+
       - name: Build contracts
         working-directory: ./contracts/starknet/invoice
         run: scarb --profile release build
-      
+
       - name: Generate compiled class hash
         working-directory: ./contracts/starknet/invoice
         run: |
           /tmp/tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.compiled_contract_class.json > ./compiled_class_hash.txt
-      
+
       - name: Upload contract artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -303,7 +301,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./contracts/ethereum/invoice
-        run: forge install
+        run: forge install --no-git --no-commit
 
       - name: Show Forge version
         working-directory: ./contracts/ethereum/invoice
@@ -316,7 +314,7 @@ jobs:
       - name: Build contracts
         working-directory: ./contracts/ethereum/invoice
         run: forge build
-      
+
       - name: Test contracts
         working-directory: ./contracts/ethereum/invoice
         run: forge test
@@ -397,7 +395,7 @@ jobs:
 
   mock-tests:
     name: "Integration Tests (Mock)"
-    needs: [ build-app-binaries, build-test-binaries ]
+    needs: [build-app-binaries, build-test-binaries]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -450,12 +448,12 @@ jobs:
         run: |
           RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
           echo $! > signer.pid
-        
+
       - name: Wait for signer service to be ready
         run: |
           echo "Waiting for signer to be ready..."
           timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
-          
+
       - name: Run signer integration tests
         env:
           GRPC_PORT: 10001
@@ -463,7 +461,7 @@ jobs:
         run: |
           # Run all executables in the signer-tests directory one after the other
           echo "Running all signer integration tests..."
-          
+
           for test_binary in ./signer-tests/*; do
             if [ -f "$test_binary" ] && [ -x "$test_binary" ]; then
               echo "Running: $(basename "$test_binary")"
@@ -476,7 +474,7 @@ jobs:
               echo "✓ Passed: $(basename "$test_binary")"
             fi
           done
-          
+
           echo "All signer integration tests completed successfully!"
 
       - name: Start node service (mock)
@@ -489,14 +487,14 @@ jobs:
         run: |
           echo "Waiting for node to be ready..."
           timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
-          
+
       - name: Run node integration tests
         env:
           GRPC_PORT: 10003
         run: |
           # Run all executables in the node-tests directory one after the other
           echo "Running all node integration tests..."
-          
+
           for test_binary in ./node-tests/*; do
             if [ -f "$test_binary" ] && [ -x "$test_binary" ]; then
               echo "Running: $(basename "$test_binary")"
@@ -509,7 +507,7 @@ jobs:
               echo "✓ Passed: $(basename "$test_binary")"
             fi
           done
-          
+
           echo "All node integration tests completed successfully!"
 
       - name: Cleanup services
@@ -524,10 +522,9 @@ jobs:
             rm node.pid
           fi
 
-
   starknet-tests:
     name: "Integration Tests (Starknet)"
-    needs: [ build-app-binaries, build-test-binaries, build-starknet-contracts ]
+    needs: [build-app-binaries, build-test-binaries, build-starknet-contracts]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -603,18 +600,18 @@ jobs:
 
       - name: Download firehose binaries
         run: |
-           wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
-           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.1.1/firehose-starknet_linux_x86_64.tar.gz
+          wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
+          wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.1.1/firehose-starknet_linux_x86_64.tar.gz
 
-           tar -xzf firehose-core_linux_x86_64.tar.gz
-           tar -xzf firehose-starknet_linux_x86_64.tar.gz
+          tar -xzf firehose-core_linux_x86_64.tar.gz
+          tar -xzf firehose-starknet_linux_x86_64.tar.gz
 
-           rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
+          rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
 
       - name: Start firehose
         run: |
-           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
-           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &         
+          ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
+          ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &
 
       - name: Run starknet on-chain setup
         run: |
@@ -636,13 +633,13 @@ jobs:
         env:
           RUST_LOG: info
           PG_URL: "${{ env.PG_URL }}"
-          SIGNER_URL: "${{ env.SIGNER_URL }}" 
+          SIGNER_URL: "${{ env.SIGNER_URL }}"
           GRPC_PORT: 10003
           # Starknet
-          STARKNET_CASHIER_ACCOUNT_ADDRESS: "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691" 
+          STARKNET_CASHIER_ACCOUNT_ADDRESS: "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
           STARKNET_CASHIER_PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
-          STARKNET_RPC_NODE_URL: http://localhost:5050 
-          STARKNET_SUBSTREAMS_URL: http://localhost:10016          
+          STARKNET_RPC_NODE_URL: http://localhost:5050
+          STARKNET_SUBSTREAMS_URL: http://localhost:10016
           STARKNET_CHAIN_ID: SN_DEVNET
           STARKNET_INDEXER_START_BLOCK: 0
         run: |
@@ -654,7 +651,7 @@ jobs:
         run: |
           echo "Waiting for signer to be ready..."
           timeout 60 bash -c 'until nc -z localhost 10001; do sleep 1; done'
-          
+
           echo "Waiting for node to be ready..."
           timeout 60 bash -c 'until nc -z localhost 10003; do sleep 1; done'
 
@@ -673,7 +670,7 @@ jobs:
         run: |
           # Run all executables in the e2e-tests directory one after the other
           echo "Running all e2e integration tests..."
-          
+
           for test_binary in ./e2e-tests/*; do
             if [ -f "$test_binary" ] && [ -x "$test_binary" ]; then
               echo "Running: $(basename "$test_binary")"
@@ -686,7 +683,7 @@ jobs:
               echo "✓ Passed: $(basename "$test_binary")"
             fi
           done
-          
+
           echo "All e2e integration tests completed successfully!"
 
       - name: Run concurrency tests
@@ -699,7 +696,7 @@ jobs:
         run: |
           # Run all executables in the concurrency-tests directory one after the other
           echo "Running all concurrency integration tests..."
-          
+
           for test_binary in ./concurrency-tests/*; do
             if [ -f "$test_binary" ] && [ -x "$test_binary" ]; then
               echo "Running: $(basename "$test_binary")"
@@ -712,7 +709,7 @@ jobs:
               echo "✓ Passed: $(basename "$test_binary")"
             fi
           done
-          
+
           echo "All concurrency integration tests completed successfully!"
 
       - name: Cleanup
