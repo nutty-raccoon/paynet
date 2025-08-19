@@ -1,9 +1,0 @@
-services:
-  localnet-genesis:
-    image: ethpandaops/ethereum-genesis-generator:5.0.0
-    entrypoint: ["./entrypoint.sh"]
-    command: ["all"]
-    volumes:
-      - ./localnet/el-cl-genesis-data:/data
-      - ./localnet/config:/config  
-    restart: "no"

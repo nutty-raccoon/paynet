@@ -1,0 +1,335 @@
+{"level":"info","ts":1755203202.3730829,"logger":"dtracing","msg":"registering development exporters from environment variables"}
+{"level":"info","ts":1755203202.375491,"logger":"firecore","msg":"starting Firehose on CORE with config file 'firehose-starknet-rmr.yaml'"}
+{"level":"info","ts":1755203202.384355,"logger":"firecore","msg":"launching applications: merger,reader-node,relayer"}
+{"level":"error","ts":1755203202.3882754,"logger":"firecore","msg":"failed to run","error":"unable to launch: unable to create app \"reader-node\": the configuration value 'reader-node-path' cannot be empty, it must points to a Firehose aware blockchain node client or a Firehose aware poller, don't forget to set the 'reader-node-arguments' flag to pass the appropriate arguments to the node"}
+{"level":"info","ts":1755203934.6679013,"logger":"dtracing","msg":"registering development exporters from environment variables"}
+{"level":"info","ts":1755203934.6693716,"logger":"firecore","msg":"starting Firehose on CORE with config file 'firehose-starknet-rmr.yaml'"}
+{"level":"info","ts":1755203934.6733637,"logger":"firecore","msg":"launching applications: merger,reader-node,relayer"}
+{"level":"info","ts":1755203934.6734972,"logger":"reader-node","msg":"parsing backup configs","configs":[],"factory_count":1}
+{"level":"info","ts":1755203934.6735263,"logger":"reader-node","msg":"parsing backup known factory","name":"gke-pvc-snapshot"}
+{"level":"info","ts":1755203934.6736214,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755203934.6736403,"logger":"reader-node","msg":"registered log plugin","plugin count":1}
+{"level":"info","ts":1755203934.674305,"logger":"reader-node","msg":"creating operator","options":{"Bootstrapper":null,"EnableSupervisorMonitoring":true,"ShutdownDelay":0}}
+{"level":"info","ts":1755203934.6749694,"logger":"reader-node","msg":"creating mindreader plugin","one_blocks_store_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","one_block_suffix":"default","working_directory":"/home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/reader/work","start_block_num":0,"stop_block_num":0,"channel_capacity":100,"with_head_block_updater":true,"with_shutdown_func":true}
+{"level":"info","ts":1755203934.675258,"logger":"reader-node","msg":"creating new mindreader plugin"}
+{"level":"info","ts":1755203934.6752858,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755203934.6753016,"logger":"reader-node","msg":"registered log plugin","plugin count":2}
+{"level":"info","ts":1755203934.675517,"logger":"reader-node","msg":"running node manager app","config":{"StartupDelay":0,"HTTPAddr":":10011","ConnectionWatchdog":false,"GRPCAddr":":10010"},"mindreader":true}
+{"level":"info","ts":1755203934.6754923,"logger":"merger","msg":"running merger","config":{"StorageOneBlockFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","StorageMergedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/merged-blocks","StorageForkedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/forked-blocks","FilesDeleteThreads":8,"GRPCListenAddr":":10012","PruneForkedBlocksAfter":50000,"TimeBetweenPruning":60000000000,"TimeBetweenPolling":1000000000,"StopBlock":0}}
+{"level":"info","ts":1755203934.6757622,"logger":"reader-node","msg":"retrieved hostname from os","hostname":"bell"}
+{"level":"info","ts":1755203934.6757998,"logger":"reader-node","msg":"starting mindreader gRPC server"}
+{"level":"info","ts":1755203934.675538,"logger":"relayer","msg":"starting relayer","sources_addr":[":10010"],"grpc_listen_addr":":10014","source_request_burst":0,"max_source_latency":3599996400,"one_blocks_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks"}
+{"level":"info","ts":1755203934.675833,"logger":"reader-node","msg":"standard server created"}
+{"level":"info","ts":1755203934.6759126,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755203934.6761615,"logger":"bstream","msg":"New forkable hub initialized","source_chan_size":100,"keep_final_blocks":10}
+{"level":"info","ts":1755203934.6764019,"logger":"reader-node","msg":"launching operator"}
+{"level":"info","ts":1755203934.6765437,"logger":"reader-node","msg":"launching operator HTTP server","http_listen_addr":":10011"}
+{"level":"info","ts":1755203934.67669,"logger":"relayer","msg":"waiting for hub to be ready..."}
+{"level":"info","ts":1755203934.6768725,"logger":"merger","msg":"merger initiated"}
+{"level":"info","ts":1755203934.6769836,"logger":"reader-node","msg":"starting webserver","http_addr":":10011"}
+{"level":"info","ts":1755203934.676976,"logger":"reader-node","msg":"launching gRPC server","listen_addr":":10010"}
+{"level":"info","ts":1755203934.677057,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755203934.6772368,"logger":"reader-node","msg":"serving gRPC","listen_addr":":10010"}
+{"level":"info","ts":1755203934.6773367,"logger":"reader-node","msg":"received operator command","command":"start","params":null}
+{"level":"info","ts":1755203934.6774056,"logger":"reader-node","msg":"preparing for start"}
+{"level":"info","ts":1755203934.6774342,"logger":"reader-node","msg":"preparing to start chain"}
+{"level":"warn","ts":1755203934.6773913,"logger":"bstream","msg":"bootstrapping from one-block-files incomplete. Will bootstrap from incoming live blocks","error":"no one blocks found"}
+{"level":"info","ts":1755203934.6774638,"logger":"reader-node","msg":"starting mindreader"}
+{"level":"info","ts":1755203934.6775453,"logger":"relayer","msg":"new source factory created"}
+{"level":"info","ts":1755203934.6781785,"logger":"merger","msg":"merger running"}
+{"level":"info","ts":1755203934.6782415,"logger":"merger","msg":"starting merger"}
+{"level":"info","ts":1755203934.6783633,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755203934.6785111,"logger":"merger","msg":"grpc server created"}
+{"level":"info","ts":1755203934.6785018,"logger":"reader-node","msg":"launching blocks reading loop","capacity":100}
+{"level":"info","ts":1755203934.6785545,"logger":"merger","msg":"server registered"}
+{"level":"info","ts":1755203934.6785843,"logger":"merger","msg":"starting pruning of unused (old) one-block-files","pruning_distance_to_lib":100,"time_between_pruning":60}
+{"level":"info","ts":1755203934.6786144,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["fetch","0","--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":""}
+{"level":"info","ts":1755203934.6786313,"logger":"reader-node","msg":"starting consume flow"}
+{"level":"info","ts":1755203934.6786828,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["fetch","0","--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":{"<inherited from process>":"{94 vars}"}}
+{"level":"info","ts":1755203934.678625,"logger":"merger","msg":"starting pruning of forked files","pruning_distance_to_lib":50000,"time_between_pruning":60}
+{"level":"info","ts":1755203934.6788192,"logger":"reader-node","msg":"successfully start service"}
+{"level":"info","ts":1755203934.6788733,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755203934.6786537,"logger":"dgrpc","msg":"launching gRPC server","listen_addr":":10012"}
+{"level":"info","ts":1755203934.6790094,"logger":"dgrpc","msg":"serving gRPC","listen_addr":":10012"}
+{"level":"info","ts":1755203934.7257726,"logger":"relayer.src.10010","msg":"starting block source consumption","endpoint_url":":10010"}
+{"level":"info","ts":1755203934.7262185,"logger":"relayer.src.10010","msg":"block stream source reading messages","endpoint_url":":10010"}
+{"level":"info","ts":1755203934.7264693,"logger":"reader-node.sub.relayer","msg":"receive block request","trace_id":"18655b48599c118f509328f098c1446a","request":{"requester":"relayer"}}
+{"level":"info","ts":1755203934.7271252,"logger":"reader-node.sub.relayer","msg":"sending burst","burst_size":0}
+{"level":"info","ts":1755203934.7271926,"logger":"reader-node","msg":"subscribed","new_length":1,"subscriber":"relayer"}
+{"level":"info","ts":1755203934.8190005,"logger":"reader-node","msg":"operator is terminating","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203934.8191311,"logger":"reader-node","msg":"superviser is terminating"}
+{"level":"info","ts":1755203934.8191726,"logger":"reader-node","msg":"supervisor received a stop request, terminating supervised node process"}
+{"level":"error","ts":1755203934.819139,"logger":"reader-node","msg":"command terminated with non-zero status, last log lines:\n<None>\n","command":"./firestark","exit_code":1,"error":"exit status 1","pid":72353,"runtime":0.133452268,"started_at":1755203934.6854951,"stopped_at":1755203934.8189473}
+{"level":"info","ts":1755203934.8192089,"logger":"reader-node","msg":"underlying process is not running, nothing to do"}
+{"level":"info","ts":1755203934.8194265,"logger":"reader-node","msg":"shutting down plugins","last_exit_code":1}
+{"level":"info","ts":1755203934.819487,"logger":"reader-node","msg":"stopping plugin","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755203934.8195162,"logger":"reader-node","msg":"stopping plugin","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755203934.8195345,"logger":"reader-node","msg":"mindreader is stopping"}
+{"level":"info","ts":1755203934.8195908,"logger":"reader-node","msg":"console reader stats","block_rate":"0.000 blocks/s (0 total)","last_block":"<unset> @ 01 Jan 01 00:13 +0013","last_parent_block":"<unset>","lib":0}
+{"level":"info","ts":1755203934.8202512,"logger":"reader-node","msg":"console reader done"}
+{"level":"info","ts":1755203934.8203223,"logger":"reader-node","msg":"waiting until consume read flow (i.e. blocks) is actually done processing blocks..."}
+{"level":"info","ts":1755203934.8203623,"logger":"reader-node","msg":"reached end of console reader stream, nothing more to do"}
+{"level":"info","ts":1755203934.8204143,"logger":"reader-node","msg":"all blocks in channel were drained, exiting read flow"}
+{"level":"info","ts":1755203934.8204546,"logger":"reader-node","msg":"archiver selector is terminating"}
+{"level":"info","ts":1755203934.8204782,"logger":"reader-node","msg":"archiver selector is terminated"}
+{"level":"info","ts":1755203934.8204987,"logger":"reader-node","msg":"archiver termination code completed"}
+{"level":"info","ts":1755203934.8205218,"logger":"reader-node","msg":"consume read flow terminate"}
+{"level":"info","ts":1755203934.8205516,"logger":"reader-node","msg":"all plugins closed"}
+{"level":"info","ts":1755203934.820576,"logger":"reader-node","msg":"operator is waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203934.8206046,"logger":"reader-node","msg":"operator done waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203934.820631,"logger":"reader-node","msg":"chain operator terminated shutting down mindreader app"}
+{"level":"info","ts":1755203934.8206573,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755203934.8206801,"logger":"reader-node","msg":"superviser terminating, waiting for operator..."}
+{"level":"error","ts":1755203934.8207495,"logger":"firecore","msg":"\n################################################################\nFatal error in app reader-node:\n\ninstance \"\" stopped (exit code: 1), shutting down\n################################################################\n"}
+{"level":"info","ts":1755203934.8209374,"logger":"firecore","msg":"application reader-node shutdown unexpectedly, quitting"}
+{"level":"info","ts":1755203934.8210273,"logger":"dgrpc","msg":"forcing gRPC server to stop"}
+{"level":"info","ts":1755203934.821304,"logger":"firecore","msg":"waiting for all apps termination..."}
+{"level":"info","ts":1755203934.8213577,"logger":"firecore","msg":"all apps terminated gracefully"}
+{"level":"error","ts":1755203934.821437,"logger":"firecore","msg":"failed to run","error":"unable to launch: instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203983.8051906,"logger":"dtracing","msg":"registering development exporters from environment variables"}
+{"level":"info","ts":1755203983.8074017,"logger":"firecore","msg":"starting Firehose on CORE with config file 'firehose-starknet-rmr.yaml'"}
+{"level":"info","ts":1755203983.8174298,"logger":"firecore","msg":"launching applications: merger,reader-node,relayer"}
+{"level":"info","ts":1755203983.8181567,"logger":"reader-node","msg":"parsing backup configs","configs":[],"factory_count":1}
+{"level":"info","ts":1755203983.8184144,"logger":"reader-node","msg":"parsing backup known factory","name":"gke-pvc-snapshot"}
+{"level":"info","ts":1755203983.8186188,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755203983.8186724,"logger":"reader-node","msg":"registered log plugin","plugin count":1}
+{"level":"info","ts":1755203983.8200512,"logger":"reader-node","msg":"creating operator","options":{"Bootstrapper":null,"EnableSupervisorMonitoring":true,"ShutdownDelay":0}}
+{"level":"info","ts":1755203983.8202803,"logger":"reader-node","msg":"creating mindreader plugin","one_blocks_store_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","one_block_suffix":"default","working_directory":"/home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/reader/work","start_block_num":0,"stop_block_num":0,"channel_capacity":100,"with_head_block_updater":true,"with_shutdown_func":true}
+{"level":"info","ts":1755203983.8204443,"logger":"reader-node","msg":"creating new mindreader plugin"}
+{"level":"info","ts":1755203983.820496,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755203983.8205364,"logger":"reader-node","msg":"registered log plugin","plugin count":2}
+{"level":"info","ts":1755203983.820873,"logger":"reader-node","msg":"running node manager app","config":{"StartupDelay":0,"HTTPAddr":":10011","ConnectionWatchdog":false,"GRPCAddr":":10010"},"mindreader":true}
+{"level":"info","ts":1755203983.8210511,"logger":"relayer","msg":"starting relayer","sources_addr":[":10010"],"grpc_listen_addr":":10014","source_request_burst":0,"max_source_latency":3599996400,"one_blocks_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks"}
+{"level":"info","ts":1755203983.8208735,"logger":"merger","msg":"running merger","config":{"StorageOneBlockFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","StorageMergedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/merged-blocks","StorageForkedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/forked-blocks","FilesDeleteThreads":8,"GRPCListenAddr":":10012","PruneForkedBlocksAfter":50000,"TimeBetweenPruning":60000000000,"TimeBetweenPolling":1000000000,"StopBlock":0}}
+{"level":"info","ts":1755203983.821303,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755203983.8211615,"logger":"reader-node","msg":"retrieved hostname from os","hostname":"bell"}
+{"level":"info","ts":1755203983.8214374,"logger":"reader-node","msg":"starting mindreader gRPC server"}
+{"level":"info","ts":1755203983.8215053,"logger":"reader-node","msg":"standard server created"}
+{"level":"info","ts":1755203983.8216367,"logger":"bstream","msg":"New forkable hub initialized","source_chan_size":100,"keep_final_blocks":10}
+{"level":"info","ts":1755203983.8217406,"logger":"relayer","msg":"waiting for hub to be ready..."}
+{"level":"info","ts":1755203983.821852,"logger":"reader-node","msg":"launching operator"}
+{"level":"info","ts":1755203983.8219662,"logger":"reader-node","msg":"launching operator HTTP server","http_listen_addr":":10011"}
+{"level":"info","ts":1755203983.82235,"logger":"reader-node","msg":"launching gRPC server","listen_addr":":10010"}
+{"level":"info","ts":1755203983.8225036,"logger":"reader-node","msg":"starting webserver","http_addr":":10011"}
+{"level":"info","ts":1755203983.8227677,"logger":"merger","msg":"merger initiated"}
+{"level":"info","ts":1755203983.8227565,"logger":"reader-node","msg":"serving gRPC","listen_addr":":10010"}
+{"level":"warn","ts":1755203983.8227944,"logger":"bstream","msg":"bootstrapping from one-block-files incomplete. Will bootstrap from incoming live blocks","error":"no one blocks found"}
+{"level":"info","ts":1755203983.823008,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755203983.8231726,"logger":"relayer","msg":"new source factory created"}
+{"level":"info","ts":1755203983.8231976,"logger":"reader-node","msg":"received operator command","command":"start","params":null}
+{"level":"info","ts":1755203983.8233418,"logger":"reader-node","msg":"preparing for start"}
+{"level":"info","ts":1755203983.8233733,"logger":"reader-node","msg":"preparing to start chain"}
+{"level":"info","ts":1755203983.8234212,"logger":"reader-node","msg":"starting mindreader"}
+{"level":"info","ts":1755203983.823732,"logger":"merger","msg":"merger running"}
+{"level":"info","ts":1755203983.8237867,"logger":"reader-node","msg":"launching blocks reading loop","capacity":100}
+{"level":"info","ts":1755203983.823859,"logger":"merger","msg":"starting merger"}
+{"level":"info","ts":1755203983.8239741,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755203983.8239086,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["fetch","0","--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":""}
+{"level":"info","ts":1755203983.8240135,"logger":"reader-node","msg":"starting consume flow"}
+{"level":"info","ts":1755203983.8243198,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["fetch","0","--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":{"<inherited from process>":"{94 vars}"}}
+{"level":"info","ts":1755203983.824557,"logger":"merger","msg":"grpc server created"}
+{"level":"info","ts":1755203983.824624,"logger":"merger","msg":"server registered"}
+{"level":"info","ts":1755203983.824617,"logger":"reader-node","msg":"successfully start service"}
+{"level":"info","ts":1755203983.8246608,"logger":"merger","msg":"starting pruning of unused (old) one-block-files","pruning_distance_to_lib":100,"time_between_pruning":60}
+{"level":"info","ts":1755203983.8247106,"logger":"merger","msg":"starting pruning of forked files","pruning_distance_to_lib":50000,"time_between_pruning":60}
+{"level":"info","ts":1755203983.8247595,"logger":"dgrpc","msg":"launching gRPC server","listen_addr":":10012"}
+{"level":"info","ts":1755203983.8246737,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755203983.824995,"logger":"dgrpc","msg":"serving gRPC","listen_addr":":10012"}
+{"level":"info","ts":1755203983.8655322,"logger":"relayer.src.10010","msg":"starting block source consumption","endpoint_url":":10010"}
+{"level":"info","ts":1755203983.8656628,"logger":"relayer.src.10010","msg":"block stream source reading messages","endpoint_url":":10010"}
+{"level":"info","ts":1755203983.8658872,"logger":"reader-node.sub.relayer","msg":"receive block request","trace_id":"c2e9440a5ce01c4d892710236256175c","request":{"requester":"relayer"}}
+{"level":"info","ts":1755203983.8660393,"logger":"reader-node.sub.relayer","msg":"sending burst","burst_size":0}
+{"level":"info","ts":1755203983.8660588,"logger":"reader-node","msg":"subscribed","new_length":1,"subscriber":"relayer"}
+{"level":"info","ts":1755203983.894677,"logger":"reader-node","msg":"operator is terminating","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203983.894754,"logger":"reader-node","msg":"superviser is terminating"}
+{"level":"error","ts":1755203983.8947043,"logger":"reader-node","msg":"command terminated with non-zero status, last log lines:\n<None>\n","command":"./firestark","exit_code":1,"error":"exit status 1","pid":72614,"runtime":0.061342203,"started_at":1755203983.833307,"stopped_at":1755203983.8946493}
+{"level":"info","ts":1755203983.8947802,"logger":"reader-node","msg":"supervisor received a stop request, terminating supervised node process"}
+{"level":"info","ts":1755203983.894801,"logger":"reader-node","msg":"underlying process is not running, nothing to do"}
+{"level":"info","ts":1755203983.8948112,"logger":"reader-node","msg":"shutting down plugins","last_exit_code":1}
+{"level":"info","ts":1755203983.894829,"logger":"reader-node","msg":"stopping plugin","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755203983.894843,"logger":"reader-node","msg":"stopping plugin","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755203983.894854,"logger":"reader-node","msg":"mindreader is stopping"}
+{"level":"info","ts":1755203983.8948915,"logger":"reader-node","msg":"console reader stats","block_rate":"0.000 blocks/s (0 total)","last_block":"<unset> @ 01 Jan 01 00:13 +0013","last_parent_block":"<unset>","lib":0}
+{"level":"info","ts":1755203983.8949687,"logger":"reader-node","msg":"console reader done"}
+{"level":"info","ts":1755203983.8949842,"logger":"reader-node","msg":"waiting until consume read flow (i.e. blocks) is actually done processing blocks..."}
+{"level":"info","ts":1755203983.8949993,"logger":"reader-node","msg":"reached end of console reader stream, nothing more to do"}
+{"level":"info","ts":1755203983.8950195,"logger":"reader-node","msg":"all blocks in channel were drained, exiting read flow"}
+{"level":"info","ts":1755203983.8950374,"logger":"reader-node","msg":"archiver selector is terminating"}
+{"level":"info","ts":1755203983.8950493,"logger":"reader-node","msg":"archiver selector is terminated"}
+{"level":"info","ts":1755203983.8950639,"logger":"reader-node","msg":"archiver termination code completed"}
+{"level":"info","ts":1755203983.89508,"logger":"reader-node","msg":"consume read flow terminate"}
+{"level":"info","ts":1755203983.8950913,"logger":"reader-node","msg":"all plugins closed"}
+{"level":"info","ts":1755203983.895101,"logger":"reader-node","msg":"operator is waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203983.895114,"logger":"reader-node","msg":"operator done waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755203983.8951266,"logger":"reader-node","msg":"chain operator terminated shutting down mindreader app"}
+{"level":"info","ts":1755203983.8951414,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755203983.895154,"logger":"reader-node","msg":"superviser terminating, waiting for operator..."}
+{"level":"error","ts":1755203983.895175,"logger":"firecore","msg":"\n################################################################\nFatal error in app reader-node:\n\ninstance \"\" stopped (exit code: 1), shutting down\n################################################################\n"}
+{"level":"info","ts":1755203983.8952334,"logger":"firecore","msg":"application reader-node shutdown unexpectedly, quitting"}
+{"level":"info","ts":1755203983.895248,"logger":"firecore","msg":"waiting for all apps termination..."}
+{"level":"info","ts":1755203983.8952856,"logger":"dgrpc","msg":"forcing gRPC server to stop"}
+{"level":"info","ts":1755203983.8953705,"logger":"firecore","msg":"all apps terminated gracefully"}
+{"level":"error","ts":1755203983.895398,"logger":"firecore","msg":"failed to run","error":"unable to launch: instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204014.8420806,"logger":"dtracing","msg":"registering development exporters from environment variables"}
+{"level":"info","ts":1755204014.843226,"logger":"firecore","msg":"starting Firehose on CORE with config file 'firehose-starknet-rmr.yaml'"}
+{"level":"info","ts":1755204014.8476045,"logger":"firecore","msg":"launching applications: merger,reader-node,relayer"}
+{"level":"info","ts":1755204014.8478436,"logger":"reader-node","msg":"parsing backup configs","configs":[],"factory_count":1}
+{"level":"info","ts":1755204014.8479102,"logger":"reader-node","msg":"parsing backup known factory","name":"gke-pvc-snapshot"}
+{"level":"info","ts":1755204014.8480158,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755204014.848038,"logger":"reader-node","msg":"registered log plugin","plugin count":1}
+{"level":"info","ts":1755204014.8485901,"logger":"reader-node","msg":"creating operator","options":{"Bootstrapper":null,"EnableSupervisorMonitoring":true,"ShutdownDelay":0}}
+{"level":"info","ts":1755204014.848696,"logger":"reader-node","msg":"creating mindreader plugin","one_blocks_store_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","one_block_suffix":"default","working_directory":"/home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/reader/work","start_block_num":0,"stop_block_num":0,"channel_capacity":100,"with_head_block_updater":true,"with_shutdown_func":true}
+{"level":"info","ts":1755204014.8487833,"logger":"reader-node","msg":"creating new mindreader plugin"}
+{"level":"info","ts":1755204014.8488016,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755204014.8488162,"logger":"reader-node","msg":"registered log plugin","plugin count":2}
+{"level":"info","ts":1755204014.848999,"logger":"relayer","msg":"starting relayer","sources_addr":[":10010"],"grpc_listen_addr":":10014","source_request_burst":0,"max_source_latency":3599996400,"one_blocks_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks"}
+{"level":"info","ts":1755204014.8491232,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755204014.8492694,"logger":"bstream","msg":"New forkable hub initialized","source_chan_size":100,"keep_final_blocks":10}
+{"level":"info","ts":1755204014.8493092,"logger":"relayer","msg":"waiting for hub to be ready..."}
+{"level":"warn","ts":1755204014.849437,"logger":"bstream","msg":"bootstrapping from one-block-files incomplete. Will bootstrap from incoming live blocks","error":"no one blocks found"}
+{"level":"info","ts":1755204014.8494856,"logger":"relayer","msg":"new source factory created"}
+{"level":"info","ts":1755204014.8496065,"logger":"merger","msg":"running merger","config":{"StorageOneBlockFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","StorageMergedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/merged-blocks","StorageForkedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/forked-blocks","FilesDeleteThreads":8,"GRPCListenAddr":":10012","PruneForkedBlocksAfter":50000,"TimeBetweenPruning":60000000000,"TimeBetweenPolling":1000000000,"StopBlock":0}}
+{"level":"info","ts":1755204014.8497097,"logger":"reader-node","msg":"running node manager app","config":{"StartupDelay":0,"HTTPAddr":":10011","ConnectionWatchdog":false,"GRPCAddr":":10010"},"mindreader":true}
+{"level":"info","ts":1755204014.8499231,"logger":"reader-node","msg":"retrieved hostname from os","hostname":"bell"}
+{"level":"info","ts":1755204014.8499484,"logger":"reader-node","msg":"starting mindreader gRPC server"}
+{"level":"info","ts":1755204014.8499706,"logger":"reader-node","msg":"standard server created"}
+{"level":"info","ts":1755204014.8500805,"logger":"reader-node","msg":"launching operator"}
+{"level":"info","ts":1755204014.8501,"logger":"reader-node","msg":"launching operator HTTP server","http_listen_addr":":10011"}
+{"level":"info","ts":1755204014.850319,"logger":"merger","msg":"merger initiated"}
+{"level":"info","ts":1755204014.8503451,"logger":"reader-node","msg":"starting webserver","http_addr":":10011"}
+{"level":"info","ts":1755204014.850394,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755204014.8504138,"logger":"reader-node","msg":"received operator command","command":"start","params":null}
+{"level":"info","ts":1755204014.8504355,"logger":"reader-node","msg":"preparing for start"}
+{"level":"info","ts":1755204014.8504508,"logger":"reader-node","msg":"preparing to start chain"}
+{"level":"info","ts":1755204014.8504739,"logger":"reader-node","msg":"starting mindreader"}
+{"level":"info","ts":1755204014.8505526,"logger":"reader-node","msg":"launching gRPC server","listen_addr":":10010"}
+{"level":"info","ts":1755204014.8507407,"logger":"reader-node","msg":"serving gRPC","listen_addr":":10010"}
+{"level":"info","ts":1755204014.850589,"logger":"merger","msg":"merger running"}
+{"level":"info","ts":1755204014.8506086,"logger":"merger","msg":"starting merger"}
+{"level":"info","ts":1755204014.8506246,"logger":"reader-node","msg":"launching blocks reading loop","capacity":100}
+{"level":"info","ts":1755204014.8508656,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755204014.850942,"logger":"merger","msg":"grpc server created"}
+{"level":"info","ts":1755204014.850942,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":""}
+{"level":"info","ts":1755204014.8510323,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":{"<inherited from process>":"{94 vars}"}}
+{"level":"info","ts":1755204014.8509476,"logger":"reader-node","msg":"starting consume flow"}
+{"level":"info","ts":1755204014.850975,"logger":"merger","msg":"server registered"}
+{"level":"info","ts":1755204014.851777,"logger":"merger","msg":"starting pruning of unused (old) one-block-files","pruning_distance_to_lib":100,"time_between_pruning":60}
+{"level":"info","ts":1755204014.8519406,"logger":"merger","msg":"starting pruning of forked files","pruning_distance_to_lib":50000,"time_between_pruning":60}
+{"level":"info","ts":1755204014.8519292,"logger":"dgrpc","msg":"launching gRPC server","listen_addr":":10012"}
+{"level":"info","ts":1755204014.8520868,"logger":"dgrpc","msg":"serving gRPC","listen_addr":":10012"}
+{"level":"info","ts":1755204014.8518865,"logger":"reader-node","msg":"successfully start service"}
+{"level":"info","ts":1755204014.8522918,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755204014.9053712,"logger":"reader-node","msg":"operator is terminating","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204014.9054863,"logger":"reader-node","msg":"superviser is terminating"}
+{"level":"error","ts":1755204014.9054344,"logger":"reader-node","msg":"command terminated with non-zero status, last log lines:\n<None>\n","command":"./firestark","exit_code":1,"error":"exit status 1","pid":72748,"runtime":0.048198234,"started_at":1755204014.857134,"stopped_at":1755204014.9053323}
+{"level":"info","ts":1755204014.9055197,"logger":"reader-node","msg":"supervisor received a stop request, terminating supervised node process"}
+{"level":"info","ts":1755204014.9055395,"logger":"reader-node","msg":"underlying process is not running, nothing to do"}
+{"level":"info","ts":1755204014.905552,"logger":"reader-node","msg":"shutting down plugins","last_exit_code":1}
+{"level":"info","ts":1755204014.9055648,"logger":"reader-node","msg":"stopping plugin","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755204014.905577,"logger":"reader-node","msg":"stopping plugin","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755204014.9055884,"logger":"reader-node","msg":"mindreader is stopping"}
+{"level":"info","ts":1755204014.9056263,"logger":"reader-node","msg":"console reader stats","block_rate":"0.000 blocks/s (0 total)","last_block":"<unset> @ 01 Jan 01 00:13 +0013","last_parent_block":"<unset>","lib":0}
+{"level":"info","ts":1755204014.9057086,"logger":"reader-node","msg":"console reader done"}
+{"level":"info","ts":1755204014.9057236,"logger":"reader-node","msg":"waiting until consume read flow (i.e. blocks) is actually done processing blocks..."}
+{"level":"info","ts":1755204014.9057424,"logger":"reader-node","msg":"reached end of console reader stream, nothing more to do"}
+{"level":"info","ts":1755204014.9057674,"logger":"reader-node","msg":"all blocks in channel were drained, exiting read flow"}
+{"level":"info","ts":1755204014.9057856,"logger":"reader-node","msg":"archiver selector is terminating"}
+{"level":"info","ts":1755204014.9057982,"logger":"reader-node","msg":"archiver selector is terminated"}
+{"level":"info","ts":1755204014.9058084,"logger":"reader-node","msg":"archiver termination code completed"}
+{"level":"info","ts":1755204014.9058208,"logger":"reader-node","msg":"consume read flow terminate"}
+{"level":"info","ts":1755204014.9058416,"logger":"reader-node","msg":"all plugins closed"}
+{"level":"info","ts":1755204014.905853,"logger":"reader-node","msg":"operator is waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204014.9058657,"logger":"reader-node","msg":"operator done waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204014.9058778,"logger":"reader-node","msg":"chain operator terminated shutting down mindreader app"}
+{"level":"info","ts":1755204014.9058905,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755204014.9059017,"logger":"reader-node","msg":"superviser terminating, waiting for operator..."}
+{"level":"error","ts":1755204014.9059217,"logger":"firecore","msg":"\n################################################################\nFatal error in app reader-node:\n\ninstance \"\" stopped (exit code: 1), shutting down\n################################################################\n"}
+{"level":"info","ts":1755204014.9060094,"logger":"firecore","msg":"application reader-node shutdown unexpectedly, quitting"}
+{"level":"info","ts":1755204014.90602,"logger":"dgrpc","msg":"forcing gRPC server to stop"}
+{"level":"info","ts":1755204014.9060543,"logger":"firecore","msg":"waiting for all apps termination..."}
+{"level":"info","ts":1755204014.906131,"logger":"firecore","msg":"all apps terminated gracefully"}
+{"level":"error","ts":1755204014.9061587,"logger":"firecore","msg":"failed to run","error":"unable to launch: instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204041.5171425,"logger":"dtracing","msg":"registering development exporters from environment variables"}
+{"level":"info","ts":1755204041.518779,"logger":"firecore","msg":"starting Firehose on CORE with config file 'firehose-starknet-rmr.yaml'"}
+{"level":"info","ts":1755204041.5250332,"logger":"firecore","msg":"launching applications: merger,reader-node,relayer"}
+{"level":"info","ts":1755204041.5252428,"logger":"reader-node","msg":"parsing backup configs","configs":[],"factory_count":1}
+{"level":"info","ts":1755204041.5252903,"logger":"reader-node","msg":"parsing backup known factory","name":"gke-pvc-snapshot"}
+{"level":"info","ts":1755204041.5254037,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755204041.525434,"logger":"reader-node","msg":"registered log plugin","plugin count":1}
+{"level":"info","ts":1755204041.5263276,"logger":"reader-node","msg":"creating operator","options":{"Bootstrapper":null,"EnableSupervisorMonitoring":true,"ShutdownDelay":0}}
+{"level":"info","ts":1755204041.5264697,"logger":"reader-node","msg":"creating mindreader plugin","one_blocks_store_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","one_block_suffix":"default","working_directory":"/home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/reader/work","start_block_num":0,"stop_block_num":0,"channel_capacity":100,"with_head_block_updater":true,"with_shutdown_func":true}
+{"level":"info","ts":1755204041.526584,"logger":"reader-node","msg":"creating new mindreader plugin"}
+{"level":"info","ts":1755204041.5266132,"logger":"reader-node","msg":"adding superviser shutdown to plugins","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755204041.526636,"logger":"reader-node","msg":"registered log plugin","plugin count":2}
+{"level":"info","ts":1755204041.5267947,"logger":"reader-node","msg":"running node manager app","config":{"StartupDelay":0,"HTTPAddr":":10011","ConnectionWatchdog":false,"GRPCAddr":":10010"},"mindreader":true}
+{"level":"info","ts":1755204041.527043,"logger":"reader-node","msg":"retrieved hostname from os","hostname":"bell"}
+{"level":"info","ts":1755204041.5270703,"logger":"reader-node","msg":"starting mindreader gRPC server"}
+{"level":"info","ts":1755204041.5270941,"logger":"reader-node","msg":"standard server created"}
+{"level":"info","ts":1755204041.5269113,"logger":"relayer","msg":"starting relayer","sources_addr":[":10010"],"grpc_listen_addr":":10014","source_request_burst":0,"max_source_latency":3599996400,"one_blocks_url":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks"}
+{"level":"info","ts":1755204041.5271657,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755204041.5272713,"logger":"reader-node","msg":"launching operator"}
+{"level":"info","ts":1755204041.5269961,"logger":"merger","msg":"running merger","config":{"StorageOneBlockFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/one-blocks","StorageMergedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/merged-blocks","StorageForkedBlocksFilesPath":"file:///home/blockyj/Documents/od-hack-contrib/paynet/crates/substreams/starknet/firehose/firehose-data/storage/forked-blocks","FilesDeleteThreads":8,"GRPCListenAddr":":10012","PruneForkedBlocksAfter":50000,"TimeBetweenPruning":60000000000,"TimeBetweenPolling":1000000000,"StopBlock":0}}
+{"level":"info","ts":1755204041.5272949,"logger":"reader-node","msg":"launching operator HTTP server","http_listen_addr":":10011"}
+{"level":"info","ts":1755204041.5274017,"logger":"bstream","msg":"New forkable hub initialized","source_chan_size":100,"keep_final_blocks":10}
+{"level":"info","ts":1755204041.5278678,"logger":"relayer","msg":"waiting for hub to be ready..."}
+{"level":"info","ts":1755204041.5274436,"logger":"reader-node","msg":"launching gRPC server","listen_addr":":10010"}
+{"level":"info","ts":1755204041.5276408,"logger":"reader-node","msg":"starting webserver","http_addr":":10011"}
+{"level":"info","ts":1755204041.5280294,"logger":"merger","msg":"merger initiated"}
+{"level":"info","ts":1755204041.5280633,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755204041.5281165,"logger":"reader-node","msg":"received operator command","command":"start","params":null}
+{"level":"info","ts":1755204041.5280712,"logger":"reader-node","msg":"serving gRPC","listen_addr":":10010"}
+{"level":"info","ts":1755204041.5281553,"logger":"reader-node","msg":"preparing for start"}
+{"level":"info","ts":1755204041.528178,"logger":"reader-node","msg":"preparing to start chain"}
+{"level":"info","ts":1755204041.5281985,"logger":"reader-node","msg":"starting mindreader"}
+{"level":"info","ts":1755204041.5303428,"logger":"reader-node","msg":"launching blocks reading loop","capacity":100}
+{"level":"warn","ts":1755204041.5280392,"logger":"bstream","msg":"bootstrapping from one-block-files incomplete. Will bootstrap from incoming live blocks","error":"no one blocks found"}
+{"level":"info","ts":1755204041.5307722,"logger":"merger","msg":"starting merger"}
+{"level":"info","ts":1755204041.5307643,"logger":"merger","msg":"merger running"}
+{"level":"info","ts":1755204041.5317445,"logger":"dgrpc","msg":"standard server created"}
+{"level":"info","ts":1755204041.5317411,"logger":"relayer","msg":"new source factory created"}
+{"level":"info","ts":1755204041.5316498,"logger":"reader-node","msg":"starting consume flow"}
+{"level":"info","ts":1755204041.531604,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":""}
+{"level":"info","ts":1755204041.531874,"logger":"reader-node","msg":"creating new command instance and launch read loop","binary":"./firestark","arguments":["--state-dir","firehose-starknet-state-dir","--block-fetch-batch-size","1","--interval-between-fetch","0s","--latest-block-retry-interval","5s","--starknet-endpoints","http://localhost:5050"],"env":{"<inherited from process>":"{94 vars}"}}
+{"level":"info","ts":1755204041.5319772,"logger":"reader-node","msg":"successfully start service"}
+{"level":"info","ts":1755204041.5319731,"logger":"merger","msg":"grpc server created"}
+{"level":"info","ts":1755204041.5323381,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755204041.532419,"logger":"merger","msg":"server registered"}
+{"level":"info","ts":1755204041.5324867,"logger":"merger","msg":"starting pruning of unused (old) one-block-files","pruning_distance_to_lib":100,"time_between_pruning":60}
+{"level":"info","ts":1755204041.5325124,"logger":"dgrpc","msg":"launching gRPC server","listen_addr":":10012"}
+{"level":"info","ts":1755204041.5325382,"logger":"merger","msg":"starting pruning of forked files","pruning_distance_to_lib":50000,"time_between_pruning":60}
+{"level":"info","ts":1755204041.5326052,"logger":"dgrpc","msg":"serving gRPC","listen_addr":":10012"}
+{"level":"info","ts":1755204041.5556445,"logger":"relayer.src.10010","msg":"starting block source consumption","endpoint_url":":10010"}
+{"level":"info","ts":1755204041.555807,"logger":"relayer.src.10010","msg":"block stream source reading messages","endpoint_url":":10010"}
+{"level":"info","ts":1755204041.5560617,"logger":"reader-node.sub.relayer","msg":"receive block request","trace_id":"1487300d524c6df55cd732fc2f2bc5b9","request":{"requester":"relayer"}}
+{"level":"info","ts":1755204041.5562594,"logger":"reader-node.sub.relayer","msg":"sending burst","burst_size":0}
+{"level":"info","ts":1755204041.55628,"logger":"reader-node","msg":"subscribed","new_length":1,"subscriber":"relayer"}
+{"level":"info","ts":1755204041.5871344,"logger":"reader-node","msg":"operator is terminating","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"error","ts":1755204041.5872023,"logger":"reader-node","msg":"command terminated with non-zero status, last log lines:\n<None>\n","command":"./firestark","exit_code":1,"error":"exit status 1","pid":73000,"runtime":0.050511558,"started_at":1755204041.5365665,"stopped_at":1755204041.587078}
+{"level":"info","ts":1755204041.5872886,"logger":"reader-node","msg":"superviser is terminating"}
+{"level":"info","ts":1755204041.5878153,"logger":"reader-node","msg":"supervisor received a stop request, terminating supervised node process"}
+{"level":"info","ts":1755204041.5878537,"logger":"reader-node","msg":"underlying process is not running, nothing to do"}
+{"level":"info","ts":1755204041.5878751,"logger":"reader-node","msg":"shutting down plugins","last_exit_code":1}
+{"level":"info","ts":1755204041.587899,"logger":"reader-node","msg":"stopping plugin","plugin_name":"ToConsoleLogPlugin"}
+{"level":"info","ts":1755204041.5879188,"logger":"reader-node","msg":"stopping plugin","plugin_name":"MindReaderPlugin"}
+{"level":"info","ts":1755204041.5879385,"logger":"reader-node","msg":"mindreader is stopping"}
+{"level":"info","ts":1755204041.5880024,"logger":"reader-node","msg":"console reader stats","block_rate":"0.000 blocks/s (0 total)","last_block":"<unset> @ 01 Jan 01 00:13 +0013","last_parent_block":"<unset>","lib":0}
+{"level":"info","ts":1755204041.5881073,"logger":"reader-node","msg":"console reader done"}
+{"level":"info","ts":1755204041.5881314,"logger":"reader-node","msg":"waiting until consume read flow (i.e. blocks) is actually done processing blocks..."}
+{"level":"info","ts":1755204041.5881603,"logger":"reader-node","msg":"reached end of console reader stream, nothing more to do"}
+{"level":"info","ts":1755204041.5881913,"logger":"reader-node","msg":"all blocks in channel were drained, exiting read flow"}
+{"level":"info","ts":1755204041.588587,"logger":"reader-node","msg":"archiver selector is terminating"}
+{"level":"info","ts":1755204041.5886118,"logger":"reader-node","msg":"archiver selector is terminated"}
+{"level":"info","ts":1755204041.5886285,"logger":"reader-node","msg":"archiver termination code completed"}
+{"level":"info","ts":1755204041.588651,"logger":"reader-node","msg":"consume read flow terminate"}
+{"level":"info","ts":1755204041.5887167,"logger":"reader-node","msg":"all plugins closed"}
+{"level":"info","ts":1755204041.5887537,"logger":"reader-node","msg":"operator is waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204041.5887787,"logger":"reader-node","msg":"operator done waiting for superviser to shutdown","error":"instance \"\" stopped (exit code: 1), shutting down"}
+{"level":"info","ts":1755204041.5887992,"logger":"reader-node","msg":"chain operator terminated shutting down mindreader app"}
+{"level":"info","ts":1755204041.5888383,"logger":"reader-node","msg":"operator ready to receive commands"}
+{"level":"info","ts":1755204041.5888667,"logger":"reader-node","msg":"superviser terminating, waiting for operator..."}
+{"level":"error","ts":1755204041.5889127,"logger":"firecore","msg":"\n################################################################\nFatal error in app reader-node:\n\ninstance \"\" stopped (exit code: 1), shutting down\n################################################################\n"}
+{"level":"info","ts":1755204041.5889778,"logger":"firecore","msg":"application reader-node shutdown unexpectedly, quitting"}
+{"level":"info","ts":1755204041.5889986,"logger":"firecore","msg":"waiting for all apps termination..."}
+{"level":"info","ts":1755204041.5890229,"logger":"dgrpc","msg":"forcing gRPC server to stop"}
+{"level":"info","ts":1755204041.5892124,"logger":"firecore","msg":"all apps terminated gracefully"}
+{"level":"error","ts":1755204041.5892725,"logger":"firecore","msg":"failed to run","error":"unable to launch: instance \"\" stopped (exit code: 1), shutting down"}
