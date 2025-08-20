@@ -141,7 +141,9 @@
         <div class="pay-container">
           <div class="total-balance-card">
             <h2 class="balance-title">TOTAL BALANCE</h2>
-            <p class="total-balance-amount">{formattedTotalBalance}</p>
+            {#each formattedTotalBalance as formattedBalance}
+              <p class="total-balance-amount">{formattedBalance}</p>
+            {/each}
           </div>
           {#if errorMessage}
             <div class="error-message">
@@ -264,8 +266,8 @@
   }
 
   .total-balance-amount {
-    font-size: 2.5rem;
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: 1000;
     color: #0f0f0f;
     margin: 0;
   }

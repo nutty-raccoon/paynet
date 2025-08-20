@@ -79,7 +79,7 @@ impl GrpcState {
 
     pub async fn init_first_keysets(
         &self,
-        units: &[Unit],
+        units: impl Iterator<Item = Unit>,
         index: u32,
         max_order: u32,
     ) -> Result<(), InitKeysetError> {
@@ -101,7 +101,7 @@ impl GrpcState {
             insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
 
             self.keyset_cache
-                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit, max_order))
+                .insert_info(keyset_id, CachedKeysetInfo::new(true, unit, max_order))
                 .await;
 
             let keys = response
