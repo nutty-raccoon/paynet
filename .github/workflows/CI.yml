@@ -297,6 +297,7 @@ jobs:
         with:
           sparse-checkout: |
             contracts/ethereum/invoice
+            .gitmodules
           sparse-checkout-cone-mode: false
 
       - uses: foundry-rs/foundry-toolchain@v1
