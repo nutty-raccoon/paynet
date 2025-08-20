@@ -89,11 +89,14 @@ services:
     build:
       context: ..
       dockerfile: ./dockerfiles/web-app.Dockerfile
+    volumes:
+      # There should be a certs/ folder at the root of the repo containing cert.pem and key.pem.
+      # Generate them using `mkcert -key-file certs/key.pem -cert-file certs/cert.pem localhost 127.0.0.1 ::1`
+      - ../certs:/certs
     restart: always
     ports:
       - "3005:3005"
     environment:
-      - RUST_LOG=info
       - PORT=3005
     depends_on:
       starknet-devnet:

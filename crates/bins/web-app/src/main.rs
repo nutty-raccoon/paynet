@@ -9,13 +9,16 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use starknet_core::types::{contract::AbiEntry, Felt};
 use starknet_types::{constants::ON_CHAIN_CONSTANTS, ChainId, PayInvoiceCallData};
-use std::collections::HashMap;
 use std::str::FromStr;
+use std::{collections::HashMap, net::SocketAddr};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, services::ServeDir};
 use tracing_subscriber::{self, EnvFilter};
 
 mod abis;
+mod serve;
+
+use serve::serve;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct RouteParams {
@@ -79,19 +82,17 @@ async fn main() {
     // Build our application with routes
     let app = Router::new()
         .route("/", get(index))
-        .route("/deposit/:method/:network/", get(handle_deposit))
+        .route("/deposit/{method}/{network}/", get(handle_deposit))
         .nest_service("/static", ServeDir::new("crates/bins/web-app/static"))
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
 
     // Get port from environment variable or use default
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let bind_address = format!("0.0.0.0:{}", port);
+    let port = std::env::var("PORT").unwrap_or_else(|_| "443".to_string());
+    let bind_address: SocketAddr = format!("0.0.0.0:{}", port)
+        .parse()
+        .expect("Invalid bind address");
 
-    // Run it with hyper on all interfaces
-    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
-
-    println!("🚀 Server running on http://{}", bind_address);
-    axum::serve(listener, app).await.unwrap();
+    serve(app, bind_address).await;
 }
 
 async fn index() -> impl IntoResponse {
