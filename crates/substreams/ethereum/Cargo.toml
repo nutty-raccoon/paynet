@@ -1,0 +1,32 @@
+[package]
+name = "eth-invoice-substreams"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+name = "eth_invoice_substreams"
+crate-type = ["cdylib"]
+
+[dependencies]
+ethabi = { workspace = true }
+hex-literal = { workspace = true }
+num-bigint = { workspace = true }
+num-traits = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+substreams = { workspace = true }
+substreams-ethereum = { workspace = true }
+
+# Required so that ethabi > ethereum-types build correctly under wasm32-unknown-unknown
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }
+
+[build-dependencies]
+anyhow = "1"
+substreams-ethereum = "0.10.0"
+regex = "1.8"
+
+[profile.release]
+lto = true
+opt-level = 's'
+strip = "debuginfo"

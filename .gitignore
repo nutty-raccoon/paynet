@@ -24,3 +24,8 @@ target/
 
 # Any susbtream package we downloaded
 *.spkg
+
+# localnet setup files
+el-cl-genesis-data/
+!values.env
+nodes/

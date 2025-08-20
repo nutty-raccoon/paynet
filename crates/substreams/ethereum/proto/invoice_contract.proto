@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package invoice_contract.v1;
+
+message RemittanceEvents {
+    repeated RemittanceEvent events = 1;
+}
+
+message RemittanceEvent {
+    string tx_hash = 1;
+    uint32 event_index = 2;
+    bytes asset = 3;
+    bytes payee = 4;
+    bytes invoice_id = 5;
+    string amount = 6;
+    bytes payer = 7;
+}
+  

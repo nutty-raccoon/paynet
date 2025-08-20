@@ -35,7 +35,7 @@ db-node = { workspace = true }
 starknet-types = { workspace = true }
 liquidity-source = { workspace = true }
 nuts = { workspace = true }
-substreams-sink = { workspace = true }
+starknet-substreams-sink = { workspace = true }
 
 
 [features]
