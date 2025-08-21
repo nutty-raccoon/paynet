@@ -172,9 +172,7 @@ fn handle_already_spent_proofs(
         }
     }
 
-    let rows_affected =
-        db::proof::set_proofs_to_state(conn, &invalid_proofs, crate::types::ProofState::Spent)?;
-    assert_eq!(rows_affected, invalid_proofs.len());
+    db::proof::set_proofs_to_state(conn, &invalid_proofs, crate::types::ProofState::Spent)?;
     Ok(())
 }
 

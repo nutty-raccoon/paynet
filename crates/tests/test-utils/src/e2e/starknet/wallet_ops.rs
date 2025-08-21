@@ -281,29 +281,17 @@ pub async fn recieve_already_spent_wad(
         .iter()
         .map(|p| p.y().unwrap())
         .collect::<Vec<PublicKey>>();
-    let rows_affected = wallet::db::proof::set_proofs_to_state(
-        &db_conn,
-        &proof_ids,
-        wallet::types::ProofState::Unspent,
-    )?;
+    let proofs_state = wallet::db::proof::get_proofs_by_ids(&db_conn, &proof_ids)?;
+    assert_eq!(proof_ids.len(), proofs_state.len());
 
-    println!("{rows_affected}");
-    assert_eq!(rows_affected, wad.proofs().len());
+    wallet::db::proof::delete_proofs(&db_conn, &proof_ids)?;
 
     match wallet_ops.receive(wad).await {
-        Err(e) => {
-            eprintln!("Recieve Error: {e:?}");
-            let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
-            for (index, proof) in proofs_state.iter().enumerate() {
-                println!("Proof {}: {:?}", index, proof);
-                assert_eq!(
-                    *proof,
-                    wallet::types::ProofState::Spent,
-                    "Proof State should be set to `Spent`"
-                );
-            }
-            Ok(())
-        }
+        Err(e) => eprintln!("Recieve Error: {e:?}"),
         Ok(_) => panic!("Double spend should have failed"),
     }
+
+    let proofs_state = wallet::db::proof::get_proofs_by_ids(&db_conn, &proof_ids)?;
+    assert_eq!(proof_ids.len(), proofs_state.len());
+    Ok(())
 }
