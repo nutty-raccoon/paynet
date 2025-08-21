@@ -24,3 +24,6 @@ target/
 
 # Any susbtream package we downloaded
 *.spkg
+
+# Local development TLS certificates
+certs/

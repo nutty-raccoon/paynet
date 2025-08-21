@@ -2,11 +2,15 @@
 
 A Rust web server for handling Starknet deposit routes with a modern frontend build pipeline.
 
-## Architecture
+## HTTPS Configuration
 
-- **Backend**: Rust server using Axum framework
-- **Frontend**: Webpack-based build system with code splitting
-- **Package Manager**: pnpm for fast, efficient dependency management
+To run this app with feature `tls` enabled use `mkcert` (https://github.com/FiloSottile/mkcert) for local development.
+
+```shell
+mkcert -install
+mkdir -p certs
+mkcert -key-file certs/key.pem -cert-file certs/cert.pem localhost 127.0.0.1 ::1
+```
 
 ## Quick Start
 
@@ -27,3 +31,7 @@ pnpm run build
 
 # Or run in development mode (with file watching)
 pnpm run dev
+
+# Run the webserver
+cargo run -p web-app
+```

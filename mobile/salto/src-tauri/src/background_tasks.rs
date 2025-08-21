@@ -39,6 +39,16 @@ pub struct CurrencyValue {
     value: f64,
 }
 
+fn format_balance(assets: Vec<String>) -> Vec<String> {
+    assets.into_iter().map(|a| {
+        match a.as_str() {
+            "millistrk" => "strk".to_string(),
+            "gwei" => "ETH".to_string(),
+            _ => a
+        }
+    }).collect()
+}
+
 fn pick_value(tokens: &[CurrencyValue], wanted: &str) -> Option<f64> {
     tokens
         .iter()
@@ -82,9 +92,11 @@ pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app_thread: t
                 a
             })
         };
+        let format_assets = format_balance(assets);
         let mut url = format!("{}/prices?currencies={}", host, currency);
         url.push_str("&assets=");
-        url.push_str(&assets.join(","));
+        url.push_str(&format_assets.join(","));
+        println!("{:?}", format_assets);
 
         if let Err(err) = fetch_and_emit_prices(&url, &app_thread, &config).await {
             tracing::error!("price fetch error: {}", err);

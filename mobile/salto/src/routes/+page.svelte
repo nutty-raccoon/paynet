@@ -171,9 +171,12 @@
       {#if currentModal == Modal.ROOT}
         <div class="pay-container">
           <div class="total-balance-card">
-            <p class="total-balance-amount">
-              {formattedBalance.formattedTotalBalance}
-            </p>
+            <h2 class="balance-title">TOTAL BALANCE</h2>
+            {#each formattedBalance.formattedTotalBalance as formatBalance}
+              <p class="total-balance-amount">
+                {formatBalance}
+              </p>
+            {/each}
             {#if tokenPrices !== null}
               <p class="total-currency-amount">
                 {"Total value: "}
@@ -305,8 +308,8 @@
   }
 
   .total-balance-amount {
-    font-size: 2.5rem;
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: 1000;
     color: #0f0f0f;
     margin: 0;
   }

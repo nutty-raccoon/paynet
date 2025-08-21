@@ -4,6 +4,7 @@
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
   import DepositModal from "./DepositModal.svelte";
+  import { refresh_node_keysets } from "../../commands";
 
   interface Props {
     nodes: NodeData[];
@@ -28,6 +29,7 @@
   }
 
   function openDepositModal(node: NodeData) {
+    refresh_node_keysets(node.id);
     selectedNodeForDeposit = node;
     // Add history entry to handle back button
     history.pushState({ modal: true }, "");

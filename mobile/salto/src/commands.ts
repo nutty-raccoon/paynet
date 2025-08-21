@@ -134,3 +134,13 @@ export async function sync_wads(): Promise<void> {
         console.error("failed to sync wads:", error);
       });
 } 
+
+
+export async function refresh_node_keysets(nodeId: NodeId) {
+      await invoke("refresh_node_keysets", {nodeId})
+      .catch((error) => {
+        console.error(`failed to refresh node keysets:`, error);
+      });
+
+      return;
+}

@@ -1,6 +1,6 @@
 #[cfg(feature = "keyset-rotation")]
 use node::KeysetRotationServiceServer;
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr};
 use tower::ServiceBuilder;
 use tower_otel::trace;
 use tracing::instrument;
@@ -25,6 +25,14 @@ pub async fn launch_tonic_server_task(
     env_vars: EnvVariables,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
     let nuts_settings = super::nuts_settings::nuts_settings();
+    let supported_units: HashSet<_> = nuts_settings
+        .nut04
+        .methods
+        .iter()
+        .map(|m| m.unit)
+        .chain(nuts_settings.nut05.methods.iter().map(|m| m.unit))
+        .collect();
+
     let ttl = env_vars.quote_ttl.unwrap_or(3600);
     let grpc_state = GrpcState::new(
         pg_pool,
@@ -43,7 +51,7 @@ pub async fn launch_tonic_server_task(
     // TODO: take into account past keyset rotations
     // init node shared
     grpc_state
-        .init_first_keysets(&[Unit::MilliStrk], 0, 32)
+        .init_first_keysets(supported_units.into_iter(), 0, 32)
         .await?;
 
     // init health reporter service

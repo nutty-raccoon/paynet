@@ -7,7 +7,7 @@ mod parse_asset_amount;
 use commands::{
     PriceConfig, add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
     get_nodes_balance, get_wad_history, init_wallet, price_provider_add_currencies, receive_wads,
-    redeem_quote, restore_wallet, sync_wads,
+    redeem_quote, refresh_node_keysets, restore_wallet, sync_wads,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -80,6 +80,7 @@ pub fn run() {
             .invoke_handler(tauri::generate_handler![
                 get_nodes_balance,
                 add_node,
+                refresh_node_keysets,
                 create_mint_quote,
                 redeem_quote,
                 create_wads,

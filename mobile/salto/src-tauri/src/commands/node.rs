@@ -7,7 +7,7 @@ use wallet::{db::balance::Balance, types::NodeUrl};
 use crate::AppState;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum AddNodeError {
     #[error(transparent)]
     Rusqlite(#[from] rusqlite::Error),
     #[error("invalid node url: {0}")]
@@ -24,7 +24,7 @@ pub enum Error {
     Bip32(#[from] bitcoin::bip32::Error),
 }
 
-impl serde::Serialize for Error {
+impl serde::Serialize for AddNodeError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -37,7 +37,7 @@ impl serde::Serialize for Error {
 pub async fn add_node(
     state: State<'_, AppState>,
     node_url: String,
-) -> Result<(u32, Vec<Balance>), Error> {
+) -> Result<(u32, Vec<Balance>), AddNodeError> {
     let node_url = NodeUrl::from_str(&node_url)?;
     let (client, id) = wallet::node::register(state.pool.clone(), &node_url).await?;
 
@@ -67,4 +67,45 @@ pub async fn add_node(
         .extend(new_assets);
 
     Ok((id, balances))
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RefreshNodeKeysetsError {
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    R2D2(#[from] r2d2::Error),
+    #[error(transparent)]
+    NodeConnect(#[from] wallet::ConnectToNodeError),
+    #[error("unknown node_id: {0}")]
+    NodeId(u32),
+    #[error("fail to refresh the node {0} keyset: {1}")]
+    Wallet(u32, wallet::node::RefreshNodeKeysetError),
+}
+
+impl serde::Serialize for RefreshNodeKeysetsError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+#[tauri::command]
+pub async fn refresh_node_keysets(
+    state: State<'_, AppState>,
+    node_id: u32,
+) -> Result<(), RefreshNodeKeysetsError> {
+    let node_url = {
+        let db_conn = state.pool.get()?;
+        wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .ok_or(RefreshNodeKeysetsError::NodeId(node_id))?
+    };
+    let mut node_client = wallet::connect_to_node(&node_url).await?;
+    wallet::node::refresh_keysets(state.pool.clone(), &mut node_client, node_id)
+        .await
+        .map_err(|e| RefreshNodeKeysetsError::Wallet(node_id, e))?;
+
+    Ok(())
 }

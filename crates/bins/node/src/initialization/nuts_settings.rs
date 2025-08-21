@@ -7,22 +7,39 @@ use crate::methods::Method;
 pub(super) fn nuts_settings() -> NutsSettings<Method, Unit, serde_json::Value> {
     NutsSettings {
         nut04: nuts::nut04::Settings {
-            methods: vec![MintMethodSettings {
-                method: Method::Starknet,
-                unit: Unit::MilliStrk,
-                min_amount: Some(Amount::ONE),
-                max_amount: None,
-                options: None,
-            }],
+            methods: vec![
+                MintMethodSettings {
+                    method: Method::Starknet,
+                    unit: Unit::MilliStrk,
+                    min_amount: Some(Amount::ONE),
+                    max_amount: None,
+                    options: None,
+                },
+                MintMethodSettings {
+                    method: Method::Starknet,
+                    unit: Unit::Gwei,
+                    min_amount: Some(Amount::ONE),
+                    max_amount: None,
+                    options: None,
+                },
+            ],
             disabled: false,
         },
         nut05: nuts::nut05::Settings {
-            methods: vec![MeltMethodSettings {
-                method: Method::Starknet,
-                unit: Unit::MilliStrk,
-                min_amount: Some(Amount::ONE),
-                max_amount: None,
-            }],
+            methods: vec![
+                MeltMethodSettings {
+                    method: Method::Starknet,
+                    unit: Unit::MilliStrk,
+                    min_amount: Some(Amount::ONE),
+                    max_amount: None,
+                },
+                MeltMethodSettings {
+                    method: Method::Starknet,
+                    unit: Unit::Gwei,
+                    min_amount: Some(Amount::ONE),
+                    max_amount: None,
+                },
+            ],
             disabled: false,
         },
         nut09: nuts::nut06::SupportedSettings { supported: true },
