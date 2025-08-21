@@ -7,9 +7,27 @@ export async function getNodesBalance() {
      let res =  await invoke("get_nodes_balance")
        .then((message) => message as NodeData[] )
        .catch((error) => console.error(error));
-
       return res;
   }
+
+  export async function getCurrencies() {
+    let res =  await invoke("get_currencies")
+       .then((message) => message as string[])
+       .catch((error) => console.error(error));
+      return res;
+  }
+
+  export async function priceProviderAddCurrencies(currencies: string) {
+    let res = await invoke("price_provider_add_currencies", { newCurrencies: currencies }).then((message) => message).catch((error) => console.error(error));
+    return res;
+  }
+
+export async function getTokensPrices() {
+  let res = await invoke("get_tokens_prices")
+    .then((message) => message as {})
+    .catch((error) => console.error(error));
+  return res;
+}
 
 export async function addNode(nodeUrl: string) {
      const res = await invoke("add_node", {nodeUrl})

@@ -49,6 +49,22 @@ pub async fn add_node(
     }
 
     let balances = wallet::db::balance::get_for_node(&*state.pool.get()?, id)?;
+    let new_assets = balances
+        .clone()
+        .into_iter()
+        .map(|b| {
+            if b.unit.to_lowercase() == "millistrk" {
+                return "strk".to_string();
+            }
+            b.unit.to_lowercase()
+        })
+        .collect::<Vec<_>>();
+    state
+        .get_prices_config
+        .write()
+        .await
+        .assets
+        .extend(new_assets);
 
     Ok((id, balances))
 }

@@ -1,0 +1,54 @@
+use std::collections::HashSet;
+
+use crate::AppState;
+
+#[derive(Clone, Debug)]
+pub struct PriceConfig {
+    pub currency: String,
+    pub assets: HashSet<String>,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CurrenciesResponce {
+    currencies: Vec<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+}
+
+impl serde::Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+#[tauri::command]
+pub async fn price_provider_add_currencies(
+    state: tauri::State<'_, AppState>,
+    new_currency: String,
+) -> Result<(), Error> {
+    let mut cfg = state.get_prices_config.write().await;
+    cfg.currency = new_currency;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_currencies(state: tauri::State<'_, AppState>) -> Result<Vec<String>, Error> {
+    let cfg = state.get_prices_config.read().await;
+    let host = cfg.url.clone();
+    let resp: CurrenciesResponce = reqwest::get(host + "/currencies")
+        .await?
+        .json::<CurrenciesResponce>()
+        .await?;
+    Ok(resp.currencies)
+}

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use starknet_types::{AssetFromStrError, AssetToUnitConversionError, Unit};
 use tauri::{AppHandle, Emitter, State};
 use wallet::types::compact_wad::{self, CompactWad, CompactWads};
@@ -44,6 +46,7 @@ pub async fn receive_wads(
     wads: String,
 ) -> Result<(), ReceiveWadsError> {
     let wads: CompactWads<Unit> = wads.parse()?;
+    let mut new_assets: HashSet<String> = HashSet::new();
 
     for wad in wads.0 {
         let CompactWad {
@@ -74,7 +77,15 @@ pub async fn receive_wads(
                 amount: amount_received.into(),
             },
         )?;
+        new_assets.insert(wad.unit.as_str().to_string());
     }
+
+    state
+        .get_prices_config
+        .write()
+        .await
+        .assets
+        .extend(new_assets);
 
     Ok(())
 }

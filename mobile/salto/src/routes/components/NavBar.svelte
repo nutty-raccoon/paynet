@@ -1,5 +1,5 @@
 <script lang="ts">
-  export type Tab = "pay" | "balances" | "history";
+  export type Tab = "pay" | "balances" | "settings" | "history";
 
   interface Props {
     activeTab: Tab;
