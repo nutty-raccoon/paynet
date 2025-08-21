@@ -40,13 +40,14 @@ pub struct CurrencyValue {
 }
 
 fn format_balance(assets: Vec<String>) -> Vec<String> {
-    assets.into_iter().map(|a| {
-        match a.as_str() {
+    assets
+        .into_iter()
+        .map(|a| match a.as_str() {
             "millistrk" => "strk".to_string(),
             "gwei" => "ETH".to_string(),
-            _ => a
-        }
-    }).collect()
+            _ => a,
+        })
+        .collect()
 }
 
 fn pick_value(tokens: &[CurrencyValue], wanted: &str) -> Option<f64> {
