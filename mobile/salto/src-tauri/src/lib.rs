@@ -5,9 +5,9 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    PriceConfig, PriceResponce, add_node, check_wallet_exists, create_mint_quote, create_wads,
-    get_currencies, get_nodes_balance, get_wad_history, init_wallet, price_provider_add_assets,
-    price_provider_add_currencies, receive_wads, redeem_quote, restore_wallet, sync_wads,
+    PriceConfig, add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
+    get_nodes_balance, get_wad_history, init_wallet, price_provider_add_currencies, receive_wads,
+    redeem_quote, restore_wallet, sync_wads,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -43,11 +43,26 @@ pub fn run() {
                 let pool = r2d2::Pool::new(manager)?;
                 let host = env::var("PRICE_PROVIDER_URL")
                     .map_err(|_| "Missing or invalid env var: PRICE_PROVIDER_URL")?;
+                let mut initial_assets = HashSet::new();
+                if let Ok(conn) = pool.get() {
+                    if let Ok(nodes_balances) = wallet::db::balance::get_for_all_nodes(&conn) {
+                        for nb in nodes_balances {
+                            for b in nb.balances {
+                                let unit = if b.unit.eq_ignore_ascii_case("millistrk") {
+                                    "strk".to_string()
+                                } else {
+                                    b.unit.to_lowercase()
+                                };
+                                initial_assets.insert(unit);
+                            }
+                        }
+                    }
+                }
                 app.manage(AppState {
                     pool,
                     get_prices_config: Arc::new(RwLock::new(PriceConfig {
-                        currencies: HashSet::from(["usd".to_string()]),
-                        assets: HashSet::new(),
+                        currency: "usd".to_string(),
+                        assets: initial_assets,
                         url: host,
                     })),
                 });
@@ -73,7 +88,6 @@ pub fn run() {
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
-                price_provider_add_assets,
                 price_provider_add_currencies,
                 get_wad_history,
                 sync_wads,

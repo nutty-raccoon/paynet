@@ -10,13 +10,6 @@ export async function getNodesBalance() {
       return res;
   }
 
-  export async function getPrices(currencies: string[], assets?: string[]) {
-     let res =  await invoke("get_prices", {currencies, assets})
-       .then((message) => message)
-       .catch((error) => console.error(error));
-      return res;
-  }
-
   export async function getCurrencies() {
     let res =  await invoke("get_currencies")
        .then((message) => message as string[])
@@ -24,12 +17,7 @@ export async function getNodesBalance() {
       return res;
   }
 
-  export async function priceProviderAddAssets( assets: string[]) {
-    let res = await invoke("price_provider_add_assets", { newAssets: assets }).then((message) => message).catch((error) => console.error(error));
-    return res;
-  }
-
-  export async function priceProviderAddCurrencies(currencies: string[]) {
+  export async function priceProviderAddCurrencies(currencies: string) {
     let res = await invoke("price_provider_add_currencies", { newCurrencies: currencies }).then((message) => message).catch((error) => console.error(error));
     return res;
   }

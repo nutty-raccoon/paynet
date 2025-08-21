@@ -7,5 +7,4 @@ export const isMobile = readable(false, (set) => {
   set(currentPlatform == "ios" || currentPlatform == "android");
 });
 
-export const selectedCurrencyStored = writable<string>('usd');
-export const fiatCurrenciesStored = writable<string[]>([]);
+export const displayCurrency = writable<string>('usd');

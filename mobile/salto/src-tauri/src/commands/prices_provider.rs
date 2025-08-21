@@ -4,29 +4,9 @@ use crate::AppState;
 
 #[derive(Clone, Debug)]
 pub struct PriceConfig {
-    pub currencies: HashSet<String>,
+    pub currency: String,
     pub assets: HashSet<String>,
     pub url: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Token {
-    currency: String,
-    value: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Price {
-    symbol: String,
-    price: Vec<Token>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PriceResponce {
-    prices: Vec<Price>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -53,22 +33,12 @@ impl serde::Serialize for Error {
 }
 
 #[tauri::command]
-pub async fn price_provider_add_assets(
-    state: tauri::State<'_, AppState>,
-    new_assets: Vec<String>,
-) -> Result<(), Error> {
-    let mut cfg = state.get_prices_config.write().await;
-    cfg.assets.extend(new_assets);
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn price_provider_add_currencies(
     state: tauri::State<'_, AppState>,
-    new_currencies: Vec<String>,
+    new_currency: String,
 ) -> Result<(), Error> {
     let mut cfg = state.get_prices_config.write().await;
-    cfg.currencies.extend(new_currencies);
+    cfg.currency = new_currency;
     Ok(())
 }
 

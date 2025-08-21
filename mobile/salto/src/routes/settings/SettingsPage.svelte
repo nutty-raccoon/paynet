@@ -1,6 +1,12 @@
 <script lang="ts">
-  import { priceProviderAddCurrencies } from "../../commands";
-  import { fiatCurrenciesStored, selectedCurrencyStored } from "../../stores";
+  import { getCurrencies, priceProviderAddCurrencies } from "../../commands";
+  import { displayCurrency } from "../../stores";
+
+  let fiatCurrencies = $state<string[]>(["usd"]);
+
+  getCurrencies().then((resp) => {
+    if (resp) fiatCurrencies = resp;
+  });
 </script>
 
 <div class="settings-container">
@@ -11,14 +17,14 @@
     <h3>Select your currency:</h3>
     <select
       name="deposit-token"
-      value={$selectedCurrencyStored}
-      on:change={(e) => {
-        selectedCurrencyStored.set((e.target as HTMLSelectElement).value);
-        priceProviderAddCurrencies([$selectedCurrencyStored]);
+      value={$displayCurrency}
+      onchange={(e) => {
+        displayCurrency.set((e.target as HTMLSelectElement).value);
+        priceProviderAddCurrencies($displayCurrency);
       }}
       required
     >
-      {#each $fiatCurrenciesStored as currency}
+      {#each fiatCurrencies as currency}
         <option value={currency}>
           {currency.toUpperCase()}
         </option>

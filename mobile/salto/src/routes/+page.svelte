@@ -11,17 +11,12 @@
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import {
-    checkWalletExists,
-    getCurrencies,
-    getNodesBalance,
-    priceProviderAddAssets,
-  } from "../commands";
+  import { checkWalletExists, getNodesBalance } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import type { Price } from "../types/price";
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
-  import { fiatCurrenciesStored, selectedCurrencyStored } from "../stores";
+  import { displayCurrency } from "../stores";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
 
   const Modal = {
@@ -41,7 +36,7 @@
   let errorMessage = $state("");
   let walletExists = $state<boolean | null>(null); // null = loading, true/false = result
 
-  let tokenPrices: Price[] = $state([]);
+  let tokenPrices: Price[] | null = $state(null);
 
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
@@ -56,14 +51,13 @@
       .entries()
       .map(([unit, amount]) => {
         const formatted = formatBalance({ unit, amount });
-        let price = tokenPrices.find(
-          (p) => formatted.asset === p.symbol.toUpperCase()
-        );
-        if (typeof price === "object") {
-          let value = price.price.find(
-            (asset) => $selectedCurrencyStored === asset.currency
+        if (tokenPrices != null) {
+          let price = tokenPrices.find(
+            (p) => formatted.asset === p.symbol.toUpperCase()
           );
-          totalAmount += formatted.amount * (value ? value.value : 0);
+          if (typeof price === "object") {
+            totalAmount += formatted.amount * (price.value ? price.value : 0);
+          }
         }
         return `${formatted.asset}: ${formatted.amount}`;
       })
@@ -83,11 +77,6 @@
 
   const onAddNode = (nodeData: NodeData) => {
     nodes.push(nodeData);
-    let assets: string[] = totalBalance
-      .entries()
-      .map(([unit]) => (unit == "millistrk" ? "strk" : unit))
-      .toArray();
-    priceProviderAddAssets(assets);
   };
 
   const onNodeBalanceIncrease = (balanceIncrease: BalanceChange) => {
@@ -132,12 +121,8 @@
       });
     }
 
-    getCurrencies().then((resp) => {
-      if (resp) fiatCurrenciesStored.set(resp);
-    });
-
-    listen<{ prices: Price[] }>("new-price", (event) => {
-      tokenPrices = event.payload.prices ? event.payload.prices : tokenPrices;
+    listen<Price[]>("new-price", (event) => {
+      tokenPrices = event.payload ? event.payload : tokenPrices;
     });
 
     listen<BalanceChange>("balance-increase", (event) => {
@@ -189,10 +174,13 @@
             <p class="total-balance-amount">
               {formattedBalance.formattedTotalBalance}
             </p>
-            <p class="total-currency-amount">
-              {formattedBalance.totalAmount.toFixed(2)}
-              {$selectedCurrencyStored}
-            </p>
+            {#if tokenPrices !== null}
+              <p class="total-currency-amount">
+                {"Total value: "}
+                {formattedBalance.totalAmount.toFixed(2)}
+                {$displayCurrency}
+              </p>
+            {/if}
           </div>
           {#if errorMessage}
             <div class="error-message">

@@ -150,5 +150,12 @@ pub async fn redeem_quote(
         },
     )?;
 
+    state
+        .get_prices_config
+        .write()
+        .await
+        .assets
+        .insert(mint_quote.unit.as_str().to_string().to_lowercase());
+
     Ok(())
 }
