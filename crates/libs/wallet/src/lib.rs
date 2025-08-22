@@ -451,7 +451,7 @@ pub async fn receive_wad(
         let swap_response = match swap_result {
             Ok(r) => r.into_inner(),
             Err(e) => {
-                db::proof::delete_proofs(&db_conn, &ys)?;
+                handle_proof_verification_errors(&e, &ys, &db_conn)?;
                 return Err(e.into());
             }
         };

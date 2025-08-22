@@ -13,7 +13,7 @@ use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 use wallet::{
     self,
-    db::balance::Balance,
+    db::{balance::Balance, wad::delete_wad},
     types::{
         NodeUrl,
         compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
@@ -285,13 +285,14 @@ pub async fn recieve_already_spent_wad(
     assert_eq!(proof_ids.len(), proofs_state.len());
 
     wallet::db::proof::delete_proofs(&db_conn, &proof_ids)?;
+    delete_wad(&db_conn, &wad.node_url, &proof_ids)?;
 
     match wallet_ops.receive(wad).await {
         Err(e) => eprintln!("Recieve Error: {e:?}"),
         Ok(_) => panic!("Double spend should have failed"),
     }
 
-    let proofs_state = wallet::db::proof::get_proofs_by_ids(&db_conn, &proof_ids)?;
+    let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
     assert_eq!(proof_ids.len(), proofs_state.len());
     Ok(())
 }
