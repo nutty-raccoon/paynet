@@ -18,8 +18,11 @@ use tonic::{Request, Response, Status, service::LayerExt};
 use tower::ServiceBuilder;
 use tracing::{instrument, trace};
 
+mod build_server;
 mod server_errors;
 mod state;
+
+use build_server::build_server;
 
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
 const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
@@ -251,7 +254,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     trace!(name: "grpc-listen", port = socket_addr.port());
 
-    tonic::transport::Server::builder()
+    let mut server = build_server().await?;
+    tracing::info!("🚀 Binding to: http://{}", socket_addr);
+    server
         .add_service(signer_server_service)
         .add_service(health_service)
         .serve(socket_addr)

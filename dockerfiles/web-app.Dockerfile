@@ -64,8 +64,8 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 ENV PORT=3005
-ENV CERT_PATH=/certs/cert.pem
-ENV KEY_PATH=/certs/key.pem
+ENV TLS_CERT_PATH=/certs/cert.pem
+ENV TLS_KEY_PATH=/certs/key.pem
 
 EXPOSE ${PORT}
 

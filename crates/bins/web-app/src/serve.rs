@@ -8,8 +8,8 @@ use axum_server::tls_rustls::RustlsConfig;
 #[cfg(feature = "tls")]
 pub async fn serve(app: Router, bind_address: SocketAddr) {
     // Get certificate and key paths from environment or use defaults
-    let cert_path = std::env::var("CERT_PATH").unwrap_or_else(|_| "certs/cert.pem".to_string());
-    let key_path = std::env::var("KEY_PATH").unwrap_or_else(|_| "certs/key.pem".to_string());
+    let cert_path = std::env::var("TLS_CERT_PATH").unwrap_or_else(|_| "certs/cert.pem".to_string());
+    let key_path = std::env::var("TLS_KEY_PATH").unwrap_or_else(|_| "certs/key.pem".to_string());
 
     // Create TLS config - this will fail if certificates don't exist
     let tls_config = match RustlsConfig::from_pem_file(&cert_path, &key_path).await {
