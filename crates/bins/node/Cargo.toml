@@ -31,6 +31,8 @@ bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
+bitcoin = { workspace = true, features = ["base64", "rand-std"] }
+hex = { workspace = true }
 
 # gRPC
 prost = { workspace = true }

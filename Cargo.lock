@@ -2419,11 +2419,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bitcoin",
  "bitcoin_hashes 0.16.0",
  "dashmap",
  "db-node",
  "dotenvy",
  "futures",
+ "hex",
  "http 1.3.1",
  "liquidity-source",
  "log",

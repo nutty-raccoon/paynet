@@ -1,5 +1,6 @@
 mod outputs;
 
+use bitcoin::{hex, secp256k1::schnorr::Signature};
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
@@ -38,6 +39,10 @@ pub enum Error {
     OutputsAmount { expected: Amount, received: Amount },
     #[error("Quote has expired")]
     QuoteExpired,
+    #[error("Mint quote with pubkey but no valid signature provided")]
+    MissingSignature,
+    #[error("Invalid signature")]
+    InvalidSignature,
 }
 
 impl From<Error> for Status {
@@ -65,6 +70,9 @@ impl From<Error> for Status {
             Error::InvalidQuoteStateAtThisPoint(_)
             | Error::OutputsAmount { .. }
             | Error::QuoteExpired => Status::deadline_exceeded(value.to_string()),
+            Error::MissingSignature | Error::InvalidSignature => {
+                Status::invalid_argument(value.to_string())
+            }
         }
     }
 }
@@ -75,6 +83,7 @@ impl GrpcState {
         method: Method,
         quote: Uuid,
         outputs: &[BlindedMessage],
+        signature: Option<Vec<u8>>,
     ) -> Result<Vec<BlindSignature>, Error> {
         match method {
             Method::Starknet => {}
@@ -82,7 +91,7 @@ impl GrpcState {
 
         let mut tx = db_node::begin_db_tx(&self.pg_pool).await?;
 
-        let (expected_amount, state) =
+        let (expected_amount, state, expected_pubkey) =
             db_node::mint_quote::get_amount_and_state(&mut tx, quote).await?;
 
         if state != MintQuoteState::Paid {
@@ -97,6 +106,18 @@ impl GrpcState {
                 expected: expected_amount,
                 received: total_amount,
             });
+        }
+
+        if let Some(pk) = expected_pubkey {
+            let sig_bytes = signature.ok_or(Error::MissingSignature)?;
+            use Signature as SchnorrSig;
+            let sig = SchnorrSig::from_slice(&sig_bytes).map_err(|_| Error::InvalidSignature)?;
+            let mut msg = quote.to_string();
+            for o in outputs {
+                msg.push_str(&hex::encode(o.blinded_secret.to_bytes()));
+            }
+            pk.verify(msg.as_bytes(), &sig)
+                .map_err(|_| Error::InvalidSignature)?;
         }
 
         let (blind_signatures, insert_blind_signatures_query_builder) =

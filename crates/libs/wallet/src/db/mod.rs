@@ -27,7 +27,9 @@ pub const CREATE_TABLE_MINT_QUOTE: &str = r#"
             unit TEXT NOT NULL,
             request TEXT NOT NULL,
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
-            expiry INTEGER NOT NULL
+            expiry INTEGER NOT NULL,
+            pubkey TEXT,
+            secret_key TEXT
         );"#;
 pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
         CREATE TABLE IF NOT EXISTS melt_quote (
