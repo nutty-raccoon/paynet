@@ -77,7 +77,6 @@ jobs:
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
 
-        
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -95,6 +94,11 @@ jobs:
           shared-key: rust-mobile-cache-clippy-${{ hashFiles('mobile/Cargo.lock') }}
           cache-on-failure: true
           cache-all-crates: true
+      - name: Create fake certificate
+        working-directory: mobile/salto
+        run: |
+          mkdir src-tauri/certs
+          touch src-tauri/certs/rootCA.pem
       - name: Run clippy
         working-directory: mobile
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps

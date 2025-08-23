@@ -119,12 +119,12 @@ pub fn build_server(env_vars: &EnvVariables) -> Result<Server, anyhow::Error> {
             eprintln!("❌ Failed to load TLS certificate:");
             eprintln!("   Certificate: {}", cert_path);
             eprintln!("   Error: {}", e);
-            eprintln!("");
+            eprintln!();
             eprintln!("🚫 gRPC server cannot start without valid HTTPS certificates");
 
             #[cfg(debug_assertions)]
             {
-                eprintln!("");
+                eprintln!();
                 eprintln!("💡 To generate local certificates with mkcert:");
                 eprintln!("   1. Install mkcert: https://github.com/FiloSottile/mkcert");
                 eprintln!("   2. Run: mkcert -install");
@@ -132,7 +132,7 @@ pub fn build_server(env_vars: &EnvVariables) -> Result<Server, anyhow::Error> {
                 eprintln!(
                     "   4. Run: mkcert -key-file certs/key.pem -cert-file certs/cert.pem localhost 127.0.0.1 ::1"
                 );
-                eprintln!("");
+                eprintln!();
             }
             return Err(anyhow::anyhow!("Failed to load TLS certificate: {}", e));
         }
