@@ -35,6 +35,11 @@ struct Cli {
     /// `dirs::data_dir().cli-wallet.sqlite3`
     #[arg(long, value_hint(ValueHint::FilePath))]
     db_path: Option<PathBuf>,
+    /// The path to a `.pem` root ca file
+    ///
+    /// Used to check the node certificate validity when connecting through `https`.
+    #[arg(long, value_hint(ValueHint::FilePath))]
+    root_ca_cert_path: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -230,6 +235,30 @@ async fn main() -> Result<()> {
             .to_str()
             .ok_or(anyhow!("invalid db path"))?
     );
+    let opt_tls_root_ca_cert = cli
+        .root_ca_cert_path
+        .or_else(|| {
+            std::env::var("TLS_ROOT_CA_CERT_PATH")
+                .ok()
+                .map(PathBuf::from)
+        })
+        .map(
+            |root_ca_cert_path| match std::fs::read(&root_ca_cert_path) {
+                Ok(cert) => {
+                    tracing::info!(
+                        "✅ TLS certificate loaded successfully from {}",
+                        root_ca_cert_path.to_str().unwrap()
+                    );
+                    Ok(tonic::transport::Certificate::from_pem(cert))
+                }
+                Err(e) => Err(anyhow::anyhow!(
+                    "Failed to load TLS certificate at {}: {}",
+                    root_ca_cert_path.to_str().unwrap(),
+                    e
+                )),
+            },
+        )
+        .transpose()?;
 
     let manager = SqliteConnectionManager::file(db_path);
     let pool = r2d2::Pool::new(manager)?;
@@ -257,9 +286,10 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Node(NodeCommands::Add { node_url, restore }) => {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
+            let mut node_client = wallet::connect_to_node(&node_url, opt_tls_root_ca_cert).await?;
 
             let tx = db_conn.transaction()?;
-            let (node_client, node_id) = wallet::node::register(pool.clone(), &node_url).await?;
+            let node_id = wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
             tx.commit()?;
 
             println!(
@@ -588,8 +618,10 @@ async fn main() -> Result<()> {
             let wads = args.read_wads()?;
 
             for wad in wads {
-                let (mut node_client, node_id) =
-                    wallet::node::register(pool.clone(), &wad.node_url).await?;
+                let mut node_client =
+                    wallet::connect_to_node(&wad.node_url, opt_tls_root_ca_cert.clone()).await?;
+                let node_id =
+                    wallet::node::register(pool.clone(), &mut node_client, &wad.node_url).await?;
                 let CompactWad {
                     node_url,
                     unit,
@@ -710,7 +742,7 @@ pub async fn connect_to_node(
 ) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
     let node_url = wallet::db::node::get_url_by_id(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = wallet::connect_to_node(&node_url).await?;
+    let node_client = wallet::connect_to_node(&node_url, None).await?;
     Ok((node_client, node_url))
 }
 

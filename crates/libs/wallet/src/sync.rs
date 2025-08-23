@@ -117,6 +117,7 @@ pub async fn melt_quote(
 
 pub async fn pending_wads(
     pool: Pool<SqliteConnectionManager>,
+    root_ca_certificate: Option<tonic::transport::Certificate>,
 ) -> Result<Vec<WadSyncResult>, Error> {
     let pending_wads = {
         let db_conn = pool.get()?;
@@ -126,7 +127,7 @@ pub async fn pending_wads(
     let mut results = Vec::with_capacity(pending_wads.len());
     for sync_data in pending_wads {
         let wad_id = sync_data.id;
-        let result = sync_single_wad(pool.clone(), sync_data).await;
+        let result = sync_single_wad(pool.clone(), sync_data, root_ca_certificate.clone()).await;
 
         results.push(WadSyncResult {
             wad_id,
@@ -140,6 +141,7 @@ pub async fn pending_wads(
 async fn sync_single_wad(
     pool: Pool<SqliteConnectionManager>,
     sync_info: SyncData,
+    root_ca_certificate: Option<tonic::transport::Certificate>,
 ) -> Result<Option<db::wad::WadStatus>, Error> {
     use node_client::{CheckStateRequest, ProofState};
 
@@ -158,7 +160,8 @@ async fn sync_single_wad(
         return Ok(None);
     }
 
-    let mut node_client = crate::connect_to_node(&node_url).await?;
+    let mut node_client = crate::connect_to_node(&node_url, root_ca_certificate).await?;
+
     let check_request = CheckStateRequest {
         ys: proof_ys.iter().map(|y| y.to_bytes().to_vec()).collect(),
     };

@@ -38,7 +38,7 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
 
     // Sync pending WADs using the lib wallet function i
     println!("Syncing pending WADs");
-    let wad_results = wallet::sync::pending_wads(pool).await?;
+    let wad_results = wallet::sync::pending_wads(pool, None).await?;
 
     for result in wad_results {
         match result.result {
@@ -169,7 +169,7 @@ async fn connect_to_node(
             .ok_or(anyhow!("unknown node id: {}", node_id))?
     };
 
-    let node_client = wallet::connect_to_node(&node_url)
+    let node_client = wallet::connect_to_node(&node_url, None)
         .await
         .map_err(|e| anyhow!("Failed to connect to node {}: {}", node_url, e))?;
 

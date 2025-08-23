@@ -254,7 +254,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     trace!(name: "grpc-listen", port = socket_addr.port());
 
-    let mut server = build_server().await?;
+    let mut server = build_server()?;
     tracing::info!("🚀 Binding to: http://{}", socket_addr);
     server
         .add_service(signer_server_service)

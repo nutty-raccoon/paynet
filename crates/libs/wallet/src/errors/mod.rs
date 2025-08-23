@@ -48,9 +48,6 @@ pub enum Error {
     Nuts(#[from] nuts::Error),
     #[error("Secret error: {0}")]
     Secret(#[from] nuts::nut00::secret::Error),
-    #[cfg(feature = "tls")]
-    #[error("tls error: {0}")]
-    Tls(crate::TlsError),
     #[error("keyset unit mismatch, expected {0} got {0}")]
     UnitMissmatch(String, String),
     #[error("failed to get a connection from the pool: {0}")]

@@ -468,83 +468,44 @@ pub async fn receive_wad(
     Ok(total_amount)
 }
 
-#[cfg(feature = "tls")]
-#[derive(thiserror::Error, Debug)]
-pub enum TlsError {
-    #[error("failed to build tls connector: {0}")]
-    BuildConnector(openssl::error::ErrorStack),
-    #[error("failed set ALPN protocols: {0}")]
-    SetAlpnProtos(openssl::error::ErrorStack),
-    #[error("failed to get the node's socket address: {0}")]
-    Socket(#[from] std::io::Error),
-    #[error("invalid uri")]
-    Uri,
-    #[error("failed to connect to the node: {0}")]
-    Connect(#[from] tonic_tls::Error),
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectToNodeError {
+    #[error("invalid server endpoint: {0}")]
+    Endpoint(#[source] tonic::transport::Error),
     #[error("failed to connect to node")]
-    Tonic(#[from] tonic::transport::Error),
+    Tonic(#[source] tonic::transport::Error),
+    #[error("invalid tls config: {0}")]
+    TlsConfig(#[source] tonic::transport::Error),
 }
 
-#[cfg(not(feature = "tls"))]
 pub async fn connect_to_node(
     node_url: &NodeUrl,
+    root_ca_certificate: Option<tonic::transport::Certificate>,
 ) -> Result<NodeClient<Channel>, ConnectToNodeError> {
-    #[cfg(not(feature = "tls"))]
-    let node_client = NodeClient::connect(node_url.0.to_string()).await?;
+    let uses_tls = node_url.0.scheme() == "https";
+    let url_str = node_url.0.to_string();
 
-    Ok(node_client)
-}
+    let mut endpoint =
+        tonic::transport::Endpoint::new(url_str).map_err(ConnectToNodeError::Endpoint)?;
 
-#[cfg(feature = "tls")]
-pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>, Error> {
-    let node_client = {
-        let mut connector = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())
-            .map_err(|e| Error::Tls(TlsError::BuildConnector(e)))?;
-        // ignore server cert validation errors.
-        connector.set_verify_callback(openssl::ssl::SslVerifyMode::PEER, |ok, ctx| {
-            if !ok {
-                let e = ctx.error();
-                #[cfg(feature = "tls-allow-self-signed")]
-                if e.as_raw() == openssl_sys::X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT {
-                    return true;
-                }
-                log::error!("verify failed with code {}: {}", e.as_raw(), e);
-                return false;
-            }
-            true
-        });
-        connector
-            .set_alpn_protos(tonic_tls::openssl::ALPN_H2_WIRE)
-            .map_err(|e| Error::Tls(TlsError::SetAlpnProtos(e)))?;
-        let ssl_conn = connector.build();
-        let socket_address = node_url
-            .0
-            .socket_addrs(|| None)
-            .map_err(|e| Error::Tls(TlsError::Socket(e)))?[0];
-        let uri: tonic::transport::Uri = socket_address
-            .to_string()
-            .parse()
-            .map_err(|_| Error::Tls(TlsError::Uri))?;
+    if uses_tls {
+        let mut tls_config = tonic::transport::ClientTlsConfig::new();
 
-        let connector = tonic_tls::openssl::TlsConnector::new(
-            uri.clone(),
-            ssl_conn,
-            // Safe to unwrap because NodeUrl guarantee it has a domain
-            node_url.0.domain().unwrap().to_string(),
-        );
-        let channel = tonic_tls::new_endpoint()
-            .connect_with_connector(connector)
-            .await
-            .map_err(|e| Error::Tls(TlsError::Connect(tonic_tls::Error::from(e))))?;
+        if let Some(ca_cert) = root_ca_certificate {
+            tls_config = tls_config.ca_certificate(ca_cert);
+        }
 
-        NodeClient::new(channel)
-    };
+        endpoint = endpoint
+            .tls_config(tls_config)
+            .map_err(ConnectToNodeError::TlsConfig)?;
+    }
 
-    Ok(node_client)
+    let channel = endpoint
+        .connect()
+        .await
+        .map_err(ConnectToNodeError::Tonic)?;
+
+    Ok(NodeClient::new(channel))
 }
 
 pub async fn acknowledge(

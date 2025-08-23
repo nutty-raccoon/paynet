@@ -22,6 +22,8 @@ pub enum AddNodeError {
     RestoreNode(#[from] wallet::node::RestoreNodeError),
     #[error("invalid private key stored in db: {0}")]
     Bip32(#[from] bitcoin::bip32::Error),
+    #[error("failed to connect to node: {0}")]
+    ConnectToNode(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for AddNodeError {
@@ -39,7 +41,8 @@ pub async fn add_node(
     node_url: String,
 ) -> Result<(u32, Vec<Balance>), AddNodeError> {
     let node_url = NodeUrl::from_str(&node_url)?;
-    let (client, id) = wallet::node::register(state.pool.clone(), &node_url).await?;
+    let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+    let id = wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
 
     let wallet = wallet::db::wallet::get(&*state.pool.get()?)?.unwrap();
 
@@ -86,7 +89,7 @@ pub async fn refresh_node_keysets(
         wallet::db::node::get_url_by_id(&db_conn, node_id)?
             .ok_or(RefreshNodeKeysetsError::NodeId(node_id))?
     };
-    let mut node_client = wallet::connect_to_node(&node_url).await?;
+    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
     wallet::node::refresh_keysets(state.pool.clone(), &mut node_client, node_id)
         .await
         .map_err(|e| RefreshNodeKeysetsError::Wallet(node_id, e))?;

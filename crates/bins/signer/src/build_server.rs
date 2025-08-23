@@ -1,14 +1,14 @@
 use tonic::transport::Server;
 
 #[cfg(not(feature = "tls"))]
-pub async fn build_server() -> Result<Server, anyhow::Error> {
+pub fn build_server() -> Result<Server, anyhow::Error> {
     tracing::info!("🚀 Starting gRPC server...");
 
     Ok(tonic::transport::Server::builder())
 }
 
 #[cfg(feature = "tls")]
-pub async fn build_server() -> Result<Server, anyhow::Error> {
+pub fn build_server() -> Result<Server, anyhow::Error> {
     const CERT_PATH_ENV_VAR: &str = "TLS_CERT_PATH";
     const KEY_PATH_ENV_VAR: &str = "TLS_KEY_PATH";
 

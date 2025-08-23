@@ -10,7 +10,8 @@ pub async fn run_e2e() -> Result<()> {
     let env = read_env_variables()?;
     let db_pool = db_connection()?;
     let node_url = NodeUrl::from_str(&env.node_url)?;
-    let (node_client, node_id) = wallet::node::register(db_pool.clone(), &node_url).await?;
+    let mut node_client = wallet::connect_to_node(&node_url, None).await?;
+    let node_id = wallet::node::register(db_pool.clone(), &mut node_client, &node_url).await?;
     let mut wallet_ops = WalletOps::new(db_pool.clone(), node_id, node_client);
 
     // Init
@@ -57,7 +58,8 @@ pub async fn run_e2e() -> Result<()> {
     let env = read_env_variables()?;
     let db_pool = db_connection()?;
     let node_url = NodeUrl::from_str(&env.node_url)?;
-    let (node_client, node_id) = wallet::node::register(db_pool.clone(), &node_url).await?;
+    let mut node_client = wallet::connect_to_node(&node_url, None).await?;
+    let node_id = wallet::node::register(db_pool.clone(), &mut node_client, &node_url).await?;
     let wallet_ops = WalletOps::new(db_pool.clone(), node_id, node_client);
 
     assert!(wallet_ops.balance()?.is_empty());

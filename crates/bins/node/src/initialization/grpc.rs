@@ -1,6 +1,7 @@
 #[cfg(feature = "keyset-rotation")]
 use node::KeysetRotationServiceServer;
 use std::{collections::HashSet, net::SocketAddr};
+use tonic::transport::Server;
 use tower::ServiceBuilder;
 use tower_otel::trace;
 use tracing::instrument;
@@ -78,8 +79,12 @@ pub async fn launch_tonic_server_task(
         .named_layer(NodeServer::new(grpc_state.clone()));
 
     let tonic_future = {
-        let mut tonic_server = tonic::transport::Server::builder()
-            .layer(tower_otel::metrics::HttpLayer::server(&meter));
+        let tonic_server = build_server(
+            #[cfg(feature = "tls")]
+            &env_vars,
+        )
+        .map_err(super::Error::BuildServer)?;
+        let mut tonic_server = tonic_server.layer(tower_otel::metrics::HttpLayer::server(&meter));
 
         let router = tonic_server
             .add_service(health_service)
@@ -87,55 +92,73 @@ pub async fn launch_tonic_server_task(
         #[cfg(feature = "keyset-rotation")]
         let router = router.add_service(keyset_rotation_service);
 
-        // create future
-        #[cfg(not(feature = "tls"))]
-        let future = router.serve(address).map_err(crate::Error::Tonic);
-        #[cfg(feature = "tls")]
-        let future = router
-            .serve_with_incoming(init_incoming(
-                address,
-                env_vars.tls_cert_path,
-                env_vars.tls_key_path,
-            )?)
-            .map_err(crate::Error::Tonic);
-
-        future
+        router.serve(address).map_err(crate::Error::Tonic)
     };
 
     Ok((address, tonic_future))
 }
 
+#[cfg(not(feature = "tls"))]
+pub fn build_server() -> Result<Server, anyhow::Error> {
+    tracing::info!("🚀 Starting gRPC server...");
+
+    Ok(tonic::transport::Server::builder())
+}
+
 #[cfg(feature = "tls")]
-fn init_incoming(
-    address: SocketAddr,
-    tls_cert_path: String,
-    tls_key_path: String,
-) -> Result<tonic_tls::openssl::TlsIncoming, super::Error> {
-    use openssl::pkey::PKey;
-    use openssl::x509::X509;
+pub fn build_server(env_vars: &EnvVariables) -> Result<Server, anyhow::Error> {
+    let key_path = &env_vars.tls_key_path;
+    let cert_path = &env_vars.tls_cert_path;
+    // Load TLS certificates
+    let cert = match std::fs::read(cert_path) {
+        Ok(cert) => {
+            tracing::info!("✅ TLS certificate loaded successfully from {}", cert_path);
+            cert
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to load TLS certificate:");
+            eprintln!("   Certificate: {}", cert_path);
+            eprintln!("   Error: {}", e);
+            eprintln!("");
+            eprintln!("🚫 gRPC server cannot start without valid HTTPS certificates");
 
-    let cert = std::fs::read(tls_cert_path).expect("Failed to read tsl certificate");
-    let key = std::fs::read(tls_key_path).expect("Failed to read tsl key");
-    let cert = X509::from_pem(&cert)?;
-    let key = PKey::private_key_from_pem(&key)?;
+            #[cfg(debug_assertions)]
+            {
+                eprintln!("");
+                eprintln!("💡 To generate local certificates with mkcert:");
+                eprintln!("   1. Install mkcert: https://github.com/FiloSottile/mkcert");
+                eprintln!("   2. Run: mkcert -install");
+                eprintln!("   3. Run: mkdir -p certs");
+                eprintln!(
+                    "   4. Run: mkcert -key-file certs/key.pem -cert-file certs/cert.pem localhost 127.0.0.1 ::1"
+                );
+                eprintln!("");
+            }
+            return Err(anyhow::anyhow!("Failed to load TLS certificate: {}", e));
+        }
+    };
 
-    let mut acceptor =
-        openssl::ssl::SslAcceptor::mozilla_intermediate(openssl::ssl::SslMethod::tls())?;
-    acceptor.set_private_key(&key)?;
-    acceptor.set_certificate(&cert)?;
-    acceptor.cert_store_mut().add_cert(cert.clone())?;
-    acceptor.check_private_key()?;
-    // Require HTTP/2
-    acceptor.set_alpn_select_callback(|_ssl, alpn| {
-        openssl::ssl::select_next_proto(tonic_tls::openssl::ALPN_H2_WIRE, alpn)
-            .ok_or(openssl::ssl::AlpnError::NOACK)
-    });
-    // Don't require client to have a certificate
-    acceptor.set_verify(openssl::ssl::SslVerifyMode::NONE);
+    let key = match std::fs::read(key_path) {
+        Ok(key) => {
+            tracing::info!("✅ TLS private key loaded successfully from {}", key_path);
+            key
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to load TLS private key:");
+            eprintln!("   Private key: {}", key_path);
+            eprintln!("   Error: {}", e);
+            return Err(anyhow::anyhow!("Failed to load TLS private key: {}", e));
+        }
+    };
 
-    let tls_acceptor = acceptor.build();
-    let tcp_incoming = tonic::transport::server::TcpIncoming::bind(address)?;
-    let incoming = tonic_tls::openssl::TlsIncoming::new(tcp_incoming, tls_acceptor);
+    let identity = tonic::transport::Identity::from_pem(cert, key);
+    let tls_config = tonic::transport::ServerTlsConfig::new().identity(identity);
 
-    Ok(incoming)
+    tracing::info!("🔒 Starting gRPC server with TLS...");
+    tracing::info!("📜 Certificate: {}", cert_path);
+    tracing::info!("🔑 Private key: {}", key_path);
+
+    let server = tonic::transport::Server::builder().tls_config(tls_config)?;
+
+    Ok(server)
 }

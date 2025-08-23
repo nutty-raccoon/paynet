@@ -11,6 +11,7 @@ use commands::{
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tauri::Manager;
+use tonic::transport::Certificate;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,7 +37,12 @@ pub fn run() {
                     .expect("dirs::data_dir should map to a valid path on this machine");
                 let manager = SqliteConnectionManager::file(db_path);
                 let pool = r2d2::Pool::new(manager)?;
-                app.manage(AppState { pool });
+
+                app.manage(AppState {
+                    pool,
+                    #[cfg(feature = "tls-local-mkcert")]
+                    tls_root_ca_cert: read_tls_root_ca_cert(),
+                });
                 Ok(())
             })
             .plugin(
@@ -67,4 +73,23 @@ pub fn run() {
 #[derive(Debug)]
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
+    #[cfg(feature = "tls-local-mkcert")]
+    tls_root_ca_cert: Certificate,
+}
+
+impl AppState {
+    #[cfg(feature = "tls-local-mkcert")]
+    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+        Some(self.tls_root_ca_cert.clone())
+    }
+
+    #[cfg(not(feature = "tls-local-mkcert"))]
+    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+        None
+    }
+}
+
+#[cfg(feature = "tls-local-mkcert")]
+fn read_tls_root_ca_cert() -> Certificate {
+    tonic::transport::Certificate::from_pem(include_bytes!("../certs/rootCA.pem"))
 }

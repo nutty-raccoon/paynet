@@ -265,7 +265,7 @@ impl WalletOps {
     }
 
     pub async fn sync_wads(&mut self) -> Result<()> {
-        wallet::sync::pending_wads(self.db_pool.clone()).await?;
+        wallet::sync::pending_wads(self.db_pool.clone(), None).await?;
 
         Ok(())
     }

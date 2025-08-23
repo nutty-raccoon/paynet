@@ -4659,6 +4659,7 @@ version = "0.23.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ebcbd2f03de0fc1122ad9bb24b127a5a6cd51d72604a3f3c50ac459762b6cc"
 dependencies = [
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -4732,6 +4733,7 @@ dependencies = [
  "tauri-plugin-os",
  "tauri-plugin-sql",
  "thiserror 2.0.12",
+ "tonic",
  "uint 0.10.0",
  "uuid 1.17.0",
  "wallet",
@@ -6489,6 +6491,7 @@ dependencies = [
  "prost",
  "socket2",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower",
  "tower-layer",

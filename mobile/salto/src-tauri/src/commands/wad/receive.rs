@@ -26,6 +26,8 @@ pub enum ReceiveWadsError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     RegisterNode(#[from] wallet::node::RegisterNodeError),
+    #[error(transparent)]
+    ConnectToNode(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -52,8 +54,9 @@ pub async fn receive_wads(
             memo,
             proofs,
         } = wad;
-        let (mut node_client, node_id) =
-            wallet::node::register(state.pool.clone(), &node_url).await?;
+        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+        let node_id =
+            wallet::node::register(state.pool.clone(), &mut node_client, &node_url).await?;
 
         let amount_received = wallet::receive_wad(
             state.pool.clone(),

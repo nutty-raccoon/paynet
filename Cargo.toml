@@ -131,11 +131,6 @@ opentelemetry-otlp = { version = "0.29.0" }
 tracing-opentelemetry = "0.30.0"
 tower-otel = "0.5.0"
 
-# TLS
-tonic-tls = { version = "0.3.0", default-features = false }
-openssl = "0.10"
-openssl-sys = "0.9.108"
-
 # Db
 # Those libs depend on the dynlib `libsqlite3-sys`,
 # wich create conflict if they are not all referencing the exact same version.

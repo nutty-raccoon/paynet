@@ -2431,7 +2431,6 @@ dependencies = [
  "num-traits",
  "nuts",
  "open-telemetry-tracing",
- "openssl",
  "opentelemetry",
  "primitive-types 0.13.1",
  "prost",
@@ -2449,7 +2448,6 @@ dependencies = [
  "tonic 0.13.1",
  "tonic-build",
  "tonic-health",
- "tonic-tls",
  "tower 0.5.2",
  "tower-otel",
  "tracing",
@@ -4905,17 +4903,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-openssl"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59df6849caa43bb7567f9a36f863c447d95a11d5903c9cc334ba32576a27eadd"
-dependencies = [
- "openssl",
- "openssl-sys",
- "tokio",
-]
-
-[[package]]
 name = "tokio-retry"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5090,24 +5077,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic 0.13.1",
-]
-
-[[package]]
-name = "tonic-tls"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e96bedfe5ae00cd370db4029612380c267bc224b2d45f1d35402b6b588e68d7b"
-dependencies = [
- "async-stream",
- "futures",
- "hyper 1.6.0",
- "hyper-util",
- "openssl",
- "tokio",
- "tokio-openssl",
- "tonic 0.13.1",
- "tower 0.5.2",
- "tracing",
 ]
 
 [[package]]
@@ -5490,8 +5459,6 @@ dependencies = [
  "node-client",
  "num-traits",
  "nuts",
- "openssl",
- "openssl-sys",
  "prost",
  "r2d2",
  "r2d2_sqlite",
@@ -5501,7 +5468,6 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tonic 0.13.1",
- "tonic-tls",
  "url",
  "uuid 1.17.0",
 ]

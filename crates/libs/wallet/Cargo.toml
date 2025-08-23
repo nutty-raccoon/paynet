@@ -8,7 +8,7 @@ serde = { workspace = true }
 node-client = { workspace = true }
 futures = { workspace = true }
 nuts = { workspace = true, features = ["rusqlite", "nut13"] }
-tonic = { workspace = true }
+tonic = { workspace = true, features = ["tls-ring"] }
 prost = { workspace = true }
 log = { workspace = true }
 num-traits = { workspace = true }
@@ -22,11 +22,6 @@ tokio = { workspace = true }
 bip39 = { workspace = true, features = ["rand"] }
 uuid = { workspace = true, features = ["v5"] }
 
-# tls
-tonic-tls = { workspace = true, default-features = false, features = ["openssl"], optional = true  }
-openssl = { workspace = true, optional = true }
-openssl-sys = { workspace = true, optional = true }
-
 # Db
 r2d2_sqlite = { workspace = true }
 r2d2 = { workspace = true }
@@ -34,5 +29,3 @@ rusqlite = { workspace = true, features = ["uuid"] }
 
 [features]
 default = []
-tls = ["dep:tonic-tls", "dep:openssl"]
-tls-allow-self-signed = ["dep:openssl-sys"]
