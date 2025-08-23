@@ -6,9 +6,9 @@ message RemittanceEvent {
   bytes tx_hash = 1;
   uint64 event_index = 2;
   bytes asset = 3;
-  bytes payee = 4;
-  bytes invoice_id = 5;
-  bytes payer = 6;
+  bytes payer = 4;
+  bytes payee = 5;
+  bytes invoice_id = 6;
   bytes amount_low = 7;
   bytes amount_high = 8;
 }

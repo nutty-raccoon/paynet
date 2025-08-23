@@ -7,12 +7,14 @@ pub fn read_env_variables() -> Result<EnvVariables> {
     let rpc_url = std::env::var("RPC_URL")?;
     let private_key = std::env::var("PRIVATE_KEY")?;
     let account_address = std::env::var("ACCOUNT_ADDRESS")?;
+    let chain_id = std::env::var("CHAIN_ID")?;
 
     Ok(EnvVariables {
         node_url,
         rpc_url,
         private_key,
         account_address,
+        chain_id,
     })
 }
 

@@ -1,6 +1,6 @@
 services:
   starknet-devnet:
-    image: "docker.io/shardlabs/starknet-devnet-rs:0.2.4-seed0"
+    image: "docker.io/shardlabs/starknet-devnet-rs:0.4.3"
     environment:
       - SEED=0
       - BLOCK_GENERATION_ON=1

@@ -9,21 +9,22 @@ use node::{
     MeltQuoteStateRequest, MeltRequest, MeltResponse, MintQuoteRequest, MintQuoteResponse,
     MintRequest, MintResponse as GrpcMintResponse, Node, NodeInfoResponse, ProofCheckState,
     QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest,
-    SwapResponse as GrpcSwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
+    SwapResponse as GrpcSwapResponse,
 };
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage, Proof, secret::Secret},
     nut01::{self, PublicKey},
-    nut02::{self, KeysetId},
-    nut03::SwapResponse,
-    nut04::MintResponse,
+    nut02::{self, KeySetVersion, KeysetId},
+    nut03::{SwapRequest as NutSwapRequest, SwapResponse},
+    nut04::{MintRequest as NutMintRequest, MintResponse},
+    nut05::MeltRequest as NutMeltRequest,
     nut06::{ContactInfo, NodeInfo, NodeVersion},
-    nut19::{CacheResponseKey, Route},
+    nut19::{CacheResponseKey, Route, hash_melt_request, hash_mint_request, hash_swap_request},
 };
 use signer::GetRootPubKeyRequest;
 use starknet_types::Unit;
-use std::str::FromStr;
+use std::{mem::swap, str::FromStr};
 use thiserror::Error;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
@@ -199,23 +200,6 @@ impl Node for GrpcState {
     ) -> Result<Response<GrpcSwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
-        let cache_key = (Route::Swap, hash_swap_request(&swap_request));
-        // Try to get from cache first
-        if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
-            let grpc_swap_response: GrpcSwapResponse = GrpcSwapResponse {
-                signatures: swap_response
-                    .signatures
-                    .into_iter()
-                    .map(|bs| GrpcBlindSignature {
-                        amount: bs.amount.into(),
-                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
-                        blind_signature: bs.c.to_bytes().to_vec(),
-                    })
-                    .collect(),
-            };
-            return Ok(Response::new(grpc_swap_response));
-        }
-
         if swap_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many inputs: maximum allowed is 64",
@@ -261,7 +245,27 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let nut_swap_request = NutSwapRequest {
+            inputs: inputs.clone(),
+            outputs: outputs.clone(),
+        };
 
+        let cache_key = (Route::Swap, hash_swap_request(&nut_swap_request));
+        // Try to get from cache first
+        if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
+            let grpc_swap_response: GrpcSwapResponse = GrpcSwapResponse {
+                signatures: swap_response
+                    .signatures
+                    .into_iter()
+                    .map(|bs| GrpcBlindSignature {
+                        amount: bs.amount.into(),
+                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                        blind_signature: bs.c.to_bytes().to_vec(),
+                    })
+                    .collect(),
+            };
+            return Ok(Response::new(grpc_swap_response));
+        }
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
         let swap_response = GrpcSwapResponse {
@@ -315,23 +319,6 @@ impl Node for GrpcState {
     ) -> Result<Response<GrpcMintResponse>, Status> {
         let mint_request = mint_request.into_inner();
 
-        let cache_key = (Route::Mint, hash_mint_request(&mint_request));
-        // Try to get from cache first
-        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
-            let grpc_mint_response = GrpcMintResponse {
-                signatures: mint_response
-                    .signatures
-                    .into_iter()
-                    .map(|bs| GrpcBlindSignature {
-                        amount: bs.amount.into(),
-                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
-                        blind_signature: bs.c.to_bytes().to_vec(),
-                    })
-                    .collect(),
-            };
-            return Ok(Response::new(grpc_mint_response));
-        }
-
         if mint_request.outputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many outputs: maximum allowed is 64",
@@ -359,6 +346,28 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let nut_mint_request: NutMintRequest<Uuid> = NutMintRequest {
+            quote: quote_id,
+            outputs: outputs.clone(),
+        };
+
+        let cache_key = (Route::Mint, hash_mint_request(&nut_mint_request));
+        // Try to get from cache first
+        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
+            let grpc_mint_response = GrpcMintResponse {
+                signatures: mint_response
+                    .signatures
+                    .into_iter()
+                    .map(|bs| GrpcBlindSignature {
+                        amount: bs.amount.into(),
+                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                        blind_signature: bs.c.to_bytes().to_vec(),
+                    })
+                    .collect(),
+            };
+            return Ok(Response::new(grpc_mint_response));
+        }
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
         let signatures = promises
@@ -414,17 +423,6 @@ impl Node for GrpcState {
     ) -> Result<Response<MeltResponse>, Status> {
         let melt_request = melt_request.into_inner();
 
-        let cache_key = (Route::Melt, hash_melt_request(&melt_request));
-
-        // Try to get from cache first
-        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
-            let grpc_melt_response = MeltResponse {
-                state: melt_response.state.into(),
-                transfer_ids: melt_response.transfer_ids.unwrap_or_default(),
-            };
-            return Ok(Response::new(grpc_melt_response));
-        }
-
         if melt_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many inputs: maximum allowed is 64",
@@ -452,6 +450,22 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let nut_melt_request = NutMeltRequest {
+            quote: quote_id,
+            inputs: inputs.clone(),
+        };
+
+        let cache_key = (Route::Melt, hash_melt_request(&nut_melt_request));
+
+        // Try to get from cache first
+        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
+            let grpc_melt_response = MeltResponse {
+                state: melt_response.state.into(),
+                transfer_ids: melt_response.transfer_ids.unwrap_or_default(),
+            };
+            return Ok(Response::new(grpc_melt_response));
+        }
 
         let response = self.inner_melt(method, quote_id, &inputs).await?;
 

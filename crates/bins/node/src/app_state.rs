@@ -15,7 +15,7 @@ use crate::{
 };
 use nuts::nut19::Route;
 
-pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit>>>;
+pub type NutsSettingsState = Arc<RwLock<NutsSettings<Method, Unit, serde_json::Value>>>;
 pub type SignerClient = signer::SignerClient<tower_otel::trace::Grpc<Channel>>;
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,7 +99,7 @@ impl AppState {
     pub fn new(
         pg_pool: PgPool,
         signer_client: SignerClient,
-        nuts_settings: NutsSettings<Method, Unit>,
+        nuts_settings: NutsSettings<Method, Unit, serde_json::Value>,
         quote_ttl: QuoteTTLConfig,
         liquidity_sources: LiquiditySources<Unit>,
     ) -> Self {

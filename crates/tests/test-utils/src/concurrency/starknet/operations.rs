@@ -1,21 +1,24 @@
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, str::FromStr, time::Duration};
 
 use futures::future::join_all;
 use node_client::{
     AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltQuoteRequest, MeltRequest,
     MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, NodeClient,
-    Proof, SwapRequest, SwapResponse, hash_mint_request,
+    Proof, SwapRequest, SwapResponse,
 };
 use nuts::{
     Amount,
     dhke::{blind_message, unblind_message},
     nut00::secret::Secret,
     nut01::PublicKey,
+    nut02::KeysetId,
+    nut19::hash_mint_request,
 };
 use primitive_types::U256;
-use starknet_types::{STARKNET_STR, Unit};
+use starknet_types::{DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
+use uuid::Uuid;
 
 use crate::{
     common::{
@@ -99,19 +102,26 @@ pub async fn mint_same_output(
     let mut calls = Vec::with_capacity(51);
     let mut mint_quote_response_iterator = mints_quote_response.iter();
 
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
     // Edit the allow call so that one call is enough to cover all invoices
     // Then we only push the payment_invoice call. This reduce by half the number of calls.
     // It is important because something break in DNA when there is too many calls, or events
     // in a single transaction.
     // That is the reason why we use `50` as the size of a batch, 100 was breaking it
-    let mut c: [starknet_types::Call; 2] =
+    let deposit_payload: DepositPayload =
         serde_json::from_str(&mint_quote_response_iterator.next().unwrap().request)?;
+    let mut c = deposit_payload
+        .call_data
+        .to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
     c[0].calldata[1] *= Felt::from(100);
     calls.push(c[0].clone());
     calls.push(c[1].clone());
     let mut i = 0;
     for quote in mint_quote_response_iterator {
-        let c: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
+        let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
+        let c = deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address);
         calls.push(c[1].clone());
         i += 1;
 
@@ -283,16 +293,26 @@ pub async fn swap_same_input(
         blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
     let mint_request = MintRequest {
         method: "starknet".to_string(),
-        quote: original_mint_quote_response.quote,
+        quote: original_mint_quote_response.quote.clone(),
         outputs: vec![BlindedMessage {
             amount: amount.into(),
             keyset_id: active_keyset.id.clone(),
             blinded_secret: blinded_secret.to_bytes().to_vec(),
         }],
     };
+    let nut_mint_request = nuts::nut04::MintRequest {
+        quote: Uuid::from_str(&original_mint_quote_response.quote)
+            .map_err(|e| Error::Other(e.into()))?,
+        outputs: vec![nuts::nut00::BlindedMessage {
+            amount,
+            keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())
+                .map_err(|e| Error::Other(e.into()))?,
+            blinded_secret,
+        }],
+    };
 
     let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&mint_request);
+    let request_hash = hash_mint_request(&nut_mint_request);
     node_client
         .acknowledge(AcknowledgeRequest {
             path: "mint".to_string(),
@@ -372,10 +392,17 @@ pub async fn melt_same_input(
     let original_mint_quote_response =
         mint_quote_and_deposit_and_wait(node_client.clone(), env.clone(), amount).await?;
 
-    let calls: [starknet_types::Call; 2] =
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
+    let deposit_payload: DepositPayload =
         serde_json::from_str(&original_mint_quote_response.request)?;
-    pay_invoices(calls.to_vec(), env).await?;
-
+    pay_invoices(
+        deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
+            .to_vec(),
+        env,
+    )
+    .await?;
     wait_transac(node_client.clone(), &original_mint_quote_response).await?;
 
     let active_keyset =
@@ -385,7 +412,7 @@ pub async fn melt_same_input(
         blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
     let mint_request = MintRequest {
         method: "starknet".to_string(),
-        quote: original_mint_quote_response.quote,
+        quote: original_mint_quote_response.quote.clone(),
         outputs: vec![BlindedMessage {
             amount: amount.into(),
             keyset_id: active_keyset.id.clone(),
@@ -393,8 +420,19 @@ pub async fn melt_same_input(
         }],
     };
 
+    let nut_mint_request = nuts::nut04::MintRequest {
+        quote: Uuid::from_str(&original_mint_quote_response.quote)
+            .map_err(|e| Error::Other(e.into()))?,
+        outputs: vec![nuts::nut00::BlindedMessage {
+            amount,
+            keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())
+                .map_err(|e| Error::Other(e.into()))?,
+            blinded_secret,
+        }],
+    };
+
     let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&mint_request);
+    let request_hash = hash_mint_request(&nut_mint_request);
     node_client
         .acknowledge(AcknowledgeRequest {
             path: "mint".to_string(),

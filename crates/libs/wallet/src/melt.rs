@@ -1,11 +1,11 @@
-use node_client::{
-    MeltQuoteRequest, MeltQuoteResponse, MeltQuoteState, MeltResponse, NodeClient,
-    hash_melt_request,
-};
-use nuts::{Amount, traits::Unit};
+use std::str::FromStr;
+
+use node_client::{MeltQuoteRequest, MeltQuoteResponse, MeltQuoteState, MeltResponse, NodeClient};
+use nuts::{Amount, nut05::MeltRequest as NutMeltRequest, nut19::hash_melt_request, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
+use tonic::{Status, transport::Channel};
+use uuid::Uuid;
 
 use crate::{
     acknowledge, convert_inputs, db, errors::Error, fetch_inputs_ids_from_db_or_node,
@@ -58,7 +58,12 @@ pub async fn pay_quote(
         inputs: convert_inputs(&inputs),
     };
 
-    let melt_request_hash = hash_melt_request(&melt_request);
+    let nut_melt_request = NutMeltRequest {
+        quote: Uuid::from_str(&quote_id.clone()).map_err(|e| Error::Conversion(e.to_string()))?,
+        inputs,
+    };
+
+    let melt_request_hash = hash_melt_request(&nut_melt_request);
 
     let melt_res = node_client.melt(melt_request).await;
     // If this fail we won't be able to actualize the proof state. Which may lead to some bugs.

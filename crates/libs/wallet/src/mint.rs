@@ -1,10 +1,19 @@
-use node_client::{
-    MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, hash_mint_request,
+use std::str::FromStr;
+
+use node_client::{MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient};
+use nuts::{
+    Amount, SplitTarget,
+    nut00::BlindedMessage,
+    nut01::PublicKey,
+    nut02::KeysetId,
+    nut04::MintQuoteState,
+    nut19::{Route, hash_mint_request},
+    traits::Unit,
 };
-use nuts::{Amount, SplitTarget, nut04::MintQuoteState, nut19::Route, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
+use uuid::Uuid;
 
 use crate::{
     acknowledge, db,
@@ -89,10 +98,24 @@ pub async fn redeem_quote(
     let mint_request = MintRequest {
         method,
         quote: quote_id.clone(),
-        outputs,
+        outputs: outputs.clone(),
     };
 
-    let mint_request_hash = hash_mint_request(&mint_request);
+    let nut_mint_request = nuts::nut04::MintRequest {
+        quote: Uuid::from_str(&quote_id).map_err(Error::Uuid)?,
+        outputs: outputs
+            .into_iter()
+            .map(|bm| -> Result<BlindedMessage, Error> {
+                Ok(BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: KeysetId::from_bytes(&bm.keyset_id)?,
+                    blinded_secret: PublicKey::from_slice(&bm.blinded_secret)?,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+
+    let mint_request_hash = hash_mint_request(&nut_mint_request);
     let mint_response = node_client.mint(mint_request).await?.into_inner();
 
     {

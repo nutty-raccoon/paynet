@@ -1,5 +1,3 @@
-mod commands;
-pub use commands::ProgramArguments;
 mod env_variables;
 pub use env_variables::read_env_variables;
 mod db;
@@ -18,7 +16,7 @@ use tracing::instrument;
 use crate::grpc_service::InitKeysetError;
 use crate::{app_state::AppState, liquidity_sources::LiquiditySources};
 use nuts::QuoteTTLConfig;
-pub use nuts_settings::nuts_settings;
+use nuts_settings::nuts_settings;
 use signer::SignerClient;
 use sqlx::Postgres;
 use starknet_types::Unit;

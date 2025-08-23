@@ -1,11 +1,20 @@
+use std::str::FromStr;
+
 use node_client::{
     AcknowledgeRequest, GetKeysetsRequest, MeltRequest, MeltResponse, MintQuoteRequest,
     MintQuoteResponse, MintQuoteState, MintRequest, MintResponse, NodeClient, QuoteStateRequest,
-    SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
+    SwapRequest, SwapResponse,
 };
-use nuts::Amount;
-use starknet_types::Unit;
+use nuts::{
+    Amount,
+    nut00::{BlindedMessage, secret::Secret},
+    nut01::PublicKey,
+    nut02::KeysetId,
+    nut19::{hash_melt_request, hash_mint_request, hash_swap_request},
+};
+use starknet_types::{DepositPayload, Unit, constants::ON_CHAIN_CONSTANTS};
 use tonic::transport::Channel;
+use uuid::Uuid;
 
 use crate::{
     common::error::{Error, Result},
@@ -17,7 +26,27 @@ pub async fn make_mint(
     mut node_client: NodeClient<Channel>,
 ) -> Result<MintResponse> {
     let mint_response = node_client.mint(req.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&req);
+
+    let outputs: Vec<nuts::nut00::BlindedMessage> = req
+        .outputs
+        .into_iter()
+        .map(|bm| -> Result<nuts::nut00::BlindedMessage> {
+            Ok(nuts::nut00::BlindedMessage {
+                amount: bm.amount.into(),
+                keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                    .map_err(|e| Error::Other(e.into()))?,
+                blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                    .map_err(|e| Error::Other(e.into()))?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let nut_mint_request = nuts::nut04::MintRequest {
+        quote: Uuid::from_str(&req.quote).map_err(|e| Error::Other(e.into()))?,
+        outputs,
+    };
+
+    let request_hash = hash_mint_request(&nut_mint_request);
     node_client
         .acknowledge(AcknowledgeRequest {
             path: "mint".to_string(),
@@ -32,7 +61,40 @@ pub async fn make_swap(
     swap_request: SwapRequest,
 ) -> Result<SwapResponse> {
     let original_swap_response = node_client.swap(swap_request.clone()).await?.into_inner();
-    let request_hash = hash_swap_request(&swap_request);
+
+    let inputs: Vec<nuts::nut00::Proof> = swap_request
+        .inputs
+        .into_iter()
+        .map(|p| -> Result<nuts::nut00::Proof> {
+            Ok(nuts::nut00::Proof {
+                amount: p.amount.into(),
+                keyset_id: KeysetId::from_bytes(&p.keyset_id)
+                    .map_err(|e| Error::Other(e.into()))?,
+                secret: Secret::new(p.secret).map_err(|e| Error::Other(e.into()))?,
+                c: PublicKey::from_slice(&p.unblind_signature)
+                    .map_err(|e| Error::Other(e.into()))?,
+            })
+        })
+        .collect::<Result<Vec<nuts::nut00::Proof>>>()?;
+    let outputs: Vec<nuts::nut00::BlindedMessage> = swap_request
+        .outputs
+        .into_iter()
+        .map(|bm| -> Result<nuts::nut00::BlindedMessage> {
+            Ok(nuts::nut00::BlindedMessage {
+                amount: bm.amount.into(),
+                keyset_id: KeysetId::from_bytes(&bm.keyset_id)
+                    .map_err(|e| Error::Other(e.into()))?,
+                blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                    .map_err(|e| Error::Other(e.into()))?,
+            })
+        })
+        .collect::<Result<Vec<nuts::nut00::BlindedMessage>>>()?;
+    let nut_swap_request = nuts::nut03::SwapRequest {
+        inputs: inputs.clone(),
+        outputs: outputs.clone(),
+    };
+
+    let request_hash = hash_swap_request(&nut_swap_request);
     node_client
         .acknowledge(AcknowledgeRequest {
             path: "swap".to_string(),
@@ -47,7 +109,29 @@ pub async fn make_melt(
     melt_request: MeltRequest,
 ) -> Result<MeltResponse> {
     let original_melt_response = node_client.melt(melt_request.clone()).await?.into_inner();
-    let request_hash = hash_melt_request(&melt_request);
+
+    let inputs = melt_request
+        .clone()
+        .inputs
+        .into_iter()
+        .map(|p| -> Result<nuts::nut00::Proof> {
+            Ok(nuts::nut00::Proof {
+                amount: p.amount.into(),
+                keyset_id: KeysetId::from_bytes(&p.keyset_id)
+                    .map_err(|e| Error::Other(e.into()))?,
+                secret: Secret::new(p.secret).map_err(|e| Error::Other(e.into()))?,
+                c: PublicKey::from_slice(&p.unblind_signature)
+                    .map_err(|e| Error::Other(e.into()))?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let nut_melt_request = nuts::nut05::MeltRequest {
+        quote: Uuid::from_str(&melt_request.quote).map_err(|e| Error::Other(e.into()))?,
+        inputs,
+    };
+
+    let request_hash = hash_melt_request(&nut_melt_request);
     node_client
         .acknowledge(AcknowledgeRequest {
             path: "melt".to_string(),
@@ -120,8 +204,16 @@ pub async fn mint_quote_and_deposit_and_wait(
         .await?
         .into_inner();
 
-    let calls: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
-    pay_invoices(calls.to_vec(), env.clone()).await?;
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
+    let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
+    pay_invoices(
+        deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
+            .to_vec(),
+        env.clone(),
+    )
+    .await?;
 
     wait_transac(node_client.clone(), &quote).await?;
     Ok(quote)

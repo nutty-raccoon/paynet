@@ -7,29 +7,26 @@ use axum::{
 };
 use nuts::{
     Amount,
-    nut00::{BlindSignature, BlindedMessage, Proof, Proofs, secret::Secret},
+    nut00::{BlindedMessage, Proofs},
     nut01::PublicKey,
-    nut02::KeysetId,
     nut03::{SwapRequest, SwapResponse},
-    nut04::{MintQuoteRequest, MintQuoteState, MintRequest, MintResponse},
-    nut05::{MeltQuoteState, MeltResponse},
+    nut04::{MintQuoteState, MintRequest, MintResponse},
+    nut05::{MeltQuoteState, MeltRequest, MeltResponse},
     nut06::{ContactInfo, NodeInfo, NodeVersion},
-    nut07::{CheckStateResponse, ProofCheckState},
-    nut19::Route,
+    nut07::CheckStateResponse,
+    nut19::{Route, hash_melt_request, hash_mint_request, hash_swap_request},
 };
-use rusqlite::ToSql;
 use serde::{Deserialize, Serialize};
 use signer::GetRootPubKeyRequest;
 use starknet_types::Unit;
 use std::{fmt::Debug, str::FromStr};
-use tonic::{Request, Status};
+use tonic::Request;
 use uuid::Uuid;
 
 use crate::{
     app_state::{AppState, KeysetKeys},
     methods::Method,
     response_cache::CachedResponse,
-    rest_service,
 };
 
 /// HTTP error response
@@ -69,35 +66,6 @@ struct ProofState {
     #[serde(rename = "Y")]
     y: String,
     state: String,
-}
-
-fn hash_swap_request_http(request: &SwapRequest) -> u64 {
-    // For now, use a simple hash - we should match the gRPC implementation
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = DefaultHasher::new();
-    format!("{:?}", request).hash(&mut hasher);
-    hasher.finish()
-}
-
-fn hash_mint_request_http(request: &RestMintRequest) -> u64 {
-    // For now, use a simple hash - we should match the gRPC implementation
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = DefaultHasher::new();
-    format!("{:?}", request).hash(&mut hasher);
-    hasher.finish()
-}
-
-fn hash_melt_request_http(request: &RestMeltRequest) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = DefaultHasher::new();
-    format!("{:?}", request).hash(&mut hasher);
-    hasher.finish()
 }
 
 /// NUT-02: Get keysets
@@ -206,7 +174,7 @@ async fn swap(
     State(app_state): State<AppState>,
     Json(request): Json<SwapRequest>,
 ) -> Result<Json<SwapResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let cache_key = (Route::Swap, hash_swap_request_http(&request));
+    let cache_key = (Route::Swap, hash_swap_request(&request));
 
     // Try to get from cache first
     if let Some(CachedResponse::Swap(swap_response)) = app_state.get_cached_response(&cache_key) {
@@ -333,18 +301,12 @@ async fn mint_quote(
     Ok(Json(mint_quote_response))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RestMintRequest {
-    pub quote: String,
-    pub outputs: Vec<BlindedMessage>,
-}
-
 async fn mint(
     State(app_state): State<AppState>,
     Path(method): Path<String>,
-    Json(request): Json<RestMintRequest>,
+    Json(request): Json<MintRequest<Uuid>>,
 ) -> Result<Json<MintResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let cache_key = (Route::Mint, hash_mint_request_http(&request));
+    let cache_key = (Route::Mint, hash_mint_request(&request));
     if let Some(CachedResponse::Mint(mint_response)) = app_state.get_cached_response(&cache_key) {
         return Ok(Json(mint_response));
     }
@@ -372,16 +334,8 @@ async fn mint(
             }),
         )
     })?;
-    let quote_id = Uuid::from_str(&request.quote).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: e.to_string(),
-            }),
-        )
-    })?;
     let signatures = app_state
-        .inner_mint(method, quote_id, &request.outputs)
+        .inner_mint(method, request.quote, &request.outputs)
         .await
         .map_err(|e| {
             (
@@ -504,18 +458,12 @@ async fn melt_quote(
     }))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct RestMeltRequest {
-    pub quote: String,
-    pub inputs: Proofs,
-}
-
 async fn melt(
     State(app_state): State<AppState>,
     Path(method): Path<String>,
-    Json(request): Json<RestMeltRequest>,
+    Json(request): Json<MeltRequest<Uuid>>,
 ) -> Result<Json<MeltResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let cache_key = (Route::Melt, hash_melt_request_http(&request));
+    let cache_key = (Route::Melt, hash_melt_request(&request));
     if let Some(CachedResponse::Melt(melt_response)) = app_state.get_cached_response(&cache_key) {
         return Ok(Json(melt_response));
     }
@@ -546,17 +494,9 @@ async fn melt(
             }),
         )
     })?;
-    let quote_id = Uuid::from_str(&request.quote).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: e.to_string(),
-            }),
-        )
-    })?;
 
     let response = app_state
-        .inner_melt(method, quote_id, &request.inputs)
+        .inner_melt(method, request.quote, &request.inputs)
         .await
         .map_err(|e| {
             (
@@ -653,18 +593,14 @@ async fn info(
         .root_pubkey;
     let node_info = NodeInfo {
         name: Some("Paynet Test Node".to_string()),
-        pubkey: Some(
-            PublicKey::from_str(&pub_key)
-                .map_err(|e| Status::internal(e.to_string()))
-                .map_err(|e| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: e.to_string(),
-                        }),
-                    )
-                })?,
-        ),
+        pubkey: Some(PublicKey::from_str(&pub_key).map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
+        })?),
         version: Some(NodeVersion {
             name: "some_name".to_string(),
             version: "0.0.0".to_string(),
@@ -682,16 +618,14 @@ async fn info(
         time: Some(std::time::UNIX_EPOCH.elapsed().unwrap().as_secs()),
     };
 
-    let node_info_str = serde_json::to_string(&node_info)
-        .map_err(|e| Status::internal(e.to_string()))
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: e.to_string(),
-                }),
-            )
-        })?;
+    let node_info_str = serde_json::to_string(&node_info).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
     Ok(Json(NodeInfoResponse {
         info: node_info_str,
     }))
@@ -735,15 +669,15 @@ async fn checkstate(
 pub fn create_router() -> Router<AppState> {
     Router::new()
         .route("/v1/keys", get(get_keys))
-        .route("/v1/keys/:keyset_id", get(get_keys_by_id))
+        .route("/v1/keys/{keyset_id}", get(get_keys_by_id))
         .route("/v1/keysets", get(get_keysets))
         .route("/v1/swap", post(swap))
-        .route("/v1/mint/quote/:method", post(mint_quote))
-        .route("/v1/mint/:method", post(mint))
-        .route("/v1/mint/quote/:method/:quote_id", get(mint_quote_state))
-        .route("/v1/melt/quote/:method", post(melt_quote))
-        .route("/v1/melt/:method", post(melt))
-        .route("/v1/melt/quote/:method/:quote_id", get(melt_quote_state))
+        .route("/v1/mint/quote/{method}", post(mint_quote))
+        .route("/v1/mint/{method}", post(mint))
+        .route("/v1/mint/quote/{method}/{quote_id}", get(mint_quote_state))
+        .route("/v1/melt/quote/{method}", post(melt_quote))
+        .route("/v1/melt/{method}", post(melt))
+        .route("/v1/melt/quote/{method}/{quote_id}", get(melt_quote_state))
         .route("/v1/info", get(info))
         .route("/v1/checkstate", post(checkstate))
 }

@@ -1,4 +1,4 @@
-use nuts::{nut04, nut05};
+use nuts::{nut03::SwapRequest as NutSwapRequest, nut04, nut05};
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
 #[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::keyset_rotation_service_client::KeysetRotationServiceClient;
@@ -68,57 +68,4 @@ impl From<nut04::MintQuoteState> for MintQuoteState {
             nut04::MintQuoteState::Issued => MintQuoteState::MnqsIssued,
         }
     }
-}
-
-use std::hash::{DefaultHasher, Hash, Hasher};
-
-/// Hash MintRequest to a string
-/// This is used to create a unique identifier for the request
-pub fn hash_mint_request(request: &MintRequest) -> u64 {
-    let mut hasher = DefaultHasher::new();
-
-    request.method.hash(&mut hasher);
-    request.quote.hash(&mut hasher);
-    for output in &request.outputs {
-        output.amount.hash(&mut hasher);
-        output.keyset_id.hash(&mut hasher);
-        output.blinded_secret.hash(&mut hasher);
-    }
-
-    hasher.finish()
-}
-
-/// Hash MeltRequest to a string
-/// This is used to create a unique identifier for the request
-pub fn hash_melt_request(request: &MeltRequest) -> u64 {
-    let mut hasher = DefaultHasher::new();
-
-    request.method.hash(&mut hasher);
-    request.quote.hash(&mut hasher);
-    for input in &request.inputs {
-        input.amount.hash(&mut hasher);
-        input.keyset_id.hash(&mut hasher);
-        input.secret.hash(&mut hasher);
-        input.unblind_signature.hash(&mut hasher);
-    }
-
-    hasher.finish()
-}
-
-pub fn hash_swap_request(request: &SwapRequest) -> u64 {
-    let mut hasher = DefaultHasher::new();
-
-    for input in &request.inputs {
-        input.amount.hash(&mut hasher);
-        input.keyset_id.hash(&mut hasher);
-        input.secret.hash(&mut hasher);
-        input.unblind_signature.hash(&mut hasher);
-    }
-    for output in &request.outputs {
-        output.amount.hash(&mut hasher);
-        output.keyset_id.hash(&mut hasher);
-        output.blinded_secret.hash(&mut hasher);
-    }
-
-    hasher.finish()
 }

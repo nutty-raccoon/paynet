@@ -43,8 +43,6 @@ async fn main() -> Result<(), anyhow::Error> {
     opentelemetry::global::set_meter_provider(meter_provider);
 
     info!("Initializing node...");
-    let args = <initialization::ProgramArguments as clap::Parser>::parse();
-
     // Read args and env
     let env_variables = read_env_variables()?;
 
@@ -69,8 +67,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let signer_client = connect_to_signer(env_variables.signer_url.clone()).await?;
     info!("Connected to signer server.");
 
-    let liquidity_sources =
-        liquidity_sources::LiquiditySources::init(pg_pool.clone(), args).await?;
+    let liquidity_sources = liquidity_sources::LiquiditySources::init(pg_pool.clone()).await?;
 
     // Create shared AppState
     let app_state = create_app_state(

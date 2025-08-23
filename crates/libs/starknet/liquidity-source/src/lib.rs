@@ -1,65 +1,26 @@
 mod deposit;
 #[cfg(not(feature = "mock"))]
+mod env_config;
+#[cfg(not(feature = "mock"))]
 mod indexer;
 mod init;
 mod withdraw;
 
-use std::{
-    fmt::{LowerHex, UpperHex},
-    path::PathBuf,
-};
+use std::fmt::{LowerHex, UpperHex};
 
 pub use deposit::{Depositer, Error as DepositError};
-use http::Uri;
 use starknet_types::{CairoShortStringToFeltError, Unit};
 use starknet_types_core::{felt::Felt, hash::Poseidon};
-use url::Url;
 pub use withdraw::{Error as WithdrawalError, MeltPaymentRequest, Withdrawer};
 
 #[derive(Debug, thiserror::Error)]
-pub enum ReadStarknetConfigError {
-    #[error("failed to read Starknet config file: {0}")]
-    IO(#[from] std::io::Error),
-    #[error("failed to deserialize Starknet config file content: {0}")]
-    Toml(#[from] toml::de::Error),
-}
-
-pub fn read_starknet_config(path: PathBuf) -> Result<StarknetCliConfig, ReadStarknetConfigError> {
-    let file_content = std::fs::read_to_string(&path)?;
-
-    let config: StarknetCliConfig = toml::from_str(&file_content)?;
-
-    Ok(config)
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct StarknetCliConfig {
-    /// The chain we are using as backend
-    pub chain_id: starknet_types::ChainId,
-    /// The address of the on-chain account managing deposited assets
-    pub cashier_account_address: starknet_types_core::felt::Felt,
-    /// The url of the starknet rpc node we want to use
-    pub starknet_rpc_node_url: Url,
-    #[serde(with = "uri_serde")]
-    pub starknet_substreams_url: Uri,
-}
-
-#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("failed to read environment variable `{0}`: {1}")]
-    Env(&'static str, #[source] std::env::VarError),
-    #[error(transparent)]
-    Config(#[from] ReadStarknetConfigError),
     #[cfg(not(feature = "mock"))]
-    #[error(transparent)]
-    Indexer(#[from] indexer::Error),
-    #[error("invalid private key value")]
-    PrivateKey,
+    #[error("failed to init config from env variables: {0}")]
+    Config(#[from] env_config::ReadStarknetConfigError),
     #[error("invalid chain id value: {0}")]
     ChainId(CairoShortStringToFeltError),
 }
-
-pub const CASHIER_PRIVATE_KEY_ENV_VAR: &str = "CASHIER_PRIVATE_KEY";
 
 #[derive(Debug, Clone)]
 pub struct StarknetInvoiceId(Felt);
@@ -108,26 +69,5 @@ impl liquidity_source::LiquiditySource for StarknetLiquiditySource {
         Poseidon::hades_permutation(&mut values);
 
         StarknetInvoiceId(values[0])
-    }
-}
-
-mod uri_serde {
-    use http::Uri;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use std::str::FromStr;
-
-    pub fn serialize<S>(uri: &Uri, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        uri.to_string().serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Uri, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Uri::from_str(&s).map_err(serde::de::Error::custom)
     }
 }

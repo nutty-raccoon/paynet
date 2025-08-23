@@ -65,6 +65,8 @@ pub enum Error {
     UnexpectedProofState(String),
     #[error("failed to connect to node: {0}")]
     ConnectToNode(#[from] crate::ConnectToNodeError),
+    #[error(transparent)]
+    Uuid(uuid::Error),
 }
 
 impl From<StoreNewProofsError> for Error {
