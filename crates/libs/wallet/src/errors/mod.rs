@@ -1,11 +1,13 @@
-use node_client::UnspecifiedEnum;
+use node_client::{NodeClient, UnspecifiedEnum};
 use nuts::nut01::PublicKey;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 use thiserror::Error;
-use tonic::Status;
+use tonic::{Code, Status, transport::Channel};
 use tonic_types::StatusExt;
 
-use crate::{StoreNewProofsError, db, seed_phrase};
+use crate::{StoreNewProofsError, db, node::RefreshNodeKeysetError, seed_phrase};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -69,6 +71,8 @@ pub enum Error {
     InvalidFormat,
     #[error("invalid index: {0}")]
     ParseError(#[from] std::num::ParseIntError),
+    #[error("fail to refresh node keyset: {0}")]
+    RefreshNodeKeyset(#[from] RefreshNodeKeysetError),
 }
 
 impl From<StoreNewProofsError> for Error {
@@ -81,13 +85,36 @@ impl From<StoreNewProofsError> for Error {
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub async fn handle_out_of_sync_keyset_errors(
+    status: &Status,
+    pool: Pool<SqliteConnectionManager>,
+    node_client: &mut NodeClient<Channel>,
+    node_id: u32,
+) -> Result<(), RefreshNodeKeysetError> {
+    let mut should_refresh = false;
+    if status.code() == Code::FailedPrecondition && status.message() == "inactive keyset" {
+        let error_details = status.get_error_details();
+        if let Some(precondition_failure) = error_details.precondition_failure() {
+            for failure in &precondition_failure.violations {
+                if failure.r#type == "keyset.state" {
+                    should_refresh = true;
+                }
+            }
+        }
+    }
+
+    if should_refresh {
+        crate::node::refresh_keysets(pool, node_client, node_id).await?;
+    }
+
+    Ok(())
+}
 
 pub fn handle_proof_verification_errors(
     status: &Status,
     proofs_ids: &[PublicKey],
     conn: &Connection,
-) -> Result<()> {
+) -> Result<(), Error> {
     let error_details = status.get_error_details();
 
     if let Some(bad_request) = error_details.bad_request() {
@@ -129,7 +156,7 @@ fn handle_crypto_invalid_proofs(
     indices: Vec<u32>,
     proofs_ids: &[PublicKey],
     conn: &Connection,
-) -> Result<()> {
+) -> Result<(), rusqlite::Error> {
     log::info!(
         "Removing {} cryptographically invalid proofs: {:?}",
         indices.len(),
@@ -153,7 +180,7 @@ fn handle_already_spent_proofs(
     indices: Vec<u32>,
     proofs_ids: &[PublicKey],
     conn: &Connection,
-) -> Result<()> {
+) -> Result<(), rusqlite::Error> {
     log::info!(
         "Removing {} already spent proofs: {:?}",
         indices.len(),
@@ -176,13 +203,14 @@ fn handle_already_spent_proofs(
     Ok(())
 }
 
-fn extract_proof_index(field: &str) -> Result<u32> {
+fn extract_proof_index(field: &str) -> Result<u32, Error> {
     if let Some(start) = field.find('[') {
         if let Some(end) = field.find(']') {
             let index_str = &field[start + 1..end];
             return Ok(index_str.parse::<u32>()?);
         }
     }
+
     Err(Error::InvalidFormat)
 }
 

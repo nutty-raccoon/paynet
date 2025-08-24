@@ -29,7 +29,7 @@ pub enum Error {
     #[error(transparent)]
     KeysetCache(#[from] keyset_cache::Error),
     #[error(transparent)]
-    Signer(#[from] tonic::Status),
+    Signer(tonic::Status),
     #[error("amount {1} exceeds max order {2} of keyset {0}")]
     AmountExceedsMaxOrder(KeysetId, Amount, u64),
     #[error("proof issues found")]
@@ -79,6 +79,26 @@ impl From<Error> for Status {
     }
 }
 
+// signer fields is `proofs` while node uses `inputs`
+// whe have to substitute one for another
+fn rename_signer_error_details_field_name(status: tonic::Status) -> tonic::Status {
+    if status.code() == tonic::Code::InvalidArgument {
+        if let Some(mut bad_request) = status.get_details_bad_request() {
+            for f in &mut bad_request.field_violations {
+                f.field = f.field.replace("proofs", "inputs");
+            }
+
+            return tonic::Status::with_error_details(
+                status.code(),
+                status.message(),
+                ErrorDetails::with_bad_request(bad_request.field_violations),
+            );
+        }
+    }
+
+    status
+}
+
 pub async fn run_verification_queries(
     conn: &mut PgConnection,
     secrets: HashSet<PublicKey>,
@@ -91,7 +111,7 @@ pub async fn run_verification_queries(
                 proofs: verify_proofs_request,
             })
             .await
-            .map_err(Error::Signer)
+            .map_err(|s| Error::Signer(rename_signer_error_details_field_name(s)))
     };
     let spent_check_future = async {
         db_node::proof::get_already_spent_indices(conn, secrets.into_iter())

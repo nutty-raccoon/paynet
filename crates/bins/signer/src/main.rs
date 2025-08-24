@@ -5,7 +5,7 @@ use nuts::{
     nut01::{PublicKey, SetKeyPairs},
     nut02::{KeysetId, MintKeySet},
 };
-use server_errors::{Error, VerifyProofError};
+use server_errors::{Error, VerifyProofError, VerifyProofsErrors};
 use signer::{
     DeclareKeysetRequest, DeclareKeysetResponse, GetRootPubKeyRequest, GetRootPubKeyResponse, Key,
     SignBlindedMessagesRequest, SignBlindedMessagesResponse, SignerServer, VerifyProofsRequest,
@@ -26,8 +26,6 @@ use build_server::build_server;
 
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
 const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
-
-const MESSAGES_FIELD: &str = "messages";
 
 #[derive(Debug)]
 pub struct SignerState {
@@ -102,13 +100,12 @@ impl signer::Signer for SignerState {
             if !blinded_message.amount.is_power_of_two() {
                 return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
             }
-            let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id).map_err(|e| {
-                Error::BadKeysetId(MESSAGES_FIELD, idx, &blinded_message.keyset_id, e)
-            })?;
+            let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id)
+                .map_err(|e| Error::BadKeysetId(idx, &blinded_message.keyset_id, e))?;
 
             let keyset = keyset_cache_read_lock
                 .get(&keyset_id)
-                .ok_or(Error::KeysetNotFound(MESSAGES_FIELD, idx, keyset_id))?;
+                .ok_or(Error::KeysetNotFound(idx, keyset_id))?;
             let max_order: u64 = keyset
                 .last_key_value()
                 .map(|(&k, _)| k)
@@ -123,12 +120,9 @@ impl signer::Signer for SignerState {
             }
 
             let key_pair = {
-                keyset.get(&amount).ok_or(Error::AmountNotFound(
-                    MESSAGES_FIELD,
-                    idx,
-                    keyset_id,
-                    amount,
-                ))?
+                keyset
+                    .get(&amount)
+                    .ok_or(Error::AmountNotFound(idx, keyset_id, amount))?
             };
 
             let blind_secret = PublicKey::from_slice(&blinded_message.blinded_secret)
@@ -164,11 +158,9 @@ impl signer::Signer for SignerState {
                     ) {
                         Ok(false) => invalid_proof_indices.push(idx as u32),
                         Ok(true) => {}
-                        Err(e) => {
-                            return Err(Status::internal(format!(
-                                "verification system error for proof {}: {}",
-                                idx, e
-                            )));
+                        Err(error) => {
+                            tracing::error!(name: "verify-message", error = %error);
+                            invalid_proof_indices.push(idx as u32)
                         }
                     }
                 }
@@ -176,13 +168,13 @@ impl signer::Signer for SignerState {
             }
         }
 
-        if !validation_errors.is_empty() {
-            return Err(Error::ProofValidationErrors(validation_errors).into());
+        if validation_errors.is_empty() {
+            Ok(Response::new(VerifyProofsResponse {
+                invalid_proof_indices,
+            }))
+        } else {
+            Err(VerifyProofsErrors(validation_errors).into())
         }
-
-        Ok(Response::new(VerifyProofsResponse {
-            invalid_proof_indices,
-        }))
     }
 
     #[instrument]

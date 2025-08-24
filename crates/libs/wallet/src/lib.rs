@@ -11,7 +11,7 @@ pub mod types;
 pub mod wad;
 pub mod wallet;
 
-use errors::{Error, handle_proof_verification_errors};
+use errors::{Error, handle_out_of_sync_keyset_errors, handle_proof_verification_errors};
 use node_client::{AcknowledgeRequest, NodeClient, hash_swap_request};
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
@@ -330,7 +330,8 @@ pub async fn swap_to_have_target_amount(
                 r.into_inner()
             }
             Err(e) => {
-                // TODO: delete instead when invalid input
+                // TODO: add retry once we are sync
+                handle_out_of_sync_keyset_errors(&e, pool, node_client, node_id).await?;
                 handle_proof_verification_errors(&e, &[proof_to_swap.0], &db_conn)?;
                 return Err(e.into());
             }
