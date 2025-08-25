@@ -1,0 +1,29 @@
+services:
+  price-provider:
+    build:
+      context: ..
+      dockerfile: ./dockerfiles/price-provider.Dockerfile
+    restart: always
+    environment:
+      COIN_PRO_GECKO_API_KEY: ${COIN_PRO_GECKO_API_KEY}
+      COIN_DEMO_GECKO_API_KEY: ${COIN_DEMO_GECKO_API_KEY}
+      PORT: 80
+      HOST: ""
+      CURRENCIES: >
+       ["usd", "eur"]
+      TOKENS: >
+       [
+          {
+            "symbol": "eth",
+            "chain": "ethereum",
+            "address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+          },
+          {
+            "symbol": "strk",
+            "chain": "ethereum",
+            "address": "0xca14007eff0db1f8135f4c25b34de49ab0d42766"
+          }
+        ]
+    ports:
+      - "40001:80"
+

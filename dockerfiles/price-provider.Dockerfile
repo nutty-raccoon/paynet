@@ -10,9 +10,10 @@ RUN bun install --frozen-lockfile
 
 COPY infra/price-provider/ .
 
-EXPOSE 3007
+ENV PORT=80
+EXPOSE ${PORT}
 
-HEALTHCHECK --interval=3s --timeout=10s --start-period=20s --retries=5 \
-    CMD curl -f http://0.0.0.0:3000/health || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://0.0.0.0:${PORT}/health || exit 1
 
 CMD ["bun", "run", "src/index.ts"]
