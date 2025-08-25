@@ -5,14 +5,15 @@ mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    PriceConfig, add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
-    get_nodes_balance, get_wad_history, init_wallet, price_provider_add_currencies, receive_wads,
-    redeem_quote, refresh_node_keysets, restore_wallet, sync_wads,
+    add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
+    get_nodes_balance, get_wad_history, init_wallet, receive_wads, redeem_quote,
+    refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use std::time::SystemTime;
 use std::{collections::HashSet, env, sync::Arc};
-use tauri::{Manager, async_runtime};
+use tauri::{Listener, Manager, async_runtime};
 use tokio::sync::RwLock;
 
 use crate::background_tasks::start_price_fetcher;
@@ -41,8 +42,7 @@ pub fn run() {
                     .expect("dirs::data_dir should map to a valid path on this machine");
                 let manager = SqliteConnectionManager::file(db_path);
                 let pool = r2d2::Pool::new(manager)?;
-                let host = env::var("PRICE_PROVIDER_URL")
-                    .map_err(|_| "Missing or invalid env var: PRICE_PROVIDER_URL")?;
+                let host = env!("PRICE_PROVIDER_URL");
                 let mut initial_assets = HashSet::new();
                 if let Ok(conn) = pool.get() {
                     if let Ok(nodes_balances) = wallet::db::balance::get_for_all_nodes(&conn) {
@@ -63,13 +63,18 @@ pub fn run() {
                     get_prices_config: Arc::new(RwLock::new(PriceConfig {
                         currency: "usd".to_string(),
                         assets: initial_assets,
-                        url: host,
+                        url: host.to_string(),
+                        status: Default::default(),
                     })),
                 });
                 let config = app.state::<AppState>().get_prices_config.clone();
 
                 let app_thread = app.handle().clone();
-                async_runtime::spawn(start_price_fetcher(config, app_thread));
+                // Wait until the front is listening to start fetching prices
+                app.once("front-ready", |_| {
+                    async_runtime::spawn(start_price_fetcher(config, app_thread));
+                });
+
                 Ok(())
             })
             .plugin(
@@ -89,7 +94,7 @@ pub fn run() {
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
-                price_provider_add_currencies,
+                set_price_provider_currency,
                 get_wad_history,
                 sync_wads,
             ])
@@ -103,4 +108,19 @@ pub fn run() {
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
     get_prices_config: Arc<RwLock<PriceConfig>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct PriceConfig {
+    pub currency: String,
+    pub assets: HashSet<String>,
+    pub url: String,
+    pub status: PriceSyncStatus,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum PriceSyncStatus {
+    #[default]
+    NotSynced,
+    Synced(SystemTime),
 }

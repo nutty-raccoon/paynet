@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listen } from "@tauri-apps/api/event";
+  import { listen, emit } from "@tauri-apps/api/event";
   import SendModal from "./send/SendModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceChange, type NodeData } from "../types";
@@ -40,7 +40,7 @@
 
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
-    computeTotalBalancePerUnit(nodes)
+    computeTotalBalancePerUnit(nodes),
   );
   let formattedBalance: {
     totalAmount: number;
@@ -53,7 +53,7 @@
         const formatted = formatBalance({ unit, amount });
         if (tokenPrices != null) {
           let price = tokenPrices.find(
-            (p) => formatted.asset === p.symbol.toUpperCase()
+            (p) => formatted.asset === p.symbol.toUpperCase(),
           );
           if (typeof price === "object") {
             totalAmount += formatted.amount * (price.value ? price.value : 0);
@@ -124,6 +124,9 @@
     listen<Price[]>("new-price", (event) => {
       tokenPrices = event.payload ? event.payload : tokenPrices;
     });
+    listen<null>("out-of-sync-price", (event) => {
+      tokenPrices = null;
+    });
 
     listen<BalanceChange>("balance-increase", (event) => {
       onNodeBalanceIncrease(event.payload);
@@ -131,6 +134,8 @@
     listen<BalanceChange>("balance-decrease", (event) => {
       onNodeBalanceDecrease(event.payload);
     });
+
+    emit("front-ready", {});
 
     // Add popstate listener for back button handling
     window.addEventListener("popstate", handlePopState);

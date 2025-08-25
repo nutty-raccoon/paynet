@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getCurrencies, priceProviderAddCurrencies } from "../../commands";
+  import { getCurrencies, setPriceProviderCurrency } from "../../commands";
   import { displayCurrency } from "../../stores";
 
   let fiatCurrencies = $state<string[]>(["usd"]);
@@ -20,7 +20,7 @@
       value={$displayCurrency}
       onchange={(e) => {
         displayCurrency.set((e.target as HTMLSelectElement).value);
-        priceProviderAddCurrencies($displayCurrency);
+        setPriceProviderCurrency($displayCurrency);
       }}
       required
     >

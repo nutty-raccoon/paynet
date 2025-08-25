@@ -86,14 +86,13 @@ export async function readEnv(): Promise<Env> {
 
   const portNum = PORT !== undefined
     ? Number(PORT)
-    : 3000;
+    : 80;
   assert(
     Number.isInteger(portNum),
     `PORT must be an integer, got "${PORT}"`,
   );
-  // <1024 is privileged port
   assert(
-    portNum >= 1024 && portNum <= 65_535,
+    portNum >= 1 && portNum <= 65_535,
     `PORT must be between 1 and 65535, got ${portNum}`,
   );
 

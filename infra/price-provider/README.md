@@ -113,9 +113,8 @@ All Dockerfiles for this repository are stored in `./dockerfiles`.
 - **Description**: List all tokens currently tracked (as configured in `TOKENS`).
 - **Response**:
 
-  ```json
-  {
-    "tokens": [
+```json
+  [
       {
         "symbol": "eth",
         "chain": "ethereum",
@@ -126,18 +125,17 @@ All Dockerfiles for this repository are stored in `./dockerfiles`.
         "chain": "ethereum",
         "address": "0xca14007eff0db1f8135f4c25b34de49ab0d42766"
       }
-    ]
-  }
-  ```
+  ]
+```
 
 ### GET `/currency`
 
 - **Description**: List all fiat currencies used for price comparison (as configured in `CURRENCIES`).
 - **Response**:
 
-  ```json
-  { "currencies": ["usd", "eur"] }
-  ```
+```json
+  ["usd", "eur"]
+```
 
 ### GET `/prices`
 

@@ -17,9 +17,9 @@ export async function getNodesBalance() {
       return res;
   }
 
-  export async function priceProviderAddCurrencies(currencies: string) {
-    let res = await invoke("price_provider_add_currencies", { newCurrencies: currencies }).then((message) => message).catch((error) => console.error(error));
-    return res;
+  export async function setPriceProviderCurrency(currency: string) {
+    await invoke("set_price_provider_currency", { newCurrency: currency })
+      .catch((error) => console.error(error));
   }
 
 export async function getTokensPrices() {
