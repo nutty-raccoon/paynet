@@ -43,11 +43,6 @@ fn parse_node_url(url_string: &str) -> Result<Url, Error> {
         return Err(Error::InvalidScheme(url.scheme().to_string()));
     }
 
-    #[cfg(feature = "tls")]
-    if url.domain().is_none() {
-        return Err(Error::InvalidUrl);
-    }
-
     Ok(url)
 }
 
@@ -87,11 +82,7 @@ mod tests {
 
     #[test]
     fn test_trim_trailing_slashes() {
-        let scheme = if cfg!(feature = "tls") {
-            "https"
-        } else {
-            "http"
-        };
+        let scheme = "https";
         let very_unformatted_url = format!("{}://url-to-check.com////", scheme);
         let unformatted_url = format!("{}://url-to-check.com", scheme);
         let formatted_url = format!("{}://url-to-check.com/", scheme);
@@ -107,11 +98,7 @@ mod tests {
     }
     #[test]
     fn test_case_insensitive() {
-        let scheme = if cfg!(feature = "tls") {
-            "https"
-        } else {
-            "http"
-        };
+        let scheme = "http";
         let wrong_cased_url = format!("{}://URL-to-check.com", scheme);
         let correct_cased_url = format!("{}://url-to-check.com/", scheme);
 

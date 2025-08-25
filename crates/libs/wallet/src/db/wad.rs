@@ -15,7 +15,7 @@ pub const CREATE_TABLE_WAD: &str = r#"
             id BLOB NOT NULL,
             type TEXT NOT NULL CHECK (type IN ('IN', 'OUT')),
             status TEXT NOT NULL CHECK (status IN ('PENDING', 'CANCELLED', 'FINISHED', 'FAILED', 'PARTIAL')),
-            node_url TEXT NOT NULL, 
+            node_url TEXT NOT NULL,
             memo TEXT,
             created_at INTEGER NOT NULL,
             modified_at INTEGER NOT NULL,
@@ -155,9 +155,9 @@ pub fn register_wad(
         .as_secs();
 
     const INSERT_WAD: &str = r#"
-        INSERT INTO wad 
+        INSERT INTO wad
             (id, type, status, node_url, memo, created_at, modified_at)
-        VALUES 
+        VALUES
             (?1, ?2, ?3, ?4, ?5, ?6, ?7)
     "#;
     let mut stmt = conn.prepare(INSERT_WAD)?;
@@ -200,8 +200,8 @@ fn parse_wad_record(row: &rusqlite::Row) -> rusqlite::Result<WadRecord> {
 pub fn get_recent_wads(conn: &Connection, limit: u32) -> Result<Vec<WadRecord>> {
     const GET_RECENT_WADS: &str = r#"
         SELECT id, type, status, node_url, memo, created_at, modified_at
-        FROM wad 
-        ORDER BY created_at DESC 
+        FROM wad
+        ORDER BY created_at DESC
         LIMIT ?1
     "#;
     let mut stmt = conn.prepare(GET_RECENT_WADS)?;
@@ -217,12 +217,24 @@ pub fn update_wad_status(conn: &Connection, wad_id: Uuid, status: WadStatus) -> 
         .as_secs();
 
     const UPDATE_WAD_STATUS: &str = r#"
-        UPDATE wad 
-        SET status = ?2, modified_at = ?3 
+        UPDATE wad
+        SET status = ?2, modified_at = ?3
         WHERE id = ?1
     "#;
     let mut stmt = conn.prepare(UPDATE_WAD_STATUS)?;
     stmt.execute(params![wad_id, status, now])?;
+
+    Ok(())
+}
+
+pub fn delete_wad(conn: &Connection, node_url: &NodeUrl, proof_ys: &[PublicKey]) -> Result<()> {
+    let wad_id = compute_wad_uuid(node_url, proof_ys);
+
+    const DELETE_WAD: &str = r#"
+    DELETE FROM wad
+    WHERE id = ?1"#;
+    let mut stmt = conn.prepare(DELETE_WAD)?;
+    stmt.execute(params![wad_id])?;
 
     Ok(())
 }
@@ -236,8 +248,8 @@ pub(crate) struct SyncData {
 
 pub(crate) fn get_pending_wads(conn: &Connection) -> Result<Vec<SyncData>> {
     const GET_PENDING_WADS: &str = r#"
-        SELECT id, type, node_url 
-        FROM wad 
+        SELECT id, type, node_url
+        FROM wad
         WHERE status = ?1
         ORDER BY created_at ASC
     "#;

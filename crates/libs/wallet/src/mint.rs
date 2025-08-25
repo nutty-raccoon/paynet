@@ -8,7 +8,7 @@ use tonic::transport::Channel;
 
 use crate::{
     acknowledge, db,
-    errors::Error,
+    errors::{Error, handle_out_of_sync_keyset_errors},
     sync,
     types::{BlindingData, PreMints},
 };
@@ -93,7 +93,16 @@ pub async fn redeem_quote(
     };
 
     let mint_request_hash = hash_mint_request(&mint_request);
-    let mint_response = node_client.mint(mint_request).await?.into_inner();
+
+    let mint_result = node_client.mint(mint_request).await;
+    let mint_response = match mint_result {
+        Ok(r) => r.into_inner(),
+        Err(e) => {
+            // TODO: add retry once we are sync
+            handle_out_of_sync_keyset_errors(&e, pool, node_client, node_id).await?;
+            return Err(e.into());
+        }
+    };
 
     {
         let mut db_conn = pool.get()?;

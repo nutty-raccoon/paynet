@@ -1,7 +1,7 @@
-use futures::TryFutureExt;
 use std::collections::HashSet;
 use thiserror::Error;
-use tonic::Status;
+use tonic::{Code, Status};
+use tonic_types::{ErrorDetails, FieldViolation, StatusExt};
 
 use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
 use signer::VerifyProofsRequest;
@@ -29,13 +29,14 @@ pub enum Error {
     #[error(transparent)]
     KeysetCache(#[from] keyset_cache::Error),
     #[error(transparent)]
-    Signer(#[from] tonic::Status),
-    #[error("invalid Proof")]
-    Invalid,
-    #[error("proof already used")]
-    Used,
+    Signer(tonic::Status),
     #[error("amount {1} exceeds max order {2} of keyset {0}")]
     AmountExceedsMaxOrder(KeysetId, Amount, u64),
+    #[error("proof issues found")]
+    ProofIssues {
+        invalid_crypto_indices: Vec<u32>,
+        spent_proof_indices: Vec<u32>,
+    },
 }
 
 impl From<Error> for Status {
@@ -46,14 +47,56 @@ impl From<Error> for Status {
             | Error::UnexpectedUnit
             | Error::TotalAmountTooBig
             | Error::TotalFeeTooBig
-            | Error::Invalid
-            | Error::Used
             | Error::AmountExceedsMaxOrder(_, _, _) => Status::invalid_argument(value.to_string()),
             Error::Db(sqlx::Error::RowNotFound) => Status::not_found(value.to_string()),
             Error::Db(_) | Error::KeysetCache(_) => Status::internal(value.to_string()),
             Error::Signer(status) => status,
+            Error::ProofIssues {
+                invalid_crypto_indices,
+                spent_proof_indices,
+            } => Status::with_error_details(
+                Code::InvalidArgument,
+                "proof verification failed",
+                ErrorDetails::with_bad_request(
+                    invalid_crypto_indices
+                        .iter()
+                        .map(|&idx| {
+                            FieldViolation::new(
+                                format!("proofs[{}]", idx),
+                                "proof failed cryptographic verification".to_string(),
+                            )
+                        })
+                        .chain(spent_proof_indices.iter().map(|&idx| {
+                            FieldViolation::new(
+                                format!("proofs[{}]", idx),
+                                "proof already spent".to_string(),
+                            )
+                        }))
+                        .collect::<Vec<FieldViolation>>(),
+                ),
+            ),
         }
     }
+}
+
+// signer fields is `proofs` while node uses `inputs`
+// whe have to substitute one for another
+fn rename_signer_error_details_field_name(status: tonic::Status) -> tonic::Status {
+    if status.code() == tonic::Code::InvalidArgument {
+        if let Some(mut bad_request) = status.get_details_bad_request() {
+            for f in &mut bad_request.field_violations {
+                f.field = f.field.replace("proofs", "inputs");
+            }
+
+            return tonic::Status::with_error_details(
+                status.code(),
+                status.message(),
+                ErrorDetails::with_bad_request(bad_request.field_violations),
+            );
+        }
+    }
+
+    status
 }
 
 pub async fn run_verification_queries(
@@ -68,22 +111,28 @@ pub async fn run_verification_queries(
                 proofs: verify_proofs_request,
             })
             .await
+            .map_err(|s| Error::Signer(rename_signer_error_details_field_name(s)))
+    };
+    let spent_check_future = async {
+        db_node::proof::get_already_spent_indices(conn, secrets.into_iter())
+            .await
+            .map_err(Error::Db)
     };
 
     // Parallelize the two calls
-    let res = tokio::try_join!(
-        // Make sure those proof are valid
-        query_signer_future
-            .map_ok(|r| r.get_ref().is_valid)
-            .map_err(Error::Signer),
-        // Make sure those inputs were not already used
-        db_node::proof::is_any_already_spent(conn, secrets.into_iter()).map_err(Error::Db),
-    );
+    match tokio::try_join!(query_signer_future, spent_check_future) {
+        Ok((signer_response, spent_proof_indices)) => {
+            let invalid_crypto_indices = signer_response.get_ref().invalid_proof_indices.clone();
 
-    match res {
-        Ok((false, _)) => Err(Error::Invalid),
-        Ok((_, true)) => Err(Error::Used),
-        Err(e) => Err(e),
-        Ok((true, false)) => Ok(()),
+            if invalid_crypto_indices.is_empty() && spent_proof_indices.is_empty() {
+                Ok(())
+            } else {
+                Err(Error::ProofIssues {
+                    invalid_crypto_indices,
+                    spent_proof_indices,
+                })
+            }
+        }
+        Err(err) => Err(err),
     }
 }

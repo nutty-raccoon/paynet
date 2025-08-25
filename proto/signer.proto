@@ -46,6 +46,5 @@ message VerifyProofsRequest {
 }
 
 message VerifyProofsResponse {
-  bool is_valid = 1; 
+  repeated uint32 invalid_proof_indices = 1;
 }
-

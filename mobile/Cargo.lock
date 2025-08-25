@@ -4778,6 +4778,7 @@ version = "0.23.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ebcbd2f03de0fc1122ad9bb24b127a5a6cd51d72604a3f3c50ac459762b6cc"
 dependencies = [
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -4853,6 +4854,7 @@ dependencies = [
  "tauri-plugin-sql",
  "thiserror 2.0.12",
  "tokio",
+ "tonic",
  "tracing",
  "uint 0.10.0",
  "uuid 1.17.0",
@@ -6674,6 +6676,7 @@ dependencies = [
  "prost",
  "socket2",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower",
  "tower-layer",
@@ -6693,6 +6696,17 @@ dependencies = [
  "prost-types",
  "quote",
  "syn 2.0.104",
+]
+
+[[package]]
+name = "tonic-types"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07439468da24d5f211d3f3bd7b63665d8f45072804457e838a87414a478e2db8"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
 ]
 
 [[package]]
@@ -7092,6 +7106,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tonic",
+ "tonic-types",
  "url",
  "uuid 1.17.0",
 ]

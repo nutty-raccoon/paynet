@@ -26,6 +26,10 @@ opentelemetry = { workspace = true }
 # Local deps
 starknet-types = { workspace = true }
 
+[features]
+default = []
+tls = ["tonic/tls-ring"]
+
 [build-dependencies]
 tonic-build = "0.13.0"
 

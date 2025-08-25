@@ -142,7 +142,7 @@ impl PreMints {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProofState {
     Unspent = 1,
     Pending = 2,

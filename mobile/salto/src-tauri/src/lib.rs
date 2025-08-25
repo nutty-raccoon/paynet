@@ -13,8 +13,9 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use std::time::SystemTime;
 use std::{collections::HashSet, env, sync::Arc};
-use tauri::{Listener, Manager, async_runtime};
+use tauri::{async_runtime, Listener, Manager};
 use tokio::sync::RwLock;
+use tonic::transport::Certificate;
 
 use crate::background_tasks::start_price_fetcher;
 
@@ -66,6 +67,8 @@ pub fn run() {
                         url: host.to_string(),
                         status: Default::default(),
                     })),
+                    #[cfg(feature = "tls-local-mkcert")]
+                    tls_root_ca_cert: read_tls_root_ca_cert(),
                 });
                 let config = app.state::<AppState>().get_prices_config.clone();
 
@@ -108,6 +111,8 @@ pub fn run() {
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
     get_prices_config: Arc<RwLock<PriceConfig>>,
+    #[cfg(feature = "tls-local-mkcert")]
+    tls_root_ca_cert: Certificate,
 }
 
 #[derive(Clone, Debug)]
@@ -123,4 +128,21 @@ pub enum PriceSyncStatus {
     #[default]
     NotSynced,
     Synced(SystemTime),
+}
+
+impl AppState {
+    #[cfg(feature = "tls-local-mkcert")]
+    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+        Some(self.tls_root_ca_cert.clone())
+    }
+
+    #[cfg(not(feature = "tls-local-mkcert"))]
+    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+        None
+    }
+}
+
+#[cfg(feature = "tls-local-mkcert")]
+fn read_tls_root_ca_cert() -> Certificate {
+    tonic::transport::Certificate::from_pem(include_bytes!("../certs/rootCA.pem"))
 }

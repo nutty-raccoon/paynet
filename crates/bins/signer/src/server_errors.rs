@@ -15,9 +15,9 @@ pub enum Error<'a> {
     MaxOrderTooBig(u32),
     CouldNotSignMessage(usize, PublicKey, dhke::Error),
     CouldNotVerifyProof(usize, PublicKey, String, dhke::Error),
-    BadKeysetId(&'a str, usize, &'a [u8], nut02::Error),
-    KeysetNotFound(&'a str, usize, KeysetId),
-    AmountNotFound(&'a str, usize, KeysetId, Amount),
+    BadKeysetId(usize, &'a [u8], nut02::Error),
+    KeysetNotFound(usize, KeysetId),
+    AmountNotFound(usize, KeysetId, Amount),
     BadSecret(usize, nut01::Error),
     InvalidSignature(usize, nut01::Error),
 }
@@ -63,30 +63,30 @@ impl<'a> From<Error<'a>> for Status {
                     ),
                 )]),
             ),
-            Error::BadKeysetId(field, idx, bad_keyset_id, error) => Status::with_error_details(
+            Error::BadKeysetId(idx, bad_keyset_id, error) => Status::with_error_details(
                 Code::InvalidArgument,
                 "invalid keyset id",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
-                    format!("{}[{}].keyset_id", field, idx),
+                    format!("messages[{}].keyset_id", idx),
                     format!(
                         "the provided keyset id '{:?}' is invalid: {error}",
                         bad_keyset_id,
                     ),
                 )]),
             ),
-            Error::KeysetNotFound(field, idx, keyset_id) => Status::with_error_details(
+            Error::KeysetNotFound(idx, keyset_id) => Status::with_error_details(
                 Code::NotFound,
                 "keyset not found",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
-                    format!("{field}[{idx}].keyset_id"),
+                    format!("messages[{idx}].keyset_id"),
                     format!("the specified keyset id '{keyset_id}' does not exist"),
                 )]),
             ),
-            Error::AmountNotFound(field, idx, keyset_id, amount) => Status::with_error_details(
+            Error::AmountNotFound(idx, keyset_id, amount) => Status::with_error_details(
                 Code::NotFound,
                 "amount not found",
                 ErrorDetails::with_bad_request(vec![FieldViolation::new(
-                    format!("{field}[{idx}].amount"),
+                    format!("messages[{idx}].amount"),
                     format!("amount {amount} does not exist in the keyset with id {keyset_id}"),
                 )]),
             ),
@@ -131,5 +131,65 @@ impl<'a> From<Error<'a>> for Status {
                 )]),
             ),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct VerifyProofsErrors(pub Vec<(usize, VerifyProofError)>);
+
+#[derive(Debug)]
+pub enum VerifyProofError {
+    BadKeysetId(Vec<u8>, nut02::Error),
+    AmountNotPowerOfTwo(Amount),
+    KeysetNotFound(KeysetId),
+    AmountNotFound(KeysetId, Amount),
+    AmountGreaterThanMax(Amount, Amount),
+    InvalidSignature(nut01::Error),
+}
+
+impl VerifyProofError {
+    fn to_field_violation(&self, proof_index: usize) -> FieldViolation {
+        match self {
+            VerifyProofError::BadKeysetId(_bad_keyset_id, e) => FieldViolation::new(
+                format!("proofs[{}].keyset_id", proof_index),
+                format!("invalid keyset id format: {}", e),
+            ),
+            VerifyProofError::AmountNotPowerOfTwo(amount) => FieldViolation::new(
+                format!("proofs[{}].amount", proof_index),
+                format!("amount {} is not a power of two", amount),
+            ),
+            VerifyProofError::KeysetNotFound(keyset_id) => FieldViolation::new(
+                format!("proofs[{}].keyset_id", proof_index),
+                format!("keyset {} not found", keyset_id),
+            ),
+            VerifyProofError::AmountNotFound(keyset_id, amount) => FieldViolation::new(
+                format!("proofs[{}].amount", proof_index),
+                format!("amount {} not found in keyset {}", amount, keyset_id),
+            ),
+            VerifyProofError::AmountGreaterThanMax(amount, max_amount) => FieldViolation::new(
+                format!("proofs[{}].amount", proof_index),
+                format!("amount {} exceeds maximum {}", amount, max_amount),
+            ),
+            VerifyProofError::InvalidSignature(e) => FieldViolation::new(
+                format!("proofs[{}].unblind_signature", proof_index),
+                format!("the provided signature is invalid: {}", e),
+            ),
+        }
+    }
+}
+
+impl From<VerifyProofsErrors> for Status {
+    fn from(errors: VerifyProofsErrors) -> Self {
+        Status::with_error_details(
+            Code::InvalidArgument,
+            "validation errors found in proof batch",
+            ErrorDetails::with_bad_request(
+                errors
+                    .0
+                    .into_iter()
+                    .map(|(idx, error)| error.to_field_violation(idx))
+                    .collect::<Vec<FieldViolation>>(),
+            ),
+        )
     }
 }

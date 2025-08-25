@@ -46,8 +46,12 @@ tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+tonic = { workspace = true, features = ["tls-ring"] }
 
 # Local
 wallet = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
+
+[features]
+tls-local-mkcert = []
