@@ -2,6 +2,12 @@
   import { getCurrencies, setPriceProviderCurrency } from "../../commands";
   import { displayCurrency } from "../../stores";
 
+  interface Props {
+    onClose?: () => void;
+  }
+
+  let { onClose }: Props = $props();
+
   let fiatCurrencies = $state<string[]>(["usd"]);
 
   getCurrencies().then((resp) => {
@@ -31,6 +37,7 @@
       {/each}
     </select>
   </div>
+  <button class="done-button" onclick={onClose}>Done</button>
 </div>
 
 <style>
@@ -76,5 +83,25 @@
     border-color: #1e88e5;
     outline: none;
     box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+  }
+
+  .done-button {
+    background-color: #1e88e5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .done-button:hover {
+    background-color: #1976d2;
+  }
+
+  .done-button:active {
+    background-color: #1565c0;
   }
 </style>

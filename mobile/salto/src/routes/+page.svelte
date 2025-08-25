@@ -1,5 +1,6 @@
 <script lang="ts">
   import { listen, emit } from "@tauri-apps/api/event";
+  import { pushState } from "$app/navigation";
   import SendModal from "./send/SendModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
   import { type BalanceChange, type NodeData } from "../types";
@@ -18,6 +19,7 @@
   import InitPage from "./init/InitPage.svelte";
   import { displayCurrency } from "../stores";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
+  import { page } from "$app/state";
 
   const Modal = {
     ROOT: 0,
@@ -91,20 +93,20 @@
     activeTab = initialTab;
   };
 
+  const onCloseSettings = () => {
+    // Use history.back() to trigger the popstate handler
+    history.back();
+  };
+
   // SendModal control functions
   function openModal(modal: Modal) {
     currentModal = modal;
     // Add history entry to handle back button
-    history.pushState({ modal: true }, "");
+    pushState("", { modal: true });
   }
 
   function goBackToRoot() {
     currentModal = Modal.ROOT;
-  }
-
-  // Set up back button listener for SendModal
-  function handlePopState() {
-    goBackToRoot();
   }
 
   onMount(async () => {
@@ -138,29 +140,44 @@
     emit("front-ready", {});
 
     // Add popstate listener for back button handling
-    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("popstate", handlePopState, { capture: true });
   });
 
   // Clean up when component is destroyed
   onDestroy(() => {
     document.body.classList.remove("no-scroll");
-    window.removeEventListener("popstate", handlePopState);
+    window.removeEventListener("popstate", handlePopState, { capture: true });
   });
 
   // Clean up when component is destroyed
   onDestroy(() => {
     document.body.classList.remove("no-scroll");
   });
+
+  function handlePopState(e: any) {
+    const pageState = page.state as any;
+    // At this point, page.state should still contain the data
+    if (pageState?.previousTab) {
+      activeTab = pageState.previousTab;
+    }
+
+    if (pageState.modal === true) {
+      currentModal = Modal.ROOT;
+    }
+  }
 </script>
 
+<!-- Settigs button float above all pages -->
 {#if activeTab !== "settings"}
   <button
     class="settings"
     onclick={() => {
+      pushState("", { previousTab: activeTab });
       activeTab = "settings";
     }}>Settings</button
   >
 {/if}
+
 <main class="container">
   {#if walletExists === null}
     <!-- Loading state -->
@@ -213,7 +230,7 @@
         <NodesBalancePage {nodes} {onAddNode} />
       </div>
     {:else if activeTab === "settings"}
-      <SettingsModal />
+      <SettingsModal onClose={onCloseSettings} />
     {:else if activeTab === "history"}
       <WadHistoryPage />
     {/if}
@@ -413,5 +430,27 @@
       color: #0f0f0f;
       background-color: #ffffff;
     }
+  }
+
+  .settings {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #0f0f0f;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .settings:hover {
+    border-color: #bdbdbd;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
   }
 </style>

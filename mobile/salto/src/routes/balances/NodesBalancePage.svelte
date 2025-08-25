@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pushState } from "$app/navigation";
   import { type NodeData } from "../../types";
   import { formatBalance } from "../../utils";
   import { onMount, onDestroy } from "svelte";
@@ -21,7 +22,7 @@
   function openAddNodeModal() {
     isAddNodeModalOpen = true;
     // Add history entry to handle back button
-    history.pushState({ modal: true }, "");
+    pushState("", { modal: true });
   }
 
   function closeAddNodeModal() {
@@ -32,7 +33,7 @@
     refresh_node_keysets(node.id);
     selectedNodeForDeposit = node;
     // Add history entry to handle back button
-    history.pushState({ modal: true }, "");
+    pushState("", { modal: true });
   }
 
   function closeDepositModal() {
