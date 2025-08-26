@@ -50,6 +50,7 @@ async fn unknown_unit() -> Result<()> {
         })
         .await;
 
+    println!("res {:?}", res);
     assert!(res.is_err());
     assert!(matches!(res, Err(status) if status.code() == tonic::Code::InvalidArgument ));
 

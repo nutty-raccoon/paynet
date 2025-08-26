@@ -260,7 +260,7 @@ jobs:
 
       - uses: software-mansion/setup-scarb@v1
         with:
-          scarb-version: "2.9.2"
+          scarb-version: "2.12.0"
           scarb-lock: contracts/starknet/invoice/Scarb.lock
           cache: true
           cache-targets: true
@@ -268,7 +268,7 @@ jobs:
       - name: Install Starkli
         run: |
           mkdir -p /tmp/tools
-          curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.3.8/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
+          curl -s -L https://github.com/xJonathanLEI/starkli/releases/download/v0.4.2/starkli-$(uname -m)-unknown-linux-gnu.tar.gz | tar xz -C /tmp/tools/
           chmod +x /tmp/tools/starkli
       
       - name: Build contracts
@@ -303,7 +303,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./contracts/ethereum/invoice
-        run: forge install
+        run: forge install --no-git
 
       - name: Show Forge version
         working-directory: ./contracts/ethereum/invoice
@@ -548,11 +548,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
-            crates/bins/node/config/local.toml
-            docker-compose.ci-testnet.yml
+            docker-compose/ci-testnet.yml
             crates/substreams/starknet/firehose/firehose-starknet-fss.yaml
             crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml
           sparse-checkout-cone-mode: false
+
+      - name: Start testnet services
+        run: |
+          docker compose -f docker-compose/ci-testnet.yml up -d
 
       - name: Download node-starknet binary
         uses: actions/download-artifact@v4
@@ -598,14 +601,20 @@ jobs:
           chmod +x e2e-tests/*
           chmod +x concurrency-tests/*
 
-      - name: Start testnet services
+      - name: Download firehose binaries
         run: |
-          docker compose -f docker-compose.ci-testnet.yml up -d
+           wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
+           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.1.1/firehose-starknet_linux_x86_64.tar.gz
 
-      - name: Wait for testnet services to be healthy
+           tar -xzf firehose-core_linux_x86_64.tar.gz
+           tar -xzf firehose-starknet_linux_x86_64.tar.gz
+
+           rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
+
+      - name: Start firehose
         run: |
-          echo "Waiting for testnet services to be healthy..."
-          sleep 5
+           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
+           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &         
 
       - name: Run starknet on-chain setup
         run: |
@@ -618,30 +627,27 @@ jobs:
             --sierra-json=./contracts/starknet/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json \
             --compiled-class-hash=$(cat ./contracts/starknet/invoice/compiled_class_hash.txt)
 
-      - name: Start firehose
-        run: |
-           wget https://github.com/streamingfast/firehose-core/releases/download/v1.10.1/firehose-core_linux_x86_64.tar.gz
-           wget https://github.com/streamingfast/firehose-starknet/releases/download/v1.0.0/firehose-starknet_linux_x86_64.tar.gz
-
-           tar -xzf firehose-core_linux_x86_64.tar.gz
-           tar -xzf firehose-starknet_linux_x86_64.tar.gz
-
-           rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
-
-           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &
-           ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-fss.yaml &         
-
       - name: Start signer service
         run: |
           RUST_LOG=info ROOT_KEY="${{ env.ROOT_KEY }}" GRPC_PORT=10001 ./target/release/signer &
           echo $! > signer.pid
 
       - name: Start node service (starknet)
+        env:
+          RUST_LOG: info
+          PG_URL: "${{ env.PG_URL }}"
+          SIGNER_URL: "${{ env.SIGNER_URL }}" 
+          GRPC_PORT: 10003
+          # Starknet
+          STARKNET_CASHIER_ACCOUNT_ADDRESS: "0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691" 
+          STARKNET_CASHIER_PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+          STARKNET_RPC_NODE_URL: http://localhost:5050 
+          STARKNET_SUBSTREAMS_URL: http://localhost:10016          
+          STARKNET_CHAIN_ID: SN_DEVNET
+          STARKNET_INDEXER_START_BLOCK: 0
         run: |
-          RUST_LOG=info PG_URL="${{ env.PG_URL }}" SIGNER_URL="${{ env.SIGNER_URL }}" \
-          CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9 \
-          GRPC_PORT=10003 \
-          ./target/release/node --config ./crates/bins/node/config/local.toml &
+          # Starknet 
+          ./target/release/node &
           echo $! > node.pid
 
       - name: Wait for local services to be ready
@@ -659,6 +665,7 @@ jobs:
 
       - name: Run E2E tests
         env:
+          CHAIN_ID: SN_DEVNET
           NODE_URL: http://localhost:10003
           RPC_URL: http://localhost:5050
           PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
@@ -684,6 +691,7 @@ jobs:
 
       - name: Run concurrency tests
         env:
+          CHAIN_ID: SN_DEVNET
           NODE_URL: http://localhost:10003
           RPC_URL: http://localhost:5050
           PRIVATE_KEY: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
@@ -718,5 +726,5 @@ jobs:
             kill $(cat node.pid) || true
             rm node.pid
           fi
-          docker compose -f docker-compose.ci-testnet.yml down
+          docker compose -f docker-compose/ci-testnet.yml down
           docker system prune -f

@@ -50,10 +50,11 @@ pub mod InvoicePayment {
         #[key]
         pub asset: ContractAddress,
         #[key]
+        pub payer: ContractAddress,
+        #[key]
         pub payee: ContractAddress,
         // Data
         pub invoice_id: felt252,
-        pub payer: ContractAddress,
         pub amount: u256,
     }
 
@@ -76,7 +77,7 @@ pub mod InvoicePayment {
 
             assert!(erc20_dispatcher.transfer_from(payer, payee, amount));
 
-            self.emit(Remittance { payee, asset, invoice_id, payer, amount });
+            self.emit(Remittance { asset, payer, payee, invoice_id,  amount });
         }
     }
 }

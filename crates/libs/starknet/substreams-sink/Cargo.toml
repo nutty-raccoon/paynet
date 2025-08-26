@@ -1,12 +1,12 @@
 [package]
-name = "substreams-sink"
+name = "starknet-substreams-sink"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-http = { workspace = true } 
-anyhow = { workspace = true } 
-async-stream = { workspace = true } 
+http = { workspace = true }
+anyhow = { workspace = true }
+async-stream = { workspace = true }
 tonic = { version = "0.12", features = ["gzip", "tls-roots"] }
 futures = { workspace = true }
 tokio = { workspace = true }

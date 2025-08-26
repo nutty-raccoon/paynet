@@ -14,7 +14,7 @@ contract InvoiceTest is Test {
 
     // Event expected to be emitted by InvoicePayment on payment
     event Remittance(
-        address indexed asset, address indexed payee, uint256 invoiceId, uint256 amount, address indexed payer
+        address indexed asset, address indexed payee, bytes32 invoiceId, uint256 amount, address indexed payer
     );
 
     // Deploy fresh contract and token before each test
@@ -25,7 +25,8 @@ contract InvoiceTest is Test {
 
     // Test that a successful invoice payment works as expected
     function test_itWorks() public {
-        uint256 quoteIdHash = 123235432454;
+        uint256 quoteId = 123235432454;
+        bytes32 quoteIdHash = bytes32(quoteId);
         uint64 expiry = 5;
         uint256 amount = 100000;
         address recipient = address(0x3);
@@ -38,7 +39,7 @@ contract InvoiceTest is Test {
         token.approve(address(invoicePayment), amount);
 
         // Compute expected invoice ID
-        uint256 invoiceId = uint256(keccak256(abi.encodePacked(quoteIdHash, expiry, uint256(2))));
+        bytes32 invoiceId = keccak256(abi.encodePacked(quoteIdHash, expiry, uint256(2)));
 
         // Expect the Remittance event to be emitted with these parameters
         vm.expectEmit(true, true, true, true);
@@ -56,7 +57,8 @@ contract InvoiceTest is Test {
 
     // Test that payment reverts if the invoice has expired
     function test_RevertWhen_expiry_exceeded() public {
-        uint256 quoteIdHash = 123235432454;
+        uint256 quoteId = 123235432454;
+        bytes32 quoteIdHash = bytes32(quoteId);
         uint64 expiry = 5;
         uint256 amount = 100000;
         address recipient = address(0x3);

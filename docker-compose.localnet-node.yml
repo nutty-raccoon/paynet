@@ -1,0 +1,130 @@
+services:
+  paynet-localnet:
+    image: paynet-localnet
+    build:
+      context: .
+      dockerfile: ./dockerfiles/localnet-node.Dockerfile
+    container_name: paynet-localnet
+    environment:
+      - LOCALNET_NODE_IP=172.19.0.11
+    volumes:
+      - ./localnet/nodes/node1/execution-data:/execution-data
+      - ./localnet/el-cl-genesis-data:/el-cl-genesis-data
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8551:8551"
+      - "6060:6060"
+      - "30303:30303/tcp"
+      - "30303:30303/udp"
+    networks:
+      localnet:
+        ipv4_address: 172.19.0.11
+    restart: unless-stopped
+
+  localnet-beacon:
+    image: sigp/lighthouse:latest
+    container_name: localnet-beacon
+    command:
+      - lighthouse
+      - beacon_node
+      - --debug-level=info
+      - --datadir=/consensus-data
+      - --testnet-dir=/el-cl-genesis-data/metadata
+      - --disable-enr-auto-update
+      - --enr-address=172.19.0.21
+      - --enr-udp-port=9000
+      - --enr-tcp-port=9000
+      - --enr-quic-port=9001
+      - --quic-port=9001
+      - --listen-address=0.0.0.0
+      - --port=9000
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=5052
+      - --http-allow-origin=*
+      - --execution-endpoints=http://paynet-localnet:8551
+      - --jwt-secrets=/el-cl-genesis-data/jwt/jwtsecret
+      - --suggested-fee-recipient=0xf97e180c050e5Ab072211Ad2C213Eb5AEE4DF134
+      - --subscribe-all-subnets
+      - --import-all-attestations
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5054
+      - --disable-packet-filter
+      - --disable-peer-scoring
+      - --allow-insecure-genesis-sync
+      - --enable-private-discovery
+      - --validator-monitor-auto
+    volumes:
+      - ./localnet/nodes/node1/consensus-data:/consensus-data
+      - ./localnet/el-cl-genesis-data:/el-cl-genesis-data
+    ports:
+      - "9000:9000/tcp"
+      - "9000:9000/udp"
+      - "9001:9001/udp"
+      - "5052:5052"
+      - "5054:5054"
+    depends_on:
+      - paynet-localnet
+    networks:
+      localnet:
+        ipv4_address: 172.19.0.21
+    restart: unless-stopped
+
+  localnet-validator:
+    image: sigp/lighthouse:latest
+    container_name: localnet-validator
+    command:
+      - lighthouse
+      - validator_client
+      - --debug-level=info
+      - --testnet-dir=/el-cl-genesis-data/metadata
+      - --validators-dir=/validator_keys
+      - --secrets-dir=/validator_keys_secrets
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=5062
+      - --unencrypted-http-transport
+      - --init-slashing-protection
+      - --beacon-nodes=http://localnet-beacon:5052
+      - --suggested-fee-recipient=0xf97e180c050e5Ab072211Ad2C213Eb5AEE4DF134
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5064
+      - --broadcast=attestations,blocks,subscriptions
+    volumes:
+      - ./localnet/el-cl-genesis-data:/el-cl-genesis-data
+      - ./localnet/validator_keys:/validator_keys
+      - ./localnet/validator_keys_secrets:/validator_keys_secrets
+    ports:
+      - "5062:5062"
+      - "5064:5064"
+    depends_on:
+      - localnet-beacon
+    networks:
+      localnet:
+        ipv4_address: 172.19.0.22
+    restart: unless-stopped
+
+  localnet-explorer:
+    image: pk910/dora-the-explorer:latest
+    container_name: dora-explorer
+    restart: unless-stopped
+    command: ["-config=/config/config.yaml"]
+    volumes:
+      - ./localnet/explorer:/config
+      - ./localnet/el-cl-genesis-data:/el-cl-genesis-data
+    ports:
+      - "9777:9777"
+    depends_on:
+      - localnet-validator
+    networks:
+      localnet:
+        ipv4_address: 172.19.0.23
+
+networks:
+  localnet:
+    external: true

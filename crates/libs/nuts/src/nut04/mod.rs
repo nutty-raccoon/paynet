@@ -102,7 +102,7 @@ pub struct MintResponse {
 
 /// Mint Method Settings
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MintMethodSettings<M, U> {
+pub struct MintMethodSettings<M, U, O> {
     /// Payment Method e.g. Starknet
     pub method: M,
     /// Currency Unit e.g. strk
@@ -113,26 +113,27 @@ pub struct MintMethodSettings<M, U> {
     /// Max Amount
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_amount: Option<Amount>,
-    /// Quote Description
-    #[serde(default)]
-    pub description: bool,
+    /// Method specific options
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<O>,
 }
 
 /// Mint Settings
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Settings<M, U> {
+pub struct Settings<M, U, O> {
     /// Methods to mint
-    pub methods: Vec<MintMethodSettings<M, U>>,
+    pub methods: Vec<MintMethodSettings<M, U, O>>,
     /// Minting disabled
     pub disabled: bool,
 }
 
-impl<M, U> Settings<M, U>
+impl<M, U, O> Settings<M, U, O>
 where
     M: PartialEq + Eq + Clone,
     U: PartialEq + Eq + Clone,
+    O: Clone,
 {
-    pub fn get_settings(&self, method: M, unit: U) -> Option<MintMethodSettings<M, U>> {
+    pub fn get_settings(&self, method: M, unit: U) -> Option<MintMethodSettings<M, U, O>> {
         self.methods
             .iter()
             .find(|&s| method == s.method && unit == s.unit)
