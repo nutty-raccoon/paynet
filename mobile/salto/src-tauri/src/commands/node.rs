@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
-use bitcoin::bip32::Xpriv;
-use tauri::State;
+use tauri::{State, AppHandle};
 use wallet::{db::balance::Balance, types::NodeUrl};
 
 use crate::AppState;
@@ -37,6 +36,7 @@ impl serde::Serialize for AddNodeError {
 
 #[tauri::command]
 pub async fn add_node(
+    app: AppHandle,
     state: State<'_, AppState>,
     node_url: String,
 ) -> Result<(u32, Vec<Balance>), AddNodeError> {
@@ -47,8 +47,7 @@ pub async fn add_node(
     let wallet = wallet::db::wallet::get(&*state.pool.get()?)?.unwrap();
 
     if wallet.is_restored {
-        let xpriv = Xpriv::from_str(&wallet.private_key)?;
-        wallet::node::restore(state.pool.clone(), id, client, xpriv).await?;
+        wallet::node::restore(&app.config().identifier, state.pool.clone(), id, client).await?;
     }
 
     let balances = wallet::db::balance::get_for_node(&*state.pool.get()?, id)?;

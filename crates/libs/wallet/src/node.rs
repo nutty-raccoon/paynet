@@ -69,19 +69,22 @@ pub enum RestoreNodeError {
     Dhke(#[from] dhke::Error),
     #[error("`restore` restponse contains an output that was not part of the query")]
     UnknownBlindSecretInRestoreResponse,
+    #[error("failed to interact with wallet")]
+    Wallet(#[from] crate::wallet::Error),
 }
 
 pub async fn restore(
+    app_identifier: &str,
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
     node_client: NodeClient<Channel>,
-    xpriv: Xpriv,
 ) -> Result<(), RestoreNodeError> {
     let keyset_ids = {
         let db_conn = pool.get()?;
         keyset::get_all_ids_for_node(&db_conn, node_id)?
     };
 
+    let xpriv = crate::wallet::get_private_key(app_identifier)?;
     let mut handles = Vec::with_capacity(keyset_ids.len());
     for keyset_id in keyset_ids {
         handles.push(restore_keyset(

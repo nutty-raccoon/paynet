@@ -123,6 +123,7 @@ substreams = "0.6.0"
 chrono = "0.4.38"
 colored = "2.0"
 urlencoding = "2.1.3"
+keyring = "3.6.3"
 
 # OPTL
 opentelemetry = "0.29.1"

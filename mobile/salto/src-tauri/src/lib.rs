@@ -22,6 +22,9 @@ use crate::background_tasks::start_price_fetcher;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = {
+        #[cfg(target_os = "android")]
+        android_keyring::set_android_keyring_credential_builder().unwrap();
+
         let builder = tauri::Builder::default();
 
         let builder = builder

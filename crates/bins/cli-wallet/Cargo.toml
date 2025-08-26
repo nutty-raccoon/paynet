@@ -19,7 +19,6 @@ itertools = { workspace = true }
 uuid = { workspace = true }
 primitive-types = { workspace = true }
 thiserror = { workspace = true }
-bitcoin = { workspace = true }
 chrono = { workspace = true }
 colored = { workspace = true }
 urlencoding = { workspace = true }

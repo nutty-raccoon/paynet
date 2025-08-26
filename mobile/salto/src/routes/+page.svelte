@@ -167,17 +167,6 @@
   }
 </script>
 
-<!-- Settigs button float above all pages -->
-{#if activeTab !== "settings"}
-  <button
-    class="settings"
-    onclick={() => {
-      pushState("", { previousTab: activeTab });
-      activeTab = "settings";
-    }}>Settings</button
-  >
-{/if}
-
 <main class="container">
   {#if walletExists === null}
     <!-- Loading state -->
@@ -188,6 +177,17 @@
     <!-- Show initialization page -->
     <InitPage {onWalletInitialized} />
   {:else}
+    <!-- Settigs button float above all pages -->
+    {#if activeTab !== "settings"}
+      <button
+        class="settings"
+        onclick={() => {
+          pushState("", { previousTab: activeTab });
+          activeTab = "settings";
+        }}>Settings</button
+      >
+    {/if}
+
     <!-- Show main app content -->
     {#if activeTab === "pay"}
       {#if currentModal == Modal.ROOT}

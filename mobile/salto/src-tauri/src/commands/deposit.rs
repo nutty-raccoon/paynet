@@ -131,6 +131,7 @@ pub async fn redeem_quote(
     }
 
     wallet::mint::redeem_quote(
+        &app.config().identifier,
         state.pool.clone(),
         &mut node_client,
         STARKNET_STR.to_string(),

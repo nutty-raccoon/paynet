@@ -53,5 +53,9 @@ wallet = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
 
+# Keyring
+[target.'cfg(target_os = "android")'.dependencies]
+android-keyring = { workspace = true }
+
 [features]
 tls-local-mkcert = []

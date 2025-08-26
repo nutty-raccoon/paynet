@@ -33,6 +33,10 @@ rusqlite = "0.32.0"
 r2d2_sqlite = "0.25.0"
 r2d2 = "0.8.10"
 
+# keyring
+android-keyring = "0.2.0"
+
+
 # local
 wallet = { path = "../crates/libs/wallet" }
 starknet-types = { path = "../crates/libs/starknet/types" }
