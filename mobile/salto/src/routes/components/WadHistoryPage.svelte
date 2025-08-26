@@ -48,7 +48,6 @@
   });
 
   async function loadWadHistory() {
-    console.log("getting wad history");
     try {
       loading = true;
       error = "";

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use starknet_types::{AssetFromStrError, AssetToUnitConversionError, Unit};
 use tauri::{AppHandle, Emitter, State};
 use wallet::types::compact_wad::{self, CompactWad, CompactWads};
@@ -26,6 +28,8 @@ pub enum ReceiveWadsError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     RegisterNode(#[from] wallet::node::RegisterNodeError),
+    #[error(transparent)]
+    ConnectToNode(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -44,6 +48,7 @@ pub async fn receive_wads(
     wads: String,
 ) -> Result<(), ReceiveWadsError> {
     let wads: CompactWads<Unit> = wads.parse()?;
+    let mut new_assets: HashSet<String> = HashSet::new();
 
     for wad in wads.0 {
         let CompactWad {
@@ -52,8 +57,9 @@ pub async fn receive_wads(
             memo,
             proofs,
         } = wad;
-        let (mut node_client, node_id) =
-            wallet::node::register(state.pool.clone(), &node_url).await?;
+        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+        let node_id =
+            wallet::node::register(state.pool.clone(), &mut node_client, &node_url).await?;
 
         let amount_received = wallet::receive_wad(
             state.pool.clone(),
@@ -74,7 +80,15 @@ pub async fn receive_wads(
                 amount: amount_received.into(),
             },
         )?;
+        new_assets.insert(wad.unit.as_str().to_string());
     }
+
+    state
+        .get_prices_config
+        .write()
+        .await
+        .assets
+        .extend(new_assets);
 
     Ok(())
 }

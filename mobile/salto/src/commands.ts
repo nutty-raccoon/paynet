@@ -7,9 +7,27 @@ export async function getNodesBalance() {
      let res =  await invoke("get_nodes_balance")
        .then((message) => message as NodeData[] )
        .catch((error) => console.error(error));
-
       return res;
   }
+
+  export async function getCurrencies() {
+    let res =  await invoke("get_currencies")
+       .then((message) => message as string[])
+       .catch((error) => console.error(error));
+      return res;
+  }
+
+  export async function setPriceProviderCurrency(currency: string) {
+    await invoke("set_price_provider_currency", { newCurrency: currency })
+      .catch((error) => console.error(error));
+  }
+
+export async function getTokensPrices() {
+  let res = await invoke("get_tokens_prices")
+    .then((message) => message as {})
+    .catch((error) => console.error(error));
+  return res;
+}
 
 export async function addNode(nodeUrl: string) {
      const res = await invoke("add_node", {nodeUrl})
@@ -116,3 +134,13 @@ export async function sync_wads(): Promise<void> {
         console.error("failed to sync wads:", error);
       });
 } 
+
+
+export async function refresh_node_keysets(nodeId: NodeId) {
+      await invoke("refresh_node_keysets", {nodeId})
+      .catch((error) => {
+        console.error(`failed to refresh node keysets:`, error);
+      });
+
+      return;
+}

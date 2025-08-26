@@ -5,7 +5,7 @@ use bip39::Mnemonic;
 use bitcoin::bip32::Xpriv;
 use itertools::Itertools;
 use node_client::NodeClient;
-use nuts::Amount;
+use nuts::{Amount, nut01::PublicKey};
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
@@ -13,7 +13,7 @@ use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 use wallet::{
     self,
-    db::balance::Balance,
+    db::{balance::Balance, wad::delete_wad},
     types::{
         NodeUrl,
         compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
@@ -265,8 +265,34 @@ impl WalletOps {
     }
 
     pub async fn sync_wads(&mut self) -> Result<()> {
-        wallet::sync::pending_wads(self.db_pool.clone()).await?;
+        wallet::sync::pending_wads(self.db_pool.clone(), None).await?;
 
         Ok(())
     }
+}
+
+pub async fn recieve_already_spent_wad(
+    wallet_ops: &mut WalletOps,
+    wad: &CompactWad<Unit>,
+) -> Result<()> {
+    let db_conn = wallet_ops.db_pool.get()?;
+    let proof_ids = wad
+        .proofs()
+        .iter()
+        .map(|p| p.y().unwrap())
+        .collect::<Vec<PublicKey>>();
+    let proofs_state = wallet::db::proof::get_proofs_by_ids(&db_conn, &proof_ids)?;
+    assert_eq!(proof_ids.len(), proofs_state.len());
+
+    wallet::db::proof::delete_proofs(&db_conn, &proof_ids)?;
+    delete_wad(&db_conn, &wad.node_url, &proof_ids)?;
+
+    match wallet_ops.receive(wad).await {
+        Err(e) => eprintln!("Recieve Error: {e:?}"),
+        Ok(_) => panic!("Double spend should have failed"),
+    }
+
+    let proofs_state = wallet::db::proof::get_proofs_state_by_ids(&db_conn, &proof_ids)?;
+    assert_eq!(proof_ids.len(), proofs_state.len());
+    Ok(())
 }

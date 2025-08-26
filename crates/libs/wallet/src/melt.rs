@@ -8,8 +8,10 @@ use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
 
 use crate::{
-    acknowledge, convert_inputs, db, errors::Error, fetch_inputs_ids_from_db_or_node,
-    load_tokens_from_db, sync, types::ProofState,
+    acknowledge, convert_inputs, db,
+    errors::{Error, handle_proof_verification_errors},
+    fetch_inputs_ids_from_db_or_node, load_tokens_from_db, sync,
+    types::ProofState,
 };
 
 pub async fn create_quote<U: Unit>(
@@ -68,10 +70,7 @@ pub async fn pay_quote(
     let melt_response = match melt_res {
         Ok(r) => r.into_inner(),
         Err(e) => {
-            // Reset the proof state
-            // TODO: if the error is due to one of the proof being already spent, we should be removing those from db
-            // in order to not use them in the future
-            db::proof::set_proofs_to_state(&db_conn, &proofs_ids, ProofState::Unspent)?;
+            handle_proof_verification_errors(&e, &proofs_ids, &db_conn)?;
             return Err(e.into());
         }
     };

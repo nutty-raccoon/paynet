@@ -29,3 +29,6 @@ target/
 el-cl-genesis-data/
 !values.env
 nodes/
+
+# Local development TLS certificates
+certs/

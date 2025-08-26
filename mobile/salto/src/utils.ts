@@ -6,14 +6,22 @@ import type { Balance, BalanceChange, NodeData } from "./types";
  * @returns Object with formatted amount and unit strings
  */
 export function formatBalance(balance: Balance): {amount: number, asset: string} {
-  const {asset, amount} = balance.unit == "millistrk" ? {asset: "strk", amount: balance.amount / 1000} :   {asset: balance.unit, amount: balance.amount};
-   return {amount, asset: asset.toUpperCase()};
+  switch(balance.unit) {
+    case "millistrk":
+      return { asset: "STRK", amount: balance.amount / 1000};
+    case "gwei":
+      return { asset: "ETH", amount: balance.amount / 1000000000};
+    default:
+      return {asset: balance.unit.toLocaleUpperCase(), amount: balance.amount};
+   }
 }
 
 export function unitPrecision(unit: string): number {
   switch(unit) {
   case "millistrk":
     return 1000;
+  case "gwei":
+    return 1000000000;
   default:
     console.log("unknown unit:", unit);
     return 1;

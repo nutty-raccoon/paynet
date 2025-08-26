@@ -77,7 +77,6 @@ jobs:
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
 
-        
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -95,8 +94,15 @@ jobs:
           shared-key: rust-mobile-cache-clippy-${{ hashFiles('mobile/Cargo.lock') }}
           cache-on-failure: true
           cache-all-crates: true
+      - name: Create fake certificate
+        working-directory: mobile/salto
+        run: |
+          mkdir src-tauri/certs
+          touch src-tauri/certs/rootCA.pem
       - name: Run clippy
         working-directory: mobile
+        env:
+          PRICE_PROVIDER_URL: "http://localhost:80"
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps
 
   build-app-binaries:
@@ -297,6 +303,7 @@ jobs:
         with:
           sparse-checkout: |
             contracts/ethereum/invoice
+            .gitmodules
           sparse-checkout-cone-mode: false
 
       - uses: foundry-rs/foundry-toolchain@v1
@@ -344,7 +351,7 @@ jobs:
           - test_cmd: "cargo test -p nuts --no-default-features"
             crate_name: nuts
             cache_key: "no-default"
-          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,rusqlite,nut13,nut19"
+          - test_cmd: "cargo test -p nuts --features=starknet,sqlx,rusqlite,nut9,nut13,nut19"
             crate_name: nuts
             cache_key: "all-features"
           - test_cmd: "cargo test -p starknet-types --no-default-features"
@@ -353,9 +360,6 @@ jobs:
           - test_cmd: "cargo test -p wallet --no-default-features"
             crate_name: wallet
             cache_key: "no-default"
-          - test_cmd: "cargo test -p wallet --no-default-features --features=tls,tls-allow-self-signed"
-            crate_name: wallet
-            cache_key: "tls"
 
     steps:
       - uses: actions/checkout@v4
@@ -608,9 +612,7 @@ jobs:
 
            tar -xzf firehose-core_linux_x86_64.tar.gz
            tar -xzf firehose-starknet_linux_x86_64.tar.gz
-
            rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
-
       - name: Start firehose
         run: |
            ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &

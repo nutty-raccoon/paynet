@@ -288,11 +288,7 @@ mod tests {
         ])
         .unwrap();
 
-        let node_url = if cfg!(feature = "tls") {
-            NodeUrl::from_str(&format!("https://{}", node_url)).unwrap()
-        } else {
-            NodeUrl::from_str(&format!("http://{}", node_url)).unwrap()
-        };
+        let node_url = NodeUrl::from_str(&format!("https://{}", node_url)).unwrap();
 
         CompactWad {
             node_url,
@@ -320,11 +316,7 @@ mod tests {
         ])
         .unwrap();
 
-        let node_url = if cfg!(feature = "tls") {
-            NodeUrl::from_str(&format!("https://{}", node_url)).unwrap()
-        } else {
-            NodeUrl::from_str(&format!("http://{}", node_url)).unwrap()
-        };
+        let node_url = NodeUrl::from_str(&format!("https://{}", node_url)).unwrap();
 
         let mut proofs = Vec::new();
         for (i, &amount) in amounts.iter().enumerate() {

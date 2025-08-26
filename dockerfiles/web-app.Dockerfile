@@ -18,13 +18,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json --features="tls"
 
 COPY ./Cargo.toml ./
 COPY ./rust-toolchain.toml ./
 COPY ./crates/ ./crates/
 
-RUN cargo build --release --bin web-app
+RUN cargo build --release --bin web-app --features="tls"
 
 #------------
  
@@ -46,7 +46,8 @@ RUN pnpm run build
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
+    ca-certificates 
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -r -s /bin/false appuser
@@ -63,9 +64,13 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 ENV PORT=3005
+
+ENV TLS_CERT_PATH=/certs/cert.pem
+ENV TLS_KEY_PATH=/certs/key.pem
+
 EXPOSE ${PORT}
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD bash -c 'exec 3<>/dev/tcp/localhost/${PORT};echo -e "GET / HTTP/1.1\r\nHost: localhost:${PORT}\r\nConnection: close\r\n\r\n" >&3; grep "200 OK" <&3'
-
+     CMD curl -f -k https://localhost:${PORT}/ || exit 1
+ 
 CMD ["./web-app"]

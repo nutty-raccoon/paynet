@@ -1,5 +1,7 @@
 <script lang="ts">
-  export type Tab = "pay" | "balances" | "history";
+  import { pushState } from "$app/navigation";
+
+  export type Tab = "pay" | "balances" | "settings" | "history";
 
   interface Props {
     activeTab: Tab;
@@ -10,6 +12,7 @@
 
   function handleTabClick(tab: Tab) {
     if (tab !== activeTab) {
+      pushState("", { previousTab: activeTab });
       onTabChange(tab);
     }
   }

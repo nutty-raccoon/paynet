@@ -1,15 +1,23 @@
+mod background_tasks;
 mod commands;
 mod errors;
 mod migrations;
 mod parse_asset_amount;
 
 use commands::{
-    add_node, check_wallet_exists, create_mint_quote, create_wads, get_nodes_balance,
-    get_wad_history, init_wallet, receive_wads, redeem_quote, restore_wallet, sync_wads,
+    add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
+    get_nodes_balance, get_wad_history, init_wallet, receive_wads, redeem_quote,
+    refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tauri::Manager;
+use std::time::SystemTime;
+use std::{collections::HashSet, env, sync::Arc};
+use tauri::{Listener, Manager, async_runtime};
+use tokio::sync::RwLock;
+use tonic::transport::Certificate;
+
+use crate::background_tasks::start_price_fetcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,7 +43,41 @@ pub fn run() {
                     .expect("dirs::data_dir should map to a valid path on this machine");
                 let manager = SqliteConnectionManager::file(db_path);
                 let pool = r2d2::Pool::new(manager)?;
-                app.manage(AppState { pool });
+                let host = env!("PRICE_PROVIDER_URL");
+                let mut initial_assets = HashSet::new();
+                if let Ok(conn) = pool.get() {
+                    if let Ok(nodes_balances) = wallet::db::balance::get_for_all_nodes(&conn) {
+                        for nb in nodes_balances {
+                            for b in nb.balances {
+                                let unit = if b.unit.eq_ignore_ascii_case("millistrk") {
+                                    "strk".to_string()
+                                } else {
+                                    b.unit.to_lowercase()
+                                };
+                                initial_assets.insert(unit);
+                            }
+                        }
+                    }
+                }
+                app.manage(AppState {
+                    pool,
+                    get_prices_config: Arc::new(RwLock::new(PriceConfig {
+                        currency: "usd".to_string(),
+                        assets: initial_assets,
+                        url: host.to_string(),
+                        status: Default::default(),
+                    })),
+                    #[cfg(feature = "tls-local-mkcert")]
+                    tls_root_ca_cert: read_tls_root_ca_cert(),
+                });
+                let config = app.state::<AppState>().get_prices_config.clone();
+
+                let app_thread = app.handle().clone();
+                // Wait until the front is listening to start fetching prices
+                app.once("front-ready", |_| {
+                    async_runtime::spawn(start_price_fetcher(config, app_thread));
+                });
+
                 Ok(())
             })
             .plugin(
@@ -46,13 +88,16 @@ pub fn run() {
             .invoke_handler(tauri::generate_handler![
                 get_nodes_balance,
                 add_node,
+                refresh_node_keysets,
                 create_mint_quote,
                 redeem_quote,
                 create_wads,
                 receive_wads,
+                get_currencies,
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
+                set_price_provider_currency,
                 get_wad_history,
                 sync_wads,
             ])
@@ -65,4 +110,39 @@ pub fn run() {
 #[derive(Debug)]
 struct AppState {
     pool: Pool<SqliteConnectionManager>,
+    get_prices_config: Arc<RwLock<PriceConfig>>,
+    #[cfg(feature = "tls-local-mkcert")]
+    tls_root_ca_cert: Certificate,
+}
+
+#[derive(Clone, Debug)]
+pub struct PriceConfig {
+    pub currency: String,
+    pub assets: HashSet<String>,
+    pub url: String,
+    pub status: PriceSyncStatus,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum PriceSyncStatus {
+    #[default]
+    NotSynced,
+    Synced(SystemTime),
+}
+
+impl AppState {
+    #[cfg(feature = "tls-local-mkcert")]
+    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+        Some(self.tls_root_ca_cert.clone())
+    }
+
+    #[cfg(not(feature = "tls-local-mkcert"))]
+    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+        None
+    }
+}
+
+#[cfg(feature = "tls-local-mkcert")]
+fn read_tls_root_ca_cert() -> Certificate {
+    tonic::transport::Certificate::from_pem(include_bytes!("../certs/rootCA.pem"))
 }

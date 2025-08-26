@@ -62,7 +62,7 @@ pub async fn create_mint_quote(
         wallet::db::node::get_url_by_id(&db_conn, node_id)?
             .ok_or(CreateMintQuoteError::NodeId(node_id))?
     };
-    let mut node_client = wallet::connect_to_node(&node_url).await?;
+    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
 
     let response = wallet::mint::create_quote(
         state.pool.clone(),
@@ -119,7 +119,7 @@ pub async fn redeem_quote(
         wallet::db::node::get_url_by_id(&db_conn, node_id)?
             .ok_or(RedeemQuoteError::NodeId(node_id))?
     };
-    let mut node_client = wallet::connect_to_node(&node_url).await?;
+    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
 
     let mint_quote = {
         let db_conn = state.pool.get()?;
@@ -149,6 +149,13 @@ pub async fn redeem_quote(
             amount: mint_quote.amount.into(),
         },
     )?;
+
+    state
+        .get_prices_config
+        .write()
+        .await
+        .assets
+        .insert(mint_quote.unit.as_str().to_string().to_lowercase());
 
     Ok(())
 }

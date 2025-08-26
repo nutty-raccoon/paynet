@@ -33,8 +33,8 @@ pub enum CreateWadsError {
     NotEnoughFunds(Amount, Amount),
     #[error("not enought funds in node {0}")]
     NotEnoughFundsInNode(u32),
-    #[error(transparent)]
-    NodeConnect(#[from] wallet::ConnectToNodeError),
+    #[error("failed to connect to node: {0}")]
+    ConnectToNode(#[from] wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for CreateWadsError {
@@ -88,7 +88,7 @@ pub async fn create_wads(
     let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
     let mut ys_per_node = Vec::with_capacity(amount_to_use_per_node.len());
     for (node_id, node_url, amount_to_use) in amount_to_use_per_node {
-        let mut node_client = wallet::connect_to_node(&node_url).await?;
+        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
             state.pool.clone(),

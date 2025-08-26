@@ -12,7 +12,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
 
 use crate::{
-    StoreNewProofsError,
+    ConnectToNodeError, StoreNewProofsError,
     db::{self, keyset},
     seed_phrase, store_new_proofs_from_blind_signatures,
     types::NodeUrl,
@@ -21,7 +21,7 @@ use crate::{
 #[derive(Debug, thiserror::Error)]
 pub enum RegisterNodeError {
     #[error("failed connect to the node: {0}")]
-    NodeClient(#[from] tonic::transport::Error),
+    Connect(#[from] ConnectToNodeError),
     #[error("failed connect to database: {0}")]
     R2d2(#[from] r2d2::Error),
     #[error("unknown node with url: {0}")]
@@ -34,10 +34,9 @@ pub enum RegisterNodeError {
 
 pub async fn register(
     pool: Pool<SqliteConnectionManager>,
+    node_client: &mut NodeClient<Channel>,
     node_url: &NodeUrl,
-) -> Result<(NodeClient<tonic::transport::Channel>, u32), RegisterNodeError> {
-    let mut node_client = NodeClient::connect(node_url.to_string()).await?;
-
+) -> Result<u32, RegisterNodeError> {
     let node_id = {
         let db_conn = pool.get()?;
         db::node::insert(&db_conn, node_url)?;
@@ -45,11 +44,11 @@ pub async fn register(
             .ok_or(RegisterNodeError::NotFound(node_url.clone()))?
     };
 
-    refresh_keysets(pool, &mut node_client, node_id)
+    refresh_keysets(pool, node_client, node_id)
         .await
         .map_err(|e| RegisterNodeError::RefreshNodeKeyset(node_id, e))?;
 
-    Ok((node_client, node_id))
+    Ok(node_id)
 }
 
 #[derive(Debug, thiserror::Error)]
