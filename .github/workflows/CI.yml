@@ -612,7 +612,9 @@ jobs:
 
            tar -xzf firehose-core_linux_x86_64.tar.gz
            tar -xzf firehose-starknet_linux_x86_64.tar.gz
+
            rm firehose-core_linux_x86_64.tar.gz firehose-starknet_linux_x86_64.tar.gz
+
       - name: Start firehose
         run: |
            ./firecore start --config-file crates/substreams/starknet/firehose/firehose-starknet-rmr.yaml --reader-node-path ./firestarknet &

@@ -5,8 +5,9 @@ start:
   - relayer
   flags:
     common-first-streamable-block: 0
-    reader-node-path: ./firestark
     reader-node-arguments: |
+      fetch
+       0
        --state-dir
        firehose-starknet-state-dir
        --block-fetch-batch-size

@@ -16,24 +16,22 @@ pub mod functions {
     }
     impl PayInvoice {
         const METHOD_ID: [u8; 4] = [190u8, 85u8, 224u8, 48u8];
-        pub fn decode(
-            call: &substreams_ethereum::pb::eth::v2::Call,
-        ) -> Result<Self, String> {
+        pub fn decode(call: &substreams_ethereum::pb::eth::v2::Call) -> Result<Self, String> {
             let maybe_data = call.input.get(4..);
             if maybe_data.is_none() {
                 return Err("no data to decode".to_string());
             }
             let mut values = ethabi::decode(
-                    &[
-                        ethabi::ParamType::FixedBytes(32usize),
-                        ethabi::ParamType::Uint(64usize),
-                        ethabi::ParamType::Address,
-                        ethabi::ParamType::Uint(256usize),
-                        ethabi::ParamType::Address,
-                    ],
-                    maybe_data.unwrap(),
-                )
-                .map_err(|e| format!("unable to decode call.input: {:?}", e))?;
+                &[
+                    ethabi::ParamType::FixedBytes(32usize),
+                    ethabi::ParamType::Uint(64usize),
+                    ethabi::ParamType::Address,
+                    ethabi::ParamType::Uint(256usize),
+                    ethabi::ParamType::Address,
+                ],
+                maybe_data.unwrap(),
+            )
+            .map_err(|e| format!("unable to decode call.input: {:?}", e))?;
             values.reverse();
             Ok(Self {
                 quote_id_hash: {
@@ -83,37 +81,31 @@ pub mod functions {
             })
         }
         pub fn encode(&self) -> Vec<u8> {
-            let data = ethabi::encode(
-                &[
-                    ethabi::Token::FixedBytes(self.quote_id_hash.as_ref().to_vec()),
-                    ethabi::Token::Uint(
-                        ethabi::Uint::from_big_endian(
-                            match self.expiry.clone().to_bytes_be() {
-                                (num_bigint::Sign::Plus, bytes) => bytes,
-                                (num_bigint::Sign::NoSign, bytes) => bytes,
-                                (num_bigint::Sign::Minus, _) => {
-                                    panic!("negative numbers are not supported")
-                                }
-                            }
-                                .as_slice(),
-                        ),
-                    ),
-                    ethabi::Token::Address(ethabi::Address::from_slice(&self.asset)),
-                    ethabi::Token::Uint(
-                        ethabi::Uint::from_big_endian(
-                            match self.amount.clone().to_bytes_be() {
-                                (num_bigint::Sign::Plus, bytes) => bytes,
-                                (num_bigint::Sign::NoSign, bytes) => bytes,
-                                (num_bigint::Sign::Minus, _) => {
-                                    panic!("negative numbers are not supported")
-                                }
-                            }
-                                .as_slice(),
-                        ),
-                    ),
-                    ethabi::Token::Address(ethabi::Address::from_slice(&self.payee)),
-                ],
-            );
+            let data = ethabi::encode(&[
+                ethabi::Token::FixedBytes(self.quote_id_hash.as_ref().to_vec()),
+                ethabi::Token::Uint(ethabi::Uint::from_big_endian(
+                    match self.expiry.clone().to_bytes_be() {
+                        (num_bigint::Sign::Plus, bytes) => bytes,
+                        (num_bigint::Sign::NoSign, bytes) => bytes,
+                        (num_bigint::Sign::Minus, _) => {
+                            panic!("negative numbers are not supported")
+                        }
+                    }
+                    .as_slice(),
+                )),
+                ethabi::Token::Address(ethabi::Address::from_slice(&self.asset)),
+                ethabi::Token::Uint(ethabi::Uint::from_big_endian(
+                    match self.amount.clone().to_bytes_be() {
+                        (num_bigint::Sign::Plus, bytes) => bytes,
+                        (num_bigint::Sign::NoSign, bytes) => bytes,
+                        (num_bigint::Sign::Minus, _) => {
+                            panic!("negative numbers are not supported")
+                        }
+                    }
+                    .as_slice(),
+                )),
+                ethabi::Token::Address(ethabi::Address::from_slice(&self.payee)),
+            ]);
             let mut encoded = Vec::with_capacity(4 + data.len());
             encoded.extend(Self::METHOD_ID);
             encoded.extend(data);
@@ -131,9 +123,7 @@ pub mod functions {
         fn match_call(call: &substreams_ethereum::pb::eth::v2::Call) -> bool {
             Self::match_call(call)
         }
-        fn decode(
-            call: &substreams_ethereum::pb::eth::v2::Call,
-        ) -> Result<Self, String> {
+        fn decode(call: &substreams_ethereum::pb::eth::v2::Call) -> Result<Self, String> {
             Self::decode(call)
         }
         fn encode(&self) -> Vec<u8> {
@@ -155,38 +145,9 @@ pub mod events {
     }
     impl Remittance {
         const TOPIC_ID: [u8; 32] = [
-            249u8,
-            58u8,
-            174u8,
-            165u8,
-            141u8,
-            224u8,
-            230u8,
-            164u8,
-            202u8,
-            188u8,
-            73u8,
-            114u8,
-            49u8,
-            52u8,
-            125u8,
-            221u8,
-            47u8,
-            156u8,
-            133u8,
-            232u8,
-            71u8,
-            172u8,
-            247u8,
-            247u8,
-            93u8,
-            46u8,
-            244u8,
-            230u8,
-            165u8,
-            40u8,
-            44u8,
-            174u8,
+            249u8, 58u8, 174u8, 165u8, 141u8, 224u8, 230u8, 164u8, 202u8, 188u8, 73u8, 114u8, 49u8,
+            52u8, 125u8, 221u8, 47u8, 156u8, 133u8, 232u8, 71u8, 172u8, 247u8, 247u8, 93u8, 46u8,
+            244u8, 230u8, 165u8, 40u8, 44u8, 174u8,
         ];
         pub fn match_log(log: &substreams_ethereum::pb::eth::v2::Log) -> bool {
             if log.topics.len() != 4usize {
@@ -198,23 +159,18 @@ pub mod events {
             return log.topics.get(0).expect("bounds already checked").as_ref() as &[u8]
                 == Self::TOPIC_ID;
         }
-        pub fn decode(
-            log: &substreams_ethereum::pb::eth::v2::Log,
-        ) -> Result<Self, String> {
+        pub fn decode(log: &substreams_ethereum::pb::eth::v2::Log) -> Result<Self, String> {
             let mut values = ethabi::decode(
-                    &[
-                        ethabi::ParamType::FixedBytes(32usize),
-                        ethabi::ParamType::Uint(256usize),
-                    ],
-                    log.data.as_ref(),
-                )
-                .map_err(|e| format!("unable to decode log.data: {:?}", e))?;
+                &[
+                    ethabi::ParamType::FixedBytes(32usize),
+                    ethabi::ParamType::Uint(256usize),
+                ],
+                log.data.as_ref(),
+            )
+            .map_err(|e| format!("unable to decode log.data: {:?}", e))?;
             values.reverse();
             Ok(Self {
-                asset: ethabi::decode(
-                        &[ethabi::ParamType::Address],
-                        log.topics[1usize].as_ref(),
-                    )
+                asset: ethabi::decode(&[ethabi::ParamType::Address], log.topics[1usize].as_ref())
                     .map_err(|e| {
                         format!(
                             "unable to decode param 'asset' from topic of type 'address': {:?}",
@@ -227,10 +183,7 @@ pub mod events {
                     .expect(INTERNAL_ERR)
                     .as_bytes()
                     .to_vec(),
-                payee: ethabi::decode(
-                        &[ethabi::ParamType::Address],
-                        log.topics[2usize].as_ref(),
-                    )
+                payee: ethabi::decode(&[ethabi::ParamType::Address], log.topics[2usize].as_ref())
                     .map_err(|e| {
                         format!(
                             "unable to decode param 'payee' from topic of type 'address': {:?}",
@@ -243,10 +196,7 @@ pub mod events {
                     .expect(INTERNAL_ERR)
                     .as_bytes()
                     .to_vec(),
-                payer: ethabi::decode(
-                        &[ethabi::ParamType::Address],
-                        log.topics[3usize].as_ref(),
-                    )
+                payer: ethabi::decode(&[ethabi::ParamType::Address], log.topics[3usize].as_ref())
                     .map_err(|e| {
                         format!(
                             "unable to decode param 'payer' from topic of type 'address': {:?}",

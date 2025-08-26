@@ -46,7 +46,7 @@ RUN pnpm run build
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
-    ca-certificates 
+    ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -64,7 +64,6 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 ENV PORT=3005
-
 ENV TLS_CERT_PATH=/certs/cert.pem
 ENV TLS_KEY_PATH=/certs/key.pem
 
@@ -72,5 +71,5 @@ EXPOSE ${PORT}
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
      CMD curl -f -k https://localhost:${PORT}/ || exit 1
- 
+
 CMD ["./web-app"]

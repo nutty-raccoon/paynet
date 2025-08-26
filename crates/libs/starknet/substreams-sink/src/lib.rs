@@ -26,7 +26,6 @@ use starknet::core::types::Felt;
 use starknet_types::{ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
 use substreams::SubstreamsEndpoint;
 use substreams_stream::{BlockResponse, SubstreamsStream};
-
 use tracing::{Level, debug, error, event};
 
 mod parse_inputs;
