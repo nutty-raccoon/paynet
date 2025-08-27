@@ -103,8 +103,11 @@ pub fn run() {
             ])
     };
 
-    app.run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    if let Err(e) = app.run(tauri::generate_context!()) {
+        // Use grep "tauri-app-run-error" to filter the startup error in logs
+        log::error!("tauri-app-run-error: {e}");
+        panic!("error while running tauri application: {e}");
+    }
 }
 
 #[derive(Debug)]
