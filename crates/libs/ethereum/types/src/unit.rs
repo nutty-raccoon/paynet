@@ -5,7 +5,7 @@
 
 use std::str::FromStr;
 
-use nuts::Amount;
+use nuts::{Amount, traits::Unit256};
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
@@ -55,14 +55,16 @@ impl Unit {
         }
     }
 
-    /// Converts a user-friendly `Amount` into blockchain-native `U256`
-    pub fn convert_amount_into_u256(&self, amount: Amount) -> U256 {
-        U256::from(u64::from(amount)) * U256::from(self.scale_factor())
-    }
-
     /// Validates that the given asset is supported by this unit
     pub fn is_asset_supported(&self, asset: Asset) -> bool {
         matches!(asset, Asset::Weth)
+    }
+}
+
+impl Unit256 for Unit {
+    /// Converts a user-friendly `Amount` into blockchain-native `U256`
+    fn convert_amount_into_u256(&self, amount: Amount) -> U256 {
+        U256::from(u64::from(amount)) * U256::from(self.scale_factor())
     }
 }
 

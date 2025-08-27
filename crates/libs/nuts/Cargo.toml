@@ -15,6 +15,7 @@ num-bigint = { workspace = true }
 once_cell = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
+primitive-types = {workspace = true}
 
 # Optional
 rusqlite = { workspace = true, optional = true }

@@ -16,14 +16,14 @@ prost-types = { workspace = true }
 tracing = { workspace = true }
 primitive-types = { workspace = true }
 sqlx = { workspace = true, features = ["postgres", "chrono"] }
+hex = { workspace = true }
+ethers = { workspace = true }
+web3 = { workspace = true }
 
 # local
 nuts = { workspace = true }
 eth-types = { workspace = true }
 db-node = { workspace = true }
-ethers = { workspace = true }
-web3 = { workspace = true }
-hex = { workspace = true }
 substreams-streams = {workspace = true}
 
 [build-dependencies]

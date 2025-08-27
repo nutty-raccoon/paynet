@@ -1,24 +1,20 @@
 use std::{
     env::{self, VarError},
-    str::FromStr,
     sync::Arc,
 };
 
 use anyhow::{Error, Result, anyhow};
 use db_node::PaymentEvent;
+use db_node::substream_handlers;
 use futures::StreamExt;
 use http::Uri;
-use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,
-    types::{
-        Uuid,
-        chrono::{DateTime, Utc},
-    },
+    types::chrono::{DateTime, Utc},
 };
 use starknet::core::types::Felt;
-use starknet_types::{ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
+use starknet_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
 use substreams_streams::parse_inputs;
 use substreams_streams::pb::{
     invoice_contract::v1::RemittanceEvent,
@@ -29,7 +25,7 @@ use substreams_streams::pb::{
 };
 use substreams_streams::stream::{BlockResponse, SubstreamsStream};
 use substreams_streams::substreams::SubstreamsEndpoint;
-use tracing::{Level, debug, error, event};
+use tracing::{debug, error};
 
 pub async fn launch(
     pg_pool: PgPool,
@@ -283,7 +279,14 @@ async fn process_payment_event(
                     amount_high: Felt::from_bytes_be_slice(&payment_event.amount_high)
                         .to_hex_string(),
                 };
-                handle_mint_payment(conn, quote_id, db_event, unit, quote_amount).await?;
+                substream_handlers::handle_mint_payment(
+                    conn,
+                    quote_id,
+                    db_event,
+                    unit,
+                    quote_amount,
+                )
+                .await?;
             }
         } else {
             let payer = Felt::from_bytes_be_slice(&payment_event.payer);
@@ -301,96 +304,16 @@ async fn process_payment_event(
                     amount_high: Felt::from_bytes_be_slice(&payment_event.amount_high)
                         .to_hex_string(),
                 };
-                handle_melt_payment(conn, quote_id, db_event, unit, quote_amount).await?;
+                substream_handlers::handle_melt_payment(
+                    conn,
+                    quote_id,
+                    db_event,
+                    unit,
+                    quote_amount,
+                )
+                .await?;
             }
         }
-    }
-
-    Ok(())
-}
-
-// Yeah I know it's basically the same code copied and pasted.
-// For now it's fine, better this than adding trait and struct and so on.
-async fn handle_mint_payment(
-    db_conn: &mut PgConnection,
-    quote_id: Uuid,
-    payment_event: PaymentEvent,
-    unit: Unit,
-    quote_amount: Amount,
-) -> Result<(), Error> {
-    db_node::mint_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-
-    let current_paid =
-        db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
-            .await?
-            .map(|(low, high)| -> Result<primitive_types::U256, Error> {
-                let amount_as_strk_256 = StarknetU256 {
-                    low: Felt::from_str(&low)?,
-                    high: Felt::from_str(&high)?,
-                };
-
-                Ok(primitive_types::U256::from(amount_as_strk_256))
-            })
-            .try_fold(primitive_types::U256::zero(), |acc, a| {
-                match a {
-        Ok(v) => v.checked_add(acc).ok_or(anyhow!(
-            "u256 value overflowed during the computation of the total amount paid for invoice"
-        )),
-        Err(e) => Err(e),
-    }
-            })?;
-
-    let to_pay = unit.convert_amount_into_u256(quote_amount);
-    if current_paid >= to_pay {
-        db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;
-        event!(
-            name: "mint-quote-paid",
-            Level::INFO,
-            name = "mint-quote-paid",
-            %quote_id,
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_melt_payment(
-    db_conn: &mut PgConnection,
-    quote_id: Uuid,
-    payment_event: PaymentEvent,
-    unit: Unit,
-    quote_amount: Amount,
-) -> Result<(), Error> {
-    db_node::melt_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-    let current_paid =
-        db_node::melt_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
-            .await?
-            .map(|(low, high)| -> Result<primitive_types::U256, Error> {
-                let amount_as_strk_256 = StarknetU256 {
-                    low: Felt::from_str(&low)?,
-                    high: Felt::from_str(&high)?,
-                };
-
-                Ok(primitive_types::U256::from(amount_as_strk_256))
-            })
-            .try_fold(primitive_types::U256::zero(), |acc, a| {
-                match a {
-        Ok(v) => v.checked_add(acc).ok_or(anyhow!(
-            "u256 value overflowed during the computation of the total amount paid for invoice"
-        )),
-                Err(e) => Err(e),
-            }
-            })?;
-
-    let to_pay = unit.convert_amount_into_u256(quote_amount);
-    if current_paid >= to_pay {
-        db_node::melt_quote::set_state(db_conn, quote_id, MeltQuoteState::Paid).await?;
-        event!(
-            name: "melt-quote-paid",
-            Level::INFO,
-            name = "melt-quote-paid",
-            %quote_id,
-        );
     }
 
     Ok(())

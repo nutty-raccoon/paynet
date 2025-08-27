@@ -1,18 +1,14 @@
 use anyhow::{Error, Result, anyhow, format_err};
-use db_node::PaymentEvent;
+use db_node::{PaymentEvent, substream_handlers};
 use eth_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
 use ethers::types::Address;
 use futures::StreamExt;
 use http::Uri;
-use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
 use primitive_types::U256;
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,
-    types::{
-        Uuid,
-        chrono::{DateTime, Utc},
-    },
+    types::chrono::{DateTime, Utc},
 };
 use std::{
     env::{self, VarError},
@@ -24,7 +20,7 @@ use substreams_streams::pb::{
 };
 use substreams_streams::stream::{BlockResponse, SubstreamsStream};
 use substreams_streams::substreams::SubstreamsEndpoint;
-use tracing::{Level, debug, error, event};
+use tracing::{debug, error};
 
 pub async fn launch(
     pg_pool: PgPool,
@@ -249,7 +245,14 @@ async fn process_payment_event(
                     amount_low: hex::encode(amount_u256.to_little_endian()),
                     amount_high: hex::encode(amount_u256.to_big_endian()),
                 };
-                handle_mint_payment(conn, quote_id, db_event, unit, quote_amount).await?;
+                substream_handlers::handle_mint_payment(
+                    conn,
+                    quote_id,
+                    db_event,
+                    unit,
+                    quote_amount,
+                )
+                .await?;
             }
         } else {
             let payer = Address::from_slice(&payment_event.payer);
@@ -265,105 +268,16 @@ async fn process_payment_event(
                     amount_low: hex::encode(amount_u256.to_little_endian()),
                     amount_high: hex::encode(amount_u256.to_big_endian()),
                 };
-                handle_melt_payment(conn, quote_id, db_event, unit, quote_amount).await?;
+                substream_handlers::handle_melt_payment(
+                    conn,
+                    quote_id,
+                    db_event,
+                    unit,
+                    quote_amount,
+                )
+                .await?;
             }
         }
-    }
-
-    Ok(())
-}
-
-async fn handle_mint_payment(
-    db_conn: &mut PgConnection,
-    quote_id: Uuid,
-    payment_event: PaymentEvent,
-    unit: Unit,
-    quote_amount: Amount,
-) -> Result<(), Error> {
-    db_node::mint_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-
-    let current_paid =
-        db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
-            .await?
-            .map(|(low_hex, high_hex)| -> Result<U256, Error> {
-                let low_bytes = hex::decode(low_hex)?;
-                let high_bytes = hex::decode(high_hex)?;
-
-                let from_low = U256::from_little_endian(&low_bytes);
-                let from_high = U256::from_big_endian(&high_bytes);
-
-                if from_low != from_high {
-                    return Err(anyhow!(
-                        "Mismatch between low-endian and high-endian decoded U256 values"
-                    ));
-                }
-
-                Ok(from_low)
-            })
-            .try_fold(U256::zero(), |acc, res| match res {
-                Ok(val) => val
-                    .checked_add(acc)
-                    .ok_or_else(|| anyhow!("U256 overflow while summing total paid amount")),
-                Err(err) => Err(err),
-            })?;
-
-    let to_pay = unit.convert_amount_into_u256(quote_amount);
-    if current_paid >= to_pay {
-        db_node::mint_quote::set_state(db_conn, quote_id, MintQuoteState::Paid).await?;
-        event!(
-            name: "mint-quote-paid",
-            Level::INFO,
-            name = "mint-quote-paid",
-            %quote_id,
-        );
-    }
-
-    Ok(())
-}
-
-async fn handle_melt_payment(
-    db_conn: &mut PgConnection,
-    quote_id: Uuid,
-    payment_event: PaymentEvent,
-    unit: Unit,
-    quote_amount: Amount,
-) -> Result<(), Error> {
-    db_node::mint_payment_event::insert_new_payment_event(db_conn, &payment_event).await?;
-
-    let current_paid =
-        db_node::mint_payment_event::get_current_paid(db_conn, &payment_event.invoice_id)
-            .await?
-            .map(|(low_hex, high_hex)| -> Result<U256, Error> {
-                let low_bytes = hex::decode(low_hex)?;
-                let high_bytes = hex::decode(high_hex)?;
-
-                let from_low = U256::from_little_endian(&low_bytes);
-                let from_high = U256::from_big_endian(&high_bytes);
-
-                if from_low != from_high {
-                    return Err(anyhow!(
-                        "Mismatch between low-endian and high-endian decoded U256 values"
-                    ));
-                }
-
-                Ok(from_low)
-            })
-            .try_fold(U256::zero(), |acc, res| match res {
-                Ok(val) => val
-                    .checked_add(acc)
-                    .ok_or_else(|| anyhow!("U256 overflow while summing total paid amount")),
-                Err(err) => Err(err),
-            })?;
-
-    let to_pay = unit.convert_amount_into_u256(quote_amount);
-    if current_paid >= to_pay {
-        db_node::melt_quote::set_state(db_conn, quote_id, MeltQuoteState::Paid).await?;
-        event!(
-            name: "mint-quote-paid",
-            Level::INFO,
-            name = "mint-quote-paid",
-            %quote_id,
-        );
     }
 
     Ok(())

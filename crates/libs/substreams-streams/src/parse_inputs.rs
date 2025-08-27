@@ -6,6 +6,7 @@ use crate::pb::sf::substreams::v1::{
     module::input::{Input, Params},
 };
 
+#[derive(Debug, Clone)]
 pub struct Param {
     pub module_name: String,
     pub expression: String,
