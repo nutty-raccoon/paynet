@@ -90,9 +90,11 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
+
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: rust-mobile-cache-clippy-${{ hashFiles('mobile/Cargo.lock') }}
+          working-directory: mobile
+          shared-key: rust-mobile-cache-clippy-${{ hashFiles('Cargo.lock') }}
           cache-on-failure: true
           cache-all-crates: true
       - name: Create fake certificate
