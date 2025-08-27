@@ -17,7 +17,7 @@ primitive-types = "0.13.1"
 num-traits = "0.2.19"
 uint = "0.10.0"
 log = "0.4.25"
-reqwest = "0.12.12"
+reqwest = { version = "0.12.12", default-features = false }
 tokio = "1.44.1"
 bitcoin = "0.32.2"
 tracing = "0.1.41"
