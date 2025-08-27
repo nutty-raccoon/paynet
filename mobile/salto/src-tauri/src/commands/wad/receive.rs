@@ -62,7 +62,7 @@ pub async fn receive_wads(
             wallet::node::register(state.pool.clone(), &mut node_client, &node_url).await?;
 
         let amount_received = wallet::receive_wad(
-            &app.config().identifier,
+            crate::SEED_PHRASE_MANAGER,
             state.pool.clone(),
             &mut node_client,
             node_id,

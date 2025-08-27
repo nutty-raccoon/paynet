@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::State;
 use wallet::seed_phrase;
 
 use crate::AppState;
@@ -69,14 +69,11 @@ pub struct InitWalletResponse {
 }
 
 #[tauri::command]
-pub fn init_wallet(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<InitWalletResponse, InitWalletError> {
+pub fn init_wallet(state: State<'_, AppState>) -> Result<InitWalletResponse, InitWalletError> {
     let db_conn = state.pool.get()?;
 
     let seed_phrase = seed_phrase::create_random()?;
-    wallet::wallet::init(&app.config().identifier, &db_conn, &seed_phrase)?;
+    wallet::wallet::init(crate::SEED_PHRASE_MANAGER, &db_conn, &seed_phrase)?;
 
     Ok(InitWalletResponse {
         seed_phrase: seed_phrase.to_string(),
@@ -85,14 +82,13 @@ pub fn init_wallet(
 
 #[tauri::command]
 pub fn restore_wallet(
-    app: AppHandle,
     state: State<'_, AppState>,
     seed_phrase: String,
 ) -> Result<(), RestoreWalletError> {
     let db_conn = state.pool.get()?;
 
     let seed_phrase = seed_phrase::create_from_str(&seed_phrase)?;
-    wallet::wallet::restore(&app.config().identifier, &db_conn, seed_phrase)?;
+    wallet::wallet::restore(crate::SEED_PHRASE_MANAGER, &db_conn, seed_phrase)?;
 
     Ok(())
 }

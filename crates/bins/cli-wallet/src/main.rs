@@ -24,6 +24,8 @@ mod init;
 mod sync;
 
 const APP_IDENTIFIER: &str = "paynet-cli-wallet";
+const SEED_PHRASE_MANAGER: wallet::wallet::keyring::SeedPhraseManager =
+    wallet::wallet::keyring::SeedPhraseManager::new(APP_IDENTIFIER);
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -306,7 +308,7 @@ async fn main() -> Result<()> {
             };
             if should_restore {
                 println!("Restoring proofs");
-                wallet::node::restore(APP_IDENTIFIER, pool, node_id, node_client).await?;
+                wallet::node::restore(SEED_PHRASE_MANAGER, pool, node_id, node_client).await?;
                 println!("Restoring done.");
 
                 let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
@@ -418,7 +420,7 @@ async fn main() -> Result<()> {
             }
 
             wallet::mint::redeem_quote(
-                APP_IDENTIFIER,
+                SEED_PHRASE_MANAGER,
                 pool.clone(),
                 &mut node_client,
                 STARKNET_STR.to_string(),
@@ -474,7 +476,7 @@ async fn main() -> Result<()> {
             println!("Melt quote created!");
 
             let melt_response = wallet::melt::pay_quote(
-                APP_IDENTIFIER,
+                SEED_PHRASE_MANAGER,
                 pool.clone(),
                 &mut node_client,
                 node_id,
@@ -544,7 +546,7 @@ async fn main() -> Result<()> {
                 let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
 
                 let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                    APP_IDENTIFIER,
+                    SEED_PHRASE_MANAGER,
                     pool.clone(),
                     &mut node_client,
                     node_id,
@@ -637,7 +639,7 @@ async fn main() -> Result<()> {
                 } = wad;
 
                 match wallet::receive_wad(
-                    APP_IDENTIFIER,
+                    SEED_PHRASE_MANAGER,
                     pool.clone(),
                     &mut node_client,
                     node_id,
@@ -705,7 +707,7 @@ async fn main() -> Result<()> {
         }
         Commands::Restore { seed_phrase } => {
             let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
-            wallet::wallet::restore(APP_IDENTIFIER, &db_conn, seed_phrase)?;
+            wallet::wallet::restore(SEED_PHRASE_MANAGER, &db_conn, seed_phrase)?;
             println!("Wallet saved!");
         }
         Commands::History { limit } => {

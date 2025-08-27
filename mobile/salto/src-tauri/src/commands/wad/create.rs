@@ -91,7 +91,7 @@ pub async fn create_wads(
         let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-            &app.config().identifier,
+            crate::SEED_PHRASE_MANAGER,
             state.pool.clone(),
             &mut node_client,
             node_id,

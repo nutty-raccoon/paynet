@@ -31,4 +31,5 @@ rusqlite = { workspace = true, features = ["uuid"] }
 
 [features]
 default = []
+sqlite-seed-phrase = []
 

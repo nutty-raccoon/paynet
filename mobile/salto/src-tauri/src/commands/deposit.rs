@@ -129,9 +129,9 @@ pub async fn redeem_quote(
     if mint_quote.state != MintQuoteState::Paid {
         return Err(RedeemQuoteError::QuoteNotPaid);
     }
-
+    
     wallet::mint::redeem_quote(
-        &app.config().identifier,
+        crate::SEED_PHRASE_MANAGER,
         state.pool.clone(),
         &mut node_client,
         STARKNET_STR.to_string(),

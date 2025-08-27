@@ -2,7 +2,7 @@ use std::io;
 
 use rusqlite::Connection;
 
-use crate::APP_IDENTIFIER;
+use crate::SEED_PHRASE_MANAGER;
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
@@ -42,7 +42,7 @@ pub fn init(db_conn: &Connection, skip_validation: bool) -> Result<(), InitError
         }
     }
 
-    wallet::wallet::init(APP_IDENTIFIER, db_conn, &seed_phrase)?;
+    wallet::wallet::init(SEED_PHRASE_MANAGER, db_conn, &seed_phrase)?;
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::db::mint_quote::PendingMintQuote;
 use wallet::types::NodeUrl;
 
-use crate::APP_IDENTIFIER;
+use crate::SEED_PHRASE_MANAGER;
 
 const STARKNET_STR: &str = "starknet";
 
@@ -87,7 +87,7 @@ async fn sync_mint_quotes(
 
             // Redeem the quote
             if let Err(e) = wallet::mint::redeem_quote(
-                APP_IDENTIFIER,
+                SEED_PHRASE_MANAGER,
                 pool.clone(),
                 node_client,
                 STARKNET_STR.to_string(),

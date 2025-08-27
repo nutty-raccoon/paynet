@@ -71,6 +71,9 @@ pub enum Error {
     #[cfg(feature = "e2e")]
     #[error(transparent)]
     Xpriv(#[from] bitcoin::bip32::Error),
+    #[cfg(feature = "e2e")]
+    #[error(transparent)]
+    SeedPhrase(#[from] wallet::wallet::sqlite::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

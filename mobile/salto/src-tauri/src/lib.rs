@@ -13,11 +13,15 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use std::time::SystemTime;
 use std::{collections::HashSet, env, sync::Arc};
-use tauri::{Listener, Manager, async_runtime};
+use tauri::{async_runtime, Listener, Manager};
 use tokio::sync::RwLock;
 use tonic::transport::Certificate;
 
 use crate::background_tasks::start_price_fetcher;
+
+// Value must be the same as the one configurated in tauri.conf.json["identifier"]
+const SEED_PHRASE_MANAGER: wallet::wallet::keyring::SeedPhraseManager =
+    wallet::wallet::keyring::SeedPhraseManager::new("com.salto.app");
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

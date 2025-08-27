@@ -16,6 +16,7 @@ use crate::{
     db::{self, keyset},
     seed_phrase, store_new_proofs_from_blind_signatures,
     types::NodeUrl,
+    wallet::SeedPhraseManager,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -74,7 +75,7 @@ pub enum RestoreNodeError {
 }
 
 pub async fn restore(
-    app_identifier: &str,
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
     node_client: NodeClient<Channel>,
@@ -84,7 +85,7 @@ pub async fn restore(
         keyset::get_all_ids_for_node(&db_conn, node_id)?
     };
 
-    let xpriv = crate::wallet::get_private_key(app_identifier)?;
+    let xpriv = crate::wallet::get_private_key(seed_phrase_manager)?;
     let mut handles = Vec::with_capacity(keyset_ids.len());
     for keyset_id in keyset_ids {
         handles.push(restore_keyset(

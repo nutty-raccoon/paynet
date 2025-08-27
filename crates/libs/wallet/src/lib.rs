@@ -29,6 +29,7 @@ use tonic::Request;
 use tonic::transport::Channel;
 use types::compact_wad::CompactKeysetProofs;
 use types::{BlindingData, NodeUrl, PreMints, ProofState};
+use wallet::SeedPhraseManager;
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -174,7 +175,7 @@ pub fn store_new_proofs_from_blind_signatures(
 }
 
 pub async fn fetch_inputs_ids_from_db_or_node(
-    app_identifier: &str,
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
@@ -229,7 +230,7 @@ pub async fn fetch_inputs_ids_from_db_or_node(
             .unwrap();
 
         let new_tokens = swap_to_have_target_amount(
-            app_identifier,
+            seed_phrase_manager,
             pool.clone(),
             node_client,
             node_id,
@@ -286,7 +287,7 @@ pub fn load_tokens_from_db(
 }
 
 pub async fn swap_to_have_target_amount(
-    app_identifier: &str,
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
@@ -297,7 +298,8 @@ pub async fn swap_to_have_target_amount(
     let (blinding_data, input_unblind_signature) = {
         let db_conn = pool.get()?;
 
-        let blinding_data = BlindingData::load_from_db(app_identifier, &db_conn, node_id, unit)?;
+        let blinding_data =
+            BlindingData::load_from_db(seed_phrase_manager, &db_conn, node_id, unit)?;
 
         let input_unblind_signature =
             db::proof::get_proof_and_set_state_pending(&db_conn, proof_to_swap.0)?
@@ -354,7 +356,7 @@ pub async fn swap_to_have_target_amount(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn receive_wad(
-    app_identifier: &str,
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
@@ -438,7 +440,7 @@ pub async fn receive_wad(
                 insert_proof_stmt.execute(params)?;
             }
         }
-        let binding_data = BlindingData::load_from_db(app_identifier, &tx, node_id, unit)?;
+        let binding_data = BlindingData::load_from_db(seed_phrase_manager, &tx, node_id, unit)?;
 
         tx.commit()?;
 

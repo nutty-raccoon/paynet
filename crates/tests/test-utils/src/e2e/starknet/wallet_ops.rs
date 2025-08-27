@@ -1,8 +1,5 @@
-use std::str::FromStr;
-
 use anyhow::anyhow;
 use bip39::Mnemonic;
-use bitcoin::bip32::Xpriv;
 use itertools::Itertools;
 use node_client::NodeClient;
 use nuts::{Amount, nut01::PublicKey};
@@ -44,25 +41,30 @@ impl WalletOps {
     pub fn init(&self) -> Result<Mnemonic> {
         let seed_phrase =
             wallet::seed_phrase::create_random().map_err(|e| Error::Wallet(e.into()))?;
+        let seed_phrase_manager =
+            wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
 
         let db_conn = &*self.db_pool.get()?;
-        wallet::wallet::init(db_conn, &seed_phrase).map_err(|e| Error::Wallet(e.into()))?;
+        wallet::wallet::init(seed_phrase_manager, db_conn, &seed_phrase)
+            .map_err(|e| Error::Wallet(e.into()))?;
 
         Ok(seed_phrase)
     }
 
     pub async fn restore(&self, seed_phrase: Mnemonic) -> Result<()> {
-        let private_key = {
+        let seed_phrase_manager =
+            wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
+        {
             let db_conn = &*self.db_pool.get()?;
-            wallet::wallet::restore(db_conn, seed_phrase).map_err(|e| Error::Wallet(e.into()))?;
-            wallet::db::wallet::get(db_conn)?.unwrap().private_key
+            wallet::wallet::restore(seed_phrase_manager.clone(), db_conn, seed_phrase)
+                .map_err(|e| Error::Wallet(e.into()))?;
         };
 
         wallet::node::restore(
+            seed_phrase_manager,
             self.db_pool.clone(),
             self.node_id,
             self.node_client.clone(),
-            Xpriv::from_str(&private_key)?,
         )
         .await
         .map_err(|e| Error::Wallet(e.into()))?;
@@ -121,7 +123,10 @@ impl WalletOps {
             wallet::mint::QuotePaymentIssue::Paid => {}
         }
 
+        let seed_phrase_manager =
+            wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
         wallet::mint::redeem_quote(
+            seed_phrase_manager,
             self.db_pool.clone(),
             &mut self.node_client,
             STARKNET_STR.to_string(),
@@ -142,6 +147,8 @@ impl WalletOps {
         asset: Asset,
         memo: Option<String>,
     ) -> Result<CompactWad<Unit>> {
+        let seed_phrase_manager =
+            wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
         let amount = amount
             .checked_mul(asset.scale_factor())
             .ok_or(anyhow!("amount too big"))?;
@@ -149,6 +156,7 @@ impl WalletOps {
             .convert_to_amount_and_unit(amount)
             .map_err(|e| Error::Other(e.into()))?;
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+            seed_phrase_manager,
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
@@ -193,7 +201,10 @@ impl WalletOps {
     }
 
     pub async fn receive(&mut self, wad: &CompactWad<Unit>) -> Result<()> {
+        let seed_phrase_manager =
+            wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
         wallet::receive_wad(
+            seed_phrase_manager,
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,
@@ -238,7 +249,10 @@ impl WalletOps {
         )
         .await?;
 
+        let seed_phrase_manager =
+            wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
         let _melt_response = wallet::melt::pay_quote(
+            seed_phrase_manager,
             self.db_pool.clone(),
             &mut self.node_client,
             self.node_id,

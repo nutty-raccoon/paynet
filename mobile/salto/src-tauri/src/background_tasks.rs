@@ -95,7 +95,9 @@ pub async fn fetch_and_emit_prices(
     Ok(())
 }
 
+// TODO: pause price fetching when app is not used (background/not-focused)
 pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app: tauri::AppHandle) {
+    let mut retry_delay = 1;
     loop {
         let res = fetch_and_emit_prices(&app, &config).await;
         if let Err(err) = res {
@@ -114,7 +116,11 @@ pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app: tauri::A
                 }
                 _ => {}
             };
+
+            tokio::time::sleep(Duration::from_secs(retry_delay)).await;
+            retry_delay = std::cmp::min(60, retry_delay * 2);
         } else {
+            retry_delay = 1;
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }

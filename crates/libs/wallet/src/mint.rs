@@ -11,6 +11,7 @@ use crate::{
     errors::{Error, handle_out_of_sync_keyset_errors},
     sync,
     types::{BlindingData, PreMints},
+    wallet::SeedPhraseManager,
 };
 
 pub async fn create_quote<U: Unit>(
@@ -70,7 +71,7 @@ pub async fn wait_for_quote_payment(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn redeem_quote(
-    app_identifier: &str,
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     method: String,
@@ -81,7 +82,7 @@ pub async fn redeem_quote(
 ) -> Result<(), Error> {
     let blinding_data = {
         let db_conn = pool.get()?;
-        BlindingData::load_from_db(app_identifier, &db_conn, node_id, unit)?
+        BlindingData::load_from_db(seed_phrase_manager, &db_conn, node_id, unit)?
     };
 
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
