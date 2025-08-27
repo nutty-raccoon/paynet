@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: eth_invoice_substreams
-  version: v0.1.5
+  version: v0.1.6
 
 imports:
   ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.0.spkg
@@ -31,7 +31,7 @@ modules:
       - params: string
       - source: sf.ethereum.type.v2.Block
     output:
-      type: proto:invoice_contract.v1.RemittanceEvents
+      type: proto:eth_invoice_contract.v1.RemittanceEvents
 
 network: eth_local
 

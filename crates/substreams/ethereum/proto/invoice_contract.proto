@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package invoice_contract.v1;
+package eth_invoice_contract.v1;
 
 message RemittanceEvents {
     repeated RemittanceEvent events = 1;

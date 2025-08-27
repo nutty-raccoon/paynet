@@ -1,4 +1,3 @@
-use crate::pb::{invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData};
 use anyhow::{Error, Result, anyhow, format_err};
 use db_node::PaymentEvent;
 use eth_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
@@ -19,15 +18,13 @@ use std::{
     env::{self, VarError},
     sync::Arc,
 };
-use substreams::SubstreamsEndpoint;
-use substreams_stream::{BlockResponse, SubstreamsStream};
+use substreams_streams::parse_inputs;
+use substreams_streams::pb::{
+    eth_invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData,
+};
+use substreams_streams::stream::{BlockResponse, SubstreamsStream};
+use substreams_streams::substreams::SubstreamsEndpoint;
 use tracing::{Level, debug, error, event};
-
-mod parse_inputs;
-#[allow(clippy::enum_variant_names)]
-mod pb;
-mod substreams;
-mod substreams_stream;
 
 pub async fn launch(
     pg_pool: PgPool,
@@ -35,7 +32,8 @@ pub async fn launch(
     chain_id: ChainId,
     cashier_account_address: Address,
 ) -> Result<()> {
-    let package = parse_inputs::read_package(vec![])?;
+    let package_path = "./eth-invoice-susbtream-v0.1.6.spkg";
+    let package = parse_inputs::read_package(package_path, vec![])?;
 
     let token = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,

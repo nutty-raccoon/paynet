@@ -22,6 +22,7 @@ nuts = { workspace = true }
 starknet = { workspace = true }
 starknet-types = { workspace = true }
 db-node = { workspace = true }
+substreams-streams = {workspace = true}
 
 [build-dependencies]
 reqwest = { version = "0.11", features = ["blocking"] }

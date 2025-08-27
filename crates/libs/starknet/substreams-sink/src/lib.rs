@@ -4,16 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use crate::pb::{invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData};
 use anyhow::{Error, Result, anyhow};
 use db_node::PaymentEvent;
 use futures::StreamExt;
 use http::Uri;
 use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
-use pb::{
-    invoice_contract::v1::RemittanceEvent,
-    sf::substreams::v1::module::input::{Input, Params},
-};
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,
@@ -24,15 +19,17 @@ use sqlx::{
 };
 use starknet::core::types::Felt;
 use starknet_types::{ChainId, StarknetU256, Unit, constants::ON_CHAIN_CONSTANTS};
-use substreams::SubstreamsEndpoint;
-use substreams_stream::{BlockResponse, SubstreamsStream};
+use substreams_streams::parse_inputs;
+use substreams_streams::pb::{
+    invoice_contract::v1::RemittanceEvent,
+    sf::substreams::v1::module::input::{Input, Params},
+};
+use substreams_streams::pb::{
+    invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData,
+};
+use substreams_streams::stream::{BlockResponse, SubstreamsStream};
+use substreams_streams::substreams::SubstreamsEndpoint;
 use tracing::{Level, debug, error, event};
-
-mod parse_inputs;
-#[allow(clippy::enum_variant_names)]
-mod pb;
-mod substreams;
-mod substreams_stream;
 
 pub async fn launch(
     pg_pool: PgPool,
@@ -44,7 +41,8 @@ pub async fn launch(
     const OUTPUT_MODULE_NAME: &str = "map_invoice_contract_events";
     const STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME: &str = "starknet:filtered_transactions";
 
-    let mut package = parse_inputs::read_package(vec![])?;
+    let package_path = "./starknet-invoice-substream-v0.2.2.spkg";
+    let mut package = parse_inputs::read_package(package_path, vec![])?;
 
     let token = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,

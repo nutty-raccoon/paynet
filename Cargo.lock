@@ -1657,6 +1657,7 @@ dependencies = [
  "prost-types 0.13.5",
  "reqwest 0.11.27",
  "sqlx",
+ "substreams-streams",
  "tokio",
  "tokio-retry",
  "tonic 0.12.3",
@@ -6044,6 +6045,7 @@ dependencies = [
  "sqlx",
  "starknet",
  "starknet-types",
+ "substreams-streams",
  "tokio",
  "tokio-retry",
  "tonic 0.12.3",
@@ -6239,6 +6241,20 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "substreams-streams"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "futures",
+ "prost 0.13.5",
+ "prost-types 0.13.5",
+ "tokio",
+ "tokio-retry",
+ "tonic 0.12.3",
 ]
 
 [[package]]

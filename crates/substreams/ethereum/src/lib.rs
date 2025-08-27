@@ -1,6 +1,6 @@
 mod abi;
 mod pb;
-use pb::invoice_contract::v1::{RemittanceEvent, RemittanceEvents};
+use pb::eth_invoice_contract::v1::{RemittanceEvent, RemittanceEvents};
 use substreams::errors::Error;
 use substreams::Hex;
 use substreams_ethereum::pb::eth::v2 as eth;

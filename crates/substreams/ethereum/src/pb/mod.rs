@@ -1,9 +1,9 @@
 // @generated
-pub mod invoice_contract {
-    // @@protoc_insertion_point(attribute:invoice_contract.v1)
+pub mod eth_invoice_contract {
+    // @@protoc_insertion_point(attribute:eth_invoice_contract.v1)
     pub mod v1 {
-        include!("invoice_contract.v1.rs");
-        // @@protoc_insertion_point(invoice_contract.v1)
+        include!("eth_invoice_contract.v1.rs");
+        // @@protoc_insertion_point(eth_invoice_contract.v1)
     }
 }
 pub mod sf {
