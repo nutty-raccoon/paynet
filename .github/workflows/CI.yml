@@ -72,6 +72,9 @@ jobs:
   movile-clippy:
     name: Check clippy (mobile)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
@@ -93,8 +96,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          working-directory: mobile
-          shared-key: rust-mobile-cache-clippy-${{ hashFiles('Cargo.lock') }}
+          shared-key: rust-mobile-clippy-${{ hashFiles('mobile/Cargo.lock') }}
           cache-on-failure: true
           cache-all-crates: true
       - name: Create fake certificate
