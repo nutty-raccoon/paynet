@@ -26,10 +26,10 @@ impl SeedPhraseManager {
     pub fn new(pool: Pool<SqliteConnectionManager>) -> Result<Self, Error> {
         {
             let conn = pool.get()?;
-            const CREATE_TABLE_SEED_PHRASE: &str = "CREATE TABLE IF NOT EXISTS singleton (
+            const CREATE_TABLE_SEED_PHRASE: &str = r#"CREATE TABLE IF NOT EXISTS singleton (
                 key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-            );";
+                value TEXT NOT NULL
+            );"#;
             conn.execute(CREATE_TABLE_SEED_PHRASE, ())?;
         }
 
@@ -41,7 +41,7 @@ impl super::SeedPhraseManager for SeedPhraseManager {
     type Error = Error;
 
     fn store_seed_phrase(&self, seed_phrase: &bip39::Mnemonic) -> Result<(), Self::Error> {
-        const STORE_SEED_PHRASE: &str = "INSERT INTO seed_phrase (key, value) VALUES ($1, $2);";
+        const STORE_SEED_PHRASE: &str = "INSERT INTO singleton (key, value) VALUES ($1, $2);";
 
         let conn = self.pool.get()?;
         conn.execute(
@@ -53,7 +53,7 @@ impl super::SeedPhraseManager for SeedPhraseManager {
     }
 
     fn get_seed_phrase(&self) -> Result<Option<Mnemonic>, Self::Error> {
-        const GET_SEED_PHRASE: &str = "SELECT FROM seed_phrase value WHERE key = $1 LIMIT 1;";
+        const GET_SEED_PHRASE: &str = "SELECT value FROM singleton WHERE key = $1 LIMIT 1;";
 
         let conn = self.pool.get()?;
         let opt_seed_phrase_string = conn
