@@ -129,7 +129,7 @@ pub async fn redeem_quote(
     if mint_quote.state != MintQuoteState::Paid {
         return Err(RedeemQuoteError::QuoteNotPaid);
     }
-    
+
     wallet::mint::redeem_quote(
         crate::SEED_PHRASE_MANAGER,
         state.pool.clone(),
