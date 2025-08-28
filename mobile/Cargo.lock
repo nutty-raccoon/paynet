@@ -3718,6 +3718,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "parse-asset-amount"
+version = "0.1.0"
+dependencies = [
+ "nuts",
+ "primitive-types 0.13.1",
+ "thiserror 2.0.12",
+ "uint 0.10.0",
+]
+
+[[package]]
 name = "pathdiff"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4796,9 +4806,11 @@ version = "0.1.0"
 dependencies = [
  "android-keyring",
  "bitcoin",
+ "itertools",
  "log",
  "num-traits",
  "nuts",
+ "parse-asset-amount",
  "primitive-types 0.13.1",
  "r2d2",
  "r2d2_sqlite",
@@ -4818,7 +4830,6 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
- "uint 0.10.0",
  "uuid 1.17.0",
  "wallet",
 ]

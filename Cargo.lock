@@ -768,6 +768,7 @@ dependencies = [
  "itertools",
  "node-client",
  "nuts",
+ "parse-asset-amount",
  "primitive-types 0.13.1",
  "r2d2",
  "r2d2_sqlite",
@@ -2894,6 +2895,17 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "parse-asset-amount"
+version = "0.1.0"
+dependencies = [
+ "nuts",
+ "primitive-types 0.13.1",
+ "starknet-types",
+ "thiserror 2.0.12",
+ "uint 0.10.0",
 ]
 
 [[package]]

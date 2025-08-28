@@ -39,19 +39,20 @@ r2d2 = { workspace = true }
 thiserror = { workspace = true }
 primitive-types = { workspace = true }
 num-traits = { workspace = true }
-uint = { workspace = true }
 log = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+itertools = { workspace = true }
 tonic = { workspace = true, features = ["tls-ring"] }
 
 # Local
 wallet = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
+parse-asset-amount = { workspace = true }
 
 # Keyring
 [target.'cfg(target_os = "android")'.dependencies]

@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use nuts::traits::Unit as UnitT;
+use starknet_types::Asset;
 use tauri::State;
 use wallet::{db::balance::Balance, types::NodeUrl};
 
@@ -23,6 +25,8 @@ pub enum AddNodeError {
     Bip32(#[from] bitcoin::bip32::Error),
     #[error("failed to connect to node: {0}")]
     ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error("failed parse db unit: {0}")]
+    Unit(#[from] starknet_types::UnitFromStrError),
 }
 
 impl serde::Serialize for AddNodeError {
@@ -53,13 +57,10 @@ pub async fn add_node(
     let new_assets = balances
         .clone()
         .into_iter()
-        .map(|b| {
-            if b.unit.to_lowercase() == "millistrk" {
-                return "strk".to_string();
-            }
-            b.unit.to_lowercase()
+        .map(|b| -> Result<Asset, _> {
+            starknet_types::Unit::from_str(&b.unit).map(|u| u.matching_asset())
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     state
         .get_prices_config
         .write()

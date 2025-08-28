@@ -29,14 +29,30 @@ use once_cell::sync::Lazy;
 pub mod traits {
     use std::{
         fmt::{Debug, Display},
+        hash::Hash,
         str::FromStr,
     };
 
     pub trait Method: Debug + Display + FromStr {}
 
+    pub trait Asset: Copy + Clone + AsRef<str> + Hash {
+        fn precision(&self) -> u8;
+    }
+
     pub trait Unit:
         FromStr + AsRef<str> + Sized + Debug + Copy + Clone + Display + Into<u32> + Eq + PartialEq
     {
+        type Asset: Asset;
+
+        ///
+        /// Verifies that an asset is compatible with this unit
+        ///
+        /// This check helps to catch accidental mismatches between units and assets early.
+        fn is_asset_supported(&self, asset: Self::Asset) -> bool;
+        /// How much to multiply the unit amount by in order to convet to the original asset precision
+        fn scale_order(&self) -> u8;
+
+        fn matching_asset(&self) -> Self::Asset;
     }
 
     #[cfg(test)]
@@ -45,7 +61,7 @@ pub mod traits {
 
         use crate::Error;
 
-        use super::{Method, Unit};
+        use super::{Asset, Method, Unit};
 
         #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
         #[serde(rename_all = "lowercase")]
@@ -54,6 +70,29 @@ pub mod traits {
             Msat,
             Usd,
             Eur,
+        }
+
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Hash)]
+        pub enum TestAsset {
+            Btc,
+            Usd,
+            Eur,
+        }
+
+        impl AsRef<str> for TestAsset {
+            fn as_ref(&self) -> &str {
+                match self {
+                    TestAsset::Btc => "BTC",
+                    TestAsset::Usd => "eur",
+                    TestAsset::Eur => "usd",
+                }
+            }
+        }
+
+        impl Asset for TestAsset {
+            fn precision(&self) -> u8 {
+                8
+            }
         }
 
         impl Display for TestUnit {
@@ -88,7 +127,30 @@ pub mod traits {
             }
         }
 
-        impl Unit for TestUnit {}
+        impl Unit for TestUnit {
+            type Asset = TestAsset;
+
+            fn is_asset_supported(&self, asset: Self::Asset) -> bool {
+                match asset {
+                    TestAsset::Btc => true,
+                    TestAsset::Usd => true,
+                    TestAsset::Eur => true,
+                }
+            }
+
+            fn scale_order(&self) -> u8 {
+                1
+            }
+
+            fn matching_asset(&self) -> Self::Asset {
+                match self {
+                    TestUnit::Sat => TestAsset::Btc,
+                    TestUnit::Msat => TestAsset::Btc,
+                    TestUnit::Usd => TestAsset::Usd,
+                    TestUnit::Eur => TestAsset::Eur,
+                }
+            }
+        }
 
         impl AsRef<str> for TestUnit {
             fn as_ref(&self) -> &str {

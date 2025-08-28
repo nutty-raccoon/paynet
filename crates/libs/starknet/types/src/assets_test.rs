@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    // use super::*;
     use crate::Asset;
     use crate::Unit;
     use nuts::Amount;
+    use nuts::traits::Asset as AssetT;
     use primitive_types::U256;
     use std::str::FromStr;
 
@@ -11,9 +11,9 @@ mod tests {
     fn test_asset_from_str() {
         assert_eq!(Asset::from_str("strk").unwrap(), Asset::Strk);
         assert_eq!(Asset::from_str("eth").unwrap(), Asset::Eth);
-        assert_eq!(Asset::from_str("btc").unwrap(), Asset::WBtc);
-        assert_eq!(Asset::from_str("usdc").unwrap(), Asset::Usdc);
-        assert_eq!(Asset::from_str("usdt").unwrap(), Asset::Usdt);
+        assert_eq!(Asset::from_str("wbtc").unwrap(), Asset::WBtc);
+        assert_eq!(Asset::from_str("usdc").unwrap(), Asset::UsdC);
+        assert_eq!(Asset::from_str("usdt").unwrap(), Asset::UsdT);
         assert!(Asset::from_str("invalid").is_err());
     }
 
@@ -22,8 +22,8 @@ mod tests {
         assert_eq!(Asset::Strk.precision(), 18);
         assert_eq!(Asset::Eth.precision(), 18);
         assert_eq!(Asset::WBtc.precision(), 8);
-        assert_eq!(Asset::Usdc.precision(), 6);
-        assert_eq!(Asset::Usdt.precision(), 6);
+        assert_eq!(Asset::UsdC.precision(), 6);
+        assert_eq!(Asset::UsdT.precision(), 6);
     }
 
     #[test]
@@ -37,8 +37,8 @@ mod tests {
             U256::from(1_000_000_000_000_000_000u64)
         );
         assert_eq!(Asset::WBtc.scale_factor(), U256::from(100_000_000u64));
-        assert_eq!(Asset::Usdc.scale_factor(), U256::from(1_000_000u64));
-        assert_eq!(Asset::Usdt.scale_factor(), U256::from(1_000_000u64));
+        assert_eq!(Asset::UsdC.scale_factor(), U256::from(1_000_000u64));
+        assert_eq!(Asset::UsdT.scale_factor(), U256::from(1_000_000u64));
     }
 
     #[test]
@@ -46,8 +46,8 @@ mod tests {
         assert_eq!(Asset::Strk.find_best_unit(), Unit::MilliStrk);
         assert_eq!(Asset::Eth.find_best_unit(), Unit::Gwei);
         assert_eq!(Asset::WBtc.find_best_unit(), Unit::Satoshi);
-        assert_eq!(Asset::Usdc.find_best_unit(), Unit::CentUsd);
-        assert_eq!(Asset::Usdt.find_best_unit(), Unit::CentUsd);
+        assert_eq!(Asset::UsdC.find_best_unit(), Unit::MicroUsdC);
+        assert_eq!(Asset::UsdT.find_best_unit(), Unit::MicroUsdT);
     }
 
     #[test]
@@ -75,9 +75,16 @@ mod tests {
 
         // Test USDC conversion
         let usdc_amount = U256::from(1_000_000u64); // 1 USDC
-        let (amount, unit, rem) = Asset::Usdc.convert_to_amount_and_unit(usdc_amount).unwrap();
-        assert_eq!(amount, Amount::from(100u64)); // Should be 100 cents
-        assert_eq!(unit, Unit::CentUsd);
+        let (amount, unit, rem) = Asset::UsdC.convert_to_amount_and_unit(usdc_amount).unwrap();
+        assert_eq!(amount, Amount::from(1_000_000u64)); // Should be 100 cents
+        assert_eq!(unit, Unit::MicroUsdC);
+        assert_eq!(rem, U256::zero());
+
+        // Test USDT conversion
+        let usdt_amount = U256::from(1_000_000u64); // 1 USDC
+        let (amount, unit, rem) = Asset::UsdT.convert_to_amount_and_unit(usdt_amount).unwrap();
+        assert_eq!(amount, Amount::from(1_000_000u64)); // Should be 100 cents
+        assert_eq!(unit, Unit::MicroUsdT);
         assert_eq!(rem, U256::zero());
     }
 }

@@ -1,3 +1,4 @@
+use itertools::intersperse;
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},
@@ -38,17 +39,6 @@ pub struct CurrencyValue {
     value: f64,
 }
 
-fn format_balance(assets: Vec<String>) -> Vec<String> {
-    assets
-        .into_iter()
-        .map(|a| match a.as_str() {
-            "millistrk" => "strk".to_string(),
-            "gwei" => "ETH".to_string(),
-            _ => a,
-        })
-        .collect()
-}
-
 fn pick_value(tokens: &[CurrencyValue], wanted: &str) -> Option<f64> {
     tokens
         .iter()
@@ -61,19 +51,12 @@ pub async fn fetch_and_emit_prices(
     app: &tauri::AppHandle,
     config: &Arc<RwLock<PriceConfig>>,
 ) -> Result<(), Error> {
-    let (host, currency, assets) = {
+    let url = {
         let cfg = config.read().await;
-        (cfg.url.clone(), cfg.currency.clone(), {
-            let mut a: Vec<_> = cfg.assets.iter().cloned().collect();
-            a.sort();
-            a
-        })
+        let mut url = format!("{}/prices?currencies={}&assets=", cfg.url, cfg.currency);
+        url.extend(intersperse(cfg.assets.iter().map(|a| a.as_str()), ","));
+        url
     };
-    let format_assets = format_balance(assets);
-    let mut url = format!("{}/prices?currencies={}", host, currency);
-    url.push_str("&assets=");
-    url.push_str(&format_assets.join(","));
-
     let resp: PriceProviderResponse = reqwest::get(url).await?.error_for_status()?.json().await?;
 
     let payload: Vec<NewPriceResp> = {

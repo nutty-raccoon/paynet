@@ -2,17 +2,17 @@ mod background_tasks;
 mod commands;
 mod errors;
 mod migrations;
-mod parse_asset_amount;
 
 use commands::{
     add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
     get_nodes_balance, get_wad_history, init_wallet, receive_wads, redeem_quote,
     refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
 };
+use nuts::traits::Unit as UnitT;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use std::time::SystemTime;
-use std::{collections::HashSet, env, sync::Arc};
+use starknet_types::Asset;
+use std::{collections::HashSet, env, str::FromStr, sync::Arc, time::SystemTime};
 use tauri::{Listener, Manager, async_runtime};
 use tokio::sync::RwLock;
 use tonic::transport::Certificate;
@@ -56,12 +56,8 @@ pub fn run() {
                     if let Ok(nodes_balances) = wallet::db::balance::get_for_all_nodes(&conn) {
                         for nb in nodes_balances {
                             for b in nb.balances {
-                                let unit = if b.unit.eq_ignore_ascii_case("millistrk") {
-                                    "strk".to_string()
-                                } else {
-                                    b.unit.to_lowercase()
-                                };
-                                initial_assets.insert(unit);
+                                let unit = starknet_types::Unit::from_str(&b.unit)?;
+                                initial_assets.insert(unit.matching_asset());
                             }
                         }
                     }
@@ -128,7 +124,7 @@ struct AppState {
 #[derive(Clone, Debug)]
 pub struct PriceConfig {
     pub currency: String,
-    pub assets: HashSet<String>,
+    pub assets: HashSet<Asset>,
     pub url: String,
     pub status: PriceSyncStatus,
 }

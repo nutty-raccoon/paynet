@@ -9,6 +9,7 @@ use tonic::transport::Channel;
 use crate::{
     acknowledge, db,
     errors::{Error, handle_out_of_sync_keyset_errors},
+    node::refresh_keysets,
     sync,
     types::{BlindingData, PreMints},
     wallet::SeedPhraseManager,
@@ -80,6 +81,8 @@ pub async fn redeem_quote(
     unit: &str,
     total_amount: Amount,
 ) -> Result<(), Error> {
+    refresh_keysets(pool.clone(), node_client, node_id).await?;
+
     let blinding_data = {
         let db_conn = pool.get()?;
         BlindingData::load_from_db(seed_phrase_manager, &db_conn, node_id, unit)?

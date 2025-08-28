@@ -12,22 +12,29 @@ use starknet_types_core::felt::Felt;
 
 use crate::Asset;
 
-#[derive(Debug, Clone)]
-pub struct AssetsAddress([(Asset, Felt); 5]);
+#[derive(Debug, Clone, Copy)]
+pub enum AssetsAddress {
+    Sepolia([(Asset, Felt); 5]),
+    Devnet([(Asset, Felt); 2]),
+}
 
 impl AssetsAddress {
     pub fn get_contract_address_for_asset(&self, asset: Asset) -> Option<Felt> {
-        self.0
-            .iter()
-            .find(|(a, _)| asset == *a)
-            .map(|(_, address)| *address)
+        match self {
+            AssetsAddress::Sepolia(a) => a.iter(),
+            AssetsAddress::Devnet(a) => a.iter(),
+        }
+        .find(|(a, _)| asset == *a)
+        .map(|(_, address)| *address)
     }
 
     pub fn get_asset_for_contract_address(&self, contract_address: Felt) -> Option<Asset> {
-        self.0
-            .iter()
-            .find(|(_, a)| contract_address == *a)
-            .map(|(asset, _)| *asset)
+        match self {
+            AssetsAddress::Sepolia(a) => a.iter(),
+            AssetsAddress::Devnet(a) => a.iter(),
+        }
+        .find(|(_, a)| contract_address == *a)
+        .map(|(asset, _)| *asset)
     }
 }
 
@@ -35,7 +42,7 @@ impl AssetsAddress {
 ///
 /// These addresses are network-specific and have been verified to be the official
 /// token contracts.
-const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
+const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress::Sepolia([
     (
         Asset::Strk,
         Felt::from_hex_unchecked(
@@ -51,25 +58,25 @@ const SEPOLIA_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
     (
         Asset::WBtc,
         Felt::from_hex_unchecked(
-            "0x02b0df9e3b889c410a7a7e528a354d4a8a8e7e0b9c3a973d9a8e5e2a0a1f7e7b",
+            "0x00452bd5c0512a61df7c7be8cfea5e4f893cb40e126bdc40aee6054db955129e",
         ),
     ),
     (
-        Asset::Usdc,
+        Asset::UsdC,
         Felt::from_hex_unchecked(
-            "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+            "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080",
         ),
     ),
     (
-        Asset::Usdt,
+        Asset::UsdT,
         Felt::from_hex_unchecked(
-            "0x068f5c6a61780768455de69077e07e89787839bf8166decfbf92b645209c0fb8",
+            "0x02ab8758891e84b968ff11361789070c6b1af2df618d6d2f4a78b0757573c6eb",
         ),
     ),
 ]);
 
 /// Devnet assets with placeholder addresses
-const DEVNET_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
+const DEVNET_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress::Devnet([
     (
         Asset::Strk,
         Felt::from_hex_unchecked(
@@ -80,24 +87,6 @@ const DEVNET_ASSETS_ADDRESSES: AssetsAddress = AssetsAddress([
         Asset::Eth,
         Felt::from_hex_unchecked(
             "0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7",
-        ),
-    ),
-    (
-        Asset::WBtc,
-        Felt::from_hex_unchecked(
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        ),
-    ),
-    (
-        Asset::Usdc,
-        Felt::from_hex_unchecked(
-            "0x0000000000000000000000000000000000000000000000000000000000000002",
-        ),
-    ),
-    (
-        Asset::Usdt,
-        Felt::from_hex_unchecked(
-            "0x0000000000000000000000000000000000000000000000000000000000000003",
         ),
     ),
 ]);
@@ -130,6 +119,6 @@ pub static ON_CHAIN_CONSTANTS: phf::Map<&'static str, OnChainConstants> = phf::p
         invoice_payment_contract_address: Felt::from_hex_unchecked("0x054eb8613832317fc641555b852b0a3b4cef5cc444fccab5e3de94430fb8fcda"),
         // The default starknet-devnet config reuses Sepolia asset addresses
         // TODO: will only work for `eth` and `strk` assets. So we will change it later on.
-        assets_contract_address: SEPOLIA_ASSETS_ADDRESSES,
+        assets_contract_address: DEVNET_ASSETS_ADDRESSES,
     },
 };

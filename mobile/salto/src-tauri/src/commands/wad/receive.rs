@@ -1,10 +1,12 @@
 use std::collections::HashSet;
 
-use starknet_types::{AssetFromStrError, AssetToUnitConversionError, Unit};
+use nuts::traits::Unit as UnitT;
+use parse_asset_amount::ParseAmountStringError;
+use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, Unit};
 use tauri::{AppHandle, Emitter, State};
 use wallet::types::compact_wad::{self, CompactWad, CompactWads};
 
-use crate::{AppState, commands::BalanceChange, parse_asset_amount::ParseAmountStringError};
+use crate::{AppState, commands::BalanceChange};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveWadsError {
@@ -48,7 +50,7 @@ pub async fn receive_wads(
     wads: String,
 ) -> Result<(), ReceiveWadsError> {
     let wads: CompactWads<Unit> = wads.parse()?;
-    let mut new_assets: HashSet<String> = HashSet::new();
+    let mut new_assets: HashSet<Asset> = HashSet::new();
 
     for wad in wads.0 {
         let CompactWad {
@@ -81,7 +83,7 @@ pub async fn receive_wads(
                 amount: amount_received.into(),
             },
         )?;
-        new_assets.insert(wad.unit.as_str().to_string());
+        new_assets.insert(wad.unit.matching_asset());
     }
 
     state

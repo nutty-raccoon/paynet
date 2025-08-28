@@ -9,6 +9,7 @@ use anyhow::{Error, Result, anyhow};
 use db_node::PaymentEvent;
 use futures::StreamExt;
 use http::Uri;
+use nuts::traits::Unit as UnitT;
 use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
 use pb::{
     invoice_contract::v1::RemittanceEvent,

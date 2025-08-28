@@ -3,6 +3,7 @@ use clap::{Args, Parser, Subcommand, ValueHint};
 use colored::*;
 use node_client::NodeClient;
 use nuts::Amount;
+use parse_asset_amount::parse_asset_amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -54,8 +55,8 @@ enum MintCommands {
     )]
     New {
         /// Amount requested
-        #[arg(long, value_parser = parse_asset_amount)]
-        amount: U256,
+        #[arg(long)]
+        amount: String,
         /// Asset requested
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
@@ -111,8 +112,8 @@ enum Commands {
     )]
     Melt {
         /// Amount to melt
-        #[arg(long, value_parser = parse_asset_amount)]
-        amount: U256,
+        #[arg(long)]
+        amount: String,
         /// Unit to melt
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
@@ -130,7 +131,7 @@ enum Commands {
     )]
     Send {
         /// Amount to send
-        #[arg(long, value_parser = parse_asset_amount)]
+        #[arg(long)]
         amount: U256,
         /// Unit to send
         #[arg(long, value_parser = Asset::from_str)]
@@ -355,10 +356,8 @@ async fn main() -> Result<()> {
             let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
             println!("Requesting {} to mint {} {}", &node_url, amount, asset);
 
-            let amount = amount
-                .checked_mul(asset.scale_factor())
-                .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
-            let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
+            let unit = asset.find_best_unit();
+            let amount = parse_asset_amount(&amount, asset, unit)?;
 
             let mint_quote_response = wallet::mint::create_quote(
                 pool.clone(),
@@ -392,7 +391,7 @@ async fn main() -> Result<()> {
                     let encoded_payload = urlencoding::encode(&payload_json);
 
                     let url = format!(
-                        "http://localhost:3005/deposit/{}/{}/?payload={}",
+                        "https://localhost:3005/deposit/{}/{}/?payload={}",
                         STARKNET_STR,
                         deposit_payload.chain_id.as_str(),
                         encoded_payload
@@ -444,11 +443,9 @@ async fn main() -> Result<()> {
 
             println!("Melting {} {} tokens", amount, asset);
 
-            // Convert user inputs to actionable types
-            let on_chain_amount = amount
-                .checked_mul(asset.scale_factor())
-                .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let unit = asset.find_best_unit();
+            let amount = parse_asset_amount(&amount, asset, unit)?;
+            let on_chain_amount = unit.convert_amount_into_u256(amount);
 
             let payee_address = Felt::from_hex(&to)?;
             if !is_valid_starknet_address(&payee_address) {
@@ -754,13 +751,4 @@ pub async fn connect_to_node(
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
     let node_client = wallet::connect_to_node(&node_url, None).await?;
     Ok((node_client, node_url))
-}
-
-pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
-    if amount.starts_with("0x") || amount.starts_with("0X") {
-        U256::from_str_radix(amount, 16)
-    } else {
-        U256::from_str_radix(amount, 10)
-    }
-    .map_err(std::io::Error::other)
 }

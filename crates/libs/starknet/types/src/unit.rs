@@ -14,7 +14,8 @@ use crate::Asset;
 const GWEI_STR: &str = "gwei";
 const MILLI_STR: &str = "millistrk";
 const SATOSHI_STR: &str = "satoshi";
-const CENT_USD_STR: &str = "centusd";
+const MICRO_USDT_STR: &str = "microusdt";
+const MICRO_USDC_STR: &str = "microusdc";
 
 /// Represents units supported by the node for user-facing operations
 ///
@@ -25,7 +26,8 @@ pub enum Unit {
     MilliStrk,
     Gwei,
     Satoshi,
-    CentUsd,
+    MicroUsdT,
+    MicroUsdC,
 }
 
 /// Maps a unit to its corresponding blockchain asset
@@ -39,7 +41,8 @@ impl Unit {
             Unit::MilliStrk => Asset::Strk,
             Unit::Gwei => Asset::Eth,
             Unit::Satoshi => Asset::WBtc,
-            Unit::CentUsd => Asset::Usdc,
+            Unit::MicroUsdT => Asset::UsdT,
+            Unit::MicroUsdC => Asset::UsdC,
         }
     }
 
@@ -48,7 +51,8 @@ impl Unit {
             Unit::MilliStrk => MILLI_STR,
             Unit::Gwei => GWEI_STR,
             Unit::Satoshi => SATOSHI_STR,
-            Unit::CentUsd => CENT_USD_STR,
+            Unit::MicroUsdT => MICRO_USDT_STR,
+            Unit::MicroUsdC => MICRO_USDC_STR,
         }
     }
 }
@@ -68,7 +72,8 @@ impl From<Unit> for u32 {
             Unit::MilliStrk => 0,
             Unit::Gwei => 1,
             Unit::Satoshi => 2,
-            Unit::CentUsd => 3,
+            Unit::MicroUsdT => 3,
+            Unit::MicroUsdC => 4,
         }
     }
 }
@@ -86,7 +91,8 @@ impl FromStr for Unit {
             MILLI_STR => Self::MilliStrk,
             GWEI_STR => Self::Gwei,
             SATOSHI_STR => Self::Satoshi,
-            CENT_USD_STR => Self::CentUsd,
+            MICRO_USDT_STR => Self::MicroUsdT,
+            MICRO_USDC_STR => Self::MicroUsdC,
             _ => return Err(UnitFromStrError),
         };
 
@@ -103,7 +109,41 @@ impl std::fmt::Display for Unit {
 // Implementing nuts::traits::Unit enables this type to work with the rest of the protocol code.
 // Required because we will be supporting different sets of Units in the future.
 // Most likely, one by network we abstract.
-impl nuts::traits::Unit for Unit {}
+impl nuts::traits::Unit for Unit {
+    type Asset = crate::Asset;
+
+    fn matching_asset(&self) -> Self::Asset {
+        match self {
+            Unit::MilliStrk => Asset::Strk,
+            Unit::Gwei => Asset::Eth,
+            Unit::Satoshi => Asset::WBtc,
+            Unit::MicroUsdT => Asset::UsdT,
+            Unit::MicroUsdC => Asset::UsdC,
+        }
+    }
+
+    fn is_asset_supported(&self, asset: Self::Asset) -> bool {
+        matches!(
+            (self, asset),
+            (Unit::MilliStrk, Asset::Strk)
+                | (Unit::Gwei, Asset::Eth)
+                | (Unit::Satoshi, Asset::WBtc)
+                | (Unit::MicroUsdT, Asset::UsdC)
+                | (Unit::MicroUsdT, Asset::UsdT)
+                | (Unit::MicroUsdC, Asset::UsdC)
+        )
+    }
+
+    fn scale_order(&self) -> u8 {
+        match self {
+            Unit::MilliStrk => 15,
+            Unit::Gwei => 9,
+            Unit::Satoshi => 0,
+            Unit::MicroUsdT => 0,
+            Unit::MicroUsdC => 0,
+        }
+    }
+}
 
 // Conversion factor between an `Unit::Strk` `Amount` and its blockchain-native representation.
 // The starknet STRK token has a precision of 18. Meaning that 1 STRK = 10^18 wei.
@@ -120,35 +160,13 @@ impl Unit {
             Unit::MilliStrk => 1_000_000_000_000_000,
             Unit::Gwei => 1_000_000_000,
             Unit::Satoshi => 1,
-            Unit::CentUsd => 1,
-        }
-    }
-
-    pub fn scale_order(&self) -> u8 {
-        match self {
-            Unit::MilliStrk => 15,
-            Unit::Gwei => 9,
-            Unit::Satoshi => 0,
-            Unit::CentUsd => 0,
+            Unit::MicroUsdT => 1,
+            Unit::MicroUsdC => 1,
         }
     }
 
     /// Converts an amount of unit to its blockchain-native representation
     pub fn convert_amount_into_u256(&self, amount: Amount) -> U256 {
         U256::from(u64::from(amount)) * U256::from(self.scale_factor())
-    }
-    ///
-    /// Verifies that an asset is compatible with this unit
-    ///
-    /// This check helps to catch accidental mismatches between units and assets early.
-    pub fn is_asset_supported(&self, asset: Asset) -> bool {
-        matches!(
-            (self, asset),
-            (Unit::MilliStrk, Asset::Strk)
-                | (Unit::Gwei, Asset::Eth)
-                | (Unit::Satoshi, Asset::WBtc)
-                | (Unit::CentUsd, Asset::Usdc)
-                | (Unit::CentUsd, Asset::Usdt)
-        )
     }
 }

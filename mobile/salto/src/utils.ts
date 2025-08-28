@@ -8,9 +8,15 @@ import type { Balance, BalanceChange, NodeData } from "./types";
 export function formatBalance(balance: Balance): {amount: number, asset: string} {
   switch(balance.unit) {
     case "millistrk":
-      return { asset: "STRK", amount: balance.amount / 1000};
+      return { asset: "STRK", amount: balance.amount / 1_000};
     case "gwei":
-      return { asset: "ETH", amount: balance.amount / 1000000000};
+      return { asset: "ETH", amount: balance.amount / 1_000_000_000};
+    case "microusdc":
+      return { asset: "USDC", amount: balance.amount / 1_000_000};
+    case "microusdt":
+      return { asset: "USDT", amount: balance.amount / 1_000_000};
+    case "wbtc":
+      return { asset: "wBTC", amount: balance.amount / 100_000_000};
     default:
       return {asset: balance.unit.toLocaleUpperCase(), amount: balance.amount};
    }

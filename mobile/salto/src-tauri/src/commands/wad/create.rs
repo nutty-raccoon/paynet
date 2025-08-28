@@ -5,11 +5,8 @@ use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, Emitter, State};
 use wallet::types::compact_wad::CompactWads;
 
-use crate::{
-    AppState,
-    commands::BalanceChange,
-    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
-};
+use crate::{AppState, commands::BalanceChange};
+use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CreateWadsError {
