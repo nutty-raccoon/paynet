@@ -46,7 +46,6 @@ pub fn get(conn: &Connection) -> Result<Option<Wallet>> {
     Ok(Some(wallet))
 }
 
-
 pub fn get_wallets(conn: &Connection) -> Result<Vec<Wallet>> {
     let sql = r#"
         SELECT created_at, updated_at, is_restored
