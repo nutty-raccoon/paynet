@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = {workspace = true}
 nuts = { workspace = true, features = ["sqlx"] }
 uuid = { workspace = true, features = ["v4"] }
 thiserror = { workspace = true }
@@ -13,6 +14,8 @@ dotenvy = { workspace = true }
 sha2 = { workspace = true }
 tracing = { workspace = true }
 futures-util = { workspace = true }
+hex = {workspace = true}
+primitive-types = { workspace = true }
 
 [dev-dependencies]
 sqlx = { workspace = true, features = ["runtime-tokio"] }

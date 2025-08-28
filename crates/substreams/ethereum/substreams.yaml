@@ -1,0 +1,39 @@
+specVersion: v0.1.0
+package:
+  name: eth_invoice_substreams
+  version: v0.1.6
+
+imports:
+  ethcommon: https://spkg.io/streamingfast/ethereum-common-v0.3.0.spkg
+
+protobuf:
+  files:
+    - invoice_contract.proto
+  importPaths:
+    - ./proto
+  excludePaths:
+    - sf/substreams/index
+    - sf/substreams/rpc
+    - sf/substreams/sink
+    - sf/substreams/v1
+    - google
+
+binaries:
+  default:
+    type: wasm/rust-v1+wasm-bindgen-shims
+    file: ../../../target/wasm32-unknown-unknown/release/eth_invoice_substreams.wasm
+
+modules:
+  - name: map_invoice_contract_events
+    kind: map
+    initialBlock: 0
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:eth_invoice_contract.v1.RemittanceEvents
+
+network: eth_local
+
+params:
+  map_invoice_contract_events: "0x503028d1f0c7a55d49c872745bb99dac084f959c"

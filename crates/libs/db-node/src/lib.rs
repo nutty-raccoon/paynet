@@ -15,6 +15,7 @@ pub mod mint_payment_event;
 pub mod mint_quote;
 pub mod proof;
 pub use proof::InsertSpentProofsQueryBuilder;
+pub mod substream_handlers;
 
 #[derive(Debug, Error)]
 pub enum Error {

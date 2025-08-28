@@ -1,5 +1,5 @@
 [package]
-name = "starknet-substreams-sink"
+name = "eth-substreams-sink"
 version = "0.1.0"
 edition = "2024"
 
@@ -16,11 +16,13 @@ prost-types = { workspace = true }
 tracing = { workspace = true }
 primitive-types = { workspace = true }
 sqlx = { workspace = true, features = ["postgres", "chrono"] }
+hex = { workspace = true }
+ethers = { workspace = true }
+web3 = { workspace = true }
 
 # local
 nuts = { workspace = true }
-starknet = { workspace = true }
-starknet-types = { workspace = true }
+eth-types = { workspace = true }
 db-node = { workspace = true }
 substreams-streams = {workspace = true}
 

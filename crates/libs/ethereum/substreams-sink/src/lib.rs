@@ -1,27 +1,22 @@
-use std::{
-    env::{self, VarError},
-    sync::Arc,
-};
-
-use anyhow::{Error, Result, anyhow};
-use db_node::PaymentEvent;
-use db_node::substream_handlers;
+use anyhow::{Error, Result, anyhow, format_err};
+use db_node::{PaymentEvent, substream_handlers};
+use eth_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
+use ethers::types::Address;
 use futures::StreamExt;
 use http::Uri;
+use primitive_types::U256;
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,
     types::chrono::{DateTime, Utc},
 };
-use starknet::core::types::Felt;
-use starknet_types::{ChainId, Unit, constants::ON_CHAIN_CONSTANTS};
+use std::{
+    env::{self, VarError},
+    sync::Arc,
+};
 use substreams_streams::parse_inputs;
 use substreams_streams::pb::{
-    invoice_contract::v1::RemittanceEvent,
-    sf::substreams::v1::module::input::{Input, Params},
-};
-use substreams_streams::pb::{
-    invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData,
+    eth_invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData,
 };
 use substreams_streams::stream::{BlockResponse, SubstreamsStream};
 use substreams_streams::substreams::SubstreamsEndpoint;
@@ -31,14 +26,10 @@ pub async fn launch(
     pg_pool: PgPool,
     endpoint_url: Uri,
     chain_id: ChainId,
-    initial_block: i64,
-    cashier_account_address: Felt,
+    cashier_account_address: Address,
 ) -> Result<()> {
-    const OUTPUT_MODULE_NAME: &str = "map_invoice_contract_events";
-    const STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME: &str = "starknet:filtered_transactions";
-
-    let package_path = "./starknet-invoice-substream-v0.2.2.spkg";
-    let mut package = parse_inputs::read_package(package_path, vec![])?;
+    let package_path = "./eth-invoice-susbtream-v0.1.6.spkg";
+    let package = parse_inputs::read_package(package_path, vec![])?;
 
     let token = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,
@@ -47,34 +38,19 @@ pub async fn launch(
         Ok(val) => Some(val),
     };
 
-    let on_chain_constants = ON_CHAIN_CONSTANTS
-        .get(chain_id.as_str())
-        .ok_or(anyhow!("unsuported chain id"))?;
+    let endpoint = Arc::new(SubstreamsEndpoint::new(endpoint_url, token).await?);
 
-    let starknet_filtered_transactions_expression = format!(
-        "ev:from_address:{}",
-        on_chain_constants
-            .invoice_payment_contract_address
-            .to_fixed_hex_string()
-    );
-    // Update tx filter
-    package
+    const OUTPUT_MODULE_NAME: &str = "map_invoice_contract_events";
+
+    let initial_block = package
         .modules
-        .as_mut()
+        .as_ref()
         .unwrap()
         .modules
-        .iter_mut()
-        .find(|m| m.name == STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME)
-        .ok_or(anyhow!(
-            "module `{}` not found",
-            STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME
-        ))?
-        .inputs[0]
-        .input = Some(Input::Params(Params {
-        value: starknet_filtered_transactions_expression,
-    }));
-
-    let endpoint = Arc::new(SubstreamsEndpoint::new(endpoint_url, token).await?);
+        .iter()
+        .find(|m| m.name == OUTPUT_MODULE_NAME)
+        .ok_or_else(|| format_err!("module '{}' not found in package", OUTPUT_MODULE_NAME))?
+        .initial_block;
 
     let mut db_conn = pg_pool.acquire().await?;
 
@@ -85,7 +61,7 @@ pub async fn launch(
         cursor,
         package.modules,
         OUTPUT_MODULE_NAME.to_string(),
-        initial_block,
+        initial_block as i64,
         0,
     );
 
@@ -117,7 +93,7 @@ async fn process_block_scoped_data(
     conn: &mut PgConnection,
     data: &BlockScopedData,
     chain_id: &ChainId,
-    cashier_account_address: Felt,
+    cashier_account_address: Address,
 ) -> Result<(), Error> {
     let output = data.output.as_ref().unwrap().map_output.as_ref().unwrap();
 
@@ -125,6 +101,14 @@ async fn process_block_scoped_data(
     let timestamp = clock.timestamp.as_ref().unwrap();
     let date = DateTime::from_timestamp(timestamp.seconds, timestamp.nanos as u32)
         .expect("received timestamp should always be valid");
+
+    sqlx::query(r#"
+            INSERT INTO substreams_eth_block (id, number, timestamp) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
+        "#)
+        .bind(&clock.id)
+            .bind(i64::try_from(clock.number).unwrap())
+                .bind(date)
+    .execute(&mut *conn).await?;
 
     let events = RemittanceEvents::decode(output.value.as_slice())?;
 
@@ -136,24 +120,14 @@ async fn process_block_scoped_data(
         -date.signed_duration_since(Utc::now()).num_seconds()
     );
 
-    if !events.events.is_empty() {
-        sqlx::query(r#"
-            INSERT INTO substreams_starknet_block (id, number, timestamp) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
-        "#)
-        .bind(&clock.id)
-            .bind(i64::try_from(clock.number).unwrap())
-                .bind(date)
-        .execute(&mut *conn).await?;
-
-        process_payment_event(
-            events.events,
-            conn,
-            chain_id,
-            cashier_account_address,
-            clock.id.clone(),
-        )
-        .await?;
-    }
+    process_payment_event(
+        events,
+        conn,
+        chain_id,
+        cashier_account_address,
+        clock.id.clone(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -164,7 +138,7 @@ async fn delete_invalid_blocks(
 ) -> Result<(), anyhow::Error> {
     sqlx::query!(
         r#"
-            DELETE FROM substreams_starknet_block WHERE number > $1;
+            DELETE FROM substreams_eth_block WHERE number > $1;
         "#,
         i64::try_from(last_valid_block_number).unwrap()
     )
@@ -180,7 +154,7 @@ async fn persist_cursor(conn: &mut PgConnection, cursor: String) -> Result<(), a
             INSERT INTO substreams_cursor (name, cursor) VALUES ($1, $2)
             ON CONFLICT (name) DO UPDATE SET cursor = excluded.cursor
         "#,
-        "starknet",
+        "ethereum",
         cursor
     )
     .execute(conn)
@@ -194,7 +168,7 @@ async fn load_persisted_cursor(conn: &mut PgConnection) -> Result<Option<String>
         r#"
             SELECT cursor FROM substreams_cursor WHERE name = $1
         "#,
-        "starknet"
+        "ethereum"
     )
     .fetch_optional(conn)
     .await?;
@@ -203,32 +177,24 @@ async fn load_persisted_cursor(conn: &mut PgConnection) -> Result<Option<String>
 }
 
 async fn process_payment_event(
-    remittance_events: Vec<RemittanceEvent>,
+    remittance_events: RemittanceEvents,
     conn: &mut PgConnection,
     chain_id: &ChainId,
-    cashier_account_address: Felt,
+    cashier_account_address: Address,
     block_id: String,
 ) -> Result<(), Error> {
-    for payment_event in remittance_events {
-        let invoice_id = Felt::from_bytes_be_slice(&payment_event.invoice_id);
+    for payment_event in remittance_events.events {
+        let invoice_id: [u8; 32] = payment_event.invoice_id.as_slice().try_into()?;
         let (is_mint, quote_id, quote_amount, unit) = if let Some((quote_id, amount, unit)) =
-            db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(
-                conn,
-                &invoice_id.to_bytes_be(),
-            )
-            .await?
+            db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(conn, &invoice_id).await?
         {
             (true, quote_id, amount, unit)
         } else if let Some((quote_id, amount, unit)) =
-            db_node::melt_quote::get_quote_infos_by_invoice_id::<Unit>(
-                conn,
-                &invoice_id.to_bytes_be(),
-            )
-            .await?
+            db_node::melt_quote::get_quote_infos_by_invoice_id::<Unit>(conn, &invoice_id).await?
         {
             (false, quote_id, amount, unit)
         } else {
-            error!("no quote for invoice_id {:#x}", invoice_id);
+            error!("no quote for invoice_id  0x{}", hex::encode(invoice_id));
             continue;
         };
 
@@ -236,7 +202,7 @@ async fn process_payment_event(
             .get(chain_id.as_str())
             .ok_or(anyhow!("unkonwn chain id {}", chain_id))?;
 
-        let asset = Felt::from_bytes_be_slice(&payment_event.asset);
+        let asset = Address::from_slice(&payment_event.asset);
         let asset = match on_chain_constants
             .assets_contract_address
             .get_asset_for_contract_address(asset)
@@ -262,22 +228,22 @@ async fn process_payment_event(
             continue;
         }
 
+        let amount_u256 = U256::from_dec_str(&payment_event.amount).unwrap();
+
         #[allow(clippy::collapsible_else_if)]
         if is_mint {
-            let payee = Felt::from_bytes_be_slice(&payment_event.payee);
+            let payee = Address::from_slice(&payment_event.payee);
             if payee == cashier_account_address {
                 let db_event = PaymentEvent {
                     block_id: block_id.clone(),
-                    tx_hash: Felt::from_bytes_be_slice(&payment_event.tx_hash).to_hex_string(),
-                    index: i64::try_from(payment_event.event_index).unwrap(),
-                    asset: Felt::from_bytes_be_slice(&payment_event.asset).to_hex_string(),
-                    payee: Felt::from_bytes_be_slice(&payment_event.payee).to_hex_string(),
-                    invoice_id: Felt::from_bytes_be_slice(&payment_event.invoice_id).to_bytes_be(),
-                    payer: Felt::from_bytes_be_slice(&payment_event.payer).to_hex_string(),
-                    amount_low: Felt::from_bytes_be_slice(&payment_event.amount_low)
-                        .to_hex_string(),
-                    amount_high: Felt::from_bytes_be_slice(&payment_event.amount_high)
-                        .to_hex_string(),
+                    tx_hash: hex::encode(&payment_event.tx_hash),
+                    index: i64::from(payment_event.event_index),
+                    asset: hex::encode(&payment_event.asset),
+                    payee: hex::encode(&payment_event.payee),
+                    invoice_id,
+                    payer: hex::encode(&payment_event.payer),
+                    amount_low: hex::encode(amount_u256.to_little_endian()),
+                    amount_high: hex::encode(amount_u256.to_big_endian()),
                 };
                 substream_handlers::handle_mint_payment(
                     conn,
@@ -289,20 +255,18 @@ async fn process_payment_event(
                 .await?;
             }
         } else {
-            let payer = Felt::from_bytes_be_slice(&payment_event.payer);
+            let payer = Address::from_slice(&payment_event.payer);
             if payer == cashier_account_address {
                 let db_event = PaymentEvent {
                     block_id: block_id.clone(),
-                    tx_hash: Felt::from_bytes_be_slice(&payment_event.tx_hash).to_hex_string(),
-                    index: i64::try_from(payment_event.event_index).unwrap(),
-                    asset: Felt::from_bytes_be_slice(&payment_event.asset).to_hex_string(),
-                    payee: Felt::from_bytes_be_slice(&payment_event.payee).to_hex_string(),
-                    invoice_id: Felt::from_bytes_be_slice(&payment_event.invoice_id).to_bytes_be(),
-                    payer: Felt::from_bytes_be_slice(&payment_event.payer).to_hex_string(),
-                    amount_low: Felt::from_bytes_be_slice(&payment_event.amount_low)
-                        .to_hex_string(),
-                    amount_high: Felt::from_bytes_be_slice(&payment_event.amount_high)
-                        .to_hex_string(),
+                    tx_hash: hex::encode(&payment_event.tx_hash),
+                    index: i64::from(payment_event.event_index),
+                    asset: hex::encode(&payment_event.asset),
+                    payee: hex::encode(&payment_event.payee),
+                    invoice_id,
+                    payer: hex::encode(&payment_event.payer),
+                    amount_low: hex::encode(amount_u256.to_little_endian()),
+                    amount_high: hex::encode(amount_u256.to_big_endian()),
                 };
                 substream_handlers::handle_melt_payment(
                     conn,
