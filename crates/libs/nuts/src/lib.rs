@@ -39,19 +39,21 @@ pub mod traits {
         fn precision(&self) -> u8;
     }
 
+    /// A cashu representation of an onchain asset
+    ///
+    /// An asset can have multiple possible unit representation (eg. one eth can be represented as wei or gwei).
     pub trait Unit:
         FromStr + AsRef<str> + Sized + Debug + Copy + Clone + Display + Into<u32> + Eq + PartialEq
     {
         type Asset: Asset;
 
-        ///
         /// Verifies that an asset is compatible with this unit
         ///
         /// This check helps to catch accidental mismatches between units and assets early.
         fn is_asset_supported(&self, asset: Self::Asset) -> bool;
-        /// How much to multiply the unit amount by in order to convet to the original asset precision
-        fn scale_order(&self) -> u8;
-
+        /// Multiply the unit amount by 10^n to get the value in the corresponding asset precision
+        fn asset_extra_precision(&self) -> u8;
+        /// Returns the asset represented by this unit
         fn matching_asset(&self) -> Self::Asset;
     }
 
@@ -138,7 +140,7 @@ pub mod traits {
                 }
             }
 
-            fn scale_order(&self) -> u8 {
+            fn asset_extra_precision(&self) -> u8 {
                 1
             }
 

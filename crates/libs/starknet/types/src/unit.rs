@@ -11,11 +11,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::Asset;
 
+// Warning: those values are used in database storage.
+// Modifying them without creating migration will result in db corruption.
 const GWEI_STR: &str = "gwei";
-const MILLI_STR: &str = "millistrk";
-const SATOSHI_STR: &str = "satoshi";
-const MICRO_USDT_STR: &str = "microusdt";
-const MICRO_USDC_STR: &str = "microusdc";
+const MILLI_STR: &str = "m-strk";
+const SATOSHI_STR: &str = "sat";
+const MICRO_USDT_STR: &str = "u-usdt";
+const MICRO_USDC_STR: &str = "u-usdc";
 
 /// Represents units supported by the node for user-facing operations
 ///
@@ -134,7 +136,7 @@ impl nuts::traits::Unit for Unit {
         )
     }
 
-    fn scale_order(&self) -> u8 {
+    fn asset_extra_precision(&self) -> u8 {
         match self {
             Unit::MilliStrk => 15,
             Unit::Gwei => 9,

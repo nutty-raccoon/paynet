@@ -53,7 +53,7 @@ where
 
     // For STRK/MilliStrk it will be 3 (18 - 15)
     // For Eth/Gwei it will be 9 (18 - 9)
-    let scale_order: u8 = asset.precision() - unit.scale_order();
+    let scale_order: u8 = asset.precision() - unit.asset_extra_precision();
 
     // Multiply the the integer part by the 10^scale_order
     let integer_part = U256::from_dec_str(integer_part_str)

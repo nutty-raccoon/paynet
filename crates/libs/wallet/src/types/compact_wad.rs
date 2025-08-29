@@ -189,7 +189,7 @@ where
 /// Proof V4
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactProof {
-    /// Amount in satoshi
+    /// Amount
     #[serde(rename = "a")]
     pub amount: Amount,
     /// Secret message
@@ -296,7 +296,7 @@ mod tests {
             true
         }
 
-        fn scale_order(&self) -> u8 {
+        fn asset_extra_precision(&self) -> u8 {
             8
         }
 
