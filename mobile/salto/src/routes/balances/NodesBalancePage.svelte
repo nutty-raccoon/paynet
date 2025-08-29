@@ -5,7 +5,7 @@
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
   import DepositModal from "./DepositModal.svelte";
-  import { refresh_node_keysets } from "../../commands";
+  import { refreshNodeKeysets } from "../../commands";
 
   interface Props {
     nodes: NodeData[];
@@ -30,7 +30,7 @@
   }
 
   function openDepositModal(node: NodeData) {
-    refresh_node_keysets(node.id);
+    refreshNodeKeysets(node.id);
     selectedNodeForDeposit = node;
     // Add history entry to handle back button
     pushState("", { modal: true });
@@ -69,9 +69,9 @@
         <div class="node-balance-container">
           <span class="node-balance-label">Balance</span>
           {#each node.balances as balance}
-            {@const formatted = formatBalance(balance)}
+            {@const formatted = formatBalance(balance.unit, balance.amount)}
             <span class="node-balance"
-              >{formatted.asset}: {formatted.amount}</span
+              >{formatted.asset}: {formatted.assetAmount}</span
             >
           {/each}
         </div>

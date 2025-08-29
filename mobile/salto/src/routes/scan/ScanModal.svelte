@@ -2,7 +2,7 @@
   import { URDecoder } from "@gandlaf21/bc-ur";
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
   import Portal from "../components/Portal.svelte";
-  import { receive_wads } from "../../commands";
+  import { receiveWads } from "../../commands";
 
   interface Props {
     onSuccess: () => void;
@@ -27,7 +27,7 @@
         const ur = decoder.resultUR();
         // Decode the CBOR message to a Buffer
         const decoded = ur.decodeCBOR();
-        receive_wads(decoded.toString());
+        receiveWads(decoded.toString());
         onSuccess();
       } else {
         // log and handle the error
@@ -38,7 +38,7 @@
   }
 </script>
 
-<Portal isOpen={true} onClose={onCancell} backgroundColor="rgba(0, 0, 0, 0.95)">
+<Portal onClose={onCancell} backgroundColor="rgba(0, 0, 0, 0.95)">
   {#snippet children()}
     <div class="scan-content">
       <p class="scan-instructions">Point your camera at a QR code</p>

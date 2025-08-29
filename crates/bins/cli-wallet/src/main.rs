@@ -382,11 +382,11 @@ async fn main() -> Result<()> {
                     "You can proceed to payment using the following payload:\n{}",
                     &mint_quote_response.request.yellow()
                 );
-                let deposit_payload: starknet_types::DepositPayload =
-                    serde_json::from_str(&mint_quote_response.request)?;
-
                 #[cfg(debug_assertions)]
                 {
+                    let deposit_payload: starknet_types::DepositPayload =
+                        serde_json::from_str(&mint_quote_response.request)?;
+
                     let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
                     let encoded_payload = urlencoding::encode(&payload_json);
 

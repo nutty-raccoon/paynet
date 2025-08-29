@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
-  import { get_wad_history, sync_wads } from "../../commands";
+  import { getWadHistory, syncWads } from "../../commands";
   import { formatBalance } from "../../utils";
   import type { WadHistoryItem, WadStatus } from "../../types/wad";
 
@@ -52,12 +52,12 @@
       loading = true;
       error = "";
 
-      const history = await get_wad_history(20);
+      const history = await getWadHistory(20);
       wadHistory = history || [];
 
       // Then sync WADs (this will emit events that update the UI in real-time)
       syncing = true;
-      await sync_wads();
+      await syncWads();
       syncing = false;
     } catch (err) {
       console.error("Failed to load transfer history:", err);

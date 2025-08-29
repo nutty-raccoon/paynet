@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use tauri_plugin_opener::OpenerExt;
 
 use nuts::nut04::MintQuoteState;
 use nuts::traits::Unit as UnitT;
@@ -26,6 +27,8 @@ pub enum CreateMintQuoteError {
     AssetToUnitConversion(#[from] AssetToUnitConversionError),
     #[error(transparent)]
     ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
 }
 
 impl serde::Serialize for CreateMintQuoteError {
@@ -46,6 +49,7 @@ pub struct CreateMintQuoteResponse {
 
 #[tauri::command]
 pub async fn create_mint_quote(
+    app: AppHandle,
     state: State<'_, AppState>,
     node_id: u32,
     amount: String,
@@ -71,6 +75,22 @@ pub async fn create_mint_quote(
         unit,
     )
     .await?;
+
+    let deposit_payload: starknet_types::DepositPayload =
+        serde_json::from_str(&response.request)?;
+    let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
+    let encoded_payload = urlencoding::encode(&payload_json);
+
+    let url = format!(
+        "{}/deposit/{}/{}/?payload={}",
+        &state.web_app_url,
+        STARKNET_STR,
+        deposit_payload.chain_id.as_str(),
+        encoded_payload
+    );
+    log::info!("---- url: {:?}", url);
+    let x = app.opener().open_url(url, None::<&str>);
+    log::info!("---- openner result: {:?}", x);
 
     Ok(CreateMintQuoteResponse {
         quote_id: response.quote,

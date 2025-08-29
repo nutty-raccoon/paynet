@@ -2,7 +2,7 @@
   import ReceivingMethodChoice from "./ReceivingMethodChoice.svelte";
   import { isMobile } from "../..//stores.js";
   import ScanModal from "../scan/ScanModal.svelte";
-  import { receive_wads } from "../../commands";
+  import { receiveWads } from "../../commands";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
 
   const Modal = {
@@ -33,7 +33,7 @@
 
   const handlePasteChoice = async () => {
     const wads = await readText();
-    await receive_wads(wads);
+    await receiveWads(wads);
     onClose();
   };
 </script>

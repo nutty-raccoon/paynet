@@ -82,8 +82,8 @@ impl From<Unit> for u32 {
 
 /// Error returned when parsing an unknown unit string
 #[derive(Debug, thiserror::Error)]
-#[error("invalid value for enum `Unit`")]
-pub struct UnitFromStrError;
+#[error("invalid value for enum `Unit`, got: \"{0}\"")]
+pub struct UnitFromStrError(String);
 
 impl FromStr for Unit {
     type Err = UnitFromStrError;
@@ -95,7 +95,7 @@ impl FromStr for Unit {
             SATOSHI_STR => Self::Satoshi,
             MICRO_USDT_STR => Self::MicroUsdT,
             MICRO_USDC_STR => Self::MicroUsdC,
-            _ => return Err(UnitFromStrError),
+            _ => return Err(UnitFromStrError(s.to_string())),
         };
 
         Ok(unit)

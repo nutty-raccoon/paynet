@@ -9,15 +9,15 @@
     computeTotalBalancePerUnit,
     decreaseNodeBalance,
     formatBalance,
+    getTotalAmountInDisplayCurrency,
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
   import { checkWalletExists, getNodesBalance } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
-  import type { Price } from "../types/price";
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
-  import { displayCurrency } from "../stores";
+  import { displayCurrency, tokenPrices } from "../stores";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
   import { page } from "$app/state";
 
@@ -38,35 +38,24 @@
   let errorMessage = $state("");
   let walletExists = $state<boolean | null>(null); // null = loading, true/false = result
 
-  let tokenPrices: Price[] | null = $state(null);
-
   // Calculate total balance across all nodes
   let totalBalance: Map<string, number> = $derived(
     computeTotalBalancePerUnit(nodes),
   );
-  let formattedBalance: {
-    totalAmount: number;
-    formattedTotalBalance: string[];
-  } = $derived.by(() => {
-    let totalAmount: number = 0;
-    let formattedTotalBalance: string[] = totalBalance
+  let formattedBalance: string[] = $derived(
+    totalBalance
       .entries()
       .map(([unit, amount]) => {
-        const formatted = formatBalance({ unit, amount });
-        if (tokenPrices != null) {
-          let price = tokenPrices.find(
-            (p) => formatted.asset === p.symbol.toUpperCase(),
-          );
-          if (typeof price === "object") {
-            totalAmount += formatted.amount * (price.value ? price.value : 0);
-          }
-        }
-        return `${formatted.asset}: ${formatted.amount}`;
+        const { asset, assetAmount } = formatBalance(unit, amount);
+        return `${assetAmount} ${asset}`;
       })
-      .toArray();
-    return { totalAmount, formattedTotalBalance };
-  });
-
+      .toArray(),
+  );
+  let totalAmount = $derived(
+    !!$tokenPrices
+      ? getTotalAmountInDisplayCurrency(totalBalance, $tokenPrices)
+      : null,
+  );
   // Effect to manage scrolling based on active tab
   $effect(() => {
     // Allow scrolling for history page
@@ -122,13 +111,6 @@
         }
       });
     }
-
-    listen<Price[]>("new-price", (event) => {
-      tokenPrices = event.payload ? event.payload : tokenPrices;
-    });
-    listen<null>("out-of-sync-price", (event) => {
-      tokenPrices = null;
-    });
 
     listen<BalanceChange>("balance-increase", (event) => {
       onNodeBalanceIncrease(event.payload);
@@ -194,17 +176,17 @@
         <div class="pay-container">
           <div class="total-balance-card">
             <h2 class="balance-title">TOTAL BALANCE</h2>
-            {#each formattedBalance.formattedTotalBalance as formatBalance}
-              <p class="total-balance-amount">
-                {formatBalance}
-              </p>
-            {/each}
-            {#if tokenPrices !== null}
+            {#if !!totalAmount}
               <p class="total-currency-amount">
-                {"Total value: "}
-                {formattedBalance.totalAmount.toFixed(2)}
+                {totalAmount.toFixed(2)}
                 {$displayCurrency}
               </p>
+            {:else}
+              {#each formattedBalance as formatBalance}
+                <p class="total-balance-amount">
+                  {formatBalance}
+                </p>
+              {/each}
             {/if}
           </div>
           {#if errorMessage}
