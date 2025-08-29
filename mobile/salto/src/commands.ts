@@ -10,6 +10,13 @@ export async function getNodesBalance() {
       return res;
   }
 
+export async function getPendingMintQuotes() {
+     let res =  await invoke("get_pending_mint_quotes")
+       .then((message) => message as NodeData[] )
+       .catch((error) => console.error(error));
+      return res;
+  }
+
   export async function getCurrencies() {
     let res =  await invoke("get_currencies")
        .then((message) => message as string[])

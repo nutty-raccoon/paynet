@@ -91,7 +91,7 @@ async fn sync_mint_quotes(
                 pool.clone(),
                 node_client,
                 STARKNET_STR.to_string(),
-                pending_mint_quote.id.clone(),
+                &pending_mint_quote.id,
                 node_id,
                 &pending_mint_quote.unit,
                 pending_mint_quote.amount,

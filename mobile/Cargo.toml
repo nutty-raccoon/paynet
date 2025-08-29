@@ -43,3 +43,4 @@ wallet = { path = "../crates/libs/wallet" }
 starknet-types = { path = "../crates/libs/starknet/types" }
 nuts = { path = "../crates/libs/nuts" }
 parse-asset-amount = { path = "../crates/libs/parse-asset-amount" }
+node-client = { path = "../crates/libs/node-client" }

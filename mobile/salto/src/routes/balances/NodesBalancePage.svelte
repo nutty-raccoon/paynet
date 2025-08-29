@@ -1,11 +1,7 @@
 <script lang="ts">
   import { pushState } from "$app/navigation";
   import { type NodeData } from "../../types";
-  import {
-    formatBalance,
-    computeTotalBalancePerUnit,
-    getTotalAmountInDisplayCurrency,
-  } from "../../utils";
+  import { getTotalAmountInDisplayCurrency } from "../../utils";
   import { tokenPrices, displayCurrency } from "../../stores";
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";

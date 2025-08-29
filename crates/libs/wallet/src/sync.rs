@@ -4,7 +4,7 @@ use node_client::{NodeClient, QuoteStateRequest};
 use nuts::{nut04::MintQuoteState, nut05::MeltQuoteState};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
+use tonic::{Code, transport::Channel};
 use uuid::Uuid;
 
 use crate::{
@@ -12,6 +12,13 @@ use crate::{
     errors::Error,
 };
 
+pub enum SyncMint {}
+
+/// Sync the state of this quote from the node.
+///
+/// 1. query the node for the state
+/// 2. delete expired quote
+/// 3. update state in database
 pub async fn mint_quote(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
@@ -27,10 +34,6 @@ pub async fn mint_quote(
 
     let db_conn = pool.get()?;
     match response {
-        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
-            db::mint_quote::delete(&db_conn, &quote_id)?;
-            Ok(None)
-        }
         Ok(response) => {
             let response = response.into_inner();
             let state = MintQuoteState::try_from(
@@ -52,6 +55,10 @@ pub async fn mint_quote(
             db::mint_quote::set_state(&db_conn, &response.quote, state)?;
 
             Ok(Some(state))
+        }
+        Err(s) if s.code() == Code::NotFound => {
+            db::mint_quote::delete(&db_conn, &quote_id)?;
+            Ok(None)
         }
         Err(e) => Err(e)?,
     }

@@ -1,0 +1,9 @@
+[[language]]
+name = "rust"
+
+[language-server.rust-analyzer.config]
+cargo.allFeatures = true
+linkedProjects = ["./Cargo.toml", "./mobile/Cargo.toml"]
+
+[language-server.rust-analyzer.config.check]
+command = "clippy"

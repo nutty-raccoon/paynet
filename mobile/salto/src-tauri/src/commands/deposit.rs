@@ -1,10 +1,12 @@
+use node_client::NodeClient;
 use std::str::FromStr;
 use tauri_plugin_opener::OpenerExt;
 
-use nuts::nut04::MintQuoteState;
 use nuts::traits::Unit as UnitT;
+use nuts::{Amount, nut04::MintQuoteState};
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR, Unit};
 use tauri::{AppHandle, Emitter, State};
+use tonic::transport::Channel;
 
 use crate::{AppState, commands::BalanceChange};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
@@ -76,8 +78,7 @@ pub async fn create_mint_quote(
     )
     .await?;
 
-    let deposit_payload: starknet_types::DepositPayload =
-        serde_json::from_str(&response.request)?;
+    let deposit_payload: starknet_types::DepositPayload = serde_json::from_str(&response.request)?;
     let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
     let encoded_payload = urlencoding::encode(&payload_json);
 
@@ -150,25 +151,45 @@ pub async fn redeem_quote(
         return Err(RedeemQuoteError::QuoteNotPaid);
     }
 
+    inner_redeem_quote(
+        &app,
+        state,
+        &mut node_client,
+        node_id,
+        &quote_id,
+        mint_quote.unit,
+        mint_quote.amount,
+    )
+    .await
+}
+
+pub(crate) async fn inner_redeem_quote(
+    app: &AppHandle,
+    state: State<'_, AppState>,
+    node_client: &mut NodeClient<Channel>,
+    node_id: u32,
+    quote_id: &str,
+    unit: String,
+    amount: Amount,
+) -> Result<(), RedeemQuoteError> {
     wallet::mint::redeem_quote(
         crate::SEED_PHRASE_MANAGER,
         state.pool.clone(),
-        &mut node_client,
+        node_client,
         STARKNET_STR.to_string(),
-        mint_quote.id,
+        quote_id,
         node_id,
-        &mint_quote.unit,
-        mint_quote.amount,
+        unit.as_str(),
+        amount,
     )
     .await?;
 
-    let unit = Unit::from_str(&mint_quote.unit)?;
     app.emit(
         "balance-increase",
         BalanceChange {
             node_id,
-            unit: mint_quote.unit,
-            amount: mint_quote.amount.into(),
+            unit: unit.as_str().to_string(),
+            amount: amount.into(),
         },
     )?;
 
@@ -177,7 +198,7 @@ pub async fn redeem_quote(
         .write()
         .await
         .assets
-        .insert(unit.matching_asset());
+        .insert(Unit::from_str(&unit)?.matching_asset());
 
     Ok(())
 }

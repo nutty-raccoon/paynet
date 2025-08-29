@@ -5,7 +5,6 @@ description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -51,6 +50,7 @@ urlencoding = { workspace = true }
 
 # Local
 wallet = { workspace = true }
+node-client = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
 parse-asset-amount = { workspace = true }

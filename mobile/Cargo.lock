@@ -4808,6 +4808,7 @@ dependencies = [
  "bitcoin",
  "itertools",
  "log",
+ "node-client",
  "num-traits",
  "nuts",
  "parse-asset-amount",

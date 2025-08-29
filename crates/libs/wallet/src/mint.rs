@@ -76,7 +76,7 @@ pub async fn redeem_quote(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     method: String,
-    quote_id: String,
+    quote_id: &str,
     node_id: u32,
     unit: &str,
     total_amount: Amount,
@@ -94,7 +94,7 @@ pub async fn redeem_quote(
 
     let mint_request = MintRequest {
         method,
-        quote: quote_id.clone(),
+        quote: quote_id.to_string(),
         outputs,
     };
 
@@ -114,7 +114,7 @@ pub async fn redeem_quote(
         let mut db_conn = pool.get()?;
         let tx = db_conn.transaction()?;
         pre_mints.store_new_tokens(&tx, node_id, mint_response.signatures)?;
-        db::mint_quote::set_state(&tx, &quote_id, MintQuoteState::Issued)?;
+        db::mint_quote::set_state(&tx, quote_id, MintQuoteState::Issued)?;
         tx.commit()?;
     }
 

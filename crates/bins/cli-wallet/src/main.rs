@@ -423,7 +423,7 @@ async fn main() -> Result<()> {
                 pool.clone(),
                 &mut node_client,
                 STARKNET_STR.to_string(),
-                mint_quote_response.quote,
+                &mint_quote_response.quote,
                 node_id,
                 unit.as_str(),
                 amount,

@@ -31,7 +31,6 @@
 
   let currentModal = $state<Modal>(Modal.ROOT);
 
-  // Sample data with multiple nodes to demonstrate the new card design
   let nodes: NodeData[] = $state([]);
 
   let activeTab: Tab = $state("pay");

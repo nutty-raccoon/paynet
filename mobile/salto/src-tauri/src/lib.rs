@@ -13,7 +13,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Asset;
 use std::{collections::HashSet, env, str::FromStr, sync::Arc, time::SystemTime};
-use tauri::{async_runtime, Listener, Manager};
+use tauri::{Listener, Manager, async_runtime};
 use tokio::sync::RwLock;
 use tonic::transport::Certificate;
 
