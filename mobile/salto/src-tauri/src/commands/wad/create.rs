@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, str::FromStr};
+use std::str::FromStr;
 
 use nuts::Amount;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
@@ -32,6 +32,8 @@ pub enum CreateWadsError {
     NotEnoughFundsInNode(u32),
     #[error("failed to connect to node: {0}")]
     ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error("failed to plan spending: {0}")]
+    PlanSpending(#[from] wallet::send::PlanSpendingError),
 }
 
 impl serde::Serialize for CreateWadsError {
@@ -54,37 +56,15 @@ pub async fn create_wads(
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
-    let amount_to_use_per_node = {
-        let db_conn = state.pool.get()?;
-        let balances = wallet::db::balance::get_for_all_nodes_by_unit(&db_conn, unit)?;
-
-        let mut used_node = vec![];
-        let mut rem_amount = amount;
-        for balance in balances {
-            match rem_amount.cmp(&balance.amount) {
-                Ordering::Less | Ordering::Equal => {
-                    used_node.push((balance.id, balance.url, rem_amount));
-                    rem_amount = Amount::ZERO;
-                    break;
-                }
-                Ordering::Greater => {
-                    rem_amount -= balance.amount;
-                    used_node.push((balance.id, balance.url, balance.amount));
-                }
-            }
-        }
-
-        if rem_amount != Amount::ZERO {
-            return Err(CreateWadsError::NotEnoughFunds(amount, rem_amount));
-        }
-
-        used_node
-    };
+    let db_conn = state.pool.get()?;
+    let amount_to_use_per_node = wallet::send::plan_spending(&db_conn, amount, unit, &[])?;
 
     let mut wads = Vec::with_capacity(amount_to_use_per_node.len());
     let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
     let mut ys_per_node = Vec::with_capacity(amount_to_use_per_node.len());
-    for (node_id, node_url, amount_to_use) in amount_to_use_per_node {
+    for (node_id, amount_to_use) in amount_to_use_per_node {
+        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .expect("ids come form DB, there should be an url");
         let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
