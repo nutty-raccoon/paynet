@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
   import type { NodeData } from "../../types";
-  import { createMintQuote, redeemQuote } from "../../commands";
+  import { createMintQuote } from "../../commands";
 
   interface Props {
     selectedNode: NodeData;
@@ -33,17 +33,7 @@
         return;
       }
 
-      createMintQuote(nodeId, amountString, token.toString()).then(
-        (createMintQuoteResponse) => {
-          if (!!createMintQuoteResponse) {
-            if (createMintQuoteResponse.paymentRequest.length === 0) {
-              redeemQuote(nodeId, createMintQuoteResponse.quoteId);
-            } else {
-              console.log("todo: proceed to payment");
-            }
-          }
-        },
-      );
+      createMintQuote(nodeId, amountString, token.toString());
 
       onClose();
     }

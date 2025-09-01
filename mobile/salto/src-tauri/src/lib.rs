@@ -5,8 +5,8 @@ mod migrations;
 
 use commands::{
     add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
-    get_nodes_balance, get_wad_history, init_wallet, receive_wads, redeem_quote,
-    refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
+    get_nodes_balance, get_pending_mint_quotes, get_wad_history, init_wallet, receive_wads,
+    redeem_quote, refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
 };
 use nuts::traits::Unit as UnitT;
 use r2d2::Pool;
@@ -106,6 +106,7 @@ pub fn run() {
                 set_price_provider_currency,
                 get_wad_history,
                 sync_wads,
+                get_pending_mint_quotes,
             ])
     };
 

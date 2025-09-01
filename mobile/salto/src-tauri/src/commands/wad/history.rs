@@ -2,6 +2,7 @@ use crate::AppState;
 use starknet_types::Unit;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
+use wallet::db::balance::Balance;
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,7 +10,7 @@ pub struct WadHistoryItem {
     pub id: String,
     pub r#type: String,
     pub status: String,
-    pub total_amount_json: String,
+    pub amounts: Vec<Balance>,
     pub memo: Option<String>,
     pub created_at: u64,
     pub modified_at: u64,
@@ -44,15 +45,13 @@ pub async fn get_wad_history(
 
     let mut history_items = Vec::with_capacity(wad_records.len());
     for record in wad_records {
-        let total_amount_json = serde_json::to_string(
-            &wallet::db::wad::get_amounts_by_id::<Unit>(&db_conn, record.id)?,
-        )?;
+        let amounts = wallet::db::wad::get_amounts_by_id::<Unit>(&db_conn, record.id)?;
 
         history_items.push(WadHistoryItem {
             id: record.id.to_string(),
             r#type: record.r#type.to_string(),
             status: record.status.to_string(),
-            total_amount_json,
+            amounts,
             memo: record.memo,
             created_at: record.created_at,
             modified_at: record.modified_at,

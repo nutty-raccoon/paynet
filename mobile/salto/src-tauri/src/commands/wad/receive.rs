@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, str::FromStr};
 
 use nuts::traits::Unit as UnitT;
 use parse_asset_amount::ParseAmountStringError;
@@ -49,7 +49,7 @@ pub async fn receive_wads(
     state: State<'_, AppState>,
     wads: String,
 ) -> Result<(), ReceiveWadsError> {
-    let wads: CompactWads<Unit> = wads.parse()?;
+    let wads: CompactWads = wads.parse()?;
     let mut new_assets: HashSet<Asset> = HashSet::new();
 
     for wad in wads.0 {
@@ -75,15 +75,18 @@ pub async fn receive_wads(
         )
         .await?;
 
+        if let Ok(unit) = Unit::from_str(&unit) {
+            new_assets.insert(unit.matching_asset());
+        }
+
         app.emit(
             "balance-increase",
             BalanceChange {
                 node_id,
-                unit: wad.unit.as_str().to_string(),
+                unit,
                 amount: amount_received.into(),
             },
         )?;
-        new_assets.insert(wad.unit.matching_asset());
     }
 
     state

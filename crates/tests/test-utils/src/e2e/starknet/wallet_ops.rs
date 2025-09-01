@@ -5,7 +5,7 @@ use node_client::NodeClient;
 use nuts::{Amount, nut01::PublicKey};
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
-use starknet_types::{Asset, DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
+use starknet_types::{Asset, DepositPayload, STARKNET_STR, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::felt::Felt;
 use tonic::transport::Channel;
 use wallet::{
@@ -130,7 +130,7 @@ impl WalletOps {
             self.db_pool.clone(),
             &mut self.node_client,
             STARKNET_STR.to_string(),
-            quote.quote,
+            &quote.quote,
             self.node_id,
             unit.as_str(),
             amount,
@@ -146,7 +146,7 @@ impl WalletOps {
         amount: U256,
         asset: Asset,
         memo: Option<String>,
-    ) -> Result<CompactWad<Unit>> {
+    ) -> Result<CompactWad> {
         let seed_phrase_manager =
             wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
         let amount = amount
@@ -167,7 +167,7 @@ impl WalletOps {
         .ok_or(anyhow!("not enough funds"))?;
 
         let db_conn = self.db_pool.get()?;
-        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
+        let proofs = wallet::unprotected_load_tokens_from_db(&db_conn, &proofs_ids)?;
         let compact_proofs = proofs
             .into_iter()
             .chunk_by(|p| p.keyset_id)
@@ -194,13 +194,13 @@ impl WalletOps {
 
         Ok(CompactWad {
             node_url,
-            unit,
+            unit: unit.to_string(),
             memo,
             proofs: compact_proofs,
         })
     }
 
-    pub async fn receive(&mut self, wad: &CompactWad<Unit>) -> Result<()> {
+    pub async fn receive(&mut self, wad: &CompactWad) -> Result<()> {
         let seed_phrase_manager =
             wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
         wallet::receive_wad(
@@ -285,10 +285,7 @@ impl WalletOps {
     }
 }
 
-pub async fn recieve_already_spent_wad(
-    wallet_ops: &mut WalletOps,
-    wad: &CompactWad<Unit>,
-) -> Result<()> {
+pub async fn recieve_already_spent_wad(wallet_ops: &mut WalletOps, wad: &CompactWad) -> Result<()> {
     let db_conn = wallet_ops.db_pool.get()?;
     let proof_ids = wad
         .proofs()

@@ -15,8 +15,9 @@ use tracing_subscriber::EnvFilter;
 use wallet::{
     db::balance::Balance,
     melt::wait_for_payment,
+    send::load_proofs_and_create_wads,
     types::{
-        NodeUrl, ProofState, Wad,
+        NodeUrl, Wad,
         compact_wad::{CompactWad, CompactWads},
     },
 };
@@ -204,7 +205,7 @@ struct WadArgs {
 }
 
 impl WadArgs {
-    fn read_wads(&self) -> Result<Vec<CompactWad<Unit>>> {
+    fn read_wads(&self) -> Result<Vec<CompactWad>> {
         let wad_string = if let Some(json_string) = &self.opt_wad_string {
             Ok(json_string.clone())
         } else if let Some(file_path) = &self.opt_wad_file_path {
@@ -212,7 +213,7 @@ impl WadArgs {
         } else {
             Err(anyhow!("cli rules guarantee one and only one will be set"))
         }?;
-        let wads: CompactWads<Unit> = wad_string.parse()?;
+        let wads: CompactWads = wad_string.parse()?;
 
         Ok(wads.0)
     }
@@ -535,15 +536,17 @@ async fn main() -> Result<()> {
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (total_amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
+            // Decide which amount from which node we are going to use
             let node_ids_with_amount_to_use =
                 wallet::send::plan_spending(&db_conn, total_amount, unit, &node_ids)?;
 
+            // Get the ids of the proofs that we are going to spend for each node
             let mut node_and_proofs = Vec::with_capacity(node_ids_with_amount_to_use.len());
             for (node_id, amount_to_use) in node_ids_with_amount_to_use {
                 let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
 
                 let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-                    SEED_PHRASE_MANAGER,
+                    crate::SEED_PHRASE_MANAGER,
                     pool.clone(),
                     &mut node_client,
                     node_id,
@@ -552,55 +555,11 @@ async fn main() -> Result<()> {
                 )
                 .await?
                 .ok_or(anyhow!("not enough funds"))?;
-
-                println!(
-                    "Spending {} {} from node {} ({})",
-                    amount_to_use, asset, &node_id, &node_url
-                );
                 node_and_proofs.push((node_url, proofs_ids));
             }
 
-            let mut wads = Vec::with_capacity(node_and_proofs.len());
-            let mut should_revert = None;
-            for (i, (node_url, proofs_ids)) in node_and_proofs.iter().enumerate() {
-                let proofs = match wallet::load_tokens_from_db(&db_conn, proofs_ids) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        println!(
-                            "Failed to load the following proofs for node {}: {}\nProof ids: {:?}\nReverting now.",
-                            node_url, e, proofs_ids
-                        );
-                        should_revert = Some(i);
-                        break;
-                    }
-                };
-
-                let wad =
-                    wallet::wad::create_from_parts(node_url.clone(), unit, memo.clone(), proofs);
-                wads.push(wad);
-            }
-            if let Some(max_reached) = should_revert {
-                node_and_proofs
-                    .iter()
-                    .map(|(_, pids)| pids)
-                    .take(max_reached)
-                    .for_each(|proofs_id| {
-                        if let Err(e) = wallet::db::proof::set_proofs_to_state(
-                            &db_conn,
-                            proofs_id,
-                            ProofState::Unspent,
-                        ) {
-                            println!(
-                                "failed to revet state of the following proofs: {}\nProofs ids: {:?}",
-                                e, proofs_id
-                            );
-                        }
-                    });
-
-                return Err(anyhow!("wad creation reverted"));
-            };
-
-            let wads = CompactWads::new(wads);
+            // Load them from db, revert the one already loaded if it failed
+            let wads = load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), memo)?;
 
             match output {
                 Some((output_path, path_str)) => {
@@ -641,7 +600,7 @@ async fn main() -> Result<()> {
                     &mut node_client,
                     node_id,
                     &node_url,
-                    wad.unit.as_str(),
+                    &unit,
                     proofs,
                     &memo,
                 )

@@ -10,7 +10,7 @@ use crate::{
     acknowledge, db,
     errors::{Error, handle_out_of_sync_keyset_errors},
     node::refresh_keysets,
-    sync,
+    sync::{self, SyncMintQuoteError},
     types::{BlindingData, PreMints},
     wallet::SeedPhraseManager,
 };
@@ -49,7 +49,7 @@ pub async fn wait_for_quote_payment(
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
-) -> Result<QuotePaymentIssue, Error> {
+) -> Result<QuotePaymentIssue, SyncMintQuoteError> {
     loop {
         let state =
             match sync::mint_quote(pool.clone(), node_client, method.clone(), quote_id.clone())

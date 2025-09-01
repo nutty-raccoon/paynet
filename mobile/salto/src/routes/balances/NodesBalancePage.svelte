@@ -1,12 +1,17 @@
 <script lang="ts">
   import { pushState } from "$app/navigation";
-  import { type NodeData } from "../../types";
+  import type { NodeData, NodeId } from "../../types";
   import { getTotalAmountInDisplayCurrency } from "../../utils";
-  import { tokenPrices, displayCurrency } from "../../stores";
+  import {
+    tokenPrices,
+    displayCurrency,
+    pendingMintQuotes,
+  } from "../../stores";
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
-  import DepositModal from "./DepositModal.svelte";
-  import { refreshNodeKeysets } from "../../commands";
+  import NodeModal from "./NodeModal.svelte";
+  import { getPendingMintQuotes } from "../../commands";
+  import { derived } from "svelte/store";
 
   interface Props {
     nodes: NodeData[];
@@ -17,7 +22,7 @@
 
   // Modal state
   let isAddNodeModalOpen = $state(false);
-  let selectedNodeForDeposit = $state<NodeData | null>(null);
+  let selectedNodeForModal = $state<NodeData | null>(null);
 
   // Modal control functions
   function openAddNodeModal() {
@@ -30,15 +35,14 @@
     isAddNodeModalOpen = false;
   }
 
-  function openDepositModal(node: NodeData) {
-    refreshNodeKeysets(node.id);
-    selectedNodeForDeposit = node;
+  function openNodeModal(node: NodeData) {
+    selectedNodeForModal = node;
     // Add history entry to handle back button
     pushState("", { modal: true });
   }
 
-  function closeDepositModal() {
-    selectedNodeForDeposit = null;
+  function closeNodeModal() {
+    selectedNodeForModal = null;
   }
 
   // Function to compute total balance for a single node
@@ -63,15 +67,32 @@
 
   // Set up back button listener
   function handlePopState() {
-    if (!!selectedNodeForDeposit) {
-      closeDepositModal();
+    if (!!selectedNodeForModal) {
+      closeNodeModal();
     } else if (isAddNodeModalOpen) {
       closeAddNodeModal();
     }
   }
+  // Derived store that creates a Set of node IDs that have pending quotes
+  export const nodesWithPendingQuotes = derived(
+    pendingMintQuotes,
+    ($pendingMintQuotes) => {
+      const nodeIdsWithPending = new Set<NodeId>();
+
+      $pendingMintQuotes.forEach((quotes, nodeId) => {
+        if (!!quotes && (quotes.unpaid.length > 0 || quotes.paid.length > 0)) {
+          nodeIdsWithPending.add(nodeId);
+        }
+      });
+
+      return nodeIdsWithPending;
+    },
+  );
 
   onMount(() => {
     window.addEventListener("popstate", handlePopState);
+
+    getPendingMintQuotes();
   });
 
   onDestroy(() => {
@@ -86,7 +107,11 @@
         <span class="node-url">{node.url}</span>
         <span class="node-balance">{getNodeTotalBalance(node)}</span>
       </div>
-      <button class="open-button" onclick={() => openDepositModal(node)}>
+      <button
+        class="open-button"
+        class:has-pending={$nodesWithPendingQuotes.has(node.id)}
+        onclick={() => openNodeModal(node)}
+      >
         Open
       </button>
     </div>
@@ -99,10 +124,10 @@
   <AddNodeModal {nodes} onClose={closeAddNodeModal} {onAddNode} />
 {/if}
 
-{#if !!selectedNodeForDeposit}
-  <DepositModal
-    selectedNode={selectedNodeForDeposit}
-    onClose={closeDepositModal}
+{#if !!selectedNodeForModal}
+  <NodeModal
+    selectedNode={selectedNodeForModal}
+    onClose={closeNodeModal}
   />
 {/if}
 

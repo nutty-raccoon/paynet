@@ -58,8 +58,8 @@ impl Asset {
             Asset::Strk => Unit::MilliStrk,
             Asset::Eth => Unit::Gwei,
             Asset::WBtc => Unit::Satoshi,
-            Asset::UsdC => Unit::MicroUsdC,
-            Asset::UsdT => Unit::MicroUsdT,
+            Asset::UsdC => Unit::CentiUsdC,
+            Asset::UsdT => Unit::CentiUsdT,
         }
     }
 

@@ -31,14 +31,14 @@ pub(super) fn nuts_settings() -> NutsSettings<Method, Unit, serde_json::Value> {
                 },
                 MintMethodSettings {
                     method: Method::Starknet,
-                    unit: Unit::MicroUsdC,
+                    unit: Unit::CentiUsdC,
                     min_amount: Some(Amount::ONE),
                     max_amount: None,
                     options: None,
                 },
                 MintMethodSettings {
                     method: Method::Starknet,
-                    unit: Unit::MicroUsdT,
+                    unit: Unit::CentiUsdT,
                     min_amount: Some(Amount::ONE),
                     max_amount: None,
                     options: None,
@@ -68,13 +68,13 @@ pub(super) fn nuts_settings() -> NutsSettings<Method, Unit, serde_json::Value> {
                 },
                 MeltMethodSettings {
                     method: Method::Starknet,
-                    unit: Unit::MicroUsdC,
+                    unit: Unit::CentiUsdC,
                     min_amount: Some(Amount::ONE),
                     max_amount: None,
                 },
                 MeltMethodSettings {
                     method: Method::Starknet,
-                    unit: Unit::MicroUsdT,
+                    unit: Unit::CentiUsdT,
                     min_amount: Some(Amount::ONE),
                     max_amount: None,
                 },

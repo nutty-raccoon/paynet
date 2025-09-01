@@ -2,6 +2,8 @@ import { readable, writable, type Readable } from 'svelte/store';
 import { platform } from "@tauri-apps/plugin-os";
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { Price } from './types/price';
+import type { PendingMintQuotesUpdateEvent, NodePendingMintQuotes } from './types/quote';
+import type { NodeId } from './types';
 
 const currentPlatform = platform();
 
@@ -45,3 +47,34 @@ export const tokenPrices = readable<Price[] | null>(null, (set) => {
   };
 });
 
+export const pendingMintQuotes = readable<Map<NodeId, NodePendingMintQuotes>>(new Map<NodeId, NodePendingMintQuotes>(), (set, update) => {
+  let unlisten_updates: UnlistenFn | null = null;
+
+  const setupListener = async () => {
+    try {
+      unlisten_updates = await listen<PendingMintQuotesUpdateEvent>(
+        "pending-mint-quote-updated",
+        (event) => {
+          const { node_id, state } = event.payload;
+          
+          update((currentMap) => {
+            currentMap.set(node_id, state);
+            return currentMap;
+          });
+        }
+      );
+    } catch (error) {
+      console.error('Failed to set up pending mint quotes event listener:', error);
+    }
+  };
+
+  // Initialize the listener
+  setupListener();
+
+  // Return cleanup function
+  return () => {
+    if (unlisten_updates) {
+      unlisten_updates();
+    }
+  };
+});

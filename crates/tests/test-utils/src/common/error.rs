@@ -74,6 +74,8 @@ pub enum Error {
     #[cfg(feature = "e2e")]
     #[error(transparent)]
     SeedPhrase(#[from] wallet::wallet::sqlite::Error),
+    #[error(transparent)]
+    SyncMintQuote(#[from] wallet::sync::SyncMintQuoteError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -13,24 +13,30 @@ use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CreateMintQuoteError {
-    #[error(transparent)]
+    #[error("failed to get a connection from the pool: {0}")]
     R2D2(#[from] r2d2::Error),
-    #[error(transparent)]
+    #[error("failed to interact with database: {0}")]
     Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
+    #[error("failed wallet logic: {0}")]
     Wallet(#[from] wallet::errors::Error),
     #[error("unknown node_id: {0}")]
     NodeId(u32),
-    #[error(transparent)]
+    #[error("failed to parse asset: {0}")]
     Asset(#[from] AssetFromStrError),
     #[error("invalid amount: {0}")]
     Amount(#[from] ParseAmountStringError),
-    #[error(transparent)]
+    #[error("failed to convert asset to unit: {0}")]
     AssetToUnitConversion(#[from] AssetToUnitConversionError),
     #[error(transparent)]
     ConnectToNode(#[from] wallet::ConnectToNodeError),
-    #[error(transparent)]
-    SerdeJson(#[from] serde_json::Error),
+    #[error("failed to deposit payload: {0}")]
+    ParseDepositPayload(serde_json::Error),
+    #[error("failed to deposit calldatas: {0}")]
+    SerializeCalldata(serde_json::Error),
+    #[error("failed to redeem quote")]
+    Redeem(#[from] RedeemQuoteError),
+    #[error("failed to open the link for paying the invoice: {0}")]
+    OpenLink(#[from] tauri_plugin_opener::Error),
 }
 
 impl serde::Serialize for CreateMintQuoteError {
@@ -56,7 +62,7 @@ pub async fn create_mint_quote(
     node_id: u32,
     amount: String,
     asset: String,
-) -> Result<CreateMintQuoteResponse, CreateMintQuoteError> {
+) -> Result<(), CreateMintQuoteError> {
     let asset = Asset::from_str(&asset)?;
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
@@ -78,10 +84,33 @@ pub async fn create_mint_quote(
     )
     .await?;
 
-    let deposit_payload: starknet_types::DepositPayload = serde_json::from_str(&response.request)?;
-    let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
+    // Mock nodes return empty request for deposit
+    // Only allowed in debug mode
+    #[cfg(debug_assertions)]
+    if response.request.is_empty() {
+        inner_redeem_quote(
+            &app,
+            state.clone(),
+            &mut node_client,
+            node_id,
+            &response.quote,
+            unit.to_string(),
+            amount,
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    let deposit_payload: starknet_types::DepositPayload =
+        serde_json::from_str(&response.request)
+            .map_err(CreateMintQuoteError::ParseDepositPayload)?;
+    let payload_json = serde_json::to_string(&deposit_payload.call_data)
+        .map_err(CreateMintQuoteError::SerializeCalldata)?;
     let encoded_payload = urlencoding::encode(&payload_json);
 
+    // On desktop we open the browser
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
     let url = format!(
         "{}/deposit/{}/{}/?payload={}",
         &state.web_app_url,
@@ -90,13 +119,9 @@ pub async fn create_mint_quote(
         encoded_payload
     );
     log::info!("---- url: {:?}", url);
-    let x = app.opener().open_url(url, None::<&str>);
-    log::info!("---- openner result: {:?}", x);
+    app.opener().open_url(url, None::<&str>)?;
 
-    Ok(CreateMintQuoteResponse {
-        quote_id: response.quote,
-        payment_request: response.request,
-    })
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]

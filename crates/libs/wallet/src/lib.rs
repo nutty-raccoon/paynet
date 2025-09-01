@@ -259,10 +259,11 @@ pub async fn fetch_inputs_ids_from_db_or_node(
     Ok(Some(proofs_ids))
 }
 
-pub fn load_tokens_from_db(
+/// You should revert the state of the proofs yourself in case of error in your flow
+pub fn unprotected_load_tokens_from_db(
     db_conn: &Connection,
     proofs_ids: &[PublicKey],
-) -> Result<nut00::Proofs, Error> {
+) -> Result<nut00::Proofs, rusqlite::Error> {
     if proofs_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -270,16 +271,14 @@ pub fn load_tokens_from_db(
     let proofs = db::proof::get_proofs_by_ids(db_conn, proofs_ids)?
         .into_iter()
         .map(
-            |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof, Error> {
-                Ok(nut00::Proof {
-                    amount,
-                    keyset_id,
-                    secret,
-                    c: unblinded_signature,
-                })
+            |(amount, keyset_id, unblinded_signature, secret)| nut00::Proof {
+                amount,
+                keyset_id,
+                secret,
+                c: unblinded_signature,
             },
         )
-        .collect::<Result<Vec<_>, Error>>()?;
+        .collect();
 
     db::proof::set_proofs_to_state(db_conn, proofs_ids, ProofState::Reserved)?;
 
