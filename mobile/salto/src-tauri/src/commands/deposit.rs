@@ -1,24 +1,21 @@
-use node_client::NodeClient;
 use std::str::FromStr;
 use tauri_plugin_opener::OpenerExt;
+use tracing::error;
 
-use nuts::traits::Unit as UnitT;
-use nuts::{Amount, nut04::MintQuoteState};
-use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR, Unit};
+use nuts::nut04::MintQuoteState;
+use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR};
 use tauri::{AppHandle, Emitter, State};
-use tonic::transport::Channel;
 
-use crate::{AppState, commands::BalanceChange};
+use crate::errors::CommonError;
+use crate::front_events::{MINT_QUOTE_CREATED_EVENT, MintQuoteCreatedEvent, PendingMintQuoteData};
+use crate::mint_quote::Node;
+use crate::{AppState, mint_quote::MintQuoteStateMachine};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CreateMintQuoteError {
-    #[error("failed to get a connection from the pool: {0}")]
-    R2D2(#[from] r2d2::Error),
-    #[error("failed to interact with database: {0}")]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error("failed wallet logic: {0}")]
-    Wallet(#[from] wallet::errors::Error),
+    #[error(transparent)]
+    Common(#[from] crate::errors::CommonError),
     #[error("unknown node_id: {0}")]
     NodeId(u32),
     #[error("failed to parse asset: {0}")]
@@ -27,16 +24,10 @@ pub enum CreateMintQuoteError {
     Amount(#[from] ParseAmountStringError),
     #[error("failed to convert asset to unit: {0}")]
     AssetToUnitConversion(#[from] AssetToUnitConversionError),
-    #[error(transparent)]
-    ConnectToNode(#[from] wallet::ConnectToNodeError),
-    #[error("failed to deposit payload: {0}")]
-    ParseDepositPayload(serde_json::Error),
-    #[error("failed to deposit calldatas: {0}")]
-    SerializeCalldata(serde_json::Error),
-    #[error("failed to redeem quote")]
+    #[error("failed to redeem quote: {0}")]
     Redeem(#[from] RedeemQuoteError),
-    #[error("failed to open the link for paying the invoice: {0}")]
-    OpenLink(#[from] tauri_plugin_opener::Error),
+    #[error("failed pay the quote: {0}")]
+    Pay(#[from] PayQuoteError),
 }
 
 impl serde::Serialize for CreateMintQuoteError {
@@ -68,11 +59,14 @@ pub async fn create_mint_quote(
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
     let node_url = {
-        let db_conn = state.pool.get()?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)?
+        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        wallet::db::node::get_url_by_id(&db_conn, node_id)
+            .map_err(CommonError::Db)?
             .ok_or(CreateMintQuoteError::NodeId(node_id))?
     };
-    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
+        .await
+        .map_err(CommonError::CreateNodeClient)?;
 
     let response = wallet::mint::create_quote(
         state.pool.clone(),
@@ -82,64 +76,70 @@ pub async fn create_mint_quote(
         amount,
         unit,
     )
-    .await?;
+    .await
+    .map_err(CommonError::Wallet)?;
 
-    // Mock nodes return empty request for deposit
-    // Only allowed in debug mode
-    #[cfg(debug_assertions)]
-    if response.request.is_empty() {
-        inner_redeem_quote(
-            &app,
-            state.clone(),
-            &mut node_client,
+    app.emit(
+        MINT_QUOTE_CREATED_EVENT,
+        MintQuoteCreatedEvent {
             node_id,
-            &response.quote,
-            unit.to_string(),
-            amount,
-        )
-        .await?;
+            mint_quote: PendingMintQuoteData {
+                id: response.quote.clone(),
+                unit: unit.to_string(),
+                amount: amount.into(),
+            },
+        },
+    )
+    .map_err(CommonError::EmitEvent)?;
 
-        return Ok(());
-    }
+    let node = Node {
+        id: node_id,
+        client: node_client,
+    };
 
-    let deposit_payload: starknet_types::DepositPayload =
-        serde_json::from_str(&response.request)
-            .map_err(CreateMintQuoteError::ParseDepositPayload)?;
-    let payload_json = serde_json::to_string(&deposit_payload.call_data)
-        .map_err(CreateMintQuoteError::SerializeCalldata)?;
-    let encoded_payload = urlencoding::encode(&payload_json);
-
-    // On desktop we open the browser
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    let url = format!(
-        "{}/deposit/{}/{}/?payload={}",
-        &state.web_app_url,
-        STARKNET_STR,
-        deposit_payload.chain_id.as_str(),
-        encoded_payload
-    );
-    log::info!("---- url: {:?}", url);
-    app.opener().open_url(url, None::<&str>)?;
+    inner_pay_quote(&app, &state, node, response.quote, response.request).await?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn pay_quote(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    node_id: u32,
+    quote_id: String,
+) -> Result<(), PayQuoteError> {
+    let node_url = {
+        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        wallet::db::node::get_url_by_id(&db_conn, node_id)
+            .map_err(CommonError::Db)?
+            .ok_or(CommonError::NodeId(node_id))?
+    };
+
+    let mint_quote = {
+        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
+            .map_err(CommonError::Db)?
+            .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
+    };
+
+    let node_client = wallet::connect_to_node_lazy(&node_url, state.opt_root_ca_cert())
+        .map_err(CommonError::CreateNodeClient)?;
+
+    let node = Node {
+        id: node_id,
+        client: node_client,
+    };
+
+    inner_pay_quote(&app, &state, node, quote_id, mint_quote.request).await
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum RedeemQuoteError {
     #[error(transparent)]
-    R2D2(#[from] r2d2::Error),
-    #[error(transparent)]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
-    Wallet(#[from] wallet::errors::Error),
-    #[error("unknown node_id: {0}")]
-    NodeId(u32),
+    Common(#[from] crate::errors::CommonError),
     #[error("quote not paid")]
     QuoteNotPaid,
-    #[error(transparent)]
-    Tauri(#[from] tauri::Error),
-    #[error(transparent)]
-    NodeConnect(#[from] wallet::ConnectToNodeError),
     #[error("failed parse db unit: {0}")]
     Unit(#[from] starknet_types::UnitFromStrError),
 }
@@ -153,77 +153,110 @@ impl serde::Serialize for RedeemQuoteError {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PayQuoteError {
+    #[error(transparent)]
+    Common(#[from] crate::errors::CommonError),
+    #[error("failed to deposit payload: {0}")]
+    ParseDepositPayload(serde_json::Error),
+    #[error("failed to deposit calldatas: {0}")]
+    SerializeCalldata(serde_json::Error),
+    #[error("failed to open the link for paying the invoice: {0}")]
+    OpenLink(#[from] tauri_plugin_opener::Error),
+}
+
+impl serde::Serialize for PayQuoteError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
 #[tauri::command]
 pub async fn redeem_quote(
-    app: AppHandle,
     state: State<'_, AppState>,
     node_id: u32,
     quote_id: String,
 ) -> Result<(), RedeemQuoteError> {
     let node_url = {
-        let db_conn = state.pool.get()?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)?
-            .ok_or(RedeemQuoteError::NodeId(node_id))?
+        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        wallet::db::node::get_url_by_id(&db_conn, node_id)
+            .map_err(CommonError::Db)?
+            .ok_or(CommonError::NodeId(node_id))?
     };
-    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
 
     let mint_quote = {
-        let db_conn = state.pool.get()?;
-        wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)?
+        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
+            .map_err(CommonError::Db)?
+            .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
     };
 
     if mint_quote.state != MintQuoteState::Paid {
         return Err(RedeemQuoteError::QuoteNotPaid);
     }
 
-    inner_redeem_quote(
-        &app,
-        state,
-        &mut node_client,
-        node_id,
-        &quote_id,
-        mint_quote.unit,
-        mint_quote.amount,
-    )
-    .await
-}
-
-pub(crate) async fn inner_redeem_quote(
-    app: &AppHandle,
-    state: State<'_, AppState>,
-    node_client: &mut NodeClient<Channel>,
-    node_id: u32,
-    quote_id: &str,
-    unit: String,
-    amount: Amount,
-) -> Result<(), RedeemQuoteError> {
-    wallet::mint::redeem_quote(
-        crate::SEED_PHRASE_MANAGER,
-        state.pool.clone(),
-        node_client,
-        STARKNET_STR.to_string(),
-        quote_id,
-        node_id,
-        unit.as_str(),
-        amount,
-    )
-    .await?;
-
-    app.emit(
-        "balance-increase",
-        BalanceChange {
-            node_id,
-            unit: unit.as_str().to_string(),
-            amount: amount.into(),
-        },
-    )?;
+    let node_client = wallet::connect_to_node_lazy(&node_url, state.opt_root_ca_cert())
+        .map_err(CommonError::CreateNodeClient)?;
 
     state
-        .get_prices_config
-        .write()
+        .mint_quote_event_sender
+        .send(MintQuoteStateMachine::Paid {
+            node: Node {
+                id: node_id,
+                client: node_client,
+            },
+            quote_id,
+        })
         .await
-        .assets
-        .insert(Unit::from_str(&unit)?.matching_asset());
+        .map_err(|_| CommonError::MintQuoteChannel)?;
+
+    Ok(())
+}
+
+async fn inner_pay_quote(
+    app: &AppHandle,
+    state: &AppState,
+    node: Node,
+    quote_id: String,
+    request: String,
+) -> Result<(), PayQuoteError> {
+    // Mock nodes return empty request for deposit
+    // Only allowed in debug mode
+    #[cfg(debug_assertions)]
+    if request.is_empty() {
+        state
+            .mint_quote_event_sender
+            .send(MintQuoteStateMachine::Paid { node, quote_id })
+            .await
+            .map_err(|_| CommonError::MintQuoteChannel)?;
+        return Ok(());
+    } else {
+        state
+            .mint_quote_event_sender
+            .send(MintQuoteStateMachine::Created { node, quote_id })
+            .await
+            .map_err(|_| CommonError::MintQuoteChannel)?;
+    }
+
+    let deposit_payload: starknet_types::DepositPayload =
+        serde_json::from_str(&request).map_err(PayQuoteError::ParseDepositPayload)?;
+    let payload_json = serde_json::to_string(&deposit_payload.call_data)
+        .map_err(PayQuoteError::SerializeCalldata)?;
+    let encoded_payload = urlencoding::encode(&payload_json);
+
+    // On desktop we open the browser
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    let url = format!(
+        "{}/deposit/{}/{}/?payload={}",
+        &state.web_app_url,
+        STARKNET_STR,
+        deposit_payload.chain_id.as_str(),
+        encoded_payload
+    );
+    app.opener().open_url(url, None::<&str>)?;
 
     Ok(())
 }

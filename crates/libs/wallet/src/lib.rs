@@ -515,6 +515,33 @@ pub async fn connect_to_node(
     Ok(NodeClient::new(channel))
 }
 
+pub fn connect_to_node_lazy(
+    node_url: &NodeUrl,
+    root_ca_certificate: Option<tonic::transport::Certificate>,
+) -> Result<NodeClient<Channel>, ConnectToNodeError> {
+    let uses_tls = node_url.0.scheme() == "https";
+    let url_str = node_url.0.to_string();
+
+    let mut endpoint =
+        tonic::transport::Endpoint::new(url_str).map_err(ConnectToNodeError::Endpoint)?;
+
+    if uses_tls {
+        let mut tls_config = tonic::transport::ClientTlsConfig::new();
+
+        if let Some(ca_cert) = root_ca_certificate {
+            tls_config = tls_config.ca_certificate(ca_cert);
+        }
+
+        endpoint = endpoint
+            .tls_config(tls_config)
+            .map_err(ConnectToNodeError::TlsConfig)?;
+    }
+
+    let channel = endpoint.connect_lazy();
+
+    Ok(NodeClient::new(channel))
+}
+
 pub async fn acknowledge(
     node_client: &mut NodeClient<Channel>,
     route: Route,

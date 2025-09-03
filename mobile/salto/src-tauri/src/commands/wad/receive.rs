@@ -6,7 +6,10 @@ use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, Unit}
 use tauri::{AppHandle, Emitter, State};
 use wallet::types::compact_wad::{self, CompactWad, CompactWads};
 
-use crate::{AppState, commands::BalanceChange};
+use crate::{
+    AppState,
+    front_events::{BALANCE_INCREASE_EVENT, BalanceChange},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveWadsError {
@@ -80,7 +83,7 @@ pub async fn receive_wads(
         }
 
         app.emit(
-            "balance-increase",
+            BALANCE_INCREASE_EVENT,
             BalanceChange {
                 node_id,
                 unit,

@@ -125,10 +125,7 @@
 {/if}
 
 {#if !!selectedNodeForModal}
-  <NodeModal
-    selectedNode={selectedNodeForModal}
-    onClose={closeNodeModal}
-  />
+  <NodeModal selectedNode={selectedNodeForModal} onClose={closeNodeModal} />
 {/if}
 
 <style>
@@ -203,6 +200,14 @@
 
   .open-button:hover {
     background-color: #45a049;
+  }
+
+  .open-button.has-pending {
+    background-color: #ff9800;
+  }
+
+  .open-button.has-pending:hover {
+    background-color: #f57c00;
   }
 
   .add-node-button {

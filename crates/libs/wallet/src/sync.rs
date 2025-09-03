@@ -24,8 +24,8 @@ pub enum SyncMintQuotesError {
 #[derive(Debug, Default, Clone)]
 pub struct MintQuotesStateUpdate {
     pub deleted: Vec<String>,
-    pub unchanged: Vec<(String, MintQuoteState)>,
-    pub changed: Vec<(String, MintQuoteState)>,
+    pub unchanged: Vec<PendingMintQuote>,
+    pub changed: Vec<PendingMintQuote>,
 }
 
 pub async fn mint_quotes(
@@ -63,7 +63,7 @@ pub async fn mint_quotes(
                 seed_phrase_manager.clone(),
                 pool.clone(),
                 node_client,
-                pending_mint_quote.method,
+                pending_mint_quote.method.clone(),
                 &pending_mint_quote.id,
                 node_id,
                 &pending_mint_quote.unit,
@@ -81,13 +81,11 @@ pub async fn mint_quotes(
         }
 
         if new_state == pending_mint_quote.state {
-            states_updates
-                .unchanged
-                .push((pending_mint_quote.id, new_state));
+            states_updates.unchanged.push(pending_mint_quote);
         } else {
-            states_updates
-                .changed
-                .push((pending_mint_quote.id, new_state));
+            let mut pending_mint_quote = pending_mint_quote;
+            pending_mint_quote.state = new_state;
+            states_updates.changed.push(pending_mint_quote);
         }
     }
 

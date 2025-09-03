@@ -46,16 +46,19 @@ export async function addNode(nodeUrl: string) {
       return res;
 }
 
-export type CreateMintQuoteResponse = {
-  quoteId: QuoteId,
-  paymentRequest: string,
-}
-
 export async function createMintQuote(nodeId: NodeId, amount: string, asset: string) {
      const res = await invoke("create_mint_quote", {nodeId, amount, asset})
-      .then((message) => message as CreateMintQuoteResponse )
       .catch((error) => {
         console.error(`failed to create mint quote:`, error);
+      });
+
+      return res
+}
+
+export async function payQuote(nodeId: NodeId,quoteId: QuoteId) {
+     const res = await invoke("pay_quote", {nodeId, quoteId})
+      .catch((error) => {
+        console.error(`failed to pay mint quote:`, error);
       });
 
       return res

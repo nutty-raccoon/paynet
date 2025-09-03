@@ -1,8 +1,11 @@
 <script lang="ts">
-  import type { NodeData } from "../../types";
+  import type { NodeData, NodeId } from "../../types";
   import { pendingMintQuotes } from "../../stores";
   import { derived } from "svelte/store";
   import DepositModal from "./DepositModal.svelte";
+  import { formatBalance } from "../../utils";
+  import { payQuote, redeemQuote } from "../../commands";
+  import type { QuoteId } from "../../types/quote";
 
   interface Props {
     selectedNode: NodeData;
@@ -30,6 +33,14 @@
   function closeDepositModal() {
     showDepositModal = false;
   }
+
+  function handleUnpaidQuotePay(nodeId: NodeId, quoteId: QuoteId) {
+    payQuote(nodeId, quoteId);
+  }
+
+  function handlePaidQuotePay(nodeId: NodeId, quoteId: QuoteId) {
+    redeemQuote(nodeId, quoteId);
+  }
 </script>
 
 <div class="modal-backdrop" onclick={handleBackdropClick}>
@@ -46,9 +57,11 @@
         {#if selectedNode.balances.length > 0}
           <div class="balances-list">
             {#each selectedNode.balances as balance}
+              {@const formatted = formatBalance(balance.unit, balance.amount)}
               <div class="balance-item">
-                <span class="balance-unit">{balance.unit}</span>
-                <span class="balance-amount">{balance.amount}</span>
+                <span class="quote-amount"
+                  >{formatted.assetAmount} {formatted.asset}</span
+                >
               </div>
             {/each}
           </div>
@@ -68,13 +81,20 @@
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.unpaid as quote}
+                  {@const formatted = formatBalance(quote.unit, quote.amount)}
                   <div class="quote-item unpaid">
                     <div class="quote-info">
                       <span class="quote-amount"
-                        >{quote.amount} {quote.unit}</span
+                        >{formatted.assetAmount} {formatted.asset}</span
                       >
-                      <span class="quote-id">{quote.quote}</span>
                     </div>
+                    <button
+                      class="pay-button pending"
+                      onclick={() =>
+                        handleUnpaidQuotePay(selectedNode.id, quote.id)}
+                    >
+                      Pay
+                    </button>
                   </div>
                 {/each}
               </div>
@@ -88,13 +108,20 @@
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.paid as quote}
+                  {@const formatted = formatBalance(quote.unit, quote.amount)}
                   <div class="quote-item paid">
                     <div class="quote-info">
                       <span class="quote-amount"
-                        >{quote.amount} {quote.unit}</span
+                        >{formatted.assetAmount} {formatted.asset}</span
                       >
-                      <span class="quote-id">{quote.quote}</span>
                     </div>
+                    <button
+                      class="pay-button pending"
+                      onclick={() =>
+                        handlePaidQuotePay(selectedNode.id, quote.id)}
+                    >
+                      Redeem
+                    </button>
                   </div>
                 {/each}
               </div>
@@ -115,7 +142,7 @@
 </div>
 
 {#if showDepositModal}
-  <DepositModal selectedNode={selectedNode} onClose={closeDepositModal} />
+  <DepositModal {selectedNode} onClose={closeDepositModal} />
 {/if}
 
 <style>
@@ -222,18 +249,6 @@
     border-left: 4px solid #1e88e5;
   }
 
-  .balance-unit {
-    font-weight: 500;
-    color: #2c3e50;
-    font-family: monospace;
-  }
-
-  .balance-amount {
-    font-weight: 600;
-    color: #1e88e5;
-    font-size: 1.1rem;
-  }
-
   .quotes-subsection {
     margin-bottom: 1.5rem;
   }
@@ -256,16 +271,11 @@
     padding: 0.75rem;
     border-radius: 8px;
     border-left: 4px solid;
-  }
-
-  .quote-item.unpaid {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     background-color: #fff3e0;
     border-left-color: #ff9800;
-  }
-
-  .quote-item.paid {
-    background-color: #e8f5e8;
-    border-left-color: #4caf50;
   }
 
   .quote-info {
@@ -279,11 +289,25 @@
     color: #2c3e50;
   }
 
-  .quote-id {
-    font-size: 0.8rem;
-    font-family: monospace;
-    color: #666;
-    word-break: break-all;
+  .pay-button {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 60px;
+  }
+
+  .pay-button.pending {
+    background-color: #ff9800;
+    color: white;
+  }
+
+  .pay-button.pending:hover {
+    background-color: #f57c00;
+    transform: translateY(-1px);
   }
 
   .empty-state {
@@ -347,6 +371,12 @@
     .deposit-button {
       padding: 0.7rem 1rem;
       font-size: 0.9rem;
+    }
+
+    .pay-button {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+      min-width: 50px;
     }
   }
 </style>

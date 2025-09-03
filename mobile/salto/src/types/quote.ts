@@ -1,13 +1,21 @@
-import type { NodeId } from "./node";
+import type { NodeId, Unit } from "./node";
 
 export type QuoteId = string;
 
-export type PendingMintQuotesUpdateEvent = {
-  node_id: NodeId,
-  state: NodePendingMintQuotes,
+export type PendingMintQuoteData  = {
+    id: string,
+    unit: Unit,
+    amount: number,
 }
 
-export type NodePendingMintQuotes = {
-  unpaid: QuoteId[],
-  paid: QuoteId[],
+export type PendingMintQuotesUpdateEvent = {
+  nodeId: NodeId,
+  unpaid: PendingMintQuoteData[],
+  paid: PendingMintQuoteData[],
 }
+
+export type MintQuoteIdentifier = {
+  nodeId: NodeId,
+  quoteId: QuoteId
+}
+

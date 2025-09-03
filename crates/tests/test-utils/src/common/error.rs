@@ -76,6 +76,8 @@ pub enum Error {
     SeedPhrase(#[from] wallet::wallet::sqlite::Error),
     #[error(transparent)]
     SyncMintQuote(#[from] wallet::sync::SyncMintQuoteError),
+    #[error(transparent)]
+    RedeemQuote(#[from] wallet::mint::RedeemQuoteError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -3,10 +3,11 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::sync::RwLock;
+use tracing::error;
 
-use crate::{PriceConfig, PriceSyncStatus};
+use crate::{AppState, PriceConfig, PriceSyncStatus};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -79,7 +80,8 @@ pub async fn fetch_and_emit_prices(
 }
 
 // TODO: pause price fetching when app is not used (background/not-focused)
-pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app: tauri::AppHandle) {
+pub async fn start_price_fetcher(app: tauri::AppHandle) {
+    let config = app.state::<AppState>().get_prices_config.clone();
     let mut retry_delay = 1;
     loop {
         let res = fetch_and_emit_prices(&app, &config).await;

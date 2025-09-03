@@ -70,6 +70,22 @@ pub async fn wait_for_quote_payment(
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RedeemQuoteError {
+    #[error("failed to refresh keyset: {0}")]
+    RefreshKeyset(#[from] crate::node::RefreshNodeKeysetError),
+    #[error(transparent)]
+    R2d2(#[from] r2d2::Error),
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    Wallet(#[from] crate::wallet::Error),
+    #[error(transparent)]
+    Grpc(#[from] tonic::Status),
+    #[error("failed to generate pre-mints: {0}")]
+    PreMints(#[from] crate::errors::Error),
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn redeem_quote(
     seed_phrase_manager: impl SeedPhraseManager,
@@ -80,7 +96,7 @@ pub async fn redeem_quote(
     node_id: u32,
     unit: &str,
     total_amount: Amount,
-) -> Result<(), Error> {
+) -> Result<(), RedeemQuoteError> {
     refresh_keysets(pool.clone(), node_client, node_id).await?;
 
     let blinding_data = {

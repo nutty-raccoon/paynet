@@ -3,7 +3,7 @@ use std::str::FromStr;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, Emitter, State};
 
-use crate::{AppState, commands::BalanceChange};
+use crate::{AppState, front_events::BalanceChange};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]

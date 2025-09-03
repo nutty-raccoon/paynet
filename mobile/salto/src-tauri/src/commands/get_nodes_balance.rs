@@ -8,6 +8,9 @@ use wallet::db::mint_quote::PendingMintQuote;
 use wallet::{ConnectToNodeError, connect_to_node};
 
 use crate::AppState;
+use crate::front_events::{
+    NODE_PENDING_MINT_QUOTE_UPDATES, NodePendingMintQuotesStateUpdatesEvent, PendingMintQuoteData,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GetNodesBalanceError {
@@ -70,7 +73,14 @@ pub async fn get_pending_mint_quotes(
         let app_handle = app.clone();
         let pool = state.pool.clone();
         let opt_root_ca_cert = opt_root_ca_cert.clone();
-        async_runtime::spawn(sync_node(app_handle, pool, opt_root_ca_cert, node_id, pending_mint_quotes));
+
+        async_runtime::spawn(sync_node(
+            app_handle,
+            pool,
+            opt_root_ca_cert,
+            node_id,
+            pending_mint_quotes,
+        ));
     }
 
     Ok(())
@@ -116,20 +126,28 @@ async fn sync_node(
 
     let mut unpaid = Vec::new();
     let mut paid = Vec::new();
-    for (id, state) in state_updates
+    for mint_quote in state_updates
         .unchanged
         .into_iter()
         .chain(state_updates.changed)
     {
-        if state == MintQuoteState::Unpaid {
-            unpaid.push(id);
-        } else if state == MintQuoteState::Paid {
-            paid.push(id);
+        if mint_quote.state == MintQuoteState::Unpaid {
+            unpaid.push(PendingMintQuoteData {
+                id: mint_quote.id,
+                unit: mint_quote.unit,
+                amount: mint_quote.amount.into(),
+            });
+        } else if mint_quote.state == MintQuoteState::Paid {
+            paid.push(PendingMintQuoteData {
+                id: mint_quote.id,
+                unit: mint_quote.unit,
+                amount: mint_quote.amount.into(),
+            });
         }
     }
 
     app.emit(
-        "pending-mint-quote-updated",
+        NODE_PENDING_MINT_QUOTE_UPDATES,
         NodePendingMintQuotesStateUpdatesEvent {
             node_id,
             unpaid,
@@ -138,11 +156,4 @@ async fn sync_node(
     )?;
 
     Ok(())
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct NodePendingMintQuotesStateUpdatesEvent {
-    node_id: u32,
-    unpaid: Vec<String>,
-    paid: Vec<String>,
 }
