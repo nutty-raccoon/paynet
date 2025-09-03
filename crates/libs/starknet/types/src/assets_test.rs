@@ -76,14 +76,14 @@ mod tests {
         // Test USDC conversion
         let usdc_amount = U256::from(1_000_000u64); // 1 USDC
         let (amount, unit, rem) = Asset::UsdC.convert_to_amount_and_unit(usdc_amount).unwrap();
-        assert_eq!(amount, Amount::from(1_000_000u64)); // Should be 100 cents
+        assert_eq!(amount, Amount::from(100u64)); // Should be 100 cents
         assert_eq!(unit, Unit::CentiUsdC);
         assert_eq!(rem, U256::zero());
 
         // Test USDT conversion
         let usdt_amount = U256::from(1_000_000u64); // 1 USDC
         let (amount, unit, rem) = Asset::UsdT.convert_to_amount_and_unit(usdt_amount).unwrap();
-        assert_eq!(amount, Amount::from(1_000_000u64)); // Should be 100 cents
+        assert_eq!(amount, Amount::from(100u64)); // Should be 100 cents
         assert_eq!(unit, Unit::CentiUsdT);
         assert_eq!(rem, U256::zero());
     }

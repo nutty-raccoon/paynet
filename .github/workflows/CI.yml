@@ -118,6 +118,7 @@ jobs:
         working-directory: mobile
         env:
           PRICE_PROVIDER_URL: "http://localhost:80"
+          WEB_APP_URL: "https://localhost:3005"
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps
 
   build-app-binaries:

@@ -74,8 +74,10 @@ pub enum Error {
     #[cfg(feature = "e2e")]
     #[error(transparent)]
     SeedPhrase(#[from] wallet::wallet::sqlite::Error),
+    #[cfg(feature = "e2e")]
     #[error(transparent)]
     SyncMintQuote(#[from] wallet::sync::SyncMintQuoteError),
+    #[cfg(feature = "e2e")]
     #[error(transparent)]
     RedeemQuote(#[from] wallet::mint::RedeemQuoteError),
 }
