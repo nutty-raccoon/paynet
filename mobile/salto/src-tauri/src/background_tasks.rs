@@ -3,10 +3,16 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tauri::Emitter;
+use tauri::Manager;
 use tokio::sync::RwLock;
+use tracing::error;
 
-use crate::{PriceConfig, PriceSyncStatus};
+use crate::{
+    AppState, PriceConfig, PriceSyncStatus,
+    front_events::{
+        NewPriceEvent, OutOfSyncPriceEvent, emit_new_price_event, emit_out_of_sync_price_event,
+    },
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -14,12 +20,6 @@ pub enum Error {
     Reqwest(#[from] reqwest::Error),
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct NewPriceResp {
-    symbol: String,
-    value: f64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -59,12 +59,12 @@ pub async fn fetch_and_emit_prices(
     };
     let resp: PriceProviderResponse = reqwest::get(url).await?.error_for_status()?.json().await?;
 
-    let payload: Vec<NewPriceResp> = {
+    let payload: Vec<NewPriceEvent> = {
         let currency = &config.read().await.currency;
         resp.prices
             .into_iter()
             .filter_map(|p| {
-                pick_value(&p.price, currency).map(|v| NewPriceResp {
+                pick_value(&p.price, currency).map(|v| NewPriceEvent {
                     symbol: p.symbol,
                     value: v,
                 })
@@ -72,14 +72,15 @@ pub async fn fetch_and_emit_prices(
             .collect()
     };
 
-    app.emit("new-price", payload)?;
+    emit_new_price_event(app, payload)?;
     config.write().await.status = PriceSyncStatus::Synced(SystemTime::now());
 
     Ok(())
 }
 
 // TODO: pause price fetching when app is not used (background/not-focused)
-pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app: tauri::AppHandle) {
+pub async fn start_price_fetcher(app: tauri::AppHandle) {
+    let config = app.state::<AppState>().get_prices_config.clone();
     let mut retry_delay = 1;
     loop {
         let res = fetch_and_emit_prices(&app, &config).await;
@@ -93,7 +94,7 @@ pub async fn start_price_fetcher(config: Arc<RwLock<PriceConfig>>, app: tauri::A
                         .as_secs()
                         > 60 =>
                 {
-                    if let Err(e) = app.emit("out-of-sync-price", ()) {
+                    if let Err(e) = emit_out_of_sync_price_event(&app, OutOfSyncPriceEvent) {
                         tracing::error!("failed to signal price out of sync: {e}");
                     }
                 }

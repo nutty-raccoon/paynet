@@ -5524,7 +5524,6 @@ dependencies = [
  "futures",
  "itertools",
  "keyring",
- "log",
  "node-client",
  "num-traits",
  "nuts",
@@ -5538,6 +5537,7 @@ dependencies = [
  "tokio",
  "tonic 0.13.1",
  "tonic-types",
+ "tracing",
  "url",
  "uuid 1.17.0",
 ]

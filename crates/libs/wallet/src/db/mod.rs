@@ -18,17 +18,6 @@ pub const CREATE_TABLE_KEY: &str = r#"
             PRIMARY KEY (keyset_id, amount)
         );
     "#;
-pub const CREATE_TABLE_MINT_QUOTE: &str = r#"
-        CREATE TABLE IF NOT EXISTS mint_quote (
-            id BLOB(16) PRIMARY KEY,
-            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-            method TEXT NOT NULL,
-            amount INTEGER NOT NULL,
-            unit TEXT NOT NULL,
-            request TEXT NOT NULL,
-            state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
-            expiry INTEGER NOT NULL
-        );"#;
 pub const CREATE_TABLE_MELT_QUOTE: &str = r#"
         CREATE TABLE IF NOT EXISTS melt_quote (
             id BLOB(16) PRIMARY KEY,
@@ -49,7 +38,7 @@ pub fn create_tables(conn: &mut Connection) -> Result<()> {
     tx.execute(node::CREATE_TABLE_NODE, ())?;
     tx.execute(keyset::CREATE_TABLE_KEYSET, ())?;
     tx.execute(CREATE_TABLE_KEY, ())?;
-    tx.execute(CREATE_TABLE_MINT_QUOTE, ())?;
+    tx.execute(mint_quote::CREATE_TABLE_MINT_QUOTE, ())?;
     tx.execute(CREATE_TABLE_MELT_QUOTE, ())?;
     tx.execute(proof::CREATE_TABLE_PROOF, ())?;
     tx.execute(wad::CREATE_TABLE_WAD, ())?;

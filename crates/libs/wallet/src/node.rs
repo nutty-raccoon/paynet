@@ -10,6 +10,7 @@ use nuts::{
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
+use tracing::error;
 
 use crate::{
     ConnectToNodeError, StoreNewProofsError,
@@ -274,7 +275,7 @@ pub async fn refresh_keysets(
                 )?;
             }
             Err(e) => {
-                log::error!("could not get keys for one of the keysets: {}", e);
+                error!("could not get keys for one of the keysets: {}", e);
             }
         }
     }

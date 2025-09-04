@@ -22,7 +22,7 @@ pub enum Error {
     SeedPhraseManager(Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
-pub trait SeedPhraseManager {
+pub trait SeedPhraseManager: Clone {
     type Error: std::error::Error + Send + Sync + 'static + From<crate::seed_phrase::Error>;
 
     fn store_seed_phrase(&self, seed_phrase: &Mnemonic) -> Result<(), Self::Error>;

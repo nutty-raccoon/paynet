@@ -1,6 +1,8 @@
-use crate::AppState;
-use crate::background_tasks::fetch_and_emit_prices;
-use tauri::Emitter;
+use crate::{
+    AppState,
+    background_tasks::fetch_and_emit_prices,
+    front_events::{OutOfSyncPriceEvent, emit_out_of_sync_price_event},
+};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,7 +39,7 @@ pub async fn set_price_provider_currency(
     let res = fetch_and_emit_prices(&app, &state.get_prices_config).await;
     if let Err(err) = res {
         tracing::error!("price fetch error: {}", err);
-        app.emit("out-of-sync-price", ())
+        emit_out_of_sync_price_event(&app, OutOfSyncPriceEvent)
             .map_err(|e| SetPriceProviderCurrencyError(crate::background_tasks::Error::Tauri(e)))?;
     }
 

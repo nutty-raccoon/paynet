@@ -471,14 +471,18 @@ impl Node for GrpcState {
         let quote_id =
             Uuid::from_str(&mint_quote_state_request.quote).map_err(ParseGrpcError::Uuid)?;
 
-        let response = self.inner_mint_quote_state(method, quote_id).await?;
-
-        Ok(Response::new(MintQuoteResponse {
-            quote: response.quote.to_string(),
-            request: response.request,
-            state: node::MintQuoteState::from(response.state).into(),
-            expiry: response.expiry,
-        }))
+        match self.inner_mint_quote_state(method, quote_id).await? {
+            Some(response) => Ok(Response::new(MintQuoteResponse {
+                quote: response.quote.to_string(),
+                request: response.request,
+                state: node::MintQuoteState::from(response.state).into(),
+                expiry: response.expiry,
+            })),
+            None => Err(Status::not_found(format!(
+                "no mint quote with id {}",
+                quote_id
+            ))),
+        }
     }
 
     #[instrument]

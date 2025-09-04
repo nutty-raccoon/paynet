@@ -10,6 +10,13 @@ export async function getNodesBalance() {
       return res;
   }
 
+export async function getPendingMintQuotes() {
+     let res =  await invoke("get_pending_mint_quotes")
+       .then((message) => message as NodeData[] )
+       .catch((error) => console.error(error));
+      return res;
+  }
+
   export async function getCurrencies() {
     let res =  await invoke("get_currencies")
        .then((message) => message as string[])
@@ -39,14 +46,8 @@ export async function addNode(nodeUrl: string) {
       return res;
 }
 
-export type CreateMintQuoteResponse = {
-  quoteId: QuoteId,
-  paymentRequest: string,
-}
-
-export async function create_mint_quote(nodeId: NodeId, amount: string, asset: string) {
+export async function createMintQuote(nodeId: NodeId, amount: string, asset: string) {
      const res = await invoke("create_mint_quote", {nodeId, amount, asset})
-      .then((message) => message as CreateMintQuoteResponse )
       .catch((error) => {
         console.error(`failed to create mint quote:`, error);
       });
@@ -54,7 +55,16 @@ export async function create_mint_quote(nodeId: NodeId, amount: string, asset: s
       return res
 }
 
-export async function redeem_quote(nodeId: NodeId, quoteId: QuoteId) {
+export async function payQuote(nodeId: NodeId,quoteId: QuoteId) {
+     const res = await invoke("pay_quote", {nodeId, quoteId})
+      .catch((error) => {
+        console.error(`failed to pay mint quote:`, error);
+      });
+
+      return res
+}
+
+export async function redeemQuote(nodeId: NodeId, quoteId: QuoteId) {
       await invoke("redeem_quote", {nodeId, quoteId})
       .catch((error) => {
         console.error(`failed to redeem quote:`, error);
@@ -63,7 +73,7 @@ export async function redeem_quote(nodeId: NodeId, quoteId: QuoteId) {
       return ;
 }
 
-export async function create_wads(amount: string, asset: string) {
+export async function createWads(amount: string, asset: string) {
       const res = await invoke("create_wads", {amount, asset})
       .then((message) => message as Wads)
       .catch((error) => {
@@ -74,7 +84,7 @@ export async function create_wads(amount: string, asset: string) {
   
 } 
 
-export async function receive_wads(wads: string) {
+export async function receiveWads(wads: string) {
       const res = await invoke("receive_wads", {wads})
       .catch((error) => {
         console.error("failed to receive wads:", error);
@@ -117,7 +127,7 @@ export async function restoreWallet(seedPhrase: string) {
   return res;
 }
 
-export async function get_wad_history(limit?: number): Promise<WadHistoryItem[] | undefined> {
+export async function getWadHistory(limit?: number): Promise<WadHistoryItem[] | undefined> {
       const res = await invoke("get_wad_history", {limit})
       .then((message) => message as WadHistoryItem[])
       .catch((error) => {
@@ -128,7 +138,7 @@ export async function get_wad_history(limit?: number): Promise<WadHistoryItem[] 
       return res;
 } 
 
-export async function sync_wads(): Promise<void> {
+export async function syncWads(): Promise<void> {
       await invoke("sync_wads")
       .catch((error) => {
         console.error("failed to sync wads:", error);
@@ -136,7 +146,7 @@ export async function sync_wads(): Promise<void> {
 } 
 
 
-export async function refresh_node_keysets(nodeId: NodeId) {
+export async function refreshNodeKeysets(nodeId: NodeId) {
       await invoke("refresh_node_keysets", {nodeId})
       .catch((error) => {
         console.error(`failed to refresh node keysets:`, error);

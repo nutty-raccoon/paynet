@@ -6,6 +6,7 @@ use rusqlite::Connection;
 use thiserror::Error;
 use tonic::{Code, Status, transport::Channel};
 use tonic_types::StatusExt;
+use tracing::{error, info};
 
 use crate::{StoreNewProofsError, db, node::RefreshNodeKeysetError, seed_phrase};
 
@@ -132,10 +133,9 @@ pub fn handle_proof_verification_errors(
                     already_spent_indices.push(proof_index);
                 }
                 _ => {
-                    log::error!(
+                    error!(
                         "Unknown proof error for index {}: {}",
-                        proof_index,
-                        violation.description
+                        proof_index, violation.description
                     );
                 }
             }
@@ -157,7 +157,7 @@ fn handle_crypto_invalid_proofs(
     proofs_ids: &[PublicKey],
     conn: &Connection,
 ) -> Result<(), rusqlite::Error> {
-    log::info!(
+    info!(
         "Removing {} cryptographically invalid proofs: {:?}",
         indices.len(),
         indices
@@ -168,7 +168,7 @@ fn handle_crypto_invalid_proofs(
         if let Some(id) = proofs_ids.get(*i as usize) {
             invalid_proofs.push(*id);
         } else {
-            log::error!("Invalid index: {}", i);
+            error!("Invalid index: {}", i);
         }
     }
 
@@ -181,7 +181,7 @@ fn handle_already_spent_proofs(
     proofs_ids: &[PublicKey],
     conn: &Connection,
 ) -> Result<(), rusqlite::Error> {
-    log::info!(
+    info!(
         "Removing {} already spent proofs: {:?}",
         indices.len(),
         indices
@@ -192,10 +192,7 @@ fn handle_already_spent_proofs(
         if let Some(id) = proofs_ids.get(*i as usize) {
             invalid_proofs.push(*id);
         } else {
-            log::error!(
-                "Node returned an out of bound index for invalid proof: {}",
-                i
-            );
+            error!("Node returned an out of bound index for invalid proof: {i}",);
         }
     }
 

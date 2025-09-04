@@ -10,7 +10,7 @@ use crate::{
     acknowledge, db,
     errors::{Error, handle_out_of_sync_keyset_errors},
     node::refresh_keysets,
-    sync,
+    sync::{self, SyncMintQuoteError},
     types::{BlindingData, PreMints},
     wallet::SeedPhraseManager,
 };
@@ -49,7 +49,7 @@ pub async fn wait_for_quote_payment(
     node_client: &mut NodeClient<Channel>,
     method: String,
     quote_id: String,
-) -> Result<QuotePaymentIssue, Error> {
+) -> Result<QuotePaymentIssue, SyncMintQuoteError> {
     loop {
         let state =
             match sync::mint_quote(pool.clone(), node_client, method.clone(), quote_id.clone())
@@ -70,17 +70,33 @@ pub async fn wait_for_quote_payment(
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RedeemQuoteError {
+    #[error("failed to refresh keyset: {0}")]
+    RefreshKeyset(#[from] crate::node::RefreshNodeKeysetError),
+    #[error(transparent)]
+    R2d2(#[from] r2d2::Error),
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    Wallet(#[from] crate::wallet::Error),
+    #[error(transparent)]
+    Grpc(#[from] tonic::Status),
+    #[error("failed to generate pre-mints: {0}")]
+    PreMints(#[from] crate::errors::Error),
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn redeem_quote(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     method: String,
-    quote_id: String,
+    quote_id: &str,
     node_id: u32,
     unit: &str,
     total_amount: Amount,
-) -> Result<(), Error> {
+) -> Result<(), RedeemQuoteError> {
     refresh_keysets(pool.clone(), node_client, node_id).await?;
 
     let blinding_data = {
@@ -94,7 +110,7 @@ pub async fn redeem_quote(
 
     let mint_request = MintRequest {
         method,
-        quote: quote_id.clone(),
+        quote: quote_id.to_string(),
         outputs,
     };
 
@@ -114,7 +130,7 @@ pub async fn redeem_quote(
         let mut db_conn = pool.get()?;
         let tx = db_conn.transaction()?;
         pre_mints.store_new_tokens(&tx, node_id, mint_response.signatures)?;
-        db::mint_quote::set_state(&tx, &quote_id, MintQuoteState::Issued)?;
+        db::mint_quote::set_state(&tx, quote_id, MintQuoteState::Issued)?;
         tx.commit()?;
     }
 
