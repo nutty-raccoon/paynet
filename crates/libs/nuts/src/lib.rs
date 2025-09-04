@@ -57,6 +57,10 @@ pub mod traits {
         fn matching_asset(&self) -> Self::Asset;
     }
 
+    pub trait Unit256 {
+        fn convert_amount_into_u256(&self, amount: crate::Amount) -> primitive_types::U256;
+    }
+
     #[cfg(test)]
     pub mod test_types {
         use std::{fmt::Display, str::FromStr};

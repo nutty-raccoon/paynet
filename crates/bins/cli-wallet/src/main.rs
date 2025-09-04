@@ -3,6 +3,7 @@ use clap::{Args, Parser, Subcommand, ValueHint};
 use colored::*;
 use node_client::NodeClient;
 use nuts::Amount;
+use nuts::traits::Unit256;
 use parse_asset_amount::parse_asset_amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;

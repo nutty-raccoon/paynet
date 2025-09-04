@@ -32,37 +32,11 @@ pub struct Module {
     pub output: ::core::option::Option<module::Output>,
     #[prost(uint64, tag="8")]
     pub initial_block: u64,
-    #[prost(message, optional, tag="9")]
-    pub block_filter: ::core::option::Option<module::BlockFilter>,
-    #[prost(oneof="module::Kind", tags="2, 3, 10")]
+    #[prost(oneof="module::Kind", tags="2, 3")]
     pub kind: ::core::option::Option<module::Kind>,
 }
 /// Nested message and enum types in `Module`.
 pub mod module {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-    pub struct BlockFilter {
-        #[prost(string, tag="1")]
-        pub module: ::prost::alloc::string::String,
-        #[prost(oneof="block_filter::Query", tags="2, 3")]
-        pub query: ::core::option::Option<block_filter::Query>,
-    }
-    /// Nested message and enum types in `BlockFilter`.
-    pub mod block_filter {
-        #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Oneof)]
-        pub enum Query {
-            #[prost(string, tag="2")]
-            QueryString(::prost::alloc::string::String),
-            /// QueryFromStore query_from_store_keys = 3;
-            #[prost(message, tag="3")]
-            QueryFromParams(super::QueryFromParams),
-        }
-    }
-    #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-    pub struct QueryFromParams {
-    }
     #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct KindMap {
@@ -134,12 +108,6 @@ pub mod module {
                 }
             }
         }
-    }
-    #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-    pub struct KindBlockIndex {
-        #[prost(string, tag="1")]
-        pub output_type: ::prost::alloc::string::String,
     }
     #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -235,8 +203,6 @@ pub mod module {
         KindMap(KindMap),
         #[prost(message, tag="3")]
         KindStore(KindStore),
-        #[prost(message, tag="10")]
-        KindBlockIndex(KindBlockIndex),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -261,21 +227,6 @@ pub struct Package {
     pub sink_config: ::core::option::Option<::prost_types::Any>,
     #[prost(string, tag="11")]
     pub sink_module: ::prost::alloc::string::String,
-    /// image is the bytes to a JPEG, WebP or PNG file. Max size is 2 MiB
-    #[prost(bytes="vec", tag="12")]
-    pub image: ::prost::alloc::vec::Vec<u8>,
-    #[prost(map="string, message", tag="13")]
-    pub networks: ::std::collections::HashMap<::prost::alloc::string::String, NetworkParams>,
-    #[prost(map="string, string", tag="14")]
-    pub block_filters: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NetworkParams {
-    #[prost(map="string, uint64", tag="1")]
-    pub initial_blocks: ::std::collections::HashMap<::prost::alloc::string::String, u64>,
-    #[prost(map="string, string", tag="2")]
-    pub params: ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

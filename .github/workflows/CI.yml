@@ -338,7 +338,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./contracts/ethereum/invoice
-        run: forge install
+        run: forge install --no-git
 
       - name: Show Forge version
         working-directory: ./contracts/ethereum/invoice

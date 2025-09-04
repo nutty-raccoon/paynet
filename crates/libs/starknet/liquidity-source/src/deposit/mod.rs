@@ -10,7 +10,7 @@ pub use not_mock::*;
 mod not_mock {
     use bitcoin_hashes::Sha256;
     use liquidity_source::DepositInterface;
-    use nuts::Amount;
+    use nuts::{Amount, traits::Unit256};
     use starknet_types::{
         Asset, ChainId, DepositPayload, PayInvoiceCallData, Unit, compute_invoice_id,
         constants::ON_CHAIN_CONSTANTS,

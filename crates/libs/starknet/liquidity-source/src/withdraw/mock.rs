@@ -1,6 +1,5 @@
 use liquidity_source::WithdrawInterface;
 use num_traits::CheckedAdd;
-use nuts::traits::Unit as UnitT;
 use nuts::{Amount, nut05::MeltQuoteState};
 use starknet_types::{Asset, AssetToUnitConversionError, Unit, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;

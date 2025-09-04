@@ -1,0 +1,27 @@
+start:
+  args:
+  - merger
+  - firehose
+  - reader-node
+  - relayer
+  - index-builder
+  - substreams-tier1 
+  - substreams-tier2
+  flags:
+    log-to-file: false
+    common-first-streamable-block: 0
+    merger-time-between-store-pruning: 1s
+    substreams-rpc-endpoints: http://localhost:8545
+    # reader-node-path: ./geth_linux
+    reader-node-arguments: 
+      --dev
+      --dev.period=3
+      --http
+      --http.addr=0.0.0.0
+      --http.api=eth,net,web3,debug,admin
+      --http.corsdomain=*
+      --http.vhosts=*
+      --ws 
+      --ws.addr=0.0.0.0 
+      --ws.port=8546 
+      --ws.api=web3,eth,net,admin,debug
