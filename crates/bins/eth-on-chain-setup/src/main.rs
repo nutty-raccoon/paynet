@@ -1,6 +1,5 @@
 use anyhow::{Context, Error, anyhow};
 use clap::{Parser, ValueHint};
-use env_logger;
 use ethabi::{Address as AbiAddress, Token, Uint};
 use ethers::{
     abi::Abi,
@@ -222,7 +221,7 @@ fn parse_bytes32(s: &str) -> Result<[u8; 32], Error> {
 }
 
 fn parse_address(s: &str) -> Result<Address, Error> {
-    Ok(s.parse::<Address>().context("invalid address")?)
+    s.parse::<Address>().context("invalid address")
 }
 
 fn parse_u256(s: &str) -> Result<U256, Error> {

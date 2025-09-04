@@ -13,7 +13,7 @@ pub struct Param {
 }
 
 pub fn read_package(path: &str, params: Vec<Param>) -> Result<Package, Error> {
-    let content = std::fs::read(&path.to_string())
+    let content = std::fs::read(path)
         .context(format_err!("read package from file '{}'", path.to_string()))?;
     let mut package = Package::decode(content.as_ref()).context("decode command")?;
 

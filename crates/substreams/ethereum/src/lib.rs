@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 mod abi;
 mod pb;
 use pb::eth_invoice_contract::v1::{RemittanceEvent, RemittanceEvents};
