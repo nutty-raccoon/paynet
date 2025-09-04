@@ -1,35 +1,26 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, str::FromStr};
 
-use starknet_types::{AssetFromStrError, AssetToUnitConversionError, Unit};
-use tauri::{AppHandle, Emitter, State};
+use nuts::traits::Unit as UnitT;
+use starknet_types::{Asset, Unit};
+use tauri::{AppHandle, State};
 use wallet::types::compact_wad::{self, CompactWad, CompactWads};
 
-use crate::{AppState, commands::BalanceChange, parse_asset_amount::ParseAmountStringError};
+use crate::{
+    AppState,
+    errors::CommonError,
+    front_events::{BalanceChange, emit_balance_increase_event},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveWadsError {
     #[error(transparent)]
-    R2D2(#[from] r2d2::Error),
-    #[error(transparent)]
-    Rusqlite(#[from] rusqlite::Error),
-    #[error(transparent)]
-    Wallet(#[from] wallet::errors::Error),
-    #[error(transparent)]
-    Asset(#[from] AssetFromStrError),
-    #[error("invalid amount: {0}")]
-    Amount(#[from] ParseAmountStringError),
-    #[error(transparent)]
-    AssetToUnitConversion(#[from] AssetToUnitConversionError),
-    #[error("invalid string for compacted wad")]
+    Common(#[from] CommonError),
+    #[error("invalid string for compacted wad: {0}")]
     WadString(#[from] compact_wad::Error),
-    #[error(transparent)]
-    Tauri(#[from] tauri::Error),
-    #[error("this is a json error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error(transparent)]
+    #[error("failed to register node: {0}")]
     RegisterNode(#[from] wallet::node::RegisterNodeError),
-    #[error(transparent)]
-    ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error("failed to create node client: {0}")]
+    CreateNodeClient(wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -47,8 +38,8 @@ pub async fn receive_wads(
     state: State<'_, AppState>,
     wads: String,
 ) -> Result<(), ReceiveWadsError> {
-    let wads: CompactWads<Unit> = wads.parse()?;
-    let mut new_assets: HashSet<String> = HashSet::new();
+    let wads: CompactWads = wads.parse()?;
+    let mut new_assets: HashSet<Asset> = HashSet::new();
 
     for wad in wads.0 {
         let CompactWad {
@@ -57,11 +48,32 @@ pub async fn receive_wads(
             memo,
             proofs,
         } = wad;
-        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
-        let node_id =
-            wallet::node::register(state.pool.clone(), &mut node_client, &node_url).await?;
+
+        // Try to find existing node_id by URL first
+        let existing_node_id = {
+            let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+            wallet::db::node::get_id_by_url(&db_conn, &node_url).map_err(CommonError::Db)?
+        };
+
+        let (mut node_client, node_id) = if let Some(existing_node_id) = existing_node_id {
+            // Use cached connection if node exists
+            let client = state
+                .get_node_client_connection(existing_node_id)
+                .await
+                .map_err(CommonError::CachedConnection)?;
+            (client, existing_node_id)
+        } else {
+            // Create direct connection and register new node
+            let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
+                .await
+                .map_err(ReceiveWadsError::CreateNodeClient)?;
+            let node_id =
+                wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
+            (client, node_id)
+        };
 
         let amount_received = wallet::receive_wad(
+            crate::SEED_PHRASE_MANAGER,
             state.pool.clone(),
             &mut node_client,
             node_id,
@@ -70,17 +82,22 @@ pub async fn receive_wads(
             proofs,
             &memo,
         )
-        .await?;
+        .await
+        .map_err(CommonError::Wallet)?;
 
-        app.emit(
-            "balance-increase",
+        if let Ok(unit) = Unit::from_str(&unit) {
+            new_assets.insert(unit.matching_asset());
+        }
+
+        emit_balance_increase_event(
+            &app,
             BalanceChange {
                 node_id,
-                unit: wad.unit.as_str().to_string(),
+                unit,
                 amount: amount_received.into(),
             },
-        )?;
-        new_assets.insert(wad.unit.as_str().to_string());
+        )
+        .map_err(CommonError::EmitTauriEvent)?;
     }
 
     state

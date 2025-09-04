@@ -1,17 +1,17 @@
 use itertools::Itertools;
-use nuts::{nut00::Proof, traits::Unit};
+use nuts::nut00::Proof;
 
 use crate::types::{
     NodeUrl,
     compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
 };
 
-pub fn create_from_parts<U: Unit>(
+pub fn create_from_parts(
     node_url: NodeUrl,
-    unit: U,
+    unit: String,
     memo: Option<String>,
     proofs: Vec<Proof>,
-) -> CompactWad<U> {
+) -> CompactWad {
     let compact_proofs = proofs
         .into_iter()
         .chunk_by(|p| p.keyset_id)

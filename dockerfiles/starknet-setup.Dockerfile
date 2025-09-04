@@ -5,7 +5,7 @@ WORKDIR /app
 #------------
 
 FROM chef AS planner
-COPY ./Cargo.toml ./
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./crates/ ./crates/
 RUN cargo chef prepare --recipe-path recipe.json --bin starknet-on-chain-setup
 
@@ -18,14 +18,14 @@ RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/ap
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
-COPY ./Cargo.toml ./
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./crates/ ./crates/
 
 RUN cargo build --release -p starknet-on-chain-setup
 
 # ----------------
 
-FROM rust:1.86.0 as scarb-builder
+FROM rust:1.86.0 AS scarb-builder
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
@@ -41,7 +41,7 @@ RUN /tools/starkli class-hash ./target/release/invoice_payment_InvoicePayment.co
 
 # ----------------
 
-FROM debian as executable
+FROM debian AS executable
 
 COPY --from=scarb-builder /contracts/invoice/compiled_class_hash.txt /contract/
 COPY --from=scarb-builder /contracts/invoice/target/release/invoice_payment_InvoicePayment.contract_class.json /contract/

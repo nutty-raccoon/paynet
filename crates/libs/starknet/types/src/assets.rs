@@ -6,11 +6,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::Unit;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Asset {
     Strk,
     Eth,
+    WBtc,
+    UsdC,
+    UsdT,
 }
 
 impl core::fmt::Display for Asset {
@@ -25,23 +28,28 @@ pub enum AssetToUnitConversionError {
     AmountTooBigForU64(&'static str),
 }
 
-impl Asset {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Asset::Strk => "strk",
-            Asset::Eth => "eth",
-        }
-    }
+const STRK_STR: &str = "strk";
+const ETH_STR: &str = "eth";
+const WBTC_STR: &str = "wbtc";
+const USDT_STR: &str = "usdt";
+const USDC_STR: &str = "usdc";
 
-    pub fn precision(&self) -> u8 {
+impl Asset {
+    pub const fn as_str(&self) -> &str {
         match self {
-            Asset::Strk | Asset::Eth => 18,
+            Asset::Strk => STRK_STR,
+            Asset::Eth => ETH_STR,
+            Asset::WBtc => WBTC_STR,
+            Asset::UsdC => USDC_STR,
+            Asset::UsdT => USDT_STR,
         }
     }
 
     pub fn scale_factor(&self) -> U256 {
         match self {
             Asset::Strk | Asset::Eth => U256::from(1_000_000_000_000_000_000u64),
+            Asset::WBtc => U256::from(100_000_000u64),
+            Asset::UsdC | Asset::UsdT => U256::from(1_000_000u64),
         }
     }
 
@@ -49,6 +57,9 @@ impl Asset {
         match self {
             Asset::Strk => Unit::MilliStrk,
             Asset::Eth => Unit::Gwei,
+            Asset::WBtc => Unit::Satoshi,
+            Asset::UsdC => Unit::CentiUsdC,
+            Asset::UsdT => Unit::CentiUsdT,
         }
     }
 
@@ -62,11 +73,11 @@ impl Asset {
         asset_amount: U256,
         unit: Unit,
     ) -> Result<(Amount, U256), AssetToUnitConversionError> {
-        let (quotien, rem) = asset_amount.div_mod(U256::from(unit.scale_factor()));
+        let (quotient, rem) = asset_amount.div_mod(U256::from(unit.scale_factor()));
 
         Ok((
             Amount::from(
-                u64::try_from(quotien).map_err(AssetToUnitConversionError::AmountTooBigForU64)?,
+                u64::try_from(quotient).map_err(AssetToUnitConversionError::AmountTooBigForU64)?,
             ),
             rem,
         ))
@@ -96,10 +107,29 @@ impl FromStr for Asset {
     type Err = AssetFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "strk" | "STRK" => Ok(Asset::Strk),
-            "eth" | "ETH" => Ok(Asset::Eth),
+        match s.to_lowercase().as_str() {
+            STRK_STR => Ok(Asset::Strk),
+            ETH_STR => Ok(Asset::Eth),
+            WBTC_STR => Ok(Asset::WBtc),
+            USDC_STR => Ok(Asset::UsdC),
+            USDT_STR => Ok(Asset::UsdT),
             _ => Err(AssetFromStrError),
+        }
+    }
+}
+
+impl AsRef<str> for Asset {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl nuts::traits::Asset for Asset {
+    fn precision(&self) -> u8 {
+        match self {
+            Asset::Strk | Asset::Eth => 18,
+            Asset::WBtc => 8,
+            Asset::UsdC | Asset::UsdT => 6,
         }
     }
 }

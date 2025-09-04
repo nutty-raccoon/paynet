@@ -1,27 +1,40 @@
-import type { Balance, BalanceChange, NodeData } from "./types";
+import type {  BalanceChange, NodeData, Unit } from "./types";
+import type { Price } from "./types/price";
 
 /**
  * Format a balance into separate amount and unit strings
  * @param balance The balance to format
  * @returns Object with formatted amount and unit strings
  */
-export function formatBalance(balance: Balance): {amount: number, asset: string} {
-  switch(balance.unit) {
-    case "millistrk":
-      return { asset: "STRK", amount: balance.amount / 1000};
+export function formatBalance(unit: Unit, amount: number): {assetAmount: number, asset: string} {
+  switch(unit) {
+    case "m-strk":
+      return { asset: "strk", assetAmount: amount / 1_000};
     case "gwei":
-      return { asset: "ETH", amount: balance.amount / 1000000000};
+      return { asset: "eth", assetAmount: amount / 1_000_000_000};
+    case "u-usdc":
+      return { asset: "usdc", assetAmount: amount / 1_000_000};
+    case "u-usdt":
+      return { asset: "usdt", assetAmount: amount / 1_000_000};
+    case "sat":
+      return { asset: "wbtc", assetAmount: amount / 100_000_000};
     default:
-      return {asset: balance.unit.toLocaleUpperCase(), amount: balance.amount};
+      return {asset: unit.toLowerCase(), assetAmount: amount};
    }
 }
 
 export function unitPrecision(unit: string): number {
   switch(unit) {
-  case "millistrk":
+  case "m-strk":
     return 1000;
   case "gwei":
-    return 1000000000;
+    return 1_000_000_000;
+  case "u-usdc":
+    return 1_000_000;
+  case "u-usdt":
+    return 1_000_000;
+  case "sat":
+    return 100_000_000;
   default:
     console.log("unknown unit:", unit);
     return 1;
@@ -76,8 +89,8 @@ export function decreaseNodeBalance(nodes: NodeData[], balanceChange: BalanceCha
       }
 }
 
-export function computeTotalBalancePerUnit(nodes: NodeData[]): Map<string, number> {
-  const map: Map<string, number> = new Map();
+export function computeTotalBalancePerUnit(nodes: NodeData[]): Map<Unit, number> {
+  const map: Map<Unit, number> = new Map();
   nodes.forEach((n) => n.balances.forEach((b) => {
     let currentAmount = map.get(b.unit);
     if (!!currentAmount) {
@@ -90,3 +103,21 @@ export function computeTotalBalancePerUnit(nodes: NodeData[]): Map<string, numbe
 
   return map;
 }
+
+export function getTotalAmountInDisplayCurrency(balances: Map<Unit, number>, prices: Price[])  {
+    let totalAmount: number = 0;
+    balances
+      .entries()
+      .forEach(([unit, amount]) => {
+        const {asset, assetAmount: asset_amount} = formatBalance( unit, amount );
+
+        let price = prices.find(
+          (p) => asset === p.symbol,
+        );
+        if (!!price) {
+          totalAmount += asset_amount * (price.value ? price.value : 0);
+        }
+      });
+
+      return totalAmount;
+  }

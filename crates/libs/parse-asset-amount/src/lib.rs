@@ -1,6 +1,8 @@
-use nuts::Amount;
+use nuts::{
+    Amount,
+    traits::{Asset, Unit},
+};
 use primitive_types::U256;
-use starknet_types::{Asset, Unit};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseAmountStringError {
@@ -20,17 +22,24 @@ pub enum ParseAmountStringError {
     TooManyDecimals(u8),
     #[error("couldn't convert asset amount to unit: {0}")]
     AmountTooBigForU64(&'static str),
-    #[error("unit not supported for asset")]
-    BadAssetUnitPair(Asset, Unit),
+    #[error("unit {0} not supported for asset {0}")]
+    BadAssetUnitPair(String, String),
 }
 
-pub fn parse_asset_amount(
+pub fn parse_asset_amount<A, U>(
     amount_str: &str,
-    asset: Asset,
-    unit: Unit,
-) -> Result<Amount, ParseAmountStringError> {
+    asset: A,
+    unit: U,
+) -> Result<Amount, ParseAmountStringError>
+where
+    A: Asset,
+    U: Unit<Asset = A>,
+{
     if !unit.is_asset_supported(asset) {
-        return Err(ParseAmountStringError::BadAssetUnitPair(asset, unit));
+        return Err(ParseAmountStringError::BadAssetUnitPair(
+            asset.as_ref().to_string(),
+            unit.as_ref().to_string(),
+        ));
     }
     if amount_str.is_empty() {
         return Err(ParseAmountStringError::Empty);
@@ -44,7 +53,7 @@ pub fn parse_asset_amount(
 
     // For STRK/MilliStrk it will be 3 (18 - 15)
     // For Eth/Gwei it will be 9 (18 - 9)
-    let scale_order: u8 = asset.precision() - unit.scale_order();
+    let scale_order: u8 = asset.precision() - unit.asset_extra_precision();
 
     // Multiply the the integer part by the 10^scale_order
     let integer_part = U256::from_dec_str(integer_part_str)
@@ -93,7 +102,11 @@ pub fn parse_asset_amount(
 
 #[cfg(test)]
 mod parse_asset_amount_test {
-    use super::*;
+    use crate::ParseAmountStringError;
+
+    use super::parse_asset_amount;
+    use nuts::Amount;
+    use starknet_types::{Asset, Unit};
 
     #[test]
     fn test_valid_cases() {
@@ -360,18 +373,12 @@ mod parse_asset_amount_test {
     fn test_bad_asset_unit_pair() {
         assert!(matches!(
             parse_asset_amount("1.0", Asset::Eth, Unit::MilliStrk),
-            Err(ParseAmountStringError::BadAssetUnitPair(
-                Asset::Eth,
-                Unit::MilliStrk
-            ))
+            Err(ParseAmountStringError::BadAssetUnitPair(_, _))
         ));
 
         assert!(matches!(
             parse_asset_amount("1.0", Asset::Strk, Unit::Gwei),
-            Err(ParseAmountStringError::BadAssetUnitPair(
-                Asset::Strk,
-                Unit::Gwei
-            ))
+            Err(ParseAmountStringError::BadAssetUnitPair(_, _))
         ));
     }
 

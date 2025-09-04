@@ -10,6 +10,8 @@ use std::{
 };
 use uuid::Uuid;
 
+use super::balance::Balance;
+
 pub const CREATE_TABLE_WAD: &str = r#"
         CREATE TABLE IF NOT EXISTS wad (
             id BLOB NOT NULL,
@@ -280,10 +282,7 @@ pub fn get_proofs_ys_by_id(conn: &Connection, wad_id: Uuid) -> Result<Vec<Public
     rows.collect::<Result<Vec<_>, _>>()
 }
 
-pub fn get_amounts_by_id<U: FromStr>(
-    conn: &Connection,
-    wad_id: Uuid,
-) -> Result<Vec<(String, Amount)>> {
+pub fn get_amounts_by_id<U: FromStr>(conn: &Connection, wad_id: Uuid) -> Result<Vec<Balance>> {
     const GET_WAD_UNIT_AMOUNTS: &str = r#"
         SELECT k.unit, SUM(p.amount) as total_amount
         FROM wad_proof wp
@@ -296,7 +295,7 @@ pub fn get_amounts_by_id<U: FromStr>(
     let rows = stmt.query_map([wad_id], |row| {
         let unit: String = row.get(0)?;
         let amount: Amount = row.get(1)?;
-        Ok((unit, amount))
+        Ok(Balance { unit, amount })
     })?;
 
     rows.collect::<Result<Vec<_>, _>>()

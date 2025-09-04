@@ -20,6 +20,7 @@ pub struct MeltPaymentRequest {
 #[cfg(not(feature = "mock"))]
 mod not_mock {
     use num_traits::CheckedAdd;
+    use nuts::traits::Unit as UnitT;
     use nuts::{Amount, nut05::MeltQuoteState};
     use starknet_types::{
         Asset, AssetToUnitConversionError, ChainId, PayInvoiceCallData, Unit,

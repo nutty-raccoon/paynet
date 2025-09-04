@@ -8,6 +8,12 @@ use db_node::PaymentEvent;
 use db_node::substream_handlers;
 use futures::StreamExt;
 use http::Uri;
+use nuts::traits::Unit as UnitT;
+use nuts::{Amount, nut04:GREAT:MintQuoteState, nut05::MeltQuoteState};
+use pb::{
+    invoice_contract::v1::RemittanceEvent,
+    sf::substreams::v1::module::input::{Input, Params},
+};
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,

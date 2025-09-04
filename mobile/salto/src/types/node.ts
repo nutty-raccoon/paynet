@@ -1,4 +1,5 @@
 export type NodeId = number;
+export type Unit = string;
 
 export type NodeData = {
   id: NodeId;
@@ -7,12 +8,12 @@ export type NodeData = {
 };
 
 export type Balance = {
-  unit: string;
+  unit: Unit;
   amount: number;
 }
 
 export type BalanceChange = {
   nodeId: NodeId,
-  unit: string,
+  unit: Unit,
   amount: number
 }

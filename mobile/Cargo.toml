@@ -15,14 +15,15 @@ tauri-plugin-clipboard-manager = "2"
 thiserror = "2.0.9"
 primitive-types = "0.13.1"
 num-traits = "0.2.19"
-uint = "0.10.0"
 log = "0.4.25"
-reqwest = "0.12.12"
+reqwest = { version = "0.12.12", default-features = false }
 tokio = "1.44.1"
 bitcoin = "0.32.2"
 tracing = "0.1.41"
 uuid = "1.11.0"
 tonic = "0.13.1"
+itertools = "0.14"
+urlencoding = "2.1.3"
 
 # serde
 serde_json = "1.0.134"
@@ -33,7 +34,13 @@ rusqlite = "0.32.0"
 r2d2_sqlite = "0.25.0"
 r2d2 = "0.8.10"
 
+# keyring
+android-keyring = "0.2.0"
+
+
 # local
 wallet = { path = "../crates/libs/wallet" }
 starknet-types = { path = "../crates/libs/starknet/types" }
 nuts = { path = "../crates/libs/nuts" }
+parse-asset-amount = { path = "../crates/libs/parse-asset-amount" }
+node-client = { path = "../crates/libs/node-client" }

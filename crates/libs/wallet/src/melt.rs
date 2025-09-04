@@ -10,8 +10,10 @@ use tonic::transport::Channel;
 use crate::{
     acknowledge, convert_inputs, db,
     errors::{Error, handle_proof_verification_errors},
-    fetch_inputs_ids_from_db_or_node, load_tokens_from_db, sync,
+    fetch_inputs_ids_from_db_or_node, sync,
     types::ProofState,
+    unprotected_load_tokens_from_db,
+    wallet::SeedPhraseManager,
 };
 
 pub async fn create_quote<U: Unit>(
@@ -37,7 +39,9 @@ pub async fn create_quote<U: Unit>(
     Ok(response)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn pay_quote(
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
@@ -47,11 +51,17 @@ pub async fn pay_quote(
     unit: &str,
 ) -> Result<MeltResponse, Error> {
     // Gather the proofs
-    let proofs_ids =
-        fetch_inputs_ids_from_db_or_node(pool.clone(), node_client, node_id, amount, unit)
-            .await?
-            .ok_or(Error::NotEnoughFunds)?;
-    let inputs = load_tokens_from_db(&*pool.get()?, &proofs_ids)?;
+    let proofs_ids = fetch_inputs_ids_from_db_or_node(
+        seed_phrase_manager,
+        pool.clone(),
+        node_client,
+        node_id,
+        amount,
+        unit,
+    )
+    .await?
+    .ok_or(Error::NotEnoughFunds)?;
+    let inputs = unprotected_load_tokens_from_db(&*pool.get()?, &proofs_ids)?;
 
     // Create melt request
     let melt_request = node_client::MeltRequest {

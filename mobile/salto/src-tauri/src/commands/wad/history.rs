@@ -1,7 +1,13 @@
-use crate::AppState;
+use crate::{
+    AppState,
+    front_events::{
+        SyncWadErrorEvent, WadStatusUpdatedEvent, emit_sync_wad_error_event,
+        emit_wad_status_updated_event,
+    },
+};
 use starknet_types::Unit;
-use tauri::{AppHandle, Emitter, State};
-use uuid::Uuid;
+use tauri::{AppHandle, State};
+use wallet::db::balance::Balance;
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,7 +15,7 @@ pub struct WadHistoryItem {
     pub id: String,
     pub r#type: String,
     pub status: String,
-    pub total_amount_json: String,
+    pub amounts: Vec<Balance>,
     pub memo: Option<String>,
     pub created_at: u64,
     pub modified_at: u64,
@@ -44,15 +50,13 @@ pub async fn get_wad_history(
 
     let mut history_items = Vec::with_capacity(wad_records.len());
     for record in wad_records {
-        let total_amount_json = serde_json::to_string(
-            &wallet::db::wad::get_amounts_by_id::<Unit>(&db_conn, record.id)?,
-        )?;
+        let amounts = wallet::db::wad::get_amounts_by_id::<Unit>(&db_conn, record.id)?;
 
         history_items.push(WadHistoryItem {
             id: record.id.to_string(),
             r#type: record.r#type.to_string(),
             status: record.status.to_string(),
-            total_amount_json,
+            amounts,
             memo: record.memo,
             created_at: record.created_at,
             modified_at: record.modified_at,
@@ -60,20 +64,6 @@ pub async fn get_wad_history(
     }
 
     Ok(history_items)
-}
-
-#[derive(Debug, serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct WadStatusUpdate {
-    pub wad_id: Uuid,
-    pub new_status: String,
-}
-
-#[derive(Debug, serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncError {
-    pub wad_id: Uuid,
-    pub error: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -106,18 +96,18 @@ pub async fn sync_wads(app: AppHandle, state: State<'_, AppState>) -> Result<(),
         match result.result {
             Ok(None) => {}
             Ok(Some(status)) => {
-                app.emit(
-                    "wad-status-updated",
-                    WadStatusUpdate {
+                emit_wad_status_updated_event(
+                    &app,
+                    WadStatusUpdatedEvent {
                         wad_id: result.wad_id,
                         new_status: status.to_string(),
                     },
                 )?;
             }
             Err(e) => {
-                app.emit(
-                    "sync-wad-error",
-                    SyncError {
+                emit_sync_wad_error_event(
+                    &app,
+                    SyncWadErrorEvent {
                         wad_id: result.wad_id,
                         error: e.to_string(),
                     },

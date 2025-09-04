@@ -1,13 +1,13 @@
 use anyhow::{Result, anyhow};
 use node_client::NodeClient;
-use nuts::nut04::MintQuoteState;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
 use wallet::db::melt_quote::PendingMeltQuote;
-use wallet::db::mint_quote::PendingMintQuote;
 use wallet::types::NodeUrl;
+
+use crate::SEED_PHRASE_MANAGER;
 
 const STARKNET_STR: &str = "starknet";
 
@@ -25,7 +25,14 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
         println!("Syncing node {} ({}) mint quotes", node_id, node_url);
 
         let (mut node_client, _) = connect_to_node(pool.clone(), node_id).await?;
-        sync_mint_quotes(&pool, &mut node_client, node_id, &pending_quotes).await?;
+        wallet::sync::mint_quotes(
+            SEED_PHRASE_MANAGER,
+            pool.clone(),
+            &mut node_client,
+            node_id,
+            pending_quotes,
+        )
+        .await?;
     }
     for (node_id, pending_quotes) in pending_melt_quotes {
         let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
@@ -50,61 +57,6 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
     }
 
     println!("Sync completed for all nodes");
-    Ok(())
-}
-
-async fn sync_mint_quotes(
-    pool: &Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
-    node_id: u32,
-    pending_mint_quotes: &[PendingMintQuote],
-) -> Result<()> {
-    for pending_mint_quote in pending_mint_quotes {
-        let new_state = {
-            match wallet::sync::mint_quote(
-                pool.clone(),
-                node_client,
-                pending_mint_quote.method.clone(),
-                pending_mint_quote.id.clone(),
-            )
-            .await?
-            {
-                Some(new_state) => new_state,
-                None => {
-                    println!("Mint quote {} has expired", pending_mint_quote.id);
-                    continue;
-                }
-            }
-        };
-
-        if new_state == MintQuoteState::Paid {
-            println!(
-                "On-chain deposit received for mint quote {}",
-                pending_mint_quote.id
-            );
-
-            // Redeem the quote
-            if let Err(e) = wallet::mint::redeem_quote(
-                pool.clone(),
-                node_client,
-                STARKNET_STR.to_string(),
-                pending_mint_quote.id.clone(),
-                node_id,
-                &pending_mint_quote.unit,
-                pending_mint_quote.amount,
-            )
-            .await
-            {
-                eprintln!(
-                    "Failed to redeem mint quote {}: {}",
-                    pending_mint_quote.id, e
-                );
-            } else {
-                println!("Successfully redeemed mint quote {}", pending_mint_quote.id);
-            }
-        }
-    }
-
     Ok(())
 }
 

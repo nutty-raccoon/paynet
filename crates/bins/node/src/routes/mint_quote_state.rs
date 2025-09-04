@@ -23,7 +23,7 @@ impl GrpcState {
         &self,
         method: Method,
         quote_id: Uuid,
-    ) -> Result<MintQuoteResponse<Uuid>, Error> {
+    ) -> Result<Option<MintQuoteResponse<Uuid>>, Error> {
         match method {
             Method::Starknet => {}
         }

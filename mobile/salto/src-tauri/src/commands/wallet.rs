@@ -73,7 +73,7 @@ pub fn init_wallet(state: State<'_, AppState>) -> Result<InitWalletResponse, Ini
     let db_conn = state.pool.get()?;
 
     let seed_phrase = seed_phrase::create_random()?;
-    wallet::wallet::init(&db_conn, &seed_phrase)?;
+    wallet::wallet::init(crate::SEED_PHRASE_MANAGER, &db_conn, &seed_phrase)?;
 
     Ok(InitWalletResponse {
         seed_phrase: seed_phrase.to_string(),
@@ -88,7 +88,7 @@ pub fn restore_wallet(
     let db_conn = state.pool.get()?;
 
     let seed_phrase = seed_phrase::create_from_str(&seed_phrase)?;
-    wallet::wallet::restore(&db_conn, seed_phrase)?;
+    wallet::wallet::restore(crate::SEED_PHRASE_MANAGER, &db_conn, seed_phrase)?;
 
     Ok(())
 }

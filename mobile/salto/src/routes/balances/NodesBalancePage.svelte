@@ -1,11 +1,17 @@
 <script lang="ts">
   import { pushState } from "$app/navigation";
-  import { type NodeData } from "../../types";
-  import { formatBalance } from "../../utils";
+  import type { NodeData, NodeId } from "../../types";
+  import { getTotalAmountInDisplayCurrency } from "../../utils";
+  import {
+    tokenPrices,
+    displayCurrency,
+    pendingMintQuotes,
+  } from "../../stores";
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
-  import DepositModal from "./DepositModal.svelte";
-  import { refresh_node_keysets } from "../../commands";
+  import NodeModal from "./NodeModal.svelte";
+  import { getPendingMintQuotes } from "../../commands";
+  import { derived } from "svelte/store";
 
   interface Props {
     nodes: NodeData[];
@@ -16,7 +22,7 @@
 
   // Modal state
   let isAddNodeModalOpen = $state(false);
-  let selectedNodeForDeposit = $state<NodeData | null>(null);
+  let selectedNodeForModal = $state<NodeData | null>(null);
 
   // Modal control functions
   function openAddNodeModal() {
@@ -29,28 +35,64 @@
     isAddNodeModalOpen = false;
   }
 
-  function openDepositModal(node: NodeData) {
-    refresh_node_keysets(node.id);
-    selectedNodeForDeposit = node;
+  function openNodeModal(node: NodeData) {
+    selectedNodeForModal = node;
     // Add history entry to handle back button
     pushState("", { modal: true });
   }
 
-  function closeDepositModal() {
-    selectedNodeForDeposit = null;
+  function closeNodeModal() {
+    selectedNodeForModal = null;
+  }
+
+  // Function to compute total balance for a single node
+  function getNodeTotalBalance(node: NodeData): string {
+    const nodeBalanceMap = new Map();
+
+    // Convert node balances to the same format as computeTotalBalancePerUnit expects
+    node.balances.forEach((balance) => {
+      nodeBalanceMap.set(balance.unit, balance.amount);
+    });
+
+    if (!!$tokenPrices) {
+      const totalValue = getTotalAmountInDisplayCurrency(
+        nodeBalanceMap,
+        $tokenPrices,
+      );
+      return `${totalValue.toFixed(2)} ${$displayCurrency}`;
+    } else {
+      return `??? ${$displayCurrency}`;
+    }
   }
 
   // Set up back button listener
   function handlePopState() {
-    if (!!selectedNodeForDeposit) {
-      closeDepositModal();
+    if (!!selectedNodeForModal) {
+      closeNodeModal();
     } else if (isAddNodeModalOpen) {
       closeAddNodeModal();
     }
   }
+  // Derived store that creates a Set of node IDs that have pending quotes
+  export const nodesWithPendingQuotes = derived(
+    pendingMintQuotes,
+    ($pendingMintQuotes) => {
+      const nodeIdsWithPending = new Set<NodeId>();
+
+      $pendingMintQuotes.forEach((quotes, nodeId) => {
+        if (!!quotes && (quotes.unpaid.length > 0 || quotes.paid.length > 0)) {
+          nodeIdsWithPending.add(nodeId);
+        }
+      });
+
+      return nodeIdsWithPending;
+    },
+  );
 
   onMount(() => {
     window.addEventListener("popstate", handlePopState);
+
+    getPendingMintQuotes();
   });
 
   onDestroy(() => {
@@ -60,24 +102,17 @@
 
 <div class="nodes-container">
   {#each nodes as node}
-    <div class="node-card">
+    <div class="node-row">
       <div class="node-info">
-        <div class="node-url-container">
-          <span class="node-url-label">Node URL</span>
-          <span class="node-url">{node.url}</span>
-        </div>
-        <div class="node-balance-container">
-          <span class="node-balance-label">Balance</span>
-          {#each node.balances as balance}
-            {@const formatted = formatBalance(balance)}
-            <span class="node-balance"
-              >{formatted.asset}: {formatted.amount}</span
-            >
-          {/each}
-        </div>
+        <span class="node-url">{node.url}</span>
+        <span class="node-balance">{getNodeTotalBalance(node)}</span>
       </div>
-      <button class="deposit-button" onclick={() => openDepositModal(node)}>
-        Deposit
+      <button
+        class="open-button"
+        class:has-pending={$nodesWithPendingQuotes.has(node.id)}
+        onclick={() => openNodeModal(node)}
+      >
+        Open
       </button>
     </div>
   {/each}
@@ -89,11 +124,8 @@
   <AddNodeModal {nodes} onClose={closeAddNodeModal} {onAddNode} />
 {/if}
 
-{#if !!selectedNodeForDeposit}
-  <DepositModal
-    selectedNode={selectedNodeForDeposit}
-    onClose={closeDepositModal}
-  />
+{#if !!selectedNodeForModal}
+  <NodeModal selectedNode={selectedNodeForModal} onClose={closeNodeModal} />
 {/if}
 
 <style>
@@ -101,62 +133,81 @@
     display: flex;
     flex-direction: column;
     width: 90%;
-    max-width: 400px;
-    gap: 1rem;
+    max-width: 600px;
+    gap: 0.5rem;
     margin: 0 auto;
     align-items: center;
   }
 
-  .node-card {
+  .node-row {
     background-color: white;
-    border-radius: 12px;
-    padding: 1.25rem;
+    border-radius: 8px;
+    padding: 1rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     transition:
       transform 0.2s,
       box-shadow 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    box-sizing: border-box;
   }
 
-  .node-card:hover {
-    transform: translateY(-2px);
+  .node-row:hover {
+    transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .node-info {
     display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .node-url-container,
-  .node-balance-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .node-url-label,
-  .node-balance-label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    color: #888;
-    letter-spacing: 0.5px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    margin-right: 1rem;
   }
 
   .node-url {
     font-size: 0.9rem;
     font-family: monospace;
     color: #2c3e50;
-    word-break: break-all;
-    padding: 0.375rem 0.5rem;
-    background-color: #f8f9fa;
-    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .node-balance {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 600;
     color: #1e88e5;
+  }
+
+  .open-button {
+    padding: 0.6rem 1.2rem;
+    background-color: #4caf50;
+    color: white;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .open-button:hover {
+    background-color: #45a049;
+  }
+
+  .open-button.has-pending {
+    background-color: #ff9800;
+  }
+
+  .open-button.has-pending:hover {
+    background-color: #f57c00;
   }
 
   .add-node-button {
@@ -177,20 +228,23 @@
     background-color: #1976d2;
   }
 
-  .deposit-button {
-    margin-top: 0.75rem;
-    padding: 0.5rem 1rem;
-    background-color: #4caf50;
-    color: white;
-    font-weight: 500;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.2s;
-  }
+  /* Responsive adjustments for smaller screens */
+  @media (max-width: 480px) {
+    .node-row {
+      padding: 0.75rem;
+    }
 
-  .deposit-button:hover {
-    background-color: #45a049;
+    .node-url {
+      font-size: 0.8rem;
+    }
+
+    .node-balance {
+      font-size: 1.1rem;
+    }
+
+    .open-button {
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
   }
 </style>

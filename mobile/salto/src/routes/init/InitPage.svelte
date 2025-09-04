@@ -1,5 +1,6 @@
 <script lang="ts">
   import { initWallet, restoreWallet } from "../../commands";
+  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
   interface Props {
     onWalletInitialized: (initialTab?: "pay" | "balances") => void;
@@ -75,11 +76,7 @@
 
   const goBack = () => {
     errorMessage = "";
-    if (currentMode === InitMode.SHOW_SEED) {
-      currentMode = InitMode.CHOICE;
-      seedPhrase = "";
-      hasSavedSeedPhrase = false;
-    } else if (
+    if (
       currentMode === InitMode.CREATE_NEW ||
       currentMode === InitMode.RESTORE
     ) {
@@ -141,13 +138,16 @@
     <div class="seed-container">
       <h2 class="section-title">Your Seed Phrase</h2>
       <p class="warning-text">
-        Write down this seed phrase and store it in a safe place. You'll need it
-        to recover your wallet.
+        Your wallet has been created. Write down this seed phrase and store it
+        in a safe place. You'll need it to recover your wallet.
       </p>
 
-      <div class="seed-phrase-box">
+      <button
+        class="seed-phrase-box"
+        onclick={async () => await writeText(seedPhrase)}
+      >
         <p class="seed-phrase-text">{seedPhrase}</p>
-      </div>
+      </button>
 
       <div class="checkbox-container">
         <label class="checkbox-label">
@@ -168,8 +168,6 @@
         >
           Continue
         </button>
-
-        <button class="secondary-button" onclick={goBack}> Back </button>
       </div>
     </div>
   {:else if currentMode === InitMode.RESTORE}
@@ -459,5 +457,52 @@
     border: 1px solid #fecaca;
     margin-top: 1rem;
     max-width: 500px;
+  }
+
+  .seed-phrase-box {
+    background-color: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .seed-phrase-box::before {
+    content: "📋 Click to copy";
+    position: absolute;
+    top: 0.5rem;
+    right: 0.75rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .seed-phrase-box:hover {
+    background-color: #e3f2fd;
+    border-color: #1e88e5;
+    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .seed-phrase-box:hover::before {
+    color: #1e88e5;
+    opacity: 1;
+  }
+
+  .seed-phrase-box:active {
+    transform: translateY(0px) scale(0.98);
+    background-color: #bbdefb;
+    border-color: #1976d2;
+    box-shadow: 0 2px 6px rgba(30, 136, 229, 0.2);
+  }
+
+  .seed-phrase-box:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
   }
 </style>

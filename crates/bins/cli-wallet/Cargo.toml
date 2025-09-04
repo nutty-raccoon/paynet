@@ -19,7 +19,6 @@ itertools = { workspace = true }
 uuid = { workspace = true }
 primitive-types = { workspace = true }
 thiserror = { workspace = true }
-bitcoin = { workspace = true }
 chrono = { workspace = true }
 colored = { workspace = true }
 urlencoding = { workspace = true }
@@ -34,7 +33,7 @@ starknet-types = { workspace = true }
 starknet-liquidity-source = { workspace = true }
 nuts = { workspace = true }
 wallet = { workspace = true }
-
+parse-asset-amount = { workspace = true }
 
 [features]
 default = []

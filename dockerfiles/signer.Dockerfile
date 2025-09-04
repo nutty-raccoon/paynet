@@ -5,7 +5,7 @@ WORKDIR /app
 #------------
 
 FROM chef AS planner
-COPY ./Cargo.toml ./
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./crates/ ./crates/
 RUN cargo chef prepare --recipe-path recipe.json --bin signer
 
@@ -30,7 +30,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${PROBE_ARCH} && \
     chmod +x /bin/grpc_health_probe
 
-COPY ./Cargo.toml ./
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./proto/ ./proto/
 COPY ./crates/ ./crates/
 

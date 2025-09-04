@@ -23,7 +23,7 @@ pub fn migrations() -> Vec<Migration> {
         Migration {
             version: 4,
             description: "create_table_mint_quote",
-            sql: wallet::db::CREATE_TABLE_MINT_QUOTE,
+            sql: wallet::db::mint_quote::CREATE_TABLE_MINT_QUOTE,
             kind: MigrationKind::Up,
         },
         Migration {

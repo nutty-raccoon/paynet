@@ -12,6 +12,20 @@
     "core:default",
     "opener:default",
     "sql:default",
-    "sql:allow-execute"
+    "sql:allow-execute",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://localhost:3005/**"
+        },
+        {
+          "url": "braavos://**"
+        },
+        {
+          "url": "argent://**"
+        }
+      ]
+    }
   ]
 }

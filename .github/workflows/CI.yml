@@ -47,6 +47,11 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libdbus-1-dev pkg-config
+          version: 1.0
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: rust-cache-clippy-${{ hashFiles('Cargo.lock') }}
@@ -72,15 +77,24 @@ jobs:
   movile-clippy:
     name: Check clippy (mobile)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
     steps:
       - uses: actions/checkout@v4
       - name: Remove unwanted files
         run: rm -f rust-toolchain.toml
 
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
+          version: 1.0
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libdbus-1-dev pkg-config
+          version: 1.0
 
       - uses: dtolnay/rust-toolchain@1.86.0
         with:
@@ -89,9 +103,10 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
+
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: rust-mobile-cache-clippy-${{ hashFiles('mobile/Cargo.lock') }}
+          shared-key: rust-mobile-clippy-${{ hashFiles('mobile/Cargo.lock') }}
           cache-on-failure: true
           cache-all-crates: true
       - name: Create fake certificate
@@ -103,6 +118,7 @@ jobs:
         working-directory: mobile
         env:
           PRICE_PROVIDER_URL: "http://localhost:80"
+          WEB_APP_URL: "https://localhost:3005"
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings --no-deps
 
   build-app-binaries:
@@ -141,6 +157,12 @@ jobs:
         with:
           version: "28.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libdbus-1-dev pkg-config
+          version: 1.0
       
       - uses: dtolnay/rust-toolchain@1.86.0
 
@@ -193,6 +215,12 @@ jobs:
           version: "28.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libdbus-1-dev pkg-config
+          version: 1.0
+
       - uses: dtolnay/rust-toolchain@1.86.0
 
       - name: Get crate source path
@@ -380,6 +408,12 @@ jobs:
         with:
           version: "28.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libdbus-1-dev pkg-config
+          version: 1.0
 
       - name: Restore Rust debug libs cache
         uses: actions/cache@v4

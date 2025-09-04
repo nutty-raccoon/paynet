@@ -1,9 +1,8 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
   import { formatBalance, unitPrecision } from "../../utils";
-  import { create_wads } from "../../commands";
+  import { createWads } from "../../commands";
   import type { Wads } from "../../types/wad";
-  import { assets } from "$app/paths";
 
   interface Props {
     availableUnits: string[];
@@ -28,11 +27,8 @@
   );
   let paymentError = $state<string>("");
 
-  let { asset, amount: availableAssetAmount } = $derived(
-    formatBalance({
-      unit: selectedUnit,
-      amount: availableBalances.get(selectedUnit) || 0,
-    }),
+  let { asset, assetAmount } = $derived(
+    formatBalance(selectedUnit, availableBalances.get(selectedUnit) || 0),
   );
 
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
@@ -55,12 +51,12 @@
         paymentError = "Amount must be greater than 0";
         return;
       }
-      if (amountValue > availableAssetAmount) {
-        paymentError = `Amount cannot exceed ${availableAssetAmount} ${selectedUnit}`;
+      if (amountValue > assetAmount) {
+        paymentError = `Amount cannot exceed ${assetAmount} ${selectedUnit}`;
         return;
       }
 
-      create_wads(amountString, asset).then((wads) => {
+      createWads(amountString, asset).then((wads) => {
         if (!!wads) {
           onPaymentDataGenerated(amountString, asset, wads);
         }
@@ -84,13 +80,13 @@
         required
       >
         {#each availableUnits as unit}
-          {@const formatted = formatBalance({ unit, amount: 0 })}
+          {@const formatted = formatBalance(unit, 0)}
           <option value={unit}>{formatted.asset}</option>
         {/each}
       </select>
       {#if selectedUnit}
         <span class="balance-info">
-          Available: {availableAssetAmount}
+          Available: {assetAmount}
           {asset}
         </span>
       {/if}
@@ -103,7 +99,7 @@
         id="payment-amount"
         name="payment-amount"
         min="0"
-        max={availableAssetAmount}
+        max={assetAmount}
         placeholder="0.0"
         step={1 / unitPrecision(selectedUnit)}
         required
