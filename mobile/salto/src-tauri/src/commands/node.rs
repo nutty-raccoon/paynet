@@ -97,7 +97,8 @@ pub async fn refresh_node_keysets(
     state: State<'_, AppState>,
     node_id: u32,
 ) -> Result<(), RefreshNodeKeysetsError> {
-    let mut node_client = state.get_node_client_connection(node_id)
+    let mut node_client = state
+        .get_node_client_connection(node_id)
         .await
         .map_err(|_| RefreshNodeKeysetsError::NodeId(node_id))?;
     wallet::node::refresh_keysets(state.pool.clone(), &mut node_client, node_id)

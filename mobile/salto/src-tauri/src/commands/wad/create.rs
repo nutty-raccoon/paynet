@@ -66,7 +66,8 @@ pub async fn create_wads(
     let mut node_and_proofs = Vec::with_capacity(amount_to_use_per_node.len());
 
     for (node_id, amount_to_use) in amount_to_use_per_node {
-        let mut node_client = state.get_node_client_connection(node_id)
+        let mut node_client = state
+            .get_node_client_connection(node_id)
             .await
             .map_err(CreateWadsError::CachedConnection)?;
 
