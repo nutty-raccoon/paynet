@@ -55,7 +55,6 @@ impl Unit {
         }
     }
 
-    /// Validates that the given asset is supported by this unit
     pub fn is_asset_supported(&self, asset: Asset) -> bool {
         matches!(asset, Asset::Weth)
     }
@@ -106,4 +105,22 @@ impl std::fmt::Display for Unit {
 }
 
 /// Required trait implementation to work with `nuts::Amount`
-impl nuts::traits::Unit for Unit {}
+impl nuts::traits::Unit for Unit {
+    type Asset = crate::Asset;
+
+    fn is_asset_supported(&self, asset: Asset) -> bool {
+        matches!(asset, Asset::Weth)
+    }
+
+    fn matching_asset(&self) -> Self::Asset {
+        match self {
+            Unit::Gwei => Asset::Weth,
+        }
+    }
+
+    fn asset_extra_precision(&self) -> u8 {
+        match self {
+            Unit::Gwei => 9,
+        }
+    }
+}

@@ -9,7 +9,7 @@ use crate::Unit;
 /// Represents a supported blockchain asset.
 ///
 /// In this Ethereum-only context, we only support ETH.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Asset {
     /// Ethereum (ETH)
@@ -98,6 +98,20 @@ impl FromStr for Asset {
         match s.to_lowercase().as_str() {
             "weth" => Ok(Asset::Weth),
             _ => Err(AssetFromStrError),
+        }
+    }
+}
+
+impl AsRef<str> for Asset {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl nuts::traits::Asset for Asset {
+    fn precision(&self) -> u8 {
+        match self {
+            Asset::Weth => 18,
         }
     }
 }
