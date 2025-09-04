@@ -77,8 +77,6 @@ pub enum RefreshNodeKeysetsError {
     Rusqlite(#[from] rusqlite::Error),
     #[error(transparent)]
     R2D2(#[from] r2d2::Error),
-    #[error(transparent)]
-    NodeConnect(#[from] wallet::ConnectToNodeError),
     #[error("unknown node_id: {0}")]
     NodeId(u32),
     #[error("fail to refresh the node {0} keyset: {1}")]
@@ -99,12 +97,10 @@ pub async fn refresh_node_keysets(
     state: State<'_, AppState>,
     node_id: u32,
 ) -> Result<(), RefreshNodeKeysetsError> {
-    let node_url = {
-        let db_conn = state.pool.get()?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)?
-            .ok_or(RefreshNodeKeysetsError::NodeId(node_id))?
-    };
-    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+    let mut node_client = state
+        .get_node_client_connection(node_id)
+        .await
+        .map_err(|_| RefreshNodeKeysetsError::NodeId(node_id))?;
     wallet::node::refresh_keysets(state.pool.clone(), &mut node_client, node_id)
         .await
         .map_err(|e| RefreshNodeKeysetsError::Wallet(node_id, e))?;

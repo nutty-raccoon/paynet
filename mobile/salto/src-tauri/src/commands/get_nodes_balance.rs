@@ -1,9 +1,5 @@
 use nuts::nut04::MintQuoteState;
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
-use tauri::{AppHandle, State, async_runtime};
-use tonic::transport::Certificate;
-use wallet::connect_to_node;
+use tauri::{AppHandle, Manager, State, async_runtime};
 use wallet::db::balance::GetForAllNodesData;
 use wallet::db::mint_quote::PendingMintQuote;
 
@@ -68,19 +64,10 @@ pub async fn get_pending_mint_quotes(
             .map_err(GetPendingMintQuoteError::ReadPendingsFromDb)?
     };
 
-    let opt_root_ca_cert = state.opt_root_ca_cert();
     for (node_id, pending_mint_quotes) in pending_mint_quotes {
         let app_handle = app.clone();
-        let pool = state.pool.clone();
-        let opt_root_ca_cert = opt_root_ca_cert.clone();
 
-        async_runtime::spawn(sync_node(
-            app_handle,
-            pool,
-            opt_root_ca_cert,
-            node_id,
-            pending_mint_quotes,
-        ));
+        async_runtime::spawn(sync_node(app_handle, node_id, pending_mint_quotes));
     }
 
     Ok(())
@@ -96,23 +83,17 @@ pub enum SyncNodeError {
 
 async fn sync_node(
     app: AppHandle,
-    pool: Pool<SqliteConnectionManager>,
-    opt_root_ca_cert: Option<Certificate>,
     node_id: u32,
     pending_mint_quotes: Vec<PendingMintQuote>,
 ) -> Result<(), SyncNodeError> {
-    let node_url = {
-        let db_conn = pool.get().map_err(CommonError::DbPool)?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)
-            .map_err(CommonError::GetNodeUrl)?
-            .ok_or(CommonError::NodeId(node_id))?
-    };
-    let mut node_client = connect_to_node(&node_url, opt_root_ca_cert)
+    let state = app.state::<AppState>();
+    let mut node_client = state
+        .get_node_client_connection(node_id)
         .await
-        .map_err(CommonError::CreateNodeClient)?;
+        .map_err(CommonError::CachedConnection)?;
     let state_updates = wallet::sync::mint_quotes(
         crate::SEED_PHRASE_MANAGER,
-        pool.clone(),
+        state.pool.clone(),
         &mut node_client,
         node_id,
         pending_mint_quotes,

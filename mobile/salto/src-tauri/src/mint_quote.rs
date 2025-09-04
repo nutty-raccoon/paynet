@@ -4,15 +4,12 @@ use std::{
     time::Duration,
 };
 
-use node_client::NodeClient;
 use nuts::{nut04::MintQuoteState, traits::Unit as UnitT};
 use starknet_types::{Unit, UnitFromStrError};
 use tauri::{AppHandle, Manager, async_runtime};
 use tokio::sync::mpsc;
-use tonic::transport::Channel;
 use tracing::{Level, error, event};
 use wallet::{
-    connect_to_node_lazy,
     db::{self, mint_quote::MintQuote},
     mint::RedeemQuoteError,
 };
@@ -28,15 +25,9 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Node {
-    pub id: u32,
-    pub client: NodeClient<Channel>,
-}
-
-#[derive(Debug, Clone)]
 pub enum MintQuoteStateMachine {
-    Created { node: Node, quote_id: String },
-    Paid { node: Node, quote_id: String },
+    Created { node_id: u32, quote_id: String },
+    Paid { node_id: u32, quote_id: String },
     Redeemed { node_id: u32, quote_id: String },
 }
 
@@ -93,27 +84,27 @@ impl MintQuoteHandler {
         while let Some(event) = self.rx.recv().await {
             let cloned_app = self.app.clone();
             match event {
-                MintQuoteStateMachine::Created { node, quote_id } => {
-                    let hash = Self::hash_quote(node.id, &quote_id);
+                MintQuoteStateMachine::Created { node_id, quote_id } => {
+                    let hash = Self::hash_quote(node_id, &quote_id);
 
                     // Only process if not already unpaid
                     if self.find_quote_state(hash) != Some(&QuoteState::Unpaid) {
                         self.update_quote_state(hash, QuoteState::Unpaid);
                         async_runtime::spawn(async move {
-                            sync_quote_until_is_paid(cloned_app, node, quote_id)
+                            sync_quote_until_is_paid(cloned_app, node_id, quote_id)
                                 .await
                                 .inspect_err(|e| error!("failed to sync unpaid mint quote: {e}"))
                         });
                     }
                 }
-                MintQuoteStateMachine::Paid { node, quote_id } => {
-                    let hash = Self::hash_quote(node.id, &quote_id);
+                MintQuoteStateMachine::Paid { node_id, quote_id } => {
+                    let hash = Self::hash_quote(node_id, &quote_id);
 
                     // Only process if not already paid
                     if self.find_quote_state(hash) != Some(&QuoteState::Paid) {
                         self.update_quote_state(hash, QuoteState::Paid);
                         async_runtime::spawn(async move {
-                            try_redeem_quote(cloned_app, node, quote_id)
+                            try_redeem_quote(cloned_app, node_id, quote_id)
                                 .await
                                 .inspect_err(|e| error!("failed to redeem mint quote: {e}"))
                         });
@@ -127,7 +118,8 @@ impl MintQuoteHandler {
                 }
             }
             // Reclaim memory
-            if self.quotes.capacity() > self.quotes.len() * 2 {
+            let capacity = self.quotes.capacity();
+            if capacity > 10 && capacity > self.quotes.len() * 2 {
                 self.quotes.shrink_to(self.quotes.len() * 3 / 2);
             }
         }
@@ -166,24 +158,14 @@ pub async fn start_syncing_mint_quotes(
 
         let mut events = Vec::new();
         for (node_id, pending_mint_quotes) in pending_mint_quotes_by_node {
-            let node_url = db::node::get_url_by_id(&conn, node_id)
-                .map_err(CommonError::Db)?
-                .expect("node should exist in db");
-            let node_client = connect_to_node_lazy(&node_url, state.opt_root_ca_cert())
-                .map_err(CommonError::CreateNodeClient)?;
-            let node = Node {
-                id: node_id,
-                client: node_client,
-            };
-
             for pending_mint_quote in pending_mint_quotes {
                 match pending_mint_quote.state {
                     MintQuoteState::Unpaid => events.push(MintQuoteStateMachine::Created {
-                        node: node.clone(),
+                        node_id,
                         quote_id: pending_mint_quote.id,
                     }),
                     MintQuoteState::Paid => events.push(MintQuoteStateMachine::Paid {
-                        node: node.clone(),
+                        node_id,
                         quote_id: pending_mint_quote.id,
                     }),
                     MintQuoteState::Issued => unreachable!(),
@@ -203,12 +185,7 @@ pub async fn start_syncing_mint_quotes(
     Ok(())
 }
 
-pub async fn try_redeem_quote(
-    app: AppHandle,
-    mut node: Node,
-    quote_id: String,
-) -> Result<(), Error> {
-    let node_id = node.id;
+pub async fn try_redeem_quote(app: AppHandle, node_id: u32, quote_id: String) -> Result<(), Error> {
     let state = app.state::<AppState>();
     let MintQuote {
         node_id,
@@ -228,10 +205,15 @@ pub async fn try_redeem_quote(
         });
     }
 
+    let mut node_client = state
+        .get_node_client_connection(node_id)
+        .await
+        .map_err(CommonError::CachedConnection)?;
+
     wallet::mint::redeem_quote(
         crate::SEED_PHRASE_MANAGER,
         state.pool.clone(),
-        &mut node.client,
+        &mut node_client,
         method,
         &quote_id,
         node_id,
@@ -258,7 +240,7 @@ pub async fn try_redeem_quote(
     state
         .mint_quote_event_sender
         .send(MintQuoteStateMachine::Redeemed {
-            node_id: node.id,
+            node_id,
             quote_id: quote_id.clone(),
         })
         .await
@@ -278,13 +260,16 @@ pub async fn try_redeem_quote(
 
 pub async fn sync_quote_until_is_paid(
     app: AppHandle,
-    mut node: Node,
+    node_id: u32,
     quote_id: String,
 ) -> Result<(), Error> {
     const LOOP_INTERVAL: Duration = Duration::from_secs(1);
-    let node_id = node.id;
 
     let state = app.state::<AppState>();
+    let mut node_client = state
+        .get_node_client_connection(node_id)
+        .await
+        .map_err(CommonError::CachedConnection)?;
     loop {
         let quote = db::mint_quote::get(&state.pool.get().unwrap(), node_id, &quote_id)
             .map_err(CommonError::Db)?
@@ -292,7 +277,7 @@ pub async fn sync_quote_until_is_paid(
 
         let res = wallet::sync::mint_quote(
             state.pool.clone(),
-            &mut node.client,
+            &mut node_client,
             quote.method,
             quote_id.clone(),
         )
@@ -314,7 +299,7 @@ pub async fn sync_quote_until_is_paid(
                 state
                     .mint_quote_event_sender
                     .send(MintQuoteStateMachine::Paid {
-                        node,
+                        node_id,
                         quote_id: quote_id.clone(),
                     })
                     .await
@@ -334,10 +319,7 @@ pub async fn sync_quote_until_is_paid(
                 event!(name: "mint-quote-expired", Level::INFO, %quote_id, "Mint quote expired");
                 emit_remove_mint_quote_event(
                     &app,
-                    RemoveMintQuoteEvent(MintQuoteIdentifier {
-                        node_id: node.id,
-                        quote_id,
-                    }),
+                    RemoveMintQuoteEvent(MintQuoteIdentifier { node_id, quote_id }),
                 )
                 .map_err(CommonError::EmitTauriEvent)?;
                 break;

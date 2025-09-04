@@ -1,5 +1,6 @@
 mod background_tasks;
 mod commands;
+mod connection_cache;
 mod errors;
 mod front_events;
 mod migrations;
@@ -11,15 +12,23 @@ use commands::{
     receive_wads, redeem_quote, refresh_node_keysets, restore_wallet, set_price_provider_currency,
     sync_wads,
 };
+use connection_cache::ConnectionCache;
 use mint_quote::{MintQuoteStateMachine, start_syncing_mint_quotes};
+use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Asset;
-use std::{collections::HashSet, env, str::FromStr, sync::Arc, time::SystemTime};
+use std::{
+    collections::HashSet,
+    env,
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 use tauri::{Listener, Manager, async_runtime};
 use tokio::sync::{RwLock, mpsc};
-use tonic::transport::Certificate;
+use tonic::transport::{Certificate, Channel};
 
 use crate::background_tasks::start_price_fetcher;
 
@@ -70,6 +79,17 @@ pub fn run() {
                             }
                         }
                     }
+
+                    // Initialize connection cache
+                    let connection_cache = Arc::new(ConnectionCache::new(
+                        pool.clone(),
+                        Duration::from_secs(15 * 60), // 15 minute TTL
+                        #[cfg(feature = "tls-local-mkcert")]
+                        Some(read_tls_root_ca_cert()),
+                        #[cfg(not(feature = "tls-local-mkcert"))]
+                        None,
+                    ));
+
                     app.manage(AppState {
                         pool,
                         web_app_url: web_app_url.to_string(),
@@ -82,7 +102,13 @@ pub fn run() {
                         #[cfg(feature = "tls-local-mkcert")]
                         tls_root_ca_cert: read_tls_root_ca_cert(),
                         mint_quote_event_sender: tx,
+                        connection_cache: connection_cache.clone(),
                     });
+
+                    // Start cache cleanup background task
+                    async_runtime::spawn(connection_cache::start_cache_cleanup_task(
+                        connection_cache,
+                    ));
                 }
 
                 let cloned_app_handle = app_handle.clone();
@@ -136,6 +162,7 @@ struct AppState {
     #[cfg(feature = "tls-local-mkcert")]
     tls_root_ca_cert: Certificate,
     mint_quote_event_sender: mpsc::Sender<MintQuoteStateMachine>,
+    connection_cache: Arc<ConnectionCache>,
 }
 
 #[derive(Clone, Debug)]
@@ -162,6 +189,13 @@ impl AppState {
     #[cfg(not(feature = "tls-local-mkcert"))]
     fn opt_root_ca_cert(&self) -> Option<Certificate> {
         None
+    }
+
+    pub async fn get_node_client_connection(
+        &self,
+        node_id: u32,
+    ) -> Result<NodeClient<Channel>, connection_cache::ConnectionCacheError> {
+        self.connection_cache.get_or_create_client(node_id).await
     }
 }
 

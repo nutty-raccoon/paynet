@@ -10,7 +10,6 @@ use crate::errors::CommonError;
 use crate::front_events::{
     MintQuoteCreatedEvent, PendingMintQuoteData, emit_mint_quote_created_event,
 };
-use crate::mint_quote::Node;
 use crate::{AppState, mint_quote::MintQuoteStateMachine};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
@@ -58,15 +57,10 @@ pub async fn create_mint_quote(
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
-    let node_url = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)
-            .map_err(CommonError::Db)?
-            .ok_or(CommonError::NodeId(node_id))?
-    };
-    let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
+    let mut node_client = state
+        .get_node_client_connection(node_id)
         .await
-        .map_err(CommonError::CreateNodeClient)?;
+        .map_err(CommonError::CachedConnection)?;
 
     let response = wallet::mint::create_quote(
         state.pool.clone(),
@@ -92,12 +86,7 @@ pub async fn create_mint_quote(
     )
     .map_err(CommonError::EmitTauriEvent)?;
 
-    let node = Node {
-        id: node_id,
-        client: node_client,
-    };
-
-    inner_pay_quote(&app, &state, node, response.quote, response.request).await?;
+    inner_pay_quote(&app, &state, node_id, response.quote, response.request).await?;
 
     Ok(())
 }
@@ -109,13 +98,6 @@ pub async fn pay_quote(
     node_id: u32,
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
-    let node_url = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)
-            .map_err(CommonError::Db)?
-            .ok_or(CommonError::NodeId(node_id))?
-    };
-
     let mint_quote = {
         let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
@@ -123,15 +105,7 @@ pub async fn pay_quote(
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
     };
 
-    let node_client = wallet::connect_to_node_lazy(&node_url, state.opt_root_ca_cert())
-        .map_err(CommonError::CreateNodeClient)?;
-
-    let node = Node {
-        id: node_id,
-        client: node_client,
-    };
-
-    inner_pay_quote(&app, &state, node, quote_id, mint_quote.request).await
+    inner_pay_quote(&app, &state, node_id, quote_id, mint_quote.request).await
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -180,13 +154,6 @@ pub async fn redeem_quote(
     node_id: u32,
     quote_id: String,
 ) -> Result<(), RedeemQuoteError> {
-    let node_url = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
-        wallet::db::node::get_url_by_id(&db_conn, node_id)
-            .map_err(CommonError::Db)?
-            .ok_or(CommonError::NodeId(node_id))?
-    };
-
     let mint_quote = {
         let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
@@ -198,18 +165,9 @@ pub async fn redeem_quote(
         return Err(RedeemQuoteError::QuoteNotPaid);
     }
 
-    let node_client = wallet::connect_to_node_lazy(&node_url, state.opt_root_ca_cert())
-        .map_err(CommonError::CreateNodeClient)?;
-
     state
         .mint_quote_event_sender
-        .send(MintQuoteStateMachine::Paid {
-            node: Node {
-                id: node_id,
-                client: node_client,
-            },
-            quote_id,
-        })
+        .send(MintQuoteStateMachine::Paid { node_id, quote_id })
         .await
         .map_err(|_| CommonError::MintQuoteChannel)?;
 
@@ -219,7 +177,7 @@ pub async fn redeem_quote(
 async fn inner_pay_quote(
     app: &AppHandle,
     state: &AppState,
-    node: Node,
+    node_id: u32,
     quote_id: String,
     request: String,
 ) -> Result<(), PayQuoteError> {
@@ -229,14 +187,14 @@ async fn inner_pay_quote(
     if request.is_empty() {
         state
             .mint_quote_event_sender
-            .send(MintQuoteStateMachine::Paid { node, quote_id })
+            .send(MintQuoteStateMachine::Paid { node_id, quote_id })
             .await
             .map_err(|_| CommonError::MintQuoteChannel)?;
         return Ok(());
     } else {
         state
             .mint_quote_event_sender
-            .send(MintQuoteStateMachine::Created { node, quote_id })
+            .send(MintQuoteStateMachine::Created { node_id, quote_id })
             .await
             .map_err(|_| CommonError::MintQuoteChannel)?;
     }
