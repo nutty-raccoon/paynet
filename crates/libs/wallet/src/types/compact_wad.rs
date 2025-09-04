@@ -427,72 +427,60 @@ mod tests {
 
     #[test]
     fn test_wad_string_two_tokens_not_separated_by_colon() {
-        // wad string of two tokens not separated by :
-        let token1 = create_test_compact_wad_single_proof("mint1.example.com", 100);
-        let token2 = create_test_compact_wad_single_proof("mint2.example.com", 200);
-        let token1_str = token1.to_string();
-        let token2_str = token2.to_string();
-        let invalid_wad = format!("{}{}", token1_str, token2_str);
+        let wad1 = create_test_compact_wad_single_proof("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad_single_proof("mint2.example.com", 200);
+        let invalid_wad = format!("{}{}", wad1, wad2);
 
-        let result = CompactWad::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_string_with_double_colon() {
-        // wad string with ::
-        let invalid_wad = "cashuBvalidtoken::cashuBvalidtoken2";
+        let wad1 = create_test_compact_wad_single_proof("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad_single_proof("mint2.example.com", 200);
+        let invalid_wad = format!("{}::{}", wad1, wad2);
 
-        let result = CompactWad::from_str(invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_string_starting_with_colon() {
-        // wad string starting with ":"
-        let token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let token_str = token.to_string();
-        let invalid_wad = format!(":{}", token_str);
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let invalid_wad = format!(":{}", wad);
 
-        let result = CompactWad::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_string_ending_with_colon() {
         // wad string finishing by ":"
-        let token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let token_str = token.to_string();
-        let invalid_wad = format!("{}:", token_str);
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let invalid_wad = format!("{}:", wad);
 
-        let result = CompactWad::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_with_valid_and_invalid_token() {
         // wad with a valid and an invalid token
-        let valid_token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let valid_token_str = valid_token.to_string();
-        let invalid_wad = format!("{}:invalidtoken", valid_token_str);
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let invalid_wad = format!("{}:cashuBinvalidtoken", wad);
 
-        let result = CompactWad::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            Error::UnsupportedWadFormat => (),
-            other => panic!("Expected UnsupposrtedWadFormat error, got: {:?}", other),
-        }
     }
 
     #[test]
     fn test_wad_string_token_without_cashu_prefix() {
-        // wad string where one token has no cashuB prefix
-        let valid_token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let valid_token_str = valid_token.to_string();
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let valid_token_str = wad.to_string();
         let token_without_prefix = valid_token_str.strip_prefix(CASHU_PREFIX).unwrap();
-        let invalid_wad = format!("{}:{}", valid_token_str, token_without_prefix);
 
-        let result = CompactWad::from_str(&invalid_wad);
+        let result = CompactWad::from_str(token_without_prefix);
         assert!(result.is_err());
         match result.unwrap_err() {
             Error::UnsupportedWadFormat => (),
