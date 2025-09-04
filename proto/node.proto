@@ -28,6 +28,7 @@ service Node {
   // NUT07
   rpc CheckState (CheckStateRequest) returns (CheckStateResponse);
 
+  // NUT09
   rpc Restore (RestoreRequest) returns (RestoreResponse);
 }
 

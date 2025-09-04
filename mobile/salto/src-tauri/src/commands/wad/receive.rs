@@ -19,6 +19,8 @@ pub enum ReceiveWadsError {
     WadString(#[from] compact_wad::Error),
     #[error("failed to register node: {0}")]
     RegisterNode(#[from] wallet::node::RegisterNodeError),
+    #[error("failed to create node client: {0}")]
+    CreateNodeClient(wallet::ConnectToNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -46,11 +48,29 @@ pub async fn receive_wads(
             memo,
             proofs,
         } = wad;
-        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
-            .await
-            .map_err(CommonError::CreateNodeClient)?;
-        let node_id =
-            wallet::node::register(state.pool.clone(), &mut node_client, &node_url).await?;
+
+        // Try to find existing node_id by URL first
+        let existing_node_id = {
+            let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+            wallet::db::node::get_id_by_url(&db_conn, &node_url).map_err(CommonError::Db)?
+        };
+
+        let (mut node_client, node_id) = if let Some(existing_node_id) = existing_node_id {
+            // Use cached connection if node exists
+            let client = state
+                .get_node_client_connection(existing_node_id)
+                .await
+                .map_err(CommonError::CachedConnection)?;
+            (client, existing_node_id)
+        } else {
+            // Create direct connection and register new node
+            let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
+                .await
+                .map_err(ReceiveWadsError::CreateNodeClient)?;
+            let node_id =
+                wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
+            (client, node_id)
+        };
 
         let amount_received = wallet::receive_wad(
             crate::SEED_PHRASE_MANAGER,

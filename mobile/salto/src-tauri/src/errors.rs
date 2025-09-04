@@ -4,8 +4,8 @@ pub enum CommonError {
     DbPool(r2d2::Error),
     #[error("failed to interact with db: {0}")]
     Db(rusqlite::Error),
-    #[error("failed to create node client: {0}")]
-    CreateNodeClient(wallet::ConnectToNodeError),
+    #[error("cached connection error: {0}")]
+    CachedConnection(#[from] crate::connection_cache::ConnectionCacheError),
     #[error("failed to push event in a the mint error channel")]
     MintQuoteChannel,
     #[error("failed wallet logic: {0}")]
@@ -14,8 +14,4 @@ pub enum CommonError {
     EmitTauriEvent(tauri::Error),
     #[error("quote {0} not found")]
     QuoteNotFound(String),
-    #[error("unknown node id: {0}")]
-    NodeId(u32),
-    #[error("failed to get the node url from the db: {0}")]
-    GetNodeUrl(rusqlite::Error),
 }

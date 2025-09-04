@@ -31,6 +31,8 @@ pub enum CreateWadsError {
     NotEnoughFundsInNode(u32),
     #[error("failed to connect to node: {0}")]
     ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error("cached connection error: {0}")]
+    CachedConnection(#[from] crate::connection_cache::ConnectionCacheError),
     #[error("failed to plan spending: {0}")]
     PlanSpending(#[from] wallet::send::PlanSpendingError),
     #[error("failed to load proofs to create wads: {0}")]
@@ -64,9 +66,9 @@ pub async fn create_wads(
     let mut node_and_proofs = Vec::with_capacity(amount_to_use_per_node.len());
 
     for (node_id, amount_to_use) in amount_to_use_per_node {
-        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
-            .expect("ids come form DB, there should be an url");
-        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+        let mut node_client = state.get_node_client_connection(node_id)
+            .await
+            .map_err(CreateWadsError::CachedConnection)?;
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
             crate::SEED_PHRASE_MANAGER,
@@ -78,6 +80,10 @@ pub async fn create_wads(
         )
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
+
+        // Get node URL for wad creation (still needed by the wallet library)
+        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .expect("ids come form DB, there should be an url");
 
         node_and_proofs.push((node_url, proofs_ids));
         balance_decrease_events.push(BalanceDecreaseEvent {
