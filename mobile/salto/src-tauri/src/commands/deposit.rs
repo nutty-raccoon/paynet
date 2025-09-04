@@ -4,10 +4,12 @@ use tracing::error;
 
 use nuts::nut04::MintQuoteState;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARKNET_STR};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use crate::errors::CommonError;
-use crate::front_events::{MINT_QUOTE_CREATED_EVENT, MintQuoteCreatedEvent, PendingMintQuoteData};
+use crate::front_events::{
+    MintQuoteCreatedEvent, PendingMintQuoteData, emit_mint_quote_created_event,
+};
 use crate::mint_quote::Node;
 use crate::{AppState, mint_quote::MintQuoteStateMachine};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
@@ -16,8 +18,6 @@ use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 pub enum CreateMintQuoteError {
     #[error(transparent)]
     Common(#[from] crate::errors::CommonError),
-    #[error("unknown node_id: {0}")]
-    NodeId(u32),
     #[error("failed to parse asset: {0}")]
     Asset(#[from] AssetFromStrError),
     #[error("invalid amount: {0}")]
@@ -59,10 +59,10 @@ pub async fn create_mint_quote(
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
     let node_url = {
-        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::node::get_url_by_id(&db_conn, node_id)
             .map_err(CommonError::Db)?
-            .ok_or(CreateMintQuoteError::NodeId(node_id))?
+            .ok_or(CommonError::NodeId(node_id))?
     };
     let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
         .await
@@ -79,8 +79,8 @@ pub async fn create_mint_quote(
     .await
     .map_err(CommonError::Wallet)?;
 
-    app.emit(
-        MINT_QUOTE_CREATED_EVENT,
+    emit_mint_quote_created_event(
+        &app,
         MintQuoteCreatedEvent {
             node_id,
             mint_quote: PendingMintQuoteData {
@@ -90,7 +90,7 @@ pub async fn create_mint_quote(
             },
         },
     )
-    .map_err(CommonError::EmitEvent)?;
+    .map_err(CommonError::EmitTauriEvent)?;
 
     let node = Node {
         id: node_id,
@@ -110,14 +110,14 @@ pub async fn pay_quote(
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
     let node_url = {
-        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::node::get_url_by_id(&db_conn, node_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::NodeId(node_id))?
     };
 
     let mint_quote = {
-        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
@@ -181,14 +181,14 @@ pub async fn redeem_quote(
     quote_id: String,
 ) -> Result<(), RedeemQuoteError> {
     let node_url = {
-        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::node::get_url_by_id(&db_conn, node_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::NodeId(node_id))?
     };
 
     let mint_quote = {
-        let db_conn = state.pool.get().map_err(CommonError::GetConnection)?;
+        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?

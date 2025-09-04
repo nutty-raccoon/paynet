@@ -1,7 +1,12 @@
-use crate::AppState;
+use crate::{
+    AppState,
+    front_events::{
+        SyncWadErrorEvent, WadStatusUpdatedEvent, emit_sync_wad_error_event,
+        emit_wad_status_updated_event,
+    },
+};
 use starknet_types::Unit;
-use tauri::{AppHandle, Emitter, State};
-use uuid::Uuid;
+use tauri::{AppHandle, State};
 use wallet::db::balance::Balance;
 
 #[derive(Debug, serde::Serialize)]
@@ -61,20 +66,6 @@ pub async fn get_wad_history(
     Ok(history_items)
 }
 
-#[derive(Debug, serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct WadStatusUpdate {
-    pub wad_id: Uuid,
-    pub new_status: String,
-}
-
-#[derive(Debug, serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncError {
-    pub wad_id: Uuid,
-    pub error: String,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum SyncWadsError {
     #[error(transparent)]
@@ -105,18 +96,18 @@ pub async fn sync_wads(app: AppHandle, state: State<'_, AppState>) -> Result<(),
         match result.result {
             Ok(None) => {}
             Ok(Some(status)) => {
-                app.emit(
-                    "wad-status-updated",
-                    WadStatusUpdate {
+                emit_wad_status_updated_event(
+                    &app,
+                    WadStatusUpdatedEvent {
                         wad_id: result.wad_id,
                         new_status: status.to_string(),
                     },
                 )?;
             }
             Err(e) => {
-                app.emit(
-                    "sync-wad-error",
-                    SyncError {
+                emit_sync_wad_error_event(
+                    &app,
+                    SyncWadErrorEvent {
                         wad_id: result.wad_id,
                         error: e.to_string(),
                     },

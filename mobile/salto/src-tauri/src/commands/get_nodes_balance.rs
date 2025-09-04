@@ -1,15 +1,17 @@
 use nuts::nut04::MintQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tauri::{AppHandle, Emitter, State, async_runtime};
+use tauri::{AppHandle, State, async_runtime};
 use tonic::transport::Certificate;
+use wallet::connect_to_node;
 use wallet::db::balance::GetForAllNodesData;
 use wallet::db::mint_quote::PendingMintQuote;
-use wallet::{ConnectToNodeError, connect_to_node};
 
 use crate::AppState;
+use crate::errors::CommonError;
 use crate::front_events::{
-    NODE_PENDING_MINT_QUOTE_UPDATES, NodePendingMintQuotesStateUpdatesEvent, PendingMintQuoteData,
+    NodePendingMintQuotesStateUpdatesEvent, PendingMintQuoteData,
+    emit_node_pending_mint_quotes_updates_event,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -40,12 +42,10 @@ pub async fn get_nodes_balance(
 
 #[derive(Debug, thiserror::Error)]
 pub enum GetPendingMintQuoteError {
-    #[error("failed to get connection from pool: {0}")]
-    R2D2(#[from] r2d2::Error),
+    #[error(transparent)]
+    Common(#[from] CommonError),
     #[error("failed to get the pendings mint quote form the db: {0}")]
     ReadPendingsFromDb(rusqlite::Error),
-    #[error(transparent)]
-    Wallet(#[from] ::wallet::errors::Error),
 }
 
 impl serde::Serialize for GetPendingMintQuoteError {
@@ -63,7 +63,7 @@ pub async fn get_pending_mint_quotes(
     state: State<'_, AppState>,
 ) -> Result<(), GetPendingMintQuoteError> {
     let pending_mint_quotes = {
-        let db_conn = state.pool.get()?;
+        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get_pendings(&db_conn)
             .map_err(GetPendingMintQuoteError::ReadPendingsFromDb)?
     };
@@ -88,16 +88,10 @@ pub async fn get_pending_mint_quotes(
 
 #[derive(Debug, thiserror::Error)]
 pub enum SyncNodeError {
-    #[error("failed to get connection from pool: {0}")]
-    R2D2(#[from] r2d2::Error),
-    #[error("failed to get the node url from the db: {0}")]
-    GetNodeUrl(rusqlite::Error),
-    #[error("failed to connect to node: {0}")]
-    NodeConnect(#[from] ConnectToNodeError),
+    #[error(transparent)]
+    Common(#[from] CommonError),
     #[error("failed to sync the mint quotes of node {0}: {1}")]
     Sync(u32, wallet::sync::SyncMintQuotesError),
-    #[error("failed to emmit event: {0}")]
-    Tauri(#[from] tauri::Error),
 }
 
 async fn sync_node(
@@ -108,12 +102,14 @@ async fn sync_node(
     pending_mint_quotes: Vec<PendingMintQuote>,
 ) -> Result<(), SyncNodeError> {
     let node_url = {
-        let db_conn = pool.get()?;
+        let db_conn = pool.get().map_err(CommonError::DbPool)?;
         wallet::db::node::get_url_by_id(&db_conn, node_id)
-            .map_err(SyncNodeError::GetNodeUrl)?
-            .unwrap()
+            .map_err(CommonError::GetNodeUrl)?
+            .ok_or(CommonError::NodeId(node_id))?
     };
-    let mut node_client = connect_to_node(&node_url, opt_root_ca_cert).await?;
+    let mut node_client = connect_to_node(&node_url, opt_root_ca_cert)
+        .await
+        .map_err(CommonError::CreateNodeClient)?;
     let state_updates = wallet::sync::mint_quotes(
         crate::SEED_PHRASE_MANAGER,
         pool.clone(),
@@ -146,14 +142,15 @@ async fn sync_node(
         }
     }
 
-    app.emit(
-        NODE_PENDING_MINT_QUOTE_UPDATES,
+    emit_node_pending_mint_quotes_updates_event(
+        &app,
         NodePendingMintQuotesStateUpdatesEvent {
             node_id,
             unpaid,
             paid,
         },
-    )?;
+    )
+    .map_err(CommonError::EmitTauriEvent)?;
 
     Ok(())
 }

@@ -1,9 +1,12 @@
 use std::str::FromStr;
 
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
-use crate::{AppState, front_events::BalanceChange};
+use crate::{
+    AppState,
+    front_events::{BalanceDecreaseEvent, emit_balance_decrease_event},
+};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
@@ -77,7 +80,7 @@ pub async fn create_wads(
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
 
         node_and_proofs.push((node_url, proofs_ids));
-        balance_decrease_events.push(BalanceChange {
+        balance_decrease_events.push(BalanceDecreaseEvent {
             node_id,
             unit: unit.as_str().to_string(),
             amount: amount_to_use.into(),
@@ -87,7 +90,7 @@ pub async fn create_wads(
     let wads =
         wallet::send::load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), None)?;
     for event in balance_decrease_events {
-        app.emit("balance-decrease", event)?;
+        emit_balance_decrease_event(&app, event)?;
     }
 
     Ok(wads.to_string())

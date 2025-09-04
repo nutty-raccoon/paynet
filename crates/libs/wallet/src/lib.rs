@@ -353,6 +353,7 @@ pub async fn swap_to_have_target_amount(
     Ok(new_tokens)
 }
 
+// TODO: custom error type
 #[allow(clippy::too_many_arguments)]
 pub async fn receive_wad(
     seed_phrase_manager: impl SeedPhraseManager,

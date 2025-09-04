@@ -1,8 +1,8 @@
-import { derived, readable, writable, type Readable } from 'svelte/store';
+import { derived, readable, writable } from 'svelte/store';
 import { platform } from "@tauri-apps/plugin-os";
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { Price } from './types/price';
-import type { MintQuoteIdentifier, PendingMintQuoteData, PendingMintQuotesUpdateEvent, QuoteId} from './types/quote';
+import type { MintQuoteIdentifier, PendingMintQuoteData, PendingMintQuotesUpdateEvent} from './types/quote';
 import type { NodeId } from './types';
 
 const currentPlatform = platform();
