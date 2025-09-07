@@ -7,7 +7,7 @@ pub enum CommonError {
     #[error("cached connection error: {0}")]
     CachedConnection(#[from] crate::connection_cache::ConnectionCacheError),
     #[error("failed to push event in a the mint error channel")]
-    MintQuoteChannel,
+    QuoteHandlerChannel,
     #[error("failed wallet logic: {0}")]
     Wallet(wallet::errors::Error),
     #[error("failed to emit tauri event: {0}")]

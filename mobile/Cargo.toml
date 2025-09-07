@@ -20,6 +20,7 @@ reqwest = { version = "0.12.12", default-features = false }
 tokio = "1.44.1"
 bitcoin = "0.32.2"
 tracing = "0.1.41"
+tracing-subscriber = "0.3.20"
 uuid = "1.11.0"
 tonic = "0.13.1"
 itertools = "0.14"
@@ -41,6 +42,7 @@ android-keyring = "0.2.0"
 # local
 wallet = { path = "../crates/libs/wallet" }
 starknet-types = { path = "../crates/libs/starknet/types" }
+starknet-liquidity-source = { path = "../crates/libs/starknet/liquidity-source" }
 nuts = { path = "../crates/libs/nuts" }
 parse-asset-amount = { path = "../crates/libs/parse-asset-amount" }
 node-client = { path = "../crates/libs/node-client" }

@@ -121,3 +121,10 @@ export function getTotalAmountInDisplayCurrency(balances: Map<Unit, number>, pri
 
       return totalAmount;
   }
+
+export function isValidStarknetAddress(address: string): boolean {
+  // Basic Starknet address validation
+  // Addresses should start with 0x and be between 3 and 66 characters
+  const addressRegex = /^0x[a-fA-F0-9]{1,63}$/;
+  return addressRegex.test(address) && address.length >= 3 && address.length <= 66;
+}

@@ -7,13 +7,13 @@ mod migrations;
 mod mint_quote;
 
 use commands::{
-    add_node, check_wallet_exists, create_mint_quote, create_wads, get_currencies,
-    get_nodes_balance, get_pending_mint_quotes, get_wad_history, init_wallet, pay_quote,
-    receive_wads, redeem_quote, refresh_node_keysets, restore_wallet, set_price_provider_currency,
-    sync_wads,
+    add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads,
+    get_currencies, get_nodes_balance, get_pending_quotes, get_wad_history, init_wallet,
+    pay_melt_quote, pay_mint_quote, receive_wads, redeem_quote, refresh_node_keysets,
+    restore_wallet, set_price_provider_currency, sync_wads,
 };
 use connection_cache::ConnectionCache;
-use mint_quote::{MintQuoteStateMachine, start_syncing_mint_quotes};
+use mint_quote::{QuoteHandlerEvent, start_syncing_quotes};
 use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
 use r2d2::Pool;
@@ -29,6 +29,8 @@ use std::{
 use tauri::{Listener, Manager, async_runtime};
 use tokio::sync::{RwLock, mpsc};
 use tonic::transport::{Certificate, Channel};
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::background_tasks::start_price_fetcher;
 
@@ -42,10 +44,22 @@ pub fn run() {
         #[cfg(target_os = "android")]
         android_keyring::set_android_keyring_credential_builder().unwrap();
 
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(false)
+                    .compact(),
+            )
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::INFO.into())
+                    .from_env_lossy(),
+            )
+            .init();
+
         let builder = tauri::Builder::default();
 
         let builder = builder
-            .plugin(tauri_plugin_log::Builder::new().build())
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_clipboard_manager::init());
@@ -101,7 +115,7 @@ pub fn run() {
                         })),
                         #[cfg(feature = "tls-local-mkcert")]
                         tls_root_ca_cert: read_tls_root_ca_cert(),
-                        mint_quote_event_sender: tx,
+                        quote_event_sender: tx,
                         connection_cache: connection_cache.clone(),
                     });
 
@@ -112,8 +126,7 @@ pub fn run() {
                 }
 
                 let cloned_app_handle = app_handle.clone();
-                let _handle =
-                    async_runtime::spawn(start_syncing_mint_quotes(cloned_app_handle, rx));
+                let _handle = async_runtime::spawn(start_syncing_quotes(cloned_app_handle, rx));
                 // Wait until the front is listening to start fetching prices
                 let cloned_app_handle = app_handle.clone();
                 app.once("front-ready", |_| {
@@ -132,6 +145,8 @@ pub fn run() {
                 add_node,
                 refresh_node_keysets,
                 create_mint_quote,
+                pay_mint_quote,
+                get_pending_quotes,
                 redeem_quote,
                 create_wads,
                 receive_wads,
@@ -142,14 +157,14 @@ pub fn run() {
                 set_price_provider_currency,
                 get_wad_history,
                 sync_wads,
-                get_pending_mint_quotes,
-                pay_quote,
+                create_melt_quote,
+                pay_melt_quote
             ])
     };
 
     if let Err(e) = app.run(tauri::generate_context!()) {
         // Use grep "tauri-app-run-error" to filter the startup error in logs
-        log::error!("tauri-app-run-error: {e}");
+        tracing::error!("tauri-app-run-error: {e}");
         panic!("error while running tauri application: {e}");
     }
 }
@@ -161,7 +176,7 @@ struct AppState {
     get_prices_config: Arc<RwLock<PriceConfig>>,
     #[cfg(feature = "tls-local-mkcert")]
     tls_root_ca_cert: Certificate,
-    mint_quote_event_sender: mpsc::Sender<MintQuoteStateMachine>,
+    quote_event_sender: mpsc::Sender<QuoteHandlerEvent>,
     connection_cache: Arc<ConnectionCache>,
 }
 

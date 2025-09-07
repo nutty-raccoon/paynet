@@ -467,7 +467,7 @@ async fn main() -> Result<()> {
                 &mut node_client,
                 node_id,
                 method.clone(),
-                unit,
+                unit.to_string(),
                 request,
             )
             .await?;

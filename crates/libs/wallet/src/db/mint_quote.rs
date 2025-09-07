@@ -82,7 +82,7 @@ pub fn delete(conn: &Connection, quote_id: &str) -> Result<()> {
 pub fn get(conn: &Connection, node_id: u32, quote_id: &str) -> Result<Option<MintQuote>> {
     const GET_MINT_QUOTE: &str = r#"
         SELECT * FROM mint_quote
-        WHERE node_id = ?1 AND id = ?2;
+        WHERE node_id = ?1 AND id = ?2 LIMIT 1;
     "#;
 
     let quote = conn

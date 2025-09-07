@@ -4,13 +4,14 @@ use std::{
     time::Duration,
 };
 
-use nuts::{nut04::MintQuoteState, traits::Unit as UnitT};
+use nuts::{nut04::MintQuoteState, nut05::MeltQuoteState, traits::Unit as UnitT};
 use starknet_types::{Unit, UnitFromStrError};
 use tauri::{AppHandle, Manager, async_runtime};
 use tokio::sync::mpsc;
 use tracing::{Level, error, event};
 use wallet::{
-    db::{self, mint_quote::MintQuote},
+    db::{self, melt_quote::MeltQuote, mint_quote::MintQuote},
+    melt::PayMeltQuoteError,
     mint::RedeemQuoteError,
 };
 
@@ -18,37 +19,65 @@ use crate::{
     AppState,
     errors::CommonError,
     front_events::{
-        BalanceChange, MintQuoteIdentifier, MintQuotePaidEvent, MintQuoteRedeemedEvent,
-        RemoveMintQuoteEvent, emit_balance_increase_event, emit_mint_quote_paid_event,
-        emit_mint_quote_redeemed_event, emit_remove_mint_quote_event,
+        QuoteIdentifier,
+        balance_events::{BalanceChange, emit_balance_decrease_event, emit_balance_increase_event},
+        melt_quote_events::{
+            emit_melt_quote_paid_event, emit_melt_quote_redeemed_event,
+            emit_remove_melt_quote_event,
+        },
+        mint_quote_events::{
+            emit_mint_quote_paid_event, emit_mint_quote_redeemed_event,
+            emit_remove_mint_quote_event,
+        },
     },
 };
 
 #[derive(Debug, Clone)]
-pub enum MintQuoteStateMachine {
-    Created { node_id: u32, quote_id: String },
-    Paid { node_id: u32, quote_id: String },
-    Redeemed { node_id: u32, quote_id: String },
+pub enum MintQuoteAction {
+    Pay { node_id: u32, quote_id: String },
+    Redeem { node_id: u32, quote_id: String },
+    Done { node_id: u32, quote_id: String },
+}
+
+#[derive(Debug, Clone)]
+pub enum MeltQuoteAction {
+    Pay { node_id: u32, quote_id: String },
+    WaitOnChainPayment { node_id: u32, quote_id: String },
+    Done { node_id: u32, quote_id: String },
+}
+
+#[derive(Debug, Clone)]
+pub enum QuoteHandlerEvent {
+    Mint(MintQuoteAction),
+    Melt(MeltQuoteAction),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum QuoteState {
-    Unpaid,
+enum MintState {
+    Created,
     Paid,
 }
 
-pub struct MintQuoteHandler {
-    app: AppHandle,
-    rx: mpsc::Receiver<MintQuoteStateMachine>,
-    quotes: Vec<(u64, QuoteState)>,
+#[derive(Debug, Clone, PartialEq)]
+enum MeltState {
+    Unpaid,
+    Pending,
 }
 
-impl MintQuoteHandler {
-    pub fn new(app: AppHandle, rx: mpsc::Receiver<MintQuoteStateMachine>) -> Self {
+pub struct QuoteHandler {
+    app: AppHandle,
+    rx: mpsc::Receiver<QuoteHandlerEvent>,
+    mint_quotes: Vec<(u64, MintState)>,
+    melt_quotes: Vec<(u64, MeltState)>,
+}
+
+impl QuoteHandler {
+    pub fn new(app: AppHandle, rx: mpsc::Receiver<QuoteHandlerEvent>) -> Self {
         Self {
             app,
             rx,
-            quotes: Vec::new(),
+            mint_quotes: Vec::new(),
+            melt_quotes: Vec::new(),
         }
     }
 
@@ -58,69 +87,151 @@ impl MintQuoteHandler {
         hasher.finish()
     }
 
-    fn find_quote_state(&self, hash: u64) -> Option<&QuoteState> {
-        self.quotes
+    fn find_mint_quote_state(&self, hash: u64) -> Option<&MintState> {
+        self.mint_quotes
             .iter()
             .find(|(h, _)| *h == hash)
             .map(|(_, state)| state)
     }
 
-    fn update_quote_state(&mut self, hash: u64, new_state: QuoteState) {
-        if let Some(pos) = self.quotes.iter().position(|(h, _)| *h == hash) {
-            self.quotes[pos].1 = new_state;
+    fn find_melt_quote_state(&self, hash: u64) -> Option<&MeltState> {
+        self.melt_quotes
+            .iter()
+            .find(|(h, _)| *h == hash)
+            .map(|(_, state)| state)
+    }
+
+    fn update_mint_quote_state(&mut self, hash: u64, new_state: MintState) {
+        if let Some(pos) = self.mint_quotes.iter().position(|(h, _)| *h == hash) {
+            self.mint_quotes[pos].1 = new_state;
         } else {
-            self.quotes.push((hash, new_state));
+            self.mint_quotes.push((hash, new_state));
         }
     }
-    fn remove_quote_state(&mut self, hash: u64) {
-        if let Some(pos) = self.quotes.iter().position(|(h, _)| *h == hash) {
-            self.quotes.remove(pos);
+
+    fn update_melt_quote_state(&mut self, hash: u64, new_state: MeltState) {
+        if let Some(pos) = self.melt_quotes.iter().position(|(h, _)| *h == hash) {
+            self.melt_quotes[pos].1 = new_state;
+        } else {
+            self.melt_quotes.push((hash, new_state));
+        }
+    }
+
+    fn remove_mint_quote_state(&mut self, hash: u64) {
+        if let Some(pos) = self.mint_quotes.iter().position(|(h, _)| *h == hash) {
+            self.mint_quotes.remove(pos);
+        }
+    }
+
+    fn remove_melt_quote_state(&mut self, hash: u64) {
+        if let Some(pos) = self.melt_quotes.iter().position(|(h, _)| *h == hash) {
+            self.melt_quotes.remove(pos);
+        }
+    }
+
+    fn shrink_collections(&mut self) {
+        // Reclaim memory for mint quotes
+        let mint_capacity = self.mint_quotes.capacity();
+        if mint_capacity > 10 && mint_capacity > self.mint_quotes.len() * 2 {
+            self.mint_quotes.shrink_to(self.mint_quotes.len() * 3 / 2);
+        }
+
+        // Reclaim memory for melt quotes
+        let melt_capacity = self.melt_quotes.capacity();
+        if melt_capacity > 10 && melt_capacity > self.melt_quotes.len() * 2 {
+            self.melt_quotes.shrink_to(self.melt_quotes.len() * 3 / 2);
         }
     }
 }
 
-impl MintQuoteHandler {
+impl QuoteHandler {
     pub async fn run(mut self) {
         while let Some(event) = self.rx.recv().await {
-            let cloned_app = self.app.clone();
             match event {
-                MintQuoteStateMachine::Created { node_id, quote_id } => {
-                    let hash = Self::hash_quote(node_id, &quote_id);
-
-                    // Only process if not already unpaid
-                    if self.find_quote_state(hash) != Some(&QuoteState::Unpaid) {
-                        self.update_quote_state(hash, QuoteState::Unpaid);
-                        async_runtime::spawn(async move {
-                            sync_quote_until_is_paid(cloned_app, node_id, quote_id)
-                                .await
-                                .inspect_err(|e| error!("failed to sync unpaid mint quote: {e}"))
-                        });
-                    }
+                QuoteHandlerEvent::Mint(mint_event) => {
+                    self.handle_mint_event(mint_event).await;
                 }
-                MintQuoteStateMachine::Paid { node_id, quote_id } => {
-                    let hash = Self::hash_quote(node_id, &quote_id);
-
-                    // Only process if not already paid
-                    if self.find_quote_state(hash) != Some(&QuoteState::Paid) {
-                        self.update_quote_state(hash, QuoteState::Paid);
-                        async_runtime::spawn(async move {
-                            try_redeem_quote(cloned_app, node_id, quote_id)
-                                .await
-                                .inspect_err(|e| error!("failed to redeem mint quote: {e}"))
-                        });
-                    }
-                }
-                MintQuoteStateMachine::Redeemed { node_id, quote_id } => {
-                    let hash = Self::hash_quote(node_id, &quote_id);
-
-                    // Cleanup
-                    self.remove_quote_state(hash);
+                QuoteHandlerEvent::Melt(melt_event) => {
+                    self.handle_melt_event(melt_event).await;
                 }
             }
-            // Reclaim memory
-            let capacity = self.quotes.capacity();
-            if capacity > 10 && capacity > self.quotes.len() * 2 {
-                self.quotes.shrink_to(self.quotes.len() * 3 / 2);
+
+            self.shrink_collections();
+        }
+    }
+
+    async fn handle_mint_event(&mut self, event: MintQuoteAction) {
+        match event {
+            MintQuoteAction::Pay { node_id, quote_id } => {
+                let hash = Self::hash_quote(node_id, &quote_id);
+
+                // Only process if not already created
+                if self.find_mint_quote_state(hash) != Some(&MintState::Created) {
+                    self.update_mint_quote_state(hash, MintState::Created);
+                    let app = self.app.clone();
+                    async_runtime::spawn(async move {
+                        sync_mint_quote_until_is_paid(app, node_id, quote_id)
+                            .await
+                            .inspect_err(|e| error!("failed to sync unpaid mint quote: {e}"))
+                    });
+                }
+            }
+            MintQuoteAction::Redeem { node_id, quote_id } => {
+                let hash = Self::hash_quote(node_id, &quote_id);
+
+                // Only process if not already paid
+                if self.find_mint_quote_state(hash) != Some(&MintState::Paid) {
+                    self.update_mint_quote_state(hash, MintState::Paid);
+                    let app = self.app.clone();
+                    async_runtime::spawn(async move {
+                        try_redeem_mint_quote(app, node_id, quote_id)
+                            .await
+                            .inspect_err(|e| error!("failed to redeem mint quote: {e}"))
+                    });
+                }
+            }
+            MintQuoteAction::Done { node_id, quote_id } => {
+                let hash = Self::hash_quote(node_id, &quote_id);
+                // Cleanup
+                self.remove_mint_quote_state(hash);
+            }
+        }
+    }
+
+    async fn handle_melt_event(&mut self, event: MeltQuoteAction) {
+        match event {
+            MeltQuoteAction::Pay { node_id, quote_id } => {
+                let hash = Self::hash_quote(node_id, &quote_id);
+
+                // Only process if not already unpaid
+                if self.find_melt_quote_state(hash) != Some(&MeltState::Unpaid) {
+                    self.update_melt_quote_state(hash, MeltState::Unpaid);
+                    let app = self.app.clone();
+                    async_runtime::spawn(async move {
+                        try_pay_melt_quote(app, node_id, quote_id)
+                            .await
+                            .inspect_err(|e| error!("failed to sync unpaid melt quote: {e}"))
+                    });
+                }
+            }
+            MeltQuoteAction::WaitOnChainPayment { node_id, quote_id } => {
+                let hash = Self::hash_quote(node_id, &quote_id);
+
+                // Only process if not already pending
+                if self.find_melt_quote_state(hash) != Some(&MeltState::Pending) {
+                    self.update_melt_quote_state(hash, MeltState::Pending);
+                    let app = self.app.clone();
+                    async_runtime::spawn(async move {
+                        sync_melt_quote_until_is_paid(app, node_id, quote_id)
+                            .await
+                            .inspect_err(|e| error!("failed to sync pending melt quote: {e}"))
+                    });
+                }
+            }
+            MeltQuoteAction::Done { node_id, quote_id } => {
+                let hash = Self::hash_quote(node_id, &quote_id);
+                // Cleanup
+                self.remove_melt_quote_state(hash);
             }
         }
     }
@@ -135,48 +246,86 @@ pub enum Error {
     #[error("failed to build unit from string: {0}")]
     UnitFromStr(#[from] UnitFromStrError),
     #[error("invalid mint quote state for operation, expected {expected}, got {got}")]
-    InvalidQuoteState {
+    InvalidMintQuoteState {
         expected: MintQuoteState,
         got: MintQuoteState,
     },
-    #[error("failed to redeem quote {0}: {1}")]
-    Redeem(String, #[source] RedeemQuoteError),
+    #[error("invalid melt quote state for operation, expected {expected}, got {got}")]
+    InvalidMeltQuoteState {
+        expected: MeltQuoteState,
+        got: MeltQuoteState,
+    },
+    #[error("failed to redeem mint quote {0}: {1}")]
+    RedeemMintQuote(String, #[source] RedeemQuoteError),
+    #[error("failed to pay melt quote {0}: {1}")]
+    PayMeltQuote(String, #[source] PayMeltQuoteError),
+    #[error("failed to wait for payment of melt quote: {0}")]
+    WaitForMeltQuotePayment(wallet::errors::Error),
 }
 
-pub async fn start_syncing_mint_quotes(
+pub async fn start_syncing_quotes(
     app: AppHandle,
-    rx: mpsc::Receiver<MintQuoteStateMachine>,
+    rx: mpsc::Receiver<QuoteHandlerEvent>,
 ) -> Result<(), Error> {
-    let mint_handler = MintQuoteHandler::new(app.clone(), rx);
-    let _handle = async_runtime::spawn(mint_handler.run());
+    let quote_handler = QuoteHandler::new(app.clone(), rx);
+    let _handle = async_runtime::spawn(quote_handler.run());
 
     let state = app.state::<AppState>();
     let events_to_send = {
         let conn = state.pool.get().map_err(CommonError::DbPool)?;
+
+        // Get pending mint quotes
         let pending_mint_quotes_by_node =
             wallet::db::mint_quote::get_pendings(&conn).map_err(CommonError::Db)?;
 
+        // Get pending melt quotes
+        let pending_melt_quotes_by_node =
+            wallet::db::melt_quote::get_pendings(&conn).map_err(CommonError::Db)?;
+
         let mut events = Vec::new();
+
+        // Process mint quotes
         for (node_id, pending_mint_quotes) in pending_mint_quotes_by_node {
             for pending_mint_quote in pending_mint_quotes {
-                match pending_mint_quote.state {
-                    MintQuoteState::Unpaid => events.push(MintQuoteStateMachine::Created {
+                let mint_event = match pending_mint_quote.state {
+                    MintQuoteState::Unpaid => MintQuoteAction::Pay {
                         node_id,
                         quote_id: pending_mint_quote.id,
-                    }),
-                    MintQuoteState::Paid => events.push(MintQuoteStateMachine::Paid {
+                    },
+                    MintQuoteState::Paid => MintQuoteAction::Redeem {
                         node_id,
                         quote_id: pending_mint_quote.id,
-                    }),
-                    MintQuoteState::Issued => unreachable!(),
-                }
+                    },
+                    MintQuoteState::Issued => continue, // Skip issued quotes
+                };
+                events.push(QuoteHandlerEvent::Mint(mint_event));
             }
         }
+
+        // Process melt quotes
+        for (node_id, pending_melt_quotes) in pending_melt_quotes_by_node {
+            for pending_melt_quote in pending_melt_quotes {
+                let melt_event = match pending_melt_quote.state {
+                    MeltQuoteState::Unpaid => MeltQuoteAction::Pay {
+                        node_id,
+                        quote_id: pending_melt_quote.id,
+                    },
+                    MeltQuoteState::Pending => MeltQuoteAction::WaitOnChainPayment {
+                        node_id,
+                        quote_id: pending_melt_quote.id,
+                    },
+                    MeltQuoteState::Paid => continue, // Skip paid quotes as they're complete
+                };
+                events.push(QuoteHandlerEvent::Melt(melt_event));
+            }
+        }
+
         events
     };
+
     for event in events_to_send {
         state
-            .mint_quote_event_sender
+            .quote_event_sender
             .send(event)
             .await
             .map_err(|_| Error::SendMessage)?;
@@ -185,7 +334,12 @@ pub async fn start_syncing_mint_quotes(
     Ok(())
 }
 
-pub async fn try_redeem_quote(app: AppHandle, node_id: u32, quote_id: String) -> Result<(), Error> {
+#[tracing::instrument(skip(app))]
+pub async fn try_redeem_mint_quote(
+    app: AppHandle,
+    node_id: u32,
+    quote_id: String,
+) -> Result<(), Error> {
     let state = app.state::<AppState>();
     let MintQuote {
         node_id,
@@ -194,12 +348,20 @@ pub async fn try_redeem_quote(app: AppHandle, node_id: u32, quote_id: String) ->
         unit,
         state: quote_state,
         ..
-    } = db::mint_quote::get(&state.pool.get().unwrap(), node_id, &quote_id)
-        .map_err(CommonError::Db)?
-        .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?;
+    } = {
+        let pool = state.pool.get().map_err(CommonError::DbPool)?;
+        db::mint_quote::get(&pool, node_id, &quote_id)
+            .map_err(CommonError::Db)?
+            .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
+    };
 
     if quote_state != MintQuoteState::Paid {
-        return Err(Error::InvalidQuoteState {
+        event!(name: "cannot_redeem_unpaid_quote", Level::WARN,
+            node_id = node_id,
+            quote_id = %quote_id,
+            quote_state = ?quote_state
+        );
+        return Err(Error::InvalidMintQuoteState {
             expected: MintQuoteState::Paid,
             got: quote_state,
         });
@@ -209,6 +371,13 @@ pub async fn try_redeem_quote(app: AppHandle, node_id: u32, quote_id: String) ->
         .get_node_client_connection(node_id)
         .await
         .map_err(CommonError::CachedConnection)?;
+
+    event!(name: "redeeming_mint_quote_with_node", Level::INFO,
+        node_id = node_id,
+        quote_id = %quote_id,
+        amount = %amount,
+        unit = %unit
+    );
 
     wallet::mint::redeem_quote(
         crate::SEED_PHRASE_MANAGER,
@@ -221,8 +390,14 @@ pub async fn try_redeem_quote(app: AppHandle, node_id: u32, quote_id: String) ->
         amount,
     )
     .await
-    .map_err(|e| Error::Redeem(quote_id.clone(), e))?;
-    event!(name: "mint-quote-redeemed", Level::INFO, %quote_id, "Mint quote redeemed");
+    .map_err(|e| Error::RedeemMintQuote(quote_id.clone(), e))?;
+
+    event!(name: "mint_quote_redeemed_successfully", Level::INFO,
+        node_id = node_id,
+        quote_id = %quote_id,
+        amount = %amount,
+        unit = %unit
+    );
 
     let asset = Unit::from_str(&unit)?.matching_asset();
     emit_balance_increase_event(
@@ -238,27 +413,21 @@ pub async fn try_redeem_quote(app: AppHandle, node_id: u32, quote_id: String) ->
     state.get_prices_config.write().await.assets.insert(asset);
 
     state
-        .mint_quote_event_sender
-        .send(MintQuoteStateMachine::Redeemed {
+        .quote_event_sender
+        .send(QuoteHandlerEvent::Mint(MintQuoteAction::Done {
             node_id,
             quote_id: quote_id.clone(),
-        })
+        }))
         .await
         .map_err(|_| Error::SendMessage)?;
 
-    emit_mint_quote_redeemed_event(
-        &app,
-        MintQuoteRedeemedEvent(MintQuoteIdentifier {
-            node_id,
-            quote_id: quote_id.clone(),
-        }),
-    )
-    .map_err(CommonError::EmitTauriEvent)?;
+    emit_mint_quote_redeemed_event(&app, QuoteIdentifier { node_id, quote_id })
+        .map_err(CommonError::EmitTauriEvent)?;
 
     Ok(())
 }
 
-pub async fn sync_quote_until_is_paid(
+pub async fn sync_mint_quote_until_is_paid(
     app: AppHandle,
     node_id: u32,
     quote_id: String,
@@ -270,6 +439,7 @@ pub async fn sync_quote_until_is_paid(
         .get_node_client_connection(node_id)
         .await
         .map_err(CommonError::CachedConnection)?;
+
     loop {
         let quote = db::mint_quote::get(&state.pool.get().unwrap(), node_id, &quote_id)
             .map_err(CommonError::Db)?
@@ -286,29 +456,29 @@ pub async fn sync_quote_until_is_paid(
         match res {
             Ok(Some(MintQuoteState::Unpaid)) => {}
             Ok(Some(MintQuoteState::Paid)) => {
-                event!(name: "mint-quote-paid", Level::INFO, %quote_id, "Mint quote paid");
+                event!(name: "mint-quote-paid", Level::INFO, quote_id = %quote_id, "Mint quote paid");
                 emit_mint_quote_paid_event(
                     &app,
-                    MintQuotePaidEvent(MintQuoteIdentifier {
+                    QuoteIdentifier {
                         node_id,
                         quote_id: quote_id.clone(),
-                    }),
+                    },
                 )
                 .map_err(CommonError::EmitTauriEvent)?;
 
                 state
-                    .mint_quote_event_sender
-                    .send(MintQuoteStateMachine::Paid {
+                    .quote_event_sender
+                    .send(QuoteHandlerEvent::Mint(MintQuoteAction::Redeem {
                         node_id,
                         quote_id: quote_id.clone(),
-                    })
+                    }))
                     .await
                     .map_err(|_| Error::SendMessage)?;
 
                 break;
             }
             Ok(Some(MintQuoteState::Issued)) => {
-                event!(name: "mint-quote-issued", Level::INFO, %quote_id, "Mint quote issued");
+                event!(name: "mint-quote-issued", Level::INFO, quote_id = %quote_id, "Mint quote issued");
                 error!(
                     "mint quote {} has been issued before it was synced as paid",
                     quote_id
@@ -316,12 +486,9 @@ pub async fn sync_quote_until_is_paid(
                 break;
             }
             Ok(None) => {
-                event!(name: "mint-quote-expired", Level::INFO, %quote_id, "Mint quote expired");
-                emit_remove_mint_quote_event(
-                    &app,
-                    RemoveMintQuoteEvent(MintQuoteIdentifier { node_id, quote_id }),
-                )
-                .map_err(CommonError::EmitTauriEvent)?;
+                event!(name: "mint-quote-expired", Level::INFO, quote_id = %quote_id, "Mint quote expired");
+                emit_remove_mint_quote_event(&app, QuoteIdentifier { node_id, quote_id })
+                    .map_err(CommonError::EmitTauriEvent)?;
                 break;
             }
             Err(e) => {
@@ -332,7 +499,205 @@ pub async fn sync_quote_until_is_paid(
 
         tokio::time::sleep(LOOP_INTERVAL).await;
     }
-    event!(name: "mint-quote-paid", Level::INFO, "Exiting the loop");
+    event!(name: "mint-quote-sync-finished", Level::INFO,
+        "Exiting the mint quote sync loop"
+    );
+
+    Ok(())
+}
+
+#[tracing::instrument(skip(app))]
+pub async fn try_pay_melt_quote(
+    app: AppHandle,
+    node_id: u32,
+    quote_id: String,
+) -> Result<(), Error> {
+    let state = app.state::<AppState>();
+
+    let MeltQuote {
+        node_id,
+        method,
+        amount,
+        unit,
+        state: quote_state,
+        ..
+    } = {
+        let pool = state.pool.get().map_err(CommonError::DbPool)?;
+        match wallet::db::melt_quote::get(&pool, node_id, &quote_id).map_err(CommonError::Db)? {
+            Some(mq) => mq,
+            None => return Err(CommonError::QuoteNotFound(quote_id.clone()).into()),
+        }
+    };
+
+    if quote_state != MeltQuoteState::Unpaid {
+        event!(name: "cannot_pay_non_unpaid_melt_quote", Level::WARN,
+            node_id = node_id,
+            quote_id = %quote_id,
+            quote_state = ?quote_state
+        );
+        return Err(Error::InvalidMeltQuoteState {
+            expected: MeltQuoteState::Paid,
+            got: quote_state,
+        });
+    }
+
+    let mut node_client = state
+        .get_node_client_connection(node_id)
+        .await
+        .map_err(CommonError::CachedConnection)?;
+
+    event!(name: "paying_melt_quote_with_node", Level::INFO,
+        node_id = node_id,
+        quote_id = %quote_id,
+        amount = %amount,
+        unit = %unit,
+        method = %method
+    );
+
+    let melt_response = match wallet::melt::pay_quote(
+        crate::SEED_PHRASE_MANAGER,
+        state.pool.clone(),
+        &mut node_client,
+        node_id,
+        quote_id.clone(),
+        amount,
+        method,
+        &unit,
+    )
+    .await
+    {
+        Ok(res) => res,
+        Err(e) => return Err(Error::PayMeltQuote(quote_id, e)),
+    };
+
+    event!(name: "melt_quote_paid_successfully", Level::INFO,
+        node_id = node_id,
+        quote_id = %quote_id,
+        response_state = melt_response.state
+    );
+
+    emit_balance_decrease_event(
+        &app,
+        BalanceChange {
+            node_id,
+            unit,
+            amount: amount.into(),
+        },
+    )
+    .map_err(CommonError::EmitTauriEvent)?;
+
+    if melt_response.state == node_client::MeltQuoteState::MlqsPending as i32 {
+        state
+            .quote_event_sender
+            .send(QuoteHandlerEvent::Melt(
+                MeltQuoteAction::WaitOnChainPayment {
+                    node_id,
+                    quote_id: quote_id.clone(),
+                },
+            ))
+            .await
+            .map_err(|_| CommonError::QuoteHandlerChannel)?;
+    } else if melt_response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
+        state
+            .quote_event_sender
+            .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {
+                node_id,
+                quote_id: quote_id.clone(),
+            }))
+            .await
+            .map_err(|_| CommonError::QuoteHandlerChannel)?;
+    } else {
+        // Should not occur
+        return Err(Error::InvalidMeltQuoteState {
+            expected: MeltQuoteState::Pending,
+            got: MeltQuoteState::Unpaid,
+        });
+    }
+
+    emit_melt_quote_paid_event(&app, QuoteIdentifier { node_id, quote_id })
+        .map_err(CommonError::EmitTauriEvent)?;
+
+    Ok(())
+}
+
+#[tracing::instrument(skip(app))]
+pub async fn sync_melt_quote_until_is_paid(
+    app: AppHandle,
+    node_id: u32,
+    quote_id: String,
+) -> Result<(), Error> {
+    let state = app.state::<AppState>();
+    let melt_quote = {
+        let pool = state.pool.get().map_err(CommonError::DbPool)?;
+        match wallet::db::melt_quote::get(&pool, node_id, &quote_id).map_err(CommonError::Db)? {
+            Some(mq) => mq,
+            None => return Err(CommonError::QuoteNotFound(quote_id.clone()).into()),
+        }
+    };
+    let mut node_client = state
+        .get_node_client_connection(node_id)
+        .await
+        .map_err(CommonError::CachedConnection)?;
+
+    event!(name: "waiting_for_melt_quote_payment", Level::INFO,
+        node_id = node_id,
+        quote_id = %quote_id
+    );
+
+    match wallet::melt::wait_for_payment(
+        state.pool.clone(),
+        &mut node_client,
+        melt_quote.method,
+        quote_id.clone(),
+    )
+    .await
+    .map_err(Error::WaitForMeltQuotePayment)?
+    {
+        Some(_tx_id) => {
+            event!(name: "melt_quote_payment_confirmed", Level::INFO,
+                node_id = node_id,
+                quote_id = %quote_id
+            );
+            emit_melt_quote_redeemed_event(
+                &app,
+                QuoteIdentifier {
+                    node_id,
+                    quote_id: quote_id.clone(),
+                },
+            )
+            .map_err(CommonError::EmitTauriEvent)?;
+
+            state
+                .quote_event_sender
+                .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {
+                    node_id,
+                    quote_id,
+                }))
+                .await
+                .map_err(|_| CommonError::QuoteHandlerChannel)?;
+        }
+        None => {
+            // This is not supposed to happen.
+            // If we were able to pay it, it cannot expire anymore
+            // But let's handle it anyway, at least for the front
+            emit_remove_melt_quote_event(
+                &app,
+                QuoteIdentifier {
+                    node_id,
+                    quote_id: quote_id.clone(),
+                },
+            )
+            .map_err(CommonError::EmitTauriEvent)?;
+            state
+                .quote_event_sender
+                .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {
+                    node_id,
+                    quote_id,
+                }))
+                .await
+                .map_err(|_| CommonError::QuoteHandlerChannel)?;
+        }
+    }
 
     Ok(())
 }

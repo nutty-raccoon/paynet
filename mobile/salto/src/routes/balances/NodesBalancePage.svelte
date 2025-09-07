@@ -2,15 +2,11 @@
   import { pushState } from "$app/navigation";
   import type { NodeData, NodeId } from "../../types";
   import { getTotalAmountInDisplayCurrency } from "../../utils";
-  import {
-    tokenPrices,
-    displayCurrency,
-    pendingMintQuotes,
-  } from "../../stores";
+  import { tokenPrices, displayCurrency, pendingQuotes } from "../../stores";
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
   import NodeModal from "./NodeModal.svelte";
-  import { getPendingMintQuotes } from "../../commands";
+  import { getPendingQuotes } from "../../commands";
   import { derived } from "svelte/store";
 
   interface Props {
@@ -75,12 +71,18 @@
   }
   // Derived store that creates a Set of node IDs that have pending quotes
   export const nodesWithPendingQuotes = derived(
-    pendingMintQuotes,
+    pendingQuotes,
     ($pendingMintQuotes) => {
       const nodeIdsWithPending = new Set<NodeId>();
 
       $pendingMintQuotes.forEach((quotes, nodeId) => {
-        if (!!quotes && (quotes.unpaid.length > 0 || quotes.paid.length > 0)) {
+        if (
+          !!quotes &&
+          (quotes.mint.unpaid.length > 0 ||
+            quotes.mint.paid.length > 0 ||
+            quotes.melt.pending.length > 0 ||
+            quotes.melt.unpaid.length > 0)
+        ) {
           nodeIdsWithPending.add(nodeId);
         }
       });
@@ -92,7 +94,7 @@
   onMount(() => {
     window.addEventListener("popstate", handlePopState);
 
-    getPendingMintQuotes();
+    getPendingQuotes();
   });
 
   onDestroy(() => {
