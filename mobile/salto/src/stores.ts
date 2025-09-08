@@ -1,8 +1,9 @@
 import { derived, readable, writable } from 'svelte/store';
 import { platform } from "@tauri-apps/plugin-os";
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import type { Price } from './types/price';
-import type { PendingQuoteData, PendingQuotesUpdateEvent, QuoteEvent} from './types/quote';
+import type { PendingQuoteData,  QuoteEvent} from './types/quote';
 import type { NodeId } from './types';
 
 const currentPlatform = platform();
@@ -33,16 +34,16 @@ export const tokenPrices = readable<Price[] | null>(null, (set) => {
     }
   };
   
-  // Initialize the listener
+  // Initialize the store and listener
   setupListener();
-  
-  // Return cleanup function (though we won't actually call it in normal usage)
+
+  // Return cleanup function
   return () => {
     if (unlisten_new_prices) {
       unlisten_new_prices();
     }
     if (unlisten_out_of_sync_price) {
-      unlisten_out_of_sync_price();
+      unlisten_out_of_sync_price()
     }
   };
 });
@@ -63,40 +64,63 @@ export type MintQuoteCreatedEvent = {
   mintQuote: PendingQuoteData,
 }
 
+type MintPendingQuotes = {
+  nodeId: NodeId,
+  unpaid: PendingQuoteData[],
+  paid: PendingQuoteData[],
+}
+
+type MeltPendingQuotes = {
+  nodeId: NodeId,
+  unpaid: PendingQuoteData[],
+  pending: PendingQuoteData[],
+}
+
+type MintOrMeltQuote =
+  | { mint: MintPendingQuotes }
+  | { melt: MeltPendingQuotes }
+
 export const pendingQuotes = readable<Map<NodeId, NodePendingQuotes>>(
   new Map<NodeId, NodePendingQuotes>(),
-   (_set, update
-   ) => {
-  let unlisten_updates: UnlistenFn | null = null;
+   (set, update) => {
   let unlisten_quote: UnlistenFn | null = null;
 
-   const setupListener = async () => {
+  // Initialize store with existing pending quotes
+  const initializeStore = async () => {
     try {
-      unlisten_updates = await listen<PendingQuotesUpdateEvent>(
-        "pending-quotes-updated",
-        (event) => {
-          const { type, nodeId, mint, melt } = event.payload;
-          
-          update((currentMap) => {
-            // Create a new Map with all existing entries plus the updated one
-            const newMap = new Map(currentMap);
-            const existingQuotes = newMap.get(nodeId) || {
-              mint: { unpaid: [], paid: [] },
-              melt: { unpaid: [], pending: [] }
-            };
-            
-            if (type === "mint" && mint) {
-              existingQuotes.mint = mint;
-            } else if (type === "melt" && melt) {
-              existingQuotes.melt = melt;
-            }
-            
-            newMap.set(nodeId, existingQuotes);
-            return newMap;
-          });
+      const pendingQuotesData = await invoke<MintOrMeltQuote[]>('get_pending_quotes');
+      const initialMap = new Map<NodeId, NodePendingQuotes>();
+      
+      for (const quote of pendingQuotesData) {
+        if ('mint' in quote) {
+          const mintQuote = quote.mint;
+          const existing = initialMap.get(mintQuote.nodeId) || {
+            mint: { unpaid: [], paid: [] },
+            melt: { unpaid: [], pending: [] }
+          };
+          existing.mint.unpaid = mintQuote.unpaid;
+          existing.mint.paid = mintQuote.paid;
+          initialMap.set(mintQuote.nodeId, existing);
+        } else if ('melt' in quote) {
+          const meltQuote = quote.melt;
+          const existing = initialMap.get(meltQuote.nodeId) || {
+            mint: { unpaid: [], paid: [] },
+            melt: { unpaid: [], pending: [] }
+          };
+          existing.melt.unpaid = meltQuote.unpaid;
+          existing.melt.pending = meltQuote.pending;
+          initialMap.set(meltQuote.nodeId, existing);
         }
-      );
+      }
+      
+      set(initialMap);
+    } catch (error) {
+      console.error('Failed to initialize pending quotes:', error);
+    }
+  };
 
+  const setupListener = async () => {
+    try {
       unlisten_quote = await listen<QuoteEvent>(
         "quote",
         (event) => {
@@ -268,14 +292,11 @@ export const pendingQuotes = readable<Map<NodeId, NodePendingQuotes>>(
   };
 ;
 
-  // Initialize the listener
+  initializeStore();
   setupListener();
 
   // Return cleanup function
   return () => {
-    if (unlisten_updates) {
-      unlisten_updates();
-    }
     if (unlisten_quote) {
       unlisten_quote();
     }

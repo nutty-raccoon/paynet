@@ -10,7 +10,7 @@ use crate::front_events::PendingQuoteData;
 use crate::front_events::melt_quote_events::{
     MeltQuoteCreatedEvent, emit_melt_quote_created_event,
 };
-use crate::mint_quote::{MeltQuoteAction, QuoteHandlerEvent};
+use crate::quote_handler::{MeltQuoteAction, QuoteHandlerEvent};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]

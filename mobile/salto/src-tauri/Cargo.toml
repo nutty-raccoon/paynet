@@ -47,6 +47,7 @@ uuid = { workspace = true }
 itertools = { workspace = true }
 tonic = { workspace = true, features = ["tls-ring"] }
 urlencoding = { workspace = true }
+futures = { workspace = true }
 
 # Local
 wallet = { workspace = true }

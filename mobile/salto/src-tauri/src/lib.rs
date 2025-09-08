@@ -4,7 +4,7 @@ mod connection_cache;
 mod errors;
 mod front_events;
 mod migrations;
-mod mint_quote;
+mod quote_handler;
 
 use commands::{
     add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads,
@@ -13,9 +13,9 @@ use commands::{
     restore_wallet, set_price_provider_currency, sync_wads,
 };
 use connection_cache::ConnectionCache;
-use mint_quote::{QuoteHandlerEvent, start_syncing_quotes};
 use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
+use quote_handler::{QuoteHandlerEvent, start_syncing_quotes};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Asset;

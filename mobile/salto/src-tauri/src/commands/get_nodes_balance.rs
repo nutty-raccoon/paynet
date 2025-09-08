@@ -1,16 +1,37 @@
 use nuts::nut04::MintQuoteState;
 use nuts::nut05::MeltQuoteState;
 use tauri::{AppHandle, Manager, State, async_runtime};
+use tracing::error;
 use wallet::db::balance::GetForAllNodesData;
 use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::db::mint_quote::PendingMintQuote;
 
 use crate::AppState;
 use crate::errors::CommonError;
-use crate::front_events::{
-    MeltPendingQuotes, MintPendingQuotes, PendingQuoteData,
-    emit_node_pending_melt_quotes_updates_event, emit_node_pending_mint_quotes_updates_event,
-};
+use crate::front_events::PendingQuoteData;
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MintOrMeltQuote {
+    Mint(MintPendingQuotes),
+    Melt(MeltPendingQuotes),
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MintPendingQuotes {
+    pub node_id: u32,
+    pub unpaid: Vec<PendingQuoteData>,
+    pub paid: Vec<PendingQuoteData>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeltPendingQuotes {
+    pub node_id: u32,
+    pub unpaid: Vec<PendingQuoteData>,
+    pub pending: Vec<PendingQuoteData>,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum GetNodesBalanceError {
@@ -44,6 +65,8 @@ pub enum GetPendingQuoteError {
     Common(#[from] CommonError),
     #[error("failed to get the pendings quote form the db: {0}")]
     ReadPendingsFromDb(rusqlite::Error),
+    #[error("failed to join the handles: {0}")]
+    JoinAll(tauri::Error),
 }
 
 impl serde::Serialize for GetPendingQuoteError {
@@ -59,7 +82,7 @@ impl serde::Serialize for GetPendingQuoteError {
 pub async fn get_pending_quotes(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<(), GetPendingQuoteError> {
+) -> Result<Vec<MintOrMeltQuote>, GetPendingQuoteError> {
     let (pending_mint_quotes, pending_melt_quotes) = {
         let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
         let mint_quotes = wallet::db::mint_quote::get_pendings(&db_conn)
@@ -69,26 +92,35 @@ pub async fn get_pending_quotes(
         (mint_quotes, melt_quotes)
     };
 
+    let mut handles = Vec::with_capacity(pending_mint_quotes.len() + pending_melt_quotes.len());
     for (node_id, pending_mint_quotes) in pending_mint_quotes {
         let app_handle = app.clone();
 
-        async_runtime::spawn(sync_node_mint_quotes(
+        handles.push(async_runtime::spawn(sync_node_mint_quotes(
             app_handle,
             node_id,
             pending_mint_quotes,
-        ));
+        )));
     }
     for (node_id, pending_melt_quotes) in pending_melt_quotes {
         let app_handle = app.clone();
 
-        async_runtime::spawn(sync_node_melt_quotes(
+        handles.push(async_runtime::spawn(sync_node_melt_quotes(
             app_handle,
             node_id,
             pending_melt_quotes,
-        ));
+        )));
     }
 
-    Ok(())
+    let mut quotes = Vec::new();
+    for results in futures::future::join_all(handles).await {
+        match results.map_err(GetPendingQuoteError::JoinAll)? {
+            Ok(quote) => quotes.push(quote),
+            Err(e) => error!("failed to sync node: {e}"),
+        }
+    }
+
+    Ok(quotes)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -105,7 +137,7 @@ async fn sync_node_mint_quotes(
     app: AppHandle,
     node_id: u32,
     pending_mint_quotes: Vec<PendingMintQuote>,
-) -> Result<(), SyncNodeError> {
+) -> Result<MintOrMeltQuote, SyncNodeError> {
     let state = app.state::<AppState>();
     let mut node_client = state
         .get_node_client_connection(node_id)
@@ -143,17 +175,18 @@ async fn sync_node_mint_quotes(
         }
     }
 
-    emit_node_pending_mint_quotes_updates_event(&app, node_id, MintPendingQuotes { unpaid, paid })
-        .map_err(CommonError::EmitTauriEvent)?;
-
-    Ok(())
+    Ok(MintOrMeltQuote::Mint(MintPendingQuotes {
+        unpaid,
+        paid,
+        node_id,
+    }))
 }
 
 async fn sync_node_melt_quotes(
     app: AppHandle,
     node_id: u32,
     pending_melt_quotes: Vec<PendingMeltQuote>,
-) -> Result<(), SyncNodeError> {
+) -> Result<MintOrMeltQuote, SyncNodeError> {
     let state = app.state::<AppState>();
     let mut node_client = state
         .get_node_client_connection(node_id)
@@ -187,12 +220,9 @@ async fn sync_node_melt_quotes(
         }
     }
 
-    emit_node_pending_melt_quotes_updates_event(
-        &app,
+    Ok(MintOrMeltQuote::Melt(MeltPendingQuotes {
+        unpaid,
+        pending,
         node_id,
-        MeltPendingQuotes { unpaid, pending },
-    )
-    .map_err(CommonError::EmitTauriEvent)?;
-
-    Ok(())
+    }))
 }

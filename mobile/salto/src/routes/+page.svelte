@@ -13,7 +13,11 @@
     increaseNodeBalance,
   } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import { checkWalletExists, getNodesBalance } from "../commands";
+  import {
+    checkWalletExists,
+    getNodesBalance,
+    getPendingQuotes,
+  } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
@@ -98,18 +102,7 @@
   }
 
   onMount(async () => {
-    // First check if wallet exists
-    const exists = await checkWalletExists();
-    walletExists = exists;
-
-    if (exists) {
-      // Only load wallet data if wallet exists
-      getNodesBalance().then((nodesData) => {
-        if (!!nodesData) {
-          nodesData.forEach(onAddNode);
-        }
-      });
-    }
+    walletExists = await checkWalletExists();
 
     listen<BalanceChange>("balance-increase", (event) => {
       onNodeBalanceIncrease(event.payload);
@@ -122,6 +115,17 @@
 
     // Add popstate listener for back button handling
     window.addEventListener("popstate", handlePopState, { capture: true });
+
+    if (walletExists) {
+      // Only load wallet data if wallet exists
+      getNodesBalance().then((nodesData) => {
+        if (!!nodesData) {
+          nodesData.forEach(onAddNode);
+        }
+      });
+
+      getPendingQuotes();
+    }
   });
 
   // Clean up when component is destroyed

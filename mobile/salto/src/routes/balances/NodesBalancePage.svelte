@@ -93,8 +93,6 @@
 
   onMount(() => {
     window.addEventListener("popstate", handlePopState);
-
-    getPendingQuotes();
   });
 
   onDestroy(() => {

@@ -11,8 +11,10 @@ use crate::front_events::PendingQuoteData;
 use crate::front_events::mint_quote_events::{
     MintQuoteCreatedEvent, emit_mint_quote_created_event,
 };
-use crate::mint_quote::QuoteHandlerEvent;
-use crate::{AppState, mint_quote::MintQuoteAction};
+use crate::{
+    AppState,
+    quote_handler::{MintQuoteAction, QuoteHandlerEvent},
+};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
