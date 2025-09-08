@@ -225,9 +225,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.88"
+version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -642,6 +642,17 @@ name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
+
+[[package]]
+name = "cashu-client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "node-client",
+ "nuts",
+ "thiserror 2.0.12",
+ "tonic 0.13.1",
+]
 
 [[package]]
 name = "cc"
@@ -2476,6 +2487,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bitcoin_hashes 0.16.0",
+ "cashu-client",
  "dashmap",
  "db-node",
  "dotenvy",

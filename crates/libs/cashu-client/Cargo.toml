@@ -1,0 +1,11 @@
+[package]
+name = "cashu-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nuts = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true } 
+tonic = { workspace = true }
+node-client = { workspace = true }
