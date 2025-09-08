@@ -85,7 +85,7 @@ pub async fn start_price_fetcher(app: tauri::AppHandle) {
     loop {
         let res = fetch_and_emit_prices(&app, &config).await;
         if let Err(err) = res {
-        tracing::error!("price fetch error: {}", err);
+            tracing::error!("price fetch error: {}", err);
             match config.read().await.status {
                 crate::PriceSyncStatus::Synced(last_sync_time)
                     if SystemTime::now()
