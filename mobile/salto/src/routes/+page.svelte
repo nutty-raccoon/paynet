@@ -3,6 +3,10 @@
   import { pushState } from "$app/navigation";
   import SendModal from "./send/SendModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
+  import {
+    checkAccessibilityPermission,
+    requestCameraPermission,
+  } from "tauri-plugin-macos-permissions-api";
   import { type BalanceChange, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
   import {

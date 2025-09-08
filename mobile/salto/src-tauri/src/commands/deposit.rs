@@ -137,8 +137,8 @@ pub async fn pay_mint_quote(
 pub enum RedeemQuoteError {
     #[error(transparent)]
     Common(#[from] crate::errors::CommonError),
-    #[error("quote not paid")]
-    QuoteNotPaid,
+    #[error("quote not paid: {0}")]
+    QuoteNotPaid(MintQuoteState),
     #[error("failed parse db unit: {0}")]
     Unit(#[from] starknet_types::UnitFromStrError),
 }
@@ -193,7 +193,7 @@ pub async fn redeem_quote(
             quote_id = %quote_id,
             current_state = ?mint_quote.state
         );
-        return Err(RedeemQuoteError::QuoteNotPaid);
+        return Err(RedeemQuoteError::QuoteNotPaid(mint_quote.state));
     }
 
     event!(name: "initiating_quote_redemption", Level::INFO,
@@ -259,8 +259,6 @@ async fn inner_pay_quote(
         .map_err(PayQuoteError::SerializeCalldata)?;
     let encoded_payload = urlencoding::encode(&payload_json);
 
-    // On desktop we open the browser
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
     let url = format!(
         "{}/deposit/{}/{}/?payload={}",
         &state.web_app_url,
@@ -275,6 +273,11 @@ async fn inner_pay_quote(
         chain_id = %deposit_payload.chain_id,
         url = url
     );
+
+    // On desktop we open in the browser
+    // On mobile we open through starknet deep link
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    let url = format!("starknet://dapp/{url}");
 
     app.opener().open_url(url, None::<&str>)?;
 

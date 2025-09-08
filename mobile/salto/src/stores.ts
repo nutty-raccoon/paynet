@@ -6,7 +6,7 @@ import type { Price } from './types/price';
 import type { PendingQuoteData,  QuoteEvent} from './types/quote';
 import type { NodeId } from './types';
 
-const currentPlatform = platform();
+export const currentPlatform = platform();
 
 export const isMobile = readable(false, (set) => {
   set(currentPlatform == "ios" || currentPlatform == "android");
