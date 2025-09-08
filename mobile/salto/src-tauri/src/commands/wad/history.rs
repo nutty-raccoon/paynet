@@ -1,6 +1,6 @@
 use crate::{
     AppState,
-    front_events::{
+    front_events::wad_events::{
         SyncWadErrorEvent, WadStatusUpdatedEvent, emit_sync_wad_error_event,
         emit_wad_status_updated_event,
     },

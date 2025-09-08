@@ -1,8 +1,9 @@
 import { derived, readable, writable } from 'svelte/store';
 import { platform } from "@tauri-apps/plugin-os";
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import type { Price } from './types/price';
-import type { MintQuoteIdentifier, PendingMintQuoteData, PendingMintQuotesUpdateEvent} from './types/quote';
+import type { PendingQuoteData,  QuoteEvent} from './types/quote';
 import type { NodeId } from './types';
 
 const currentPlatform = platform();
@@ -33,108 +34,256 @@ export const tokenPrices = readable<Price[] | null>(null, (set) => {
     }
   };
   
-  // Initialize the listener
+  // Initialize the store and listener
   setupListener();
-  
-  // Return cleanup function (though we won't actually call it in normal usage)
+
+  // Return cleanup function
   return () => {
     if (unlisten_new_prices) {
       unlisten_new_prices();
     }
     if (unlisten_out_of_sync_price) {
-      unlisten_out_of_sync_price();
+      unlisten_out_of_sync_price()
     }
   };
 });
 
-export type NodePendingMintQuotes = {
-  unpaid: PendingMintQuoteData[],
-  paid: PendingMintQuoteData[],
+export type NodePendingQuotes = {
+  mint: {
+    unpaid: PendingQuoteData[],
+    paid: PendingQuoteData[],
+  },
+  melt: {
+    unpaid: PendingQuoteData[],
+    pending: PendingQuoteData[],
+  }
 }
 
 export type MintQuoteCreatedEvent = {
   nodeId: NodeId,
-  mintQuote: PendingMintQuoteData,
+  mintQuote: PendingQuoteData,
 }
 
-export const pendingMintQuotes = readable<Map<NodeId, NodePendingMintQuotes>>(
-  new Map<NodeId, NodePendingMintQuotes>(),
-   (_set, update
-   ) => {
-  let unlisten_updates: UnlistenFn | null = null;
-  let unlisten_created: UnlistenFn | null = null;
-  let unlisten_paid: UnlistenFn | null = null;
-  let unlisten_redeemed: UnlistenFn | null = null;
+type MintPendingQuotes = {
+  nodeId: NodeId,
+  unpaid: PendingQuoteData[],
+  paid: PendingQuoteData[],
+}
 
-   const setupListener = async () => {
+type MeltPendingQuotes = {
+  nodeId: NodeId,
+  unpaid: PendingQuoteData[],
+  pending: PendingQuoteData[],
+}
+
+type MintOrMeltQuote =
+  | { mint: MintPendingQuotes }
+  | { melt: MeltPendingQuotes }
+
+export const pendingQuotes = readable<Map<NodeId, NodePendingQuotes>>(
+  new Map<NodeId, NodePendingQuotes>(),
+   (set, update) => {
+  let unlisten_quote: UnlistenFn | null = null;
+
+  // Initialize store with existing pending quotes
+  const initializeStore = async () => {
     try {
-      unlisten_updates = await listen<PendingMintQuotesUpdateEvent>(
-        "pending-mint-quote-updated",
-        (event) => {
-          const { nodeId, unpaid, paid } = event.payload;
-          
-          update((currentMap) => {
-            // Create a new Map with all existing entries plus the updated one
-            const newMap = new Map(currentMap);
-            newMap.set(nodeId, {unpaid, paid});
-            return newMap;
-          });
+      const pendingQuotesData = await invoke<MintOrMeltQuote[]>('get_pending_quotes');
+      const initialMap = new Map<NodeId, NodePendingQuotes>();
+      
+      for (const quote of pendingQuotesData) {
+        if ('mint' in quote) {
+          const mintQuote = quote.mint;
+          const existing = initialMap.get(mintQuote.nodeId) || {
+            mint: { unpaid: [], paid: [] },
+            melt: { unpaid: [], pending: [] }
+          };
+          existing.mint.unpaid = mintQuote.unpaid;
+          existing.mint.paid = mintQuote.paid;
+          initialMap.set(mintQuote.nodeId, existing);
+        } else if ('melt' in quote) {
+          const meltQuote = quote.melt;
+          const existing = initialMap.get(meltQuote.nodeId) || {
+            mint: { unpaid: [], paid: [] },
+            melt: { unpaid: [], pending: [] }
+          };
+          existing.melt.unpaid = meltQuote.unpaid;
+          existing.melt.pending = meltQuote.pending;
+          initialMap.set(meltQuote.nodeId, existing);
         }
-      );
+      }
+      
+      set(initialMap);
+    } catch (error) {
+      console.error('Failed to initialize pending quotes:', error);
+    }
+  };
 
-      unlisten_created = await listen<MintQuoteCreatedEvent>(
-        "mint-quote-created",
+  const setupListener = async () => {
+    try {
+      unlisten_quote = await listen<QuoteEvent>(
+        "quote",
         (event) => {
-          const { nodeId, mintQuote} = event.payload;
-          
-          update((currentMap) => {
-            // Create a new Map with all existing entries plus the updated one
-            const newMap = new Map(currentMap);
-            const nodeLists = newMap.get(nodeId) || { unpaid: [], paid: [] };
-            nodeLists.unpaid.push(mintQuote)
-            newMap.set(nodeId, nodeLists);
-            return newMap;
-          });
-        }
-      );
+          const { type, quoteType, nodeId } = event.payload;
 
-      unlisten_paid = await listen<MintQuoteIdentifier>(
-        "mint-quote-paid",
-        (event) => {
-          const { nodeId, quoteId} = event.payload;
-
-          console.log("paid", event.payload);
-          
-          update((currentMap) => {
-            const newMap = new Map(currentMap);
-            const nodeLists = newMap.get(nodeId) || { unpaid: [], paid: [] };
-            const quoteIndex = nodeLists.unpaid.findIndex(quote => quote.id === quoteId);
-            if (quoteIndex !== -1) {
-              const [movedQuote] = nodeLists.unpaid.splice(quoteIndex, 1);      
-              nodeLists.paid.push(movedQuote);
-              newMap.set(nodeId, nodeLists);
+          if (quoteType === "mint") {
+            switch (type) {
+              case "created":
+                if ("quote" in event.payload) {
+                  const { quote } = event.payload;
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    nodeQuotes.mint.unpaid.push(quote);
+                    newMap.set(nodeId, nodeQuotes);
+                    return newMap;
+                  });
+                }
+                break;
+                
+              case "paid":
+                if ("quoteId" in event.payload) {
+                  const { quoteId } = event.payload;
+                  console.log("paid", event.payload);
+                  
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    const quoteIndex = nodeQuotes.mint.unpaid.findIndex(quote => quote.id === quoteId);
+                    if (quoteIndex !== -1) {
+                      const [movedQuote] = nodeQuotes.mint.unpaid.splice(quoteIndex, 1);
+                      nodeQuotes.mint.paid.push(movedQuote);
+                      newMap.set(nodeId, nodeQuotes);
+                    }
+                    return newMap;
+                  });
+                }
+                break;
+                
+              case "redeemed":
+                if ("quoteId" in event.payload) {
+                  const { quoteId } = event.payload;
+                  console.log("redeem", event.payload);
+                  
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    const quoteIndex = nodeQuotes.mint.paid.findIndex(quote => quote.id === quoteId);
+                    if (quoteIndex !== -1) {
+                      nodeQuotes.mint.paid.splice(quoteIndex, 1);
+                      newMap.set(nodeId, nodeQuotes);
+                    }
+                    return newMap;
+                  });
+                }
+                break;
+                
+              case "removed":
+                if ("quoteId" in event.payload) {
+                  const { quoteId } = event.payload;
+                  
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    
+                    // Remove from mint unpaid if present
+                    const mintUnpaidIndex = nodeQuotes.mint.unpaid.findIndex(quote => quote.id === quoteId);
+                    if (mintUnpaidIndex !== -1) {
+                      nodeQuotes.mint.unpaid.splice(mintUnpaidIndex, 1);
+                    }
+                    
+                    // Remove from mint paid if present
+                    const mintPaidIndex = nodeQuotes.mint.paid.findIndex(quote => quote.id === quoteId);
+                    if (mintPaidIndex !== -1) {
+                      nodeQuotes.mint.paid.splice(mintPaidIndex, 1);
+                    }
+                    
+                    newMap.set(nodeId, nodeQuotes);
+                    return newMap;
+                  });
+                }
+                break;
             }
-            return newMap;
-          });
-        }
-      );
-
-      unlisten_redeemed = await listen<MintQuoteIdentifier>(
-        "mint-quote-redeemed",
-        (event) => {
-          const { nodeId, quoteId} = event.payload;
-          
-          console.log("redeem", event.payload);
-          update((currentMap) => {
-            const newMap = new Map(currentMap);
-            const nodeLists = newMap.get(nodeId) || { unpaid: [], paid: [] };
-            const quoteIndex = nodeLists.paid.findIndex(quote => quote.id === quoteId);
-            if (quoteIndex !== -1) {
-              nodeLists.paid.splice(quoteIndex, 1);      
-              newMap.set(nodeId, nodeLists);
+          } else if (quoteType === "melt") {
+            switch (type) {
+              case "created":
+                if ("quote" in event.payload) {
+                  const { quote } = event.payload;
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    nodeQuotes.melt.unpaid.push(quote);
+                    newMap.set(nodeId, nodeQuotes);
+                    return newMap;
+                  });
+                }
+                break;
+                
+              case "paid":
+                if ("quoteId" in event.payload) {
+                  const { quoteId } = event.payload;
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    const quoteIndex = nodeQuotes.melt.unpaid.findIndex(quote => quote.id === quoteId);
+                    if (quoteIndex !== -1) {
+                      const [movedQuote] = nodeQuotes.melt.unpaid.splice(quoteIndex, 1);
+                      nodeQuotes.melt.pending.push(movedQuote);
+                      newMap.set(nodeId, nodeQuotes);
+                    }
+                    return newMap;
+                  });
+                }
+                break;
+                
+              case "redeemed":
+              case "removed":
+                if ("quoteId" in event.payload) {
+                  const { quoteId } = event.payload;
+                  update((currentMap) => {
+                    const newMap = new Map(currentMap);
+                    const nodeQuotes = newMap.get(nodeId) || {
+                      mint: { unpaid: [], paid: [] },
+                      melt: { unpaid: [], pending: [] }
+                    };
+                    
+                    // Remove from unpaid
+                    const unpaidIndex = nodeQuotes.melt.unpaid.findIndex(quote => quote.id === quoteId);
+                    if (unpaidIndex !== -1) {
+                      nodeQuotes.melt.unpaid.splice(unpaidIndex, 1);
+                    }
+                    
+                    // Remove from pending
+                    const pendingIndex = nodeQuotes.melt.pending.findIndex(quote => quote.id === quoteId);
+                    if (pendingIndex !== -1) {
+                      nodeQuotes.melt.pending.splice(pendingIndex, 1);
+                    }
+                    
+                    newMap.set(nodeId, nodeQuotes);
+                    return newMap;
+                  });
+                }
+                break;
             }
-            return newMap;
-          });
+          }
         }
       );
     } catch (error) {
@@ -143,32 +292,24 @@ export const pendingMintQuotes = readable<Map<NodeId, NodePendingMintQuotes>>(
   };
 ;
 
-  // Initialize the listener
+  initializeStore();
   setupListener();
 
   // Return cleanup function
   return () => {
-    if (unlisten_updates) {
-      unlisten_updates();
-    }
-    if (unlisten_created) {
-      unlisten_created();
-    }
-    if (unlisten_paid) {
-      unlisten_paid();
-    }
-    if (unlisten_redeemed) {
-      unlisten_redeemed();
+    if (unlisten_quote) {
+      unlisten_quote();
     }
   };
 });
 
 // Derived store to check if nodes have pending quotes
-export const nodesWithPendingQuotes = derived(pendingMintQuotes, ($pendingMintQuotes) => {
+export const nodesWithPendingQuotes = derived(pendingQuotes, ($pendingQuotes) => {
   const nodesWithQuotes = new Set<NodeId>();
   
-  $pendingMintQuotes.forEach((quotes, nodeId) => {
-    if (quotes.unpaid.length > 0 || quotes.paid.length > 0) {
+  $pendingQuotes.forEach((quotes, nodeId) => {
+    if (quotes.mint.unpaid.length > 0 || quotes.mint.paid.length > 0 ||
+        quotes.melt.unpaid.length > 0 || quotes.melt.pending.length > 0) {
       nodesWithQuotes.add(nodeId);
     }
   });

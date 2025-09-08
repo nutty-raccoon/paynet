@@ -18,7 +18,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri
-tauri = { workspace = true }
+tauri = { workspace = true, features = ["tracing"] }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-sql = { workspace = true, features = ["sqlite"] }
 tauri-plugin-log = { workspace = true }
@@ -38,15 +38,16 @@ r2d2 = { workspace = true }
 thiserror = { workspace = true }
 primitive-types = { workspace = true }
 num-traits = { workspace = true }
-log = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 uuid = { workspace = true }
 itertools = { workspace = true }
 tonic = { workspace = true, features = ["tls-ring"] }
 urlencoding = { workspace = true }
+futures = { workspace = true }
 
 # Local
 wallet = { workspace = true }
@@ -54,6 +55,7 @@ node-client = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
 parse-asset-amount = { workspace = true }
+starknet-liquidity-source = { workspace = true }
 
 # Keyring
 [target.'cfg(target_os = "android")'.dependencies]

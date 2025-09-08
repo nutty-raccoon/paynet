@@ -8,7 +8,12 @@ use tonic::{Code, Status, transport::Channel};
 use tonic_types::StatusExt;
 use tracing::{error, info};
 
-use crate::{StoreNewProofsError, db, node::RefreshNodeKeysetError, seed_phrase};
+use crate::{
+    StoreNewProofsError, db,
+    node::RefreshNodeKeysetError,
+    seed_phrase,
+    sync::{SyncMeltQuoteError, SyncMeltQuotesError},
+};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -74,6 +79,10 @@ pub enum Error {
     ParseError(#[from] std::num::ParseIntError),
     #[error("fail to refresh node keyset: {0}")]
     RefreshNodeKeyset(#[from] RefreshNodeKeysetError),
+    #[error("failed to sync melt quotes: {0}")]
+    SyncMeltQuotes(#[from] SyncMeltQuotesError),
+    #[error("failed to sync melt quote: {0}")]
+    SyncMeltQuote(#[from] SyncMeltQuoteError),
 }
 
 impl From<StoreNewProofsError> for Error {

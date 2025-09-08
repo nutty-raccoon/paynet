@@ -244,7 +244,7 @@ impl WalletOps {
             &mut self.node_client,
             self.node_id,
             method.clone(),
-            unit,
+            unit.to_string(),
             request,
         )
         .await?;

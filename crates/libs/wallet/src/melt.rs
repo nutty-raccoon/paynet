@@ -2,7 +2,7 @@ use node_client::{
     MeltQuoteRequest, MeltQuoteResponse, MeltQuoteState, MeltResponse, NodeClient,
     hash_melt_request,
 };
-use nuts::{Amount, traits::Unit};
+use nuts::Amount;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
@@ -16,18 +16,18 @@ use crate::{
     wallet::SeedPhraseManager,
 };
 
-pub async fn create_quote<U: Unit>(
+pub async fn create_quote(
     pool: Pool<SqliteConnectionManager>,
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     method: String,
-    unit: U,
+    unit: String,
     request: String,
 ) -> Result<MeltQuoteResponse, Error> {
     let response = node_client
         .melt_quote(MeltQuoteRequest {
             method: method.clone(),
-            unit: unit.to_string(),
+            unit,
             request: request.clone(),
         })
         .await?
@@ -37,6 +37,36 @@ pub async fn create_quote<U: Unit>(
     db::melt_quote::store(&db_conn, node_id, method, request, &response)?;
 
     Ok(response)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum PayMeltQuoteError {
+    #[error("failed get db connection from pool: {0}")]
+    Pool(#[from] r2d2::Error),
+    #[error("failed to load the proofs ids from db or node: {0}")]
+    FetchInputsIds(#[source] Error),
+    #[error("not enough funds")]
+    NotEnoughFunds,
+    #[error("failed to start database transaction: {0}")]
+    StartDbTransaction(#[source] rusqlite::Error),
+    #[error("failed to commit database transaction: {0}")]
+    CommitDbTransaction(#[source] rusqlite::Error),
+    #[error("failed to load the proofs from db: {0}")]
+    LoadTokens(#[source] rusqlite::Error),
+    #[error("failed to set proof state: {0}")]
+    SetProofsState(#[source] rusqlite::Error),
+    #[error("failed update quote state: {0}")]
+    UpdateQuoteState(#[source] rusqlite::Error),
+    #[error("failed to register transfers ids : {0}")]
+    RegisterTransfersIds(#[source] rusqlite::Error),
+    #[error("failed to handle the error occured during proof verification: {0}")]
+    HandleProofsVerficationErrors(#[source] Error),
+    #[error("melt operation failed: {0}")]
+    MeltOperationFailed(#[source] tonic::Status),
+    #[error("failed to acknowledge: {0}")]
+    Acknowledge(#[source] tonic::Status),
+    #[error("failed to serialize transfer ids: {0}")]
+    SerializeTransferIds(#[from] serde_json::Error),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -49,7 +79,7 @@ pub async fn pay_quote(
     amount: Amount,
     method: String,
     unit: &str,
-) -> Result<MeltResponse, Error> {
+) -> Result<MeltResponse, PayMeltQuoteError> {
     // Gather the proofs
     let proofs_ids = fetch_inputs_ids_from_db_or_node(
         seed_phrase_manager,
@@ -59,9 +89,14 @@ pub async fn pay_quote(
         amount,
         unit,
     )
-    .await?
-    .ok_or(Error::NotEnoughFunds)?;
-    let inputs = unprotected_load_tokens_from_db(&*pool.get()?, &proofs_ids)?;
+    .await
+    .map_err(PayMeltQuoteError::FetchInputsIds)?
+    .ok_or(PayMeltQuoteError::NotEnoughFunds)?;
+    let inputs = {
+        let db_conn = pool.get()?;
+        unprotected_load_tokens_from_db(&db_conn, &proofs_ids)
+            .map_err(PayMeltQuoteError::LoadTokens)?
+    };
 
     // Create melt request
     let melt_request = node_client::MeltRequest {
@@ -80,25 +115,34 @@ pub async fn pay_quote(
     let melt_response = match melt_res {
         Ok(r) => r.into_inner(),
         Err(e) => {
-            handle_proof_verification_errors(&e, &proofs_ids, &db_conn)?;
-            return Err(e.into());
+            handle_proof_verification_errors(&e, &proofs_ids, &db_conn)
+                .map_err(PayMeltQuoteError::HandleProofsVerficationErrors)?;
+            return Err(PayMeltQuoteError::MeltOperationFailed(e));
         }
     };
 
     // Register the consumption of our proofs
-    db::proof::set_proofs_to_state(&db_conn, &proofs_ids, ProofState::Spent)?;
+    db::proof::set_proofs_to_state(&db_conn, &proofs_ids, ProofState::Spent)
+        .map_err(PayMeltQuoteError::SetProofsState)?;
 
     // Relieve the node cache once we receive the answer
-    acknowledge(node_client, nuts::nut19::Route::Melt, melt_request_hash).await?;
+    acknowledge(node_client, nuts::nut19::Route::Melt, melt_request_hash)
+        .await
+        .map_err(PayMeltQuoteError::Acknowledge)?;
 
     if melt_response.state == MeltQuoteState::MlqsPaid as i32 {
-        let tx = db_conn.transaction()?;
-        db::melt_quote::update_state(&tx, &quote_id, melt_response.state)?;
+        let tx = db_conn
+            .transaction()
+            .map_err(PayMeltQuoteError::StartDbTransaction)?;
+        db::melt_quote::set_state(&tx, &quote_id, melt_response.state)
+            .map_err(PayMeltQuoteError::UpdateQuoteState)?;
         if !melt_response.transfer_ids.is_empty() {
             let transfer_ids_to_store = serde_json::to_string(&melt_response.transfer_ids)?;
-            db::melt_quote::register_transfer_ids(&tx, &quote_id, &transfer_ids_to_store)?;
+            db::melt_quote::register_transfer_ids(&tx, &quote_id, &transfer_ids_to_store)
+                .map_err(PayMeltQuoteError::RegisterTransfersIds)?;
         }
-        tx.commit()?;
+        tx.commit()
+            .map_err(PayMeltQuoteError::CommitDbTransaction)?;
     }
 
     Ok(melt_response)
@@ -120,4 +164,20 @@ pub async fn wait_for_payment(
             _ => tokio::time::sleep(std::time::Duration::from_secs(1)).await,
         }
     }
+}
+
+pub fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
+    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
+    if transfer_ids.len() != 1 {
+        string_to_print.push('s');
+    }
+    string_to_print.push_str(": ");
+    let mut iterator = transfer_ids.into_iter();
+    string_to_print.push_str(&iterator.next().unwrap());
+    for tx_hash in iterator {
+        string_to_print.push_str(", ");
+        string_to_print.push_str(&tx_hash);
+    }
+
+    string_to_print
 }

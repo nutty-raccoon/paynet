@@ -10,8 +10,8 @@ export async function getNodesBalance() {
       return res;
   }
 
-export async function getPendingMintQuotes() {
-     let res =  await invoke("get_pending_mint_quotes")
+export async function getPendingQuotes() {
+     let res =  await invoke("get_pending_quotes")
        .then((message) => message as NodeData[] )
        .catch((error) => console.error(error));
       return res;
@@ -55,10 +55,28 @@ export async function createMintQuote(nodeId: NodeId, amount: string, asset: str
       return res
 }
 
-export async function payQuote(nodeId: NodeId,quoteId: QuoteId) {
-     const res = await invoke("pay_quote", {nodeId, quoteId})
+export async function createMeltQuote(nodeId: NodeId, amount: string, asset: string, to:  string) {
+     const res = await invoke("create_melt_quote", {nodeId, method: "starknet", amount, asset, to})
+      .catch((error) => {
+        console.error(`failed to create melt quote:`, error);
+      });
+
+      return res
+}
+
+export async function payMintQuote(nodeId: NodeId, quoteId: QuoteId) {
+     const res = await invoke("pay_mint_quote", {nodeId, quoteId})
       .catch((error) => {
         console.error(`failed to pay mint quote:`, error);
+      });
+
+      return res
+}
+
+export async function payMeltQuote(nodeId: NodeId, quoteId: QuoteId) {
+     const res = await invoke("pay_melt_quote", {nodeId, quoteId})
+      .catch((error) => {
+        console.error(`failed to pay melt quote:`, error);
       });
 
       return res

@@ -2,10 +2,11 @@ use std::str::FromStr;
 
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, State};
+use tracing::{Level, event};
 
 use crate::{
     AppState,
-    front_events::{BalanceDecreaseEvent, emit_balance_decrease_event},
+    front_events::balance_events::{BalanceChange, emit_balance_decrease_event},
 };
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
@@ -49,6 +50,7 @@ impl serde::Serialize for CreateWadsError {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip(app, state))]
 pub async fn create_wads(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -59,8 +61,19 @@ pub async fn create_wads(
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
+    event!(name: "planning_wad_spending", Level::INFO,
+        asset = %asset,
+        unit = %unit,
+        amount = %amount
+    );
+
     let db_conn = state.pool.get()?;
     let amount_to_use_per_node = wallet::send::plan_spending(&db_conn, amount, unit, &[])?;
+
+    event!(name: "spending_plan_created", Level::INFO,
+        num_nodes = amount_to_use_per_node.len(),
+        total_amount = %amount
+    );
 
     let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
     let mut node_and_proofs = Vec::with_capacity(amount_to_use_per_node.len());
@@ -87,15 +100,27 @@ pub async fn create_wads(
             .expect("ids come form DB, there should be an url");
 
         node_and_proofs.push((node_url, proofs_ids));
-        balance_decrease_events.push(BalanceDecreaseEvent {
+        balance_decrease_events.push(BalanceChange {
             node_id,
             unit: unit.as_str().to_string(),
             amount: amount_to_use.into(),
         });
     }
 
+    event!(name: "creating_wads_from_proofs", Level::INFO,
+        num_nodes = node_and_proofs.len(),
+        unit = %unit
+    );
+
     let wads =
         wallet::send::load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), None)?;
+
+    event!(name: "wads_created_successfully", Level::INFO,
+        wad_string_length = wads.to_string().len(),
+        unit = %unit,
+        total_amount = %amount
+    );
+
     for event in balance_decrease_events {
         emit_balance_decrease_event(&app, event)?;
     }

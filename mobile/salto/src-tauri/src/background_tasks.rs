@@ -9,7 +9,7 @@ use tracing::error;
 
 use crate::{
     AppState, PriceConfig, PriceSyncStatus,
-    front_events::{
+    front_events::price_events::{
         NewPriceEvent, OutOfSyncPriceEvent, emit_new_price_event, emit_out_of_sync_price_event,
     },
 };

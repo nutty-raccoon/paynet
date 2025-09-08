@@ -7,7 +7,7 @@ pub use mock::*;
 pub use not_mock::*;
 
 use serde::{Deserialize, Serialize};
-use starknet_types::{Asset, StarknetU256};
+use starknet_types::{Asset, StarknetU256, is_valid_starknet_address};
 use starknet_types_core::felt::Felt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +15,34 @@ pub struct MeltPaymentRequest {
     pub payee: Felt,
     pub asset: Asset,
     pub amount: StarknetU256,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum NewMeltPaymentRequestError {
+    #[error("invalid address: {0}")]
+    InvalidContractAddress(Felt),
+    #[error("invalid hex string for felt: {0}")]
+    HexString(#[from] starknet_types_core::felt::FromStrError),
+}
+
+impl MeltPaymentRequest {
+    pub fn new(
+        payee_hex_string: String,
+        asset: Asset,
+        on_chain_amount: StarknetU256,
+    ) -> Result<Self, NewMeltPaymentRequestError> {
+        let payee_address = Felt::from_hex(&payee_hex_string)?;
+        if !is_valid_starknet_address(&payee_address) {
+            return Err(NewMeltPaymentRequestError::InvalidContractAddress(
+                payee_address,
+            ));
+        }
+        Ok(Self {
+            payee: payee_address,
+            asset,
+            amount: on_chain_amount,
+        })
+    }
 }
 
 #[cfg(not(feature = "mock"))]

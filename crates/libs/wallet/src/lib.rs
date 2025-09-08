@@ -547,7 +547,7 @@ pub async fn acknowledge(
     node_client: &mut NodeClient<Channel>,
     route: Route,
     message_hash: u64,
-) -> Result<(), Error> {
+) -> Result<(), tonic::Status> {
     node_client
         .acknowledge(Request::new(AcknowledgeRequest {
             path: route.to_string(),

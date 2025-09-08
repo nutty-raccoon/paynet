@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     background_tasks::fetch_and_emit_prices,
-    front_events::{OutOfSyncPriceEvent, emit_out_of_sync_price_event},
+    front_events::price_events::{OutOfSyncPriceEvent, emit_out_of_sync_price_event},
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

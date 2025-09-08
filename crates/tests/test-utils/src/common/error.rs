@@ -80,6 +80,9 @@ pub enum Error {
     #[cfg(feature = "e2e")]
     #[error(transparent)]
     RedeemQuote(#[from] wallet::mint::RedeemQuoteError),
+    #[cfg(feature = "e2e")]
+    #[error(transparent)]
+    PayMeltQuote(#[from] wallet::melt::PayMeltQuoteError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
