@@ -18,7 +18,7 @@ pub enum Error {
     SeedPhraseNotFound,
     #[error("Wallet already exists")]
     WalletAlreadyExists,
-    #[error("seed phrase manager error:")]
+    #[error("seed phrase manager error: {0}")]
     SeedPhraseManager(Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
@@ -49,11 +49,6 @@ pub fn restore(
     db_conn: &Connection,
     seed_phrase: Mnemonic,
 ) -> Result<Option<Mnemonic>, Error> {
-    // Check if wallet already exists in database
-    if db::wallet::count_wallets(db_conn)? > 0 {
-        return Err(Error::WalletAlreadyExists);
-    }
-
     // Check if wallet already exists in keyring
     let opt_previous_seed_phrase = if seed_phrase_manager
         .has_seed_phrase()
@@ -104,11 +99,6 @@ pub fn init(
     db_conn: &Connection,
     seed_phrase: &Mnemonic,
 ) -> Result<(), Error> {
-    // Check if wallet already exists in database
-    if db::wallet::count_wallets(db_conn)? > 0 {
-        return Err(Error::WalletAlreadyExists);
-    }
-
     // Store seed phrase in keyring (secure OS-level storage)
     seed_phrase_manager
         .store_seed_phrase(seed_phrase)
@@ -132,8 +122,11 @@ pub fn init(
 }
 
 /// Check if a wallet exists
-pub fn exists(db_conn: &Connection) -> Result<bool, Error> {
-    Ok(db::wallet::count_wallets(db_conn)? > 0)
+pub fn exists(seed_phrase_manager: impl SeedPhraseManager) -> Result<bool, Error> {
+    Ok(seed_phrase_manager
+        .get_seed_phrase()
+        .map_err(|e| Error::SeedPhraseManager(Box::new(e)))?
+        .is_some())
 }
 
 /// Get the seed phrase from keyring

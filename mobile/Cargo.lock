@@ -5201,6 +5201,7 @@ dependencies = [
  "starknet-types",
  "tauri",
  "tauri-build",
+ "tauri-plugin-biometric",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-log",
  "tauri-plugin-macos-permissions",
@@ -6593,6 +6594,21 @@ dependencies = [
  "tauri-utils",
  "toml 0.8.23",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-biometric"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ef90d83d1d4dc8743c0236758dd35d1872bb371ae971eebdc406e116efe640e"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

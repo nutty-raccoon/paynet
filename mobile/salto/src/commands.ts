@@ -144,6 +144,16 @@ export async function restoreWallet(seedPhrase: string) {
   return res;
 }
 
+export async function getSeedPhrase() {
+  const res = await invoke("get_seed_phrase")
+    .then((message) => message as string)
+    .catch((error) => {
+      console.error("failed to get seed phrase:", error);
+    });
+
+  return res;
+}
+
 export async function getWadHistory(limit?: number): Promise<WadHistoryItem[] | undefined> {
       const res = await invoke("get_wad_history", {limit})
       .then((message) => message as WadHistoryItem[])

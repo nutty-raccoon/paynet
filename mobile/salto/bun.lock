@@ -4,18 +4,16 @@
     "": {
       "name": "salto",
       "dependencies": {
-        "@castlenine/svelte-qrcode": "^2.3.0",
         "@gandlaf21/bc-ur": "^1.1.12",
         "@ngraveio/bc-ur": "^1.1.13",
         "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-biometric": "~2",
         "@tauri-apps/plugin-clipboard-manager": "~2",
         "@tauri-apps/plugin-log": "~2",
-        "@tauri-apps/plugin-nfc": "~2",
         "@tauri-apps/plugin-opener": "^2",
         "@tauri-apps/plugin-os": "~2",
         "@tauri-apps/plugin-sql": "~2",
         "html5-qrcode": "^2.3.8",
-        "tauri-plugin-macos-permissions-api": "^2.3.0",
       },
       "devDependencies": {
         "@sveltejs/adapter-static": "^3.0.6",
@@ -27,14 +25,15 @@
         "typescript": "~5.6.2",
         "vite": "^6.0.3",
       },
+      "optionalDependencies": {
+        "tauri-plugin-macos-permissions-api": "^2.3.0",
+      },
     },
   },
   "packages": {
     "@ampproject/remapping": ["@ampproject/remapping@2.3.0", "", { "dependencies": { "@jridgewell/gen-mapping": "^0.3.5", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="],
 
     "@apocentre/alias-sampling": ["@apocentre/alias-sampling@0.5.3", "", {}, "sha512-7UDWIIF9hIeJqfKXkNIzkVandlwLf1FWTSdrb9iXvOP8oF544JRXQjCbiTmCv2c9n44n/FIWtehhBfNuAx2CZA=="],
-
-    "@castlenine/svelte-qrcode": ["@castlenine/svelte-qrcode@2.3.0", "", { "peerDependencies": { "svelte": ">=3.54.0" } }, "sha512-1YO6tL63gjbCuBkhd/PyMMFbjFD6gO6TJjvq5Ucfs5+0s13oDfiUyxO15kjR11enG7O/A2R0WBuc4bfdMqjTJQ=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.6", "", { "os": "aix", "cpu": "ppc64" }, "sha512-ShbM/3XxwuxjFiuVBHA+d3j5dyac0aEVVq1oluIDf71hUw0aRF59dV/efUsIwFnR6m8JNM2FjZOzmaZ8yG61kw=="],
 
@@ -182,11 +181,11 @@
 
     "@tauri-apps/cli-win32-x64-msvc": ["@tauri-apps/cli-win32-x64-msvc@2.6.2", "", { "os": "win32", "cpu": "x64" }, "sha512-ItB8RCKk+nCmqOxOvbNtltz6x1A4QX6cSM21kj3NkpcnjT9rHSMcfyf8WVI2fkoMUJR80iqCblUX6ARxC3lj6w=="],
 
+    "@tauri-apps/plugin-biometric": ["@tauri-apps/plugin-biometric@2.3.0", "", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-yiDAh88ok47eZ6ZIhf7actNH1Sej2xl9+PWToPOUvQZnMLWsXRLzBNog9BvTaV8qu/YOv6WyCCBbQ4++r4/HCg=="],
+
     "@tauri-apps/plugin-clipboard-manager": ["@tauri-apps/plugin-clipboard-manager@2.3.0", "", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-81NOBA2P+OTY8RLkBwyl9ZR/0CeggLub4F6zxcxUIfFOAqtky7J61+K/MkH2SC1FMxNBxrX0swDuKvkjkHadlA=="],
 
     "@tauri-apps/plugin-log": ["@tauri-apps/plugin-log@2.6.0", "", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-gVp3l31akA1Jk2bZsTA0hMFD5/gLe49Nw1btu5lViau0QqgC2XyT79LSwvy7a44ewtQbSexchqIg7oTJKMIbXQ=="],
-
-    "@tauri-apps/plugin-nfc": ["@tauri-apps/plugin-nfc@2.3.0", "", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-vfmAXano0R1qxZxZcGii4JD7kbl3rUWhQbvpqdnKKlltT9nmXFVxZ99S88BsPn7vTNwK3k62iVjbWzfS00y9Ig=="],
 
     "@tauri-apps/plugin-opener": ["@tauri-apps/plugin-opener@2.4.0", "", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-43VyN8JJtvKWJY72WI/KNZszTpDpzHULFxQs0CJBIYUdCRowQ6Q1feWTDb979N7nldqSuDOaBupZ6wz2nvuWwQ=="],
 

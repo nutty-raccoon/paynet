@@ -16,7 +16,7 @@ pub struct Wallet {
 pub fn create(conn: &Connection, wallet: Wallet) -> Result<()> {
     let sql = r#"
         INSERT INTO wallet (created_at, updated_at, is_restored)
-        VALUES (?, ?, ?)
+        VALUES (?1, ?2, ?3)
     "#;
 
     let mut stmt = conn.prepare(sql)?;
