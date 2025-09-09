@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Balance, NodeData, NodeId } from "./types";
+import type { NodeData, NodeId } from "./types";
 import type { QuoteId } from "./types/quote";
 import type { WadHistoryItem, Wads } from "./types/wad";
 
@@ -38,7 +38,6 @@ export async function getTokensPrices() {
 
 export async function addNode(nodeUrl: string) {
      const res = await invoke("add_node", {nodeUrl})
-      .then((message) => message as [NodeId, Balance[]] )
       .catch((error) => {
         console.error(`failed to add node with url '${nodeUrl}':`, error);
       });

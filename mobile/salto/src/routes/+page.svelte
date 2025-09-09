@@ -3,29 +3,20 @@
   import { pushState } from "$app/navigation";
   import SendModal from "./send/SendModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
-  import {
-    checkAccessibilityPermission,
-    requestCameraPermission,
-  } from "tauri-plugin-macos-permissions-api";
   import { type BalanceChange, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
-  import {
-    computeTotalBalancePerUnit,
-    decreaseNodeBalance,
-    formatBalance,
-    getTotalAmountInDisplayCurrency,
-    increaseNodeBalance,
-  } from "../utils";
+  import { formatBalance, getTotalAmountInDisplayCurrency } from "../utils";
   import { onMount, onDestroy } from "svelte";
-  import {
-    checkWalletExists,
-    getNodesBalance,
-    getPendingQuotes,
-  } from "../commands";
+  import { checkWalletExists, getPendingQuotes } from "../commands";
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
-  import { displayCurrency, tokenPrices } from "../stores";
+  import {
+    displayCurrency,
+    tokenPrices,
+    nodeBalances,
+    totalBalance,
+  } from "../stores";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
   import { page } from "$app/state";
 
@@ -39,18 +30,11 @@
 
   let currentModal = $state<Modal>(Modal.ROOT);
 
-  let nodes: NodeData[] = $state([]);
-
   let activeTab: Tab = $state("pay");
   let errorMessage = $state("");
   let walletExists = $state<boolean | null>(null); // null = loading, true/false = result
-
-  // Calculate total balance across all nodes
-  let totalBalance: Map<string, number> = $derived(
-    computeTotalBalancePerUnit(nodes),
-  );
   let formattedBalance: string[] = $derived(
-    totalBalance
+    $totalBalance
       .entries()
       .map(([unit, amount]) => {
         const { asset, assetAmount } = formatBalance(unit, amount);
@@ -60,7 +44,7 @@
   );
   let totalAmount = $derived(
     !!$tokenPrices
-      ? getTotalAmountInDisplayCurrency(totalBalance, $tokenPrices)
+      ? getTotalAmountInDisplayCurrency($totalBalance, $tokenPrices)
       : null,
   );
   // Effect to manage scrolling based on active tab
@@ -72,17 +56,6 @@
       document.body.classList.add("no-scroll");
     }
   });
-
-  const onAddNode = (nodeData: NodeData) => {
-    nodes.push(nodeData);
-  };
-
-  const onNodeBalanceIncrease = (balanceIncrease: BalanceChange) => {
-    increaseNodeBalance(nodes, balanceIncrease);
-  };
-  const onNodeBalanceDecrease = (balanceIncrease: BalanceChange) => {
-    decreaseNodeBalance(nodes, balanceIncrease);
-  };
 
   const onWalletInitialized = (initialTab: Tab = "pay") => {
     walletExists = true;
@@ -108,26 +81,14 @@
   onMount(async () => {
     walletExists = await checkWalletExists();
 
-    listen<BalanceChange>("balance-increase", (event) => {
-      onNodeBalanceIncrease(event.payload);
-    });
-    listen<BalanceChange>("balance-decrease", (event) => {
-      onNodeBalanceDecrease(event.payload);
-    });
-
     emit("front-ready", {});
 
     // Add popstate listener for back button handling
     window.addEventListener("popstate", handlePopState, { capture: true });
 
     if (walletExists) {
-      // Only load wallet data if wallet exists
-      getNodesBalance().then((nodesData) => {
-        if (!!nodesData) {
-          nodesData.forEach(onAddNode);
-        }
-      });
-
+      // Only load pending quotes data manually on startup
+      // Node balances are handled by the polling store
       getPendingQuotes();
     }
   });
@@ -210,13 +171,13 @@
           >
         </div>
       {:else if currentModal == Modal.SEND}
-        <SendModal availableBalances={totalBalance} onClose={goBackToRoot} />
+        <SendModal availableBalances={$totalBalance} onClose={goBackToRoot} />
       {:else if currentModal == Modal.RECEIVE}
         <ReceiveModal onClose={goBackToRoot} />
       {/if}
     {:else if activeTab === "balances"}
       <div class="balances-container">
-        <NodesBalancePage {nodes} {onAddNode} />
+        <NodesBalancePage />
       </div>
     {:else if activeTab === "settings"}
       <SettingsModal onClose={onCloseSettings} />

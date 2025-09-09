@@ -4,10 +4,7 @@ use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, State};
 use tracing::{Level, event};
 
-use crate::{
-    AppState,
-    front_events::balance_events::{BalanceChange, emit_balance_decrease_event},
-};
+use crate::{AppState, front_events::emit_trigger_balance_poll};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
@@ -64,7 +61,8 @@ pub async fn create_wads(
     event!(name: "planning_wad_spending", Level::INFO,
         asset = %asset,
         unit = %unit,
-        amount = %amount
+        amount = %amount,
+        "Planning wad spending"
     );
 
     let db_conn = state.pool.get()?;
@@ -72,10 +70,10 @@ pub async fn create_wads(
 
     event!(name: "spending_plan_created", Level::INFO,
         num_nodes = amount_to_use_per_node.len(),
-        total_amount = %amount
+        total_amount = %amount,
+        "Spending plan created"
     );
 
-    let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
     let mut node_and_proofs = Vec::with_capacity(amount_to_use_per_node.len());
 
     for (node_id, amount_to_use) in amount_to_use_per_node {
@@ -100,16 +98,12 @@ pub async fn create_wads(
             .expect("ids come form DB, there should be an url");
 
         node_and_proofs.push((node_url, proofs_ids));
-        balance_decrease_events.push(BalanceChange {
-            node_id,
-            unit: unit.as_str().to_string(),
-            amount: amount_to_use.into(),
-        });
     }
 
     event!(name: "creating_wads_from_proofs", Level::INFO,
         num_nodes = node_and_proofs.len(),
-        unit = %unit
+        unit = %unit,
+        "Creating wads from proofs"
     );
 
     let wads =
@@ -118,12 +112,12 @@ pub async fn create_wads(
     event!(name: "wads_created_successfully", Level::INFO,
         wad_string_length = wads.to_string().len(),
         unit = %unit,
-        total_amount = %amount
+        total_amount = %amount,
+        "Wad created successfully"
     );
 
-    for event in balance_decrease_events {
-        emit_balance_decrease_event(&app, event)?;
-    }
+    // Trigger immediate balance polling
+    let _ = emit_trigger_balance_poll(&app);
 
     Ok(wads.to_string())
 }

@@ -116,6 +116,7 @@ impl GrpcState {
             amount = u64::from(amount),
             %unit,
             quote_id = %response.quote,
+            "Mint quote created"
         );
 
         Ok(response)

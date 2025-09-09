@@ -1,14 +1,14 @@
 use nuts::nut04::MintQuoteState;
 use nuts::nut05::MeltQuoteState;
 use tauri::{AppHandle, Manager, State, async_runtime};
-use tracing::error;
+use tracing::{error, instrument};
 use wallet::db::balance::GetForAllNodesData;
 use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::db::mint_quote::PendingMintQuote;
 
 use crate::AppState;
 use crate::errors::CommonError;
-use crate::front_events::PendingQuoteData;
+use crate::front_events::{PendingQuoteData, emit_trigger_balance_poll};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +50,7 @@ impl serde::Serialize for GetNodesBalanceError {
     }
 }
 
+#[instrument(skip(state))]
 #[tauri::command]
 pub async fn get_nodes_balance(
     state: State<'_, AppState>,
@@ -78,6 +79,7 @@ impl serde::Serialize for GetPendingQuoteError {
     }
 }
 
+#[instrument(skip(app, state))]
 #[tauri::command]
 pub async fn get_pending_quotes(
     app: AppHandle,
@@ -133,6 +135,7 @@ pub enum SyncNodeError {
     SyncMelt(u32, wallet::sync::SyncMeltQuotesError),
 }
 
+#[instrument(skip(app))]
 async fn sync_node_mint_quotes(
     app: AppHandle,
     node_id: u32,
@@ -149,30 +152,49 @@ async fn sync_node_mint_quotes(
         &mut node_client,
         node_id,
         pending_mint_quotes,
+        false,
     )
     .await
     .map_err(|e| SyncNodeError::SyncMint(node_id, e))?;
 
     let mut unpaid = Vec::new();
     let mut paid = Vec::new();
-    for mint_quote in state_updates
-        .unchanged
-        .into_iter()
-        .chain(state_updates.changed)
-    {
-        if mint_quote.state == MintQuoteState::Unpaid {
-            unpaid.push(PendingQuoteData {
+    let mut any_issued = false;
+    for mint_quote in state_updates.unchanged.into_iter() {
+        match mint_quote.state {
+            MintQuoteState::Unpaid => unpaid.push(PendingQuoteData {
                 id: mint_quote.id,
                 unit: mint_quote.unit,
                 amount: mint_quote.amount.into(),
-            });
-        } else if mint_quote.state == MintQuoteState::Paid {
-            paid.push(PendingQuoteData {
+            }),
+            MintQuoteState::Paid => paid.push(PendingQuoteData {
                 id: mint_quote.id,
                 unit: mint_quote.unit,
                 amount: mint_quote.amount.into(),
-            });
+            }),
+            MintQuoteState::Issued => {
+                unreachable!("issued quote wouldn't have been selected as pending")
+            }
         }
+    }
+    for mint_quote in state_updates.changed.into_iter() {
+        match mint_quote.state {
+            MintQuoteState::Unpaid => {
+                unreachable!("the state cannot have changed and now be unpaid")
+            }
+            MintQuoteState::Paid => paid.push(PendingQuoteData {
+                id: mint_quote.id,
+                unit: mint_quote.unit,
+                amount: mint_quote.amount.into(),
+            }),
+            MintQuoteState::Issued => {
+                any_issued = true;
+            }
+        }
+    }
+
+    if any_issued {
+        let _ = emit_trigger_balance_poll(&app);
     }
 
     Ok(MintOrMeltQuote::Mint(MintPendingQuotes {
@@ -182,6 +204,7 @@ async fn sync_node_mint_quotes(
     }))
 }
 
+#[instrument(skip(app))]
 async fn sync_node_melt_quotes(
     app: AppHandle,
     node_id: u32,
@@ -200,24 +223,36 @@ async fn sync_node_melt_quotes(
 
     let mut unpaid = Vec::new();
     let mut pending = Vec::new();
-    for melt_quote in state_updates
-        .unchanged
-        .into_iter()
-        .chain(state_updates.changed)
-    {
-        if melt_quote.state == MeltQuoteState::Unpaid {
-            unpaid.push(PendingQuoteData {
+    let mut any_deposited = false;
+    for melt_quote in state_updates.unchanged.into_iter() {
+        match melt_quote.state {
+            MeltQuoteState::Unpaid => unpaid.push(PendingQuoteData {
                 id: melt_quote.id,
                 unit: melt_quote.unit,
                 amount: melt_quote.amount.into(),
-            });
-        } else if melt_quote.state == MeltQuoteState::Pending {
-            pending.push(PendingQuoteData {
+            }),
+            MeltQuoteState::Pending => pending.push(PendingQuoteData {
                 id: melt_quote.id,
                 unit: melt_quote.unit,
                 amount: melt_quote.amount.into(),
-            });
+            }),
+            MeltQuoteState::Paid => {
+                unreachable!("Paid quote wouldn't have been selected as pending")
+            }
         }
+    }
+    for melt_quote in state_updates.changed {
+        match melt_quote.state {
+            MeltQuoteState::Unpaid => {
+                unreachable!("the state cannot have changed and now be unpaid")
+            }
+            MeltQuoteState::Pending => any_deposited = true,
+            MeltQuoteState::Paid => {}
+        }
+    }
+
+    if any_deposited {
+        let _ = emit_trigger_balance_poll(&app);
     }
 
     Ok(MintOrMeltQuote::Melt(MeltPendingQuotes {

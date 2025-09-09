@@ -1,15 +1,8 @@
-pub mod balance_events;
-pub mod melt_quote_events;
-pub mod mint_quote_events;
+use tauri::Emitter;
+use tracing::instrument;
+
 pub mod price_events;
 pub mod wad_events;
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum QuoteType {
-    Mint,
-    Melt,
-}
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,39 +12,17 @@ pub struct PendingQuoteData {
     pub amount: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(untagged)]
-pub enum QuoteEventData {
-    #[serde(rename_all = "camelCase")]
-    Created { quote: PendingQuoteData },
-    #[serde(rename_all = "camelCase")]
-    Identifier { quote_id: String },
+// Trigger polling events
+const TRIGGER_BALANCE_POLL_EVENT: &str = "trigger-balance-poll";
+const TRIGGER_PENDING_QUOTE_POLL_EVENT: &str = "trigger-pending-quote-poll";
+
+// Helper functions to emit trigger events
+#[instrument(skip(app))]
+pub fn emit_trigger_balance_poll(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
+    app.emit(TRIGGER_BALANCE_POLL_EVENT, ())
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct QuoteEvent {
-    pub r#type: String,
-    pub node_id: u32,
-    #[serde(flatten)]
-    pub data: QuoteEventData,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct QuoteIdentifier {
-    pub node_id: u32,
-    pub quote_id: String,
-}
-
-const QUOTE_EVENT: &str = "quote";
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UnifiedQuoteEvent {
-    pub r#type: String,
-    pub quote_type: QuoteType,
-    pub node_id: u32,
-    #[serde(flatten)]
-    pub data: QuoteEventData,
+#[instrument(skip(app))]
+pub fn emit_trigger_pending_quote_poll(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
+    app.emit(TRIGGER_PENDING_QUOTE_POLL_EVENT, ())
 }

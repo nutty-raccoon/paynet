@@ -1,15 +1,12 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { NodeData } from "../../types";
   import { addNode } from "../../commands";
 
   interface Props {
-    nodes: NodeData[];
     onClose: () => void;
-    onAddNode: (nodeData: NodeData) => void;
   }
 
-  let { nodes, onClose, onAddNode }: Props = $props();
+  let { onClose }: Props = $props();
 
   let isLoading = $state(false);
   let errorMessage = $state("");
@@ -25,24 +22,7 @@
 
     if (!!nodeAddress) {
       let nodeAddressString = nodeAddress.toString();
-      addNode(nodeAddressString).then((newNodeData) => {
-        if (!!newNodeData) {
-          const nodeId = newNodeData[0];
-          // Check if node with this ID already exists in the nodes array
-          const nodeAlreadyListed = nodes.some((node) => node.id === nodeId);
-
-          if (!nodeAlreadyListed) {
-            onAddNode({
-              id: nodeId,
-              url: nodeAddressString,
-              balances: newNodeData[1],
-            });
-          } else {
-            console.log(`node with url ${nodeAddress} already declared`);
-          }
-        }
-        onClose();
-      });
+      addNode(nodeAddressString);
     }
   };
 </script>

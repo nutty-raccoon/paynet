@@ -10,8 +10,6 @@ pub enum CommonError {
     QuoteHandlerChannel,
     #[error("failed wallet logic: {0}")]
     Wallet(wallet::errors::Error),
-    #[error("failed to emit tauri event: {0}")]
-    EmitTauriEvent(tauri::Error),
     #[error("quote {0} not found")]
     QuoteNotFound(String),
 }
