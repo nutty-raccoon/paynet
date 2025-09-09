@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { NodeData, NodeId } from "../../types";
+  import type { NodeData, NodeId, Balance, NodeIdAndUrl } from "../../types";
   import { pendingQuotes } from "../../stores";
   import { derived } from "svelte/store";
   import DepositModal from "./DepositModal.svelte";
@@ -9,11 +9,12 @@
   import type { QuoteId } from "../../types/quote";
 
   interface Props {
-    selectedNode: NodeData;
+    selectedNode: NodeIdAndUrl;
+    selectedNodeBalances: Balance[];
     onClose: () => void;
   }
 
-  let { selectedNode, onClose }: Props = $props();
+  let { selectedNode, selectedNodeBalances, onClose }: Props = $props();
 
   type ModalState = "none" | "deposit" | "withdraw";
   let currentModal = $state<ModalState>("none");
@@ -69,9 +70,9 @@
       <!-- Balances Section -->
       <div class="section">
         <h3 class="section-title">Balances</h3>
-        {#if selectedNode.balances.length > 0}
+        {#if selectedNodeBalances.length > 0}
           <div class="balances-list">
-            {#each selectedNode.balances as balance}
+            {#each selectedNodeBalances as balance}
               {@const formatted = formatBalance(balance.unit, balance.amount)}
               <div class="balance-item">
                 <span class="quote-amount"
@@ -219,7 +220,7 @@
 {#if currentModal === "deposit"}
   <DepositModal {selectedNode} onClose={closeModal} />
 {:else if currentModal === "withdraw"}
-  <WithdrawModal {selectedNode} onClose={closeModal} />
+  <WithdrawModal {selectedNode} {selectedNodeBalances} onClose={closeModal} />
 {/if}
 
 <style>

@@ -1,21 +1,22 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { NodeData } from "../../types";
+  import type { Balance, NodeIdAndUrl } from "../../types";
   import { createMeltQuote } from "../../commands";
   import { formatBalance, isValidStarknetAddress } from "../../utils";
 
   interface Props {
-    selectedNode: NodeData;
+    selectedNode: NodeIdAndUrl;
+    selectedNodeBalances: Balance[];
     onClose: () => void;
   }
 
-  let { selectedNode, onClose }: Props = $props();
+  let { selectedNode, selectedNodeBalances, onClose }: Props = $props();
   let withdrawError = $state<string>("");
   let selectedAsset = $state<string>("");
 
   // Get available balances with formatted data
   let availableBalances = $derived(
-    selectedNode.balances
+    selectedNodeBalances
       .map((balance) => ({
         ...balance,
         formatted: formatBalance(balance.unit, balance.amount),

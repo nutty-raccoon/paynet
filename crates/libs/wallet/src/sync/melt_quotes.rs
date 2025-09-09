@@ -53,7 +53,11 @@ pub async fn melt_quotes(
         };
 
         if MeltQuoteState::Paid == new_state {
-            event!(name: "melt-quote-paid", Level::INFO, quote_id=pending_melt_quote.id, tx_ids=format_melt_transfers_id_into_term_message(tx_ids), "Withdrawal finalized");
+            event!(name: "melt-quote-paid", Level::INFO,
+                quote_id=pending_melt_quote.id,
+                tx_ids=format_melt_transfers_id_into_term_message(tx_ids),
+                "Melt quote paid"
+            );
         }
 
         if new_state == pending_melt_quote.state {

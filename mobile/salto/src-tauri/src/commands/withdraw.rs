@@ -6,10 +6,7 @@ use tauri::{AppHandle, State};
 
 use crate::AppState;
 use crate::errors::CommonError;
-use crate::front_events::PendingQuoteData;
-use crate::front_events::melt_quote_events::{
-    MeltQuoteCreatedEvent, emit_melt_quote_created_event,
-};
+use crate::front_events::emit_trigger_pending_quote_poll;
 use crate::quote_handler::{MeltQuoteAction, QuoteHandlerEvent};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
@@ -79,12 +76,6 @@ pub async fn create_melt_quote(
     let on_chain_amount = unit.convert_amount_into_u256(amount);
 
     let serialized_payment_request = if method == STARKNET_STR {
-        event!(name: "creating_starknet_payment_request", Level::INFO,
-            node_id,
-            %asset,
-            %amount,
-            to
-        );
         let request =
             starknet_liquidity_source::MeltPaymentRequest::new(to, asset, on_chain_amount.into())
                 .map_err(StarknetError::CreateRequest)?;
@@ -98,10 +89,11 @@ pub async fn create_melt_quote(
         .await
         .map_err(CommonError::CachedConnection)?;
 
-    event!(name: "creating_melt_quote_with_node", Level::INFO,
+    event!(name: "creating_melt_quote", Level::INFO,
         node_id = node_id,
         method = %method,
-        unit = %unit
+        unit = %unit,
+        "Creating melt quote"
     );
 
     let response = wallet::melt::create_quote(
@@ -115,35 +107,16 @@ pub async fn create_melt_quote(
     .await
     .map_err(CommonError::Wallet)?;
 
-    event!(name: "melt_quote_created_successfully", Level::INFO,
+    event!(name: "melt_quote_created", Level::INFO,
         node_id = node_id,
         quote_id = response.quote,
         method,
         %unit,
-        %amount
+        %amount,
+        "Melt quote created"
     );
 
-    emit_melt_quote_created_event(
-        &app,
-        MeltQuoteCreatedEvent {
-            node_id,
-            melt_quote: PendingQuoteData {
-                id: response.quote.clone(),
-                unit: unit.to_string(),
-                amount: amount.into(),
-            },
-        },
-    )
-    .map_err(CommonError::EmitTauriEvent)?;
-
-    state
-        .quote_event_sender
-        .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Pay {
-            node_id,
-            quote_id: response.quote,
-        }))
-        .await
-        .map_err(|_| CommonError::QuoteHandlerChannel)?;
+    let _ = emit_trigger_pending_quote_poll(&app);
 
     Ok(())
 }
@@ -155,11 +128,6 @@ pub async fn pay_melt_quote(
     node_id: u32,
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
-    event!(name: "initiating_melt_quote_payment", Level::INFO,
-        node_id = node_id,
-        quote_id = %quote_id
-    );
-
     state
         .quote_event_sender
         .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Pay {

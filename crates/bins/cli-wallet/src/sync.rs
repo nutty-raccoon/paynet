@@ -32,6 +32,7 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
             &mut node_client,
             node_id,
             pending_quotes,
+            true,
         )
         .await?;
     }

@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { NodeData } from "../../types";
+  import type { NodeIdAndUrl } from "../../types";
   import { createMintQuote } from "../../commands";
 
   interface Props {
-    selectedNode: NodeData;
+    selectedNode: NodeIdAndUrl;
     onClose: () => void;
   }
 

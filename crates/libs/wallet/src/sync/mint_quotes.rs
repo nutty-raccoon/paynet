@@ -32,6 +32,7 @@ pub async fn mint_quotes(
     node_client: &mut NodeClient<Channel>,
     node_id: u32,
     pending_mint_quotes: Vec<PendingMintQuote>,
+    trigger_redeem: bool,
 ) -> Result<MintQuotesStateUpdate, SyncMintQuotesError> {
     let mut states_updates = MintQuotesStateUpdate::default();
     for pending_mint_quote in pending_mint_quotes {
@@ -55,8 +56,8 @@ pub async fn mint_quotes(
             }
         };
 
-        if new_state == MintQuoteState::Paid {
-            event!(name: "mint-quote-paid",  Level::INFO, quote_id=pending_mint_quote.id);
+        let new_state = if trigger_redeem && new_state == MintQuoteState::Paid {
+            event!(name: "mint-quote-paid",  Level::INFO, quote_id=pending_mint_quote.id, "Mint quote paid");
             if let Err(error) = mint::redeem_quote(
                 seed_phrase_manager.clone(),
                 pool.clone(),
@@ -70,10 +71,14 @@ pub async fn mint_quotes(
             .await
             {
                 event!(name: "mint-quote-redeemed", Level::ERROR, quote_id=pending_mint_quote.id, %error, "Failed to redeem mint quote");
+                new_state
             } else {
                 event!(name: "mint-quote-redeemed", Level::INFO, quote_id=pending_mint_quote.id, "Deposit finalized");
+                MintQuoteState::Issued
             }
-        }
+        } else {
+            new_state
+        };
 
         if new_state == pending_mint_quote.state {
             states_updates.unchanged.push(pending_mint_quote);

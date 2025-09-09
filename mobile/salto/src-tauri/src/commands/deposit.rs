@@ -7,12 +7,9 @@ use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError, STARK
 use tauri::{AppHandle, State};
 
 use crate::errors::CommonError;
-use crate::front_events::PendingQuoteData;
-use crate::front_events::mint_quote_events::{
-    MintQuoteCreatedEvent, emit_mint_quote_created_event,
-};
 use crate::{
     AppState,
+    front_events::emit_trigger_pending_quote_poll,
     quote_handler::{MintQuoteAction, QuoteHandlerEvent},
 };
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
@@ -67,10 +64,11 @@ pub async fn create_mint_quote(
         .await
         .map_err(CommonError::CachedConnection)?;
 
-    event!(name: "creating_mint_quote_with_node", Level::INFO,
+    event!(name: "creating_mint_quote", Level::INFO,
         node_id = node_id,
         unit = %unit,
-        amount = %amount
+        amount = %amount,
+        "Creating mint quote"
     );
 
     let response = wallet::mint::create_quote(
@@ -84,27 +82,15 @@ pub async fn create_mint_quote(
     .await
     .map_err(CommonError::Wallet)?;
 
-    event!(name: "mint_quote_created_successfully", Level::INFO,
+    event!(name: "mint_quote_created", Level::INFO,
         node_id = node_id,
         quote_id = %response.quote,
         unit = %unit,
-        amount = %amount
+        amount = %amount,
+        "Mint quote created"
     );
 
-    emit_mint_quote_created_event(
-        &app,
-        MintQuoteCreatedEvent {
-            node_id,
-            mint_quote: PendingQuoteData {
-                id: response.quote.clone(),
-                unit: unit.to_string(),
-                amount: amount.into(),
-            },
-        },
-    )
-    .map_err(CommonError::EmitTauriEvent)?;
-
-    inner_pay_quote(&app, &state, node_id, response.quote, response.request).await?;
+    let _ = emit_trigger_pending_quote_poll(&app);
 
     Ok(())
 }
@@ -124,12 +110,6 @@ pub async fn pay_mint_quote(
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
     };
 
-    event!(name: "retrieved_mint_quote_for_payment", Level::INFO,
-        node_id = node_id,
-        quote_id = %quote_id,
-        quote_state = ?mint_quote.state
-    );
-
     inner_pay_quote(&app, &state, node_id, quote_id, mint_quote.request).await
 }
 
@@ -137,8 +117,8 @@ pub async fn pay_mint_quote(
 pub enum RedeemQuoteError {
     #[error(transparent)]
     Common(#[from] crate::errors::CommonError),
-    #[error("quote not paid")]
-    QuoteNotPaid,
+    #[error("quote not paid: {0}")]
+    QuoteNotPaid(MintQuoteState),
     #[error("failed parse db unit: {0}")]
     Unit(#[from] starknet_types::UnitFromStrError),
 }
@@ -188,22 +168,19 @@ pub async fn redeem_quote(
     };
 
     if mint_quote.state != MintQuoteState::Paid {
-        event!(name: "quote_not_ready_for_redemption", Level::WARN,
+        event!(name: "cannot_redeem_quote_not_paid", Level::WARN,
             node_id = node_id,
             quote_id = %quote_id,
-            current_state = ?mint_quote.state
+            current_state = ?mint_quote.state,
+            "Cannot redeem quote not paid"
         );
-        return Err(RedeemQuoteError::QuoteNotPaid);
-    }
 
-    event!(name: "initiating_quote_redemption", Level::INFO,
-        node_id = node_id,
-        quote_id = %quote_id
-    );
+        return Err(RedeemQuoteError::QuoteNotPaid(mint_quote.state));
+    }
 
     state
         .quote_event_sender
-        .send(QuoteHandlerEvent::Mint(MintQuoteAction::Redeem {
+        .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
             node_id,
             quote_id,
         }))
@@ -227,11 +204,13 @@ async fn inner_pay_quote(
     if request.is_empty() {
         event!(name: "using_mock_node_immediate_redemption", Level::INFO,
             node_id = node_id,
-            quote_id = quote_id
+            quote_id = quote_id,
+            "Immediate redemption with mock node"
+
         );
         state
             .quote_event_sender
-            .send(QuoteHandlerEvent::Mint(MintQuoteAction::Redeem {
+            .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
                 node_id,
                 quote_id,
             }))
@@ -239,13 +218,9 @@ async fn inner_pay_quote(
             .map_err(|_| CommonError::QuoteHandlerChannel)?;
         return Ok(());
     } else {
-        event!(name: "initiating_quote_payment", Level::INFO,
-            node_id = node_id,
-            quote_id = quote_id
-        );
         state
             .quote_event_sender
-            .send(QuoteHandlerEvent::Mint(MintQuoteAction::Pay {
+            .send(QuoteHandlerEvent::Mint(MintQuoteAction::SyncUntilIsPaid {
                 node_id,
                 quote_id: quote_id.clone(),
             }))
@@ -259,8 +234,6 @@ async fn inner_pay_quote(
         .map_err(PayQuoteError::SerializeCalldata)?;
     let encoded_payload = urlencoding::encode(&payload_json);
 
-    // On desktop we open the browser
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
     let url = format!(
         "{}/deposit/{}/{}/?payload={}",
         &state.web_app_url,
@@ -273,8 +246,14 @@ async fn inner_pay_quote(
         node_id = node_id,
         quote_id = quote_id,
         chain_id = %deposit_payload.chain_id,
-        url = url
+        url = url,
+        "Opening payment url"
     );
+
+    // On desktop we open in the browser
+    // On mobile we open through starknet deep link
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    let url = format!("starknet://dapp/{url}");
 
     app.opener().open_url(url, None::<&str>)?;
 

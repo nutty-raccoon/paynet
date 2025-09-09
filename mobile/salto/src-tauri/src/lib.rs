@@ -59,6 +59,9 @@ pub fn run() {
 
         let builder = tauri::Builder::default();
 
+        #[cfg(target_os = "macos")]
+        let builder = builder.plugin(tauri_plugin_macos_permissions::init());
+
         let builder = builder
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())

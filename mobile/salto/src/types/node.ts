@@ -1,10 +1,16 @@
 export type NodeId = number;
 export type Unit = string;
 
+export type NodeIdAndUrl = {
+  id: NodeId;
+  url: string;
+};
+
 export type NodeData = {
   id: NodeId;
   url: string;
   balances: Balance[];
+
 };
 
 export type Balance = {
