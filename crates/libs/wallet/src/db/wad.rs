@@ -1,7 +1,7 @@
 use crate::types::NodeUrl;
 use nuts::{Amount, nut01::PublicKey};
 use rusqlite::{
-    Connection, Result, ToSql, params,
+    Connection, Result, ToSql, Transaction, params,
     types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
 };
 use std::{
@@ -143,7 +143,7 @@ fn compute_wad_uuid(node_url: &NodeUrl, proofs_ys: &[PublicKey]) -> Uuid {
 }
 
 pub fn register_wad(
-    conn: &Connection,
+    conn: &Transaction,
     wad_type: WadType,
     node_url: &NodeUrl,
     memo: &Option<String>,
@@ -212,7 +212,15 @@ pub fn get_recent_wads(conn: &Connection, limit: u32) -> Result<Vec<WadRecord>> 
     rows.collect::<Result<Vec<_>, _>>()
 }
 
-pub fn update_wad_status(conn: &Connection, wad_id: Uuid, status: WadStatus) -> Result<()> {
+#[derive(Debug, thiserror::Error)]
+#[error("failed to set wad {0} to status {1}: {2}")]
+pub struct UpdateWadStatusError(Uuid, WadStatus, #[source] rusqlite::Error);
+
+pub fn update_wad_status(
+    conn: &Connection,
+    wad_id: Uuid,
+    status: WadStatus,
+) -> Result<(), UpdateWadStatusError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -223,8 +231,11 @@ pub fn update_wad_status(conn: &Connection, wad_id: Uuid, status: WadStatus) -> 
         SET status = ?2, modified_at = ?3
         WHERE id = ?1
     "#;
-    let mut stmt = conn.prepare(UPDATE_WAD_STATUS)?;
-    stmt.execute(params![wad_id, status, now])?;
+    let mut stmt = conn
+        .prepare(UPDATE_WAD_STATUS)
+        .map_err(|e| UpdateWadStatusError(wad_id, status, e))?;
+    stmt.execute(params![wad_id, status, now])
+        .map_err(|e| UpdateWadStatusError(wad_id, status, e))?;
 
     Ok(())
 }

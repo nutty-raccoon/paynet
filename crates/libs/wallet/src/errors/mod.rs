@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
 use node_client::{NodeClient, UnspecifiedEnum};
-use nuts::nut01::PublicKey;
+use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -14,6 +16,32 @@ use crate::{
     seed_phrase,
     sync::{SyncMeltQuoteError, SyncMeltQuotesError},
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum CommonError {
+    #[error("proof amounts must be powers of two, got {0}")]
+    ProofAmountPowerOfTwo(u64),
+    #[error("proof amounts cannot be greater that the keyset {0} max order {1}, got {2}")]
+    ProofAmountGreaterThanKeysetMaxOrder(KeysetId, u64, u64),
+    #[error("failed to hash the secret to the curve: {0}")]
+    HashToCurve(#[source] nuts::dhke::Error),
+    #[error("failed to start a database transaction: {0}")]
+    CreateDbTransaction(#[source] rusqlite::Error),
+    #[error("failed to commit a database transaction: {0}")]
+    CommitDbTransaction(#[source] rusqlite::Error),
+    #[error("failed to get database connection from the pool: {0}")]
+    GetDbConnection(#[source] r2d2::Error),
+    #[error("failed to load blinding data: {0}")]
+    LoadBlindingData(#[source] crate::Error),
+    #[error("failed to generate Premints for amount {0}: {1}")]
+    GeneratePremintsForAmount(Amount, #[source] crate::Error),
+    #[error("failed to handle the proofs verification errors: {0}")]
+    HandleProofVerificationErrors(#[source] crate::Error),
+    #[error("failed to store the PreMints new tokens: {0}")]
+    PreMintsStoreNewTokens(#[source] crate::Error),
+    #[error("failed to acknowledge node response to {0}: {0}")]
+    AcknowledgeNodeResponse(&'static str, #[source] tonic::Status),
+}
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -59,8 +87,6 @@ pub enum Error {
     Nuts(#[from] nuts::Error),
     #[error("Secret error: {0}")]
     Secret(#[from] nuts::nut00::secret::Error),
-    #[error("keyset unit mismatch, expected {0} got {0}")]
-    UnitMissmatch(String, String),
     #[error("failed to get a connection from the pool: {0}")]
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
@@ -83,6 +109,12 @@ pub enum Error {
     SyncMeltQuotes(#[from] SyncMeltQuotesError),
     #[error("failed to sync melt quote: {0}")]
     SyncMeltQuote(#[from] SyncMeltQuoteError),
+    #[error(transparent)]
+    SetProofsToState(#[from] db::proof::SetProofsToStateError),
+    #[error(transparent)]
+    GetProofsByIds(#[from] db::proof::GetProofsByIdsError),
+    #[error(transparent)]
+    UpdateWadStatusError(#[from] db::wad::UpdateWadStatusError),
 }
 
 impl From<StoreNewProofsError> for Error {
@@ -128,18 +160,18 @@ pub fn handle_proof_verification_errors(
     let error_details = status.get_error_details();
 
     if let Some(bad_request) = error_details.bad_request() {
-        let mut crypto_failed_indices = Vec::new();
-        let mut already_spent_indices = Vec::new();
+        let mut crypto_failed_indices = HashSet::new();
+        let mut already_spent_indices = HashSet::new();
 
         for violation in &bad_request.field_violations {
             let proof_index = extract_proof_index(&violation.field)?;
 
             match &violation.description {
                 desc if desc.contains("failed cryptographic verification") => {
-                    crypto_failed_indices.push(proof_index);
+                    crypto_failed_indices.insert(proof_index as usize);
                 }
                 desc if desc.contains("already spent") => {
-                    already_spent_indices.push(proof_index);
+                    already_spent_indices.insert(proof_index as usize);
                 }
                 _ => {
                     error!(
@@ -150,62 +182,46 @@ pub fn handle_proof_verification_errors(
             }
         }
 
-        if !crypto_failed_indices.is_empty() {
-            handle_crypto_invalid_proofs(crypto_failed_indices, proofs_ids, conn)?;
+        let mut invalid_crypto_ids = Vec::new();
+        let mut already_spent_ids = Vec::new();
+        let mut other_ids = Vec::new();
+
+        for (i, item) in proofs_ids.iter().enumerate() {
+            if crypto_failed_indices.contains(&i) {
+                invalid_crypto_ids.push(*item);
+            } else if already_spent_indices.contains(&i) {
+                already_spent_ids.push(*item);
+            } else {
+                other_ids.push(*item);
+            }
         }
 
-        if !already_spent_indices.is_empty() {
-            handle_already_spent_proofs(already_spent_indices, proofs_ids, conn)?;
+        if !invalid_crypto_ids.is_empty() {
+            info!(
+                "Removing {} cryptographically invalid proofs: {:?}",
+                proofs_ids.len(),
+                proofs_ids
+            );
+
+            db::proof::delete_proofs(conn, &invalid_crypto_ids)?;
         }
-    }
-    Ok(())
-}
+        if !already_spent_ids.is_empty() {
+            info!(
+                "Removing {} already spent proofs: {:?}",
+                proofs_ids.len(),
+                proofs_ids
+            );
 
-fn handle_crypto_invalid_proofs(
-    indices: Vec<u32>,
-    proofs_ids: &[PublicKey],
-    conn: &Connection,
-) -> Result<(), rusqlite::Error> {
-    info!(
-        "Removing {} cryptographically invalid proofs: {:?}",
-        indices.len(),
-        indices
-    );
-
-    let mut invalid_proofs: Vec<PublicKey> = vec![];
-    for i in &indices {
-        if let Some(id) = proofs_ids.get(*i as usize) {
-            invalid_proofs.push(*id);
-        } else {
-            error!("Invalid index: {}", i);
+            db::proof::set_proofs_to_state(
+                conn,
+                &already_spent_ids,
+                crate::types::ProofState::Spent,
+            )?;
         }
-    }
-
-    db::proof::delete_proofs(conn, &invalid_proofs)?;
-    Ok(())
-}
-
-fn handle_already_spent_proofs(
-    indices: Vec<u32>,
-    proofs_ids: &[PublicKey],
-    conn: &Connection,
-) -> Result<(), rusqlite::Error> {
-    info!(
-        "Removing {} already spent proofs: {:?}",
-        indices.len(),
-        indices
-    );
-
-    let mut invalid_proofs: Vec<PublicKey> = vec![];
-    for i in &indices {
-        if let Some(id) = proofs_ids.get(*i as usize) {
-            invalid_proofs.push(*id);
-        } else {
-            error!("Node returned an out of bound index for invalid proof: {i}",);
+        if !other_ids.is_empty() {
+            db::proof::set_proofs_to_state(conn, &other_ids, crate::types::ProofState::Unspent)?;
         }
     }
-
-    db::proof::set_proofs_to_state(conn, &invalid_proofs, crate::types::ProofState::Spent)?;
     Ok(())
 }
 

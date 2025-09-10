@@ -280,6 +280,7 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
         }
+        Commands::DecodeWad(_) => {}
         _ => {
             if wallet_count != 1 {
                 println!("Wallet is not initialized. Run `init` or `restore` first");
@@ -558,8 +559,8 @@ async fn main() -> Result<()> {
                 node_and_proofs.push((node_url, proofs_ids));
             }
 
-            // Load them from db, revert the one already loaded if it failed
-            let wads = load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), memo)?;
+            let wads =
+                load_proofs_and_create_wads(&mut db_conn, node_and_proofs, unit.as_str(), memo)?;
 
             match output {
                 Some((output_path, path_str)) => {

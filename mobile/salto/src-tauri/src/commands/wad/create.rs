@@ -65,7 +65,7 @@ pub async fn create_wads(
         "Planning wad spending"
     );
 
-    let db_conn = state.pool.get()?;
+    let mut db_conn = state.pool.get()?;
     let amount_to_use_per_node = wallet::send::plan_spending(&db_conn, amount, unit, &[])?;
 
     event!(name: "spending_plan_created", Level::INFO,
@@ -106,8 +106,12 @@ pub async fn create_wads(
         "Creating wads from proofs"
     );
 
-    let wads =
-        wallet::send::load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), None)?;
+    let wads = wallet::send::load_proofs_and_create_wads(
+        &mut db_conn,
+        node_and_proofs,
+        unit.as_str(),
+        None,
+    )?;
 
     event!(name: "wads_created_successfully", Level::INFO,
         wad_string_length = wads.to_string().len(),

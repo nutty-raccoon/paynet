@@ -53,8 +53,8 @@ pub enum PayMeltQuoteError {
     CommitDbTransaction(#[source] rusqlite::Error),
     #[error("failed to load the proofs from db: {0}")]
     LoadTokens(#[source] rusqlite::Error),
-    #[error("failed to set proof state: {0}")]
-    SetProofsState(#[source] rusqlite::Error),
+    #[error(transparent)]
+    SetProofsState(#[from] db::proof::SetProofsToStateError),
     #[error("failed update quote state: {0}")]
     UpdateQuoteState(#[source] rusqlite::Error),
     #[error("failed to register transfers ids : {0}")]
@@ -67,6 +67,8 @@ pub enum PayMeltQuoteError {
     Acknowledge(#[source] tonic::Status),
     #[error("failed to serialize transfer ids: {0}")]
     SerializeTransferIds(#[from] serde_json::Error),
+    #[error(transparent)]
+    UnprotectedLoadTokensFormDb(#[from] crate::UnprotectedLoadTokensFormDbError),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -94,8 +96,7 @@ pub async fn pay_quote(
     .ok_or(PayMeltQuoteError::NotEnoughFunds)?;
     let inputs = {
         let db_conn = pool.get()?;
-        unprotected_load_tokens_from_db(&db_conn, &proofs_ids)
-            .map_err(PayMeltQuoteError::LoadTokens)?
+        unprotected_load_tokens_from_db(&db_conn, &proofs_ids)?
     };
 
     // Create melt request
@@ -122,8 +123,7 @@ pub async fn pay_quote(
     };
 
     // Register the consumption of our proofs
-    db::proof::set_proofs_to_state(&db_conn, &proofs_ids, ProofState::Spent)
-        .map_err(PayMeltQuoteError::SetProofsState)?;
+    db::proof::set_proofs_to_state(&db_conn, &proofs_ids, ProofState::Spent)?;
 
     // Relieve the node cache once we receive the answer
     acknowledge(node_client, nuts::nut19::Route::Melt, melt_request_hash)

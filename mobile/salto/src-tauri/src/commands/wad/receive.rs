@@ -18,6 +18,8 @@ pub enum ReceiveWadsError {
     RegisterNode(#[from] wallet::node::RegisterNodeError),
     #[error("failed to create node client: {0}")]
     CreateNodeClient(wallet::ConnectToNodeError),
+    #[error(transparent)]
+    ReceiveWad(#[from] wallet::ReceiveWadError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -113,8 +115,7 @@ pub async fn receive_wads(
             proofs,
             &memo,
         )
-        .await
-        .map_err(CommonError::Wallet)?;
+        .await?;
 
         event!(name: "wad_received", Level::INFO,
             node_id = node_id,

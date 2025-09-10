@@ -9,7 +9,7 @@ pub struct EnvVariables {
 
 #[cfg(feature = "strk")]
 pub mod starknet {
-    use anyhow::anyhow;
+    use anyhow::{Result, anyhow};
     use log::error;
     use starknet::{
         accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
@@ -24,19 +24,16 @@ pub mod starknet {
     use url::Url;
 
     use super::EnvVariables;
-    use crate::common::error::{Error, Result};
 
     pub fn init_account(
         env: EnvVariables,
     ) -> Result<SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>> {
-        let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-            Felt::from_hex(&env.private_key).map_err(|e| Error::Other(e.into()))?,
-        ));
-        let address = Felt::from_hex(&env.account_address).map_err(|e| Error::Other(e.into()))?;
+        let signer = LocalWallet::from(SigningKey::from_secret_scalar(Felt::from_hex(
+            &env.private_key,
+        )?));
+        let address = Felt::from_hex(&env.account_address)?;
 
-        let provider = JsonRpcClient::new(HttpTransport::new(
-            Url::parse(&env.rpc_url).map_err(|e| Error::Other(e.into()))?,
-        ));
+        let provider = JsonRpcClient::new(HttpTransport::new(Url::parse(&env.rpc_url)?));
 
         let account = SingleOwnerAccount::new(
             provider,
@@ -56,8 +53,7 @@ pub mod starknet {
             .execute_v3(calls)
             .send()
             .await
-            .inspect_err(|e| error!("send payment tx failed: {:?}", e))
-            .map_err(|e| Error::Other(e.into()))?
+            .inspect_err(|e| error!("send payment tx failed: {:?}", e))?
             .transaction_hash;
 
         watch_tx(account.provider(), tx_hash).await?;
@@ -75,11 +71,11 @@ pub mod starknet {
                     break;
                 }
                 Ok(TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason })) => {
-                    return Err(Error::Other(anyhow!("tx reverted: {}", reason)));
+                    return Err(anyhow!("tx reverted: {}", reason));
                 }
                 Ok(TransactionStatus::Received) => {}
                 Ok(TransactionStatus::Rejected) => {
-                    return Err(Error::Other(anyhow!("tx rejected")));
+                    return Err(anyhow!("tx rejected"));
                 }
                 Err(ProviderError::StarknetError(StarknetError::TransactionHashNotFound)) => {}
                 Err(err) => return Err(err.into()),
