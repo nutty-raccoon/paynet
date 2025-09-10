@@ -24,6 +24,8 @@
       let nodeAddressString = nodeAddress.toString();
       addNode(nodeAddressString);
     }
+
+    onClose();
   };
 </script>
 

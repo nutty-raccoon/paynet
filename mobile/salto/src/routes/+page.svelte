@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { listen, emit } from "@tauri-apps/api/event";
+  import { emit } from "@tauri-apps/api/event";
   import { pushState } from "$app/navigation";
   import SendModal from "./send/SendModal.svelte";
   import NavBar, { type Tab } from "./components/NavBar.svelte";
-  import { type BalanceChange, type NodeData } from "../types";
   import NodesBalancePage from "./balances/NodesBalancePage.svelte";
   import { formatBalance, getTotalAmountInDisplayCurrency } from "../utils";
   import { onMount, onDestroy } from "svelte";
@@ -11,12 +10,7 @@
   import ReceiveModal from "./receive/ReceiveModal.svelte";
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
-  import {
-    displayCurrency,
-    tokenPrices,
-    nodeBalances,
-    totalBalance,
-  } from "../stores";
+  import { displayCurrency, tokenPrices, totalBalance } from "../stores";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
   import { page } from "$app/state";
 

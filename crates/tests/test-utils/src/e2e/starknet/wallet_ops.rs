@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use bip39::Mnemonic;
 use itertools::Itertools;
 use node_client::NodeClient;
@@ -17,10 +17,7 @@ use wallet::{
     },
 };
 
-use crate::common::{
-    error::{Error, Result},
-    utils::{EnvVariables, starknet::pay_invoices},
-};
+use crate::common::utils::{EnvVariables, starknet::pay_invoices};
 
 type Pool = r2d2::Pool<SqliteConnectionManager>;
 pub struct WalletOps {
@@ -39,14 +36,11 @@ impl WalletOps {
     }
 
     pub fn init(&self) -> Result<Mnemonic> {
-        let seed_phrase =
-            wallet::seed_phrase::create_random().map_err(|e| Error::Wallet(e.into()))?;
+        let seed_phrase = wallet::seed_phrase::create_random()?;
         let seed_phrase_manager =
             wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
 
-        let db_conn = &*self.db_pool.get()?;
-        wallet::wallet::init(seed_phrase_manager, db_conn, &seed_phrase)
-            .map_err(|e| Error::Wallet(e.into()))?;
+        wallet::wallet::save_seed_phrase(seed_phrase_manager, &seed_phrase)?;
 
         Ok(seed_phrase)
     }
@@ -54,11 +48,7 @@ impl WalletOps {
     pub async fn restore(&self, seed_phrase: Mnemonic) -> Result<()> {
         let seed_phrase_manager =
             wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
-        {
-            let db_conn = &*self.db_pool.get()?;
-            wallet::wallet::restore(seed_phrase_manager.clone(), db_conn, seed_phrase)
-                .map_err(|e| Error::Wallet(e.into()))?;
-        };
+        wallet::wallet::save_seed_phrase(seed_phrase_manager.clone(), &seed_phrase)?;
 
         wallet::node::restore(
             seed_phrase_manager,
@@ -66,8 +56,7 @@ impl WalletOps {
             self.node_id,
             self.node_client.clone(),
         )
-        .await
-        .map_err(|e| Error::Wallet(e.into()))?;
+        .await?;
 
         Ok(())
     }
@@ -83,9 +72,7 @@ impl WalletOps {
         let amount = amount
             .checked_mul(asset.scale_factor())
             .ok_or(anyhow!("amount too big"))?;
-        let (amount, unit, _remainder) = asset
-            .convert_to_amount_and_unit(amount)
-            .map_err(|e| Error::Other(e.into()))?;
+        let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
         let quote = wallet::mint::create_quote(
             self.db_pool.clone(),
@@ -142,6 +129,7 @@ impl WalletOps {
 
     pub async fn send(
         &mut self,
+        node_id: u32,
         node_url: NodeUrl,
         amount: U256,
         asset: Asset,
@@ -152,9 +140,7 @@ impl WalletOps {
         let amount = amount
             .checked_mul(asset.scale_factor())
             .ok_or(anyhow!("amount too big"))?;
-        let (amount, unit, _) = asset
-            .convert_to_amount_and_unit(amount)
-            .map_err(|e| Error::Other(e.into()))?;
+        let (amount, unit, _) = asset.convert_to_amount_and_unit(amount)?;
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
             seed_phrase_manager,
             self.db_pool.clone(),
@@ -166,8 +152,9 @@ impl WalletOps {
         .await?
         .ok_or(anyhow!("not enough funds"))?;
 
-        let db_conn = self.db_pool.get()?;
-        let proofs = wallet::unprotected_load_tokens_from_db(&db_conn, &proofs_ids)?;
+        let mut db_conn = self.db_pool.get()?;
+        let tx = db_conn.transaction()?;
+        let proofs = wallet::unprotected_load_tokens_from_db(&tx, &proofs_ids)?;
         let compact_proofs = proofs
             .into_iter()
             .chunk_by(|p| p.keyset_id)
@@ -185,12 +172,14 @@ impl WalletOps {
             .collect();
 
         wallet::db::wad::register_wad(
-            &db_conn,
+            &tx,
             wallet::db::wad::WadType::OUT,
+            node_id,
             &node_url,
             &None,
             &proofs_ids,
         )?;
+        tx.commit()?;
 
         Ok(CompactWad {
             node_url,
@@ -220,12 +209,9 @@ impl WalletOps {
 
     pub async fn melt(&mut self, amount: U256, asset: Asset, to: String) -> Result<()> {
         let method = STARKNET_STR.to_string();
-        let payee_address = Felt::from_hex(&to).map_err(|e| Error::Other(e.into()))?;
+        let payee_address = Felt::from_hex(&to)?;
         if !starknet_types::is_valid_starknet_address(&payee_address) {
-            return Err(Error::Other(anyhow!(
-                "Invalid starknet address: {}",
-                payee_address
-            )));
+            return Err(anyhow!("Invalid starknet address: {}", payee_address));
         }
 
         let amount = amount

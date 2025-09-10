@@ -78,8 +78,6 @@ enum NodeCommands {
         /// Url of the node
         #[arg(long, short)]
         node_url: String,
-        #[arg(long, short)]
-        restore: Option<bool>,
     },
     /// List all know nodes
     #[command(
@@ -271,17 +269,18 @@ async fn main() -> Result<()> {
 
     wallet::db::create_tables(&mut db_conn)?;
 
-    let wallet_count = wallet::db::wallet::count_wallets(&db_conn)?;
+    let has_seed_phrase = wallet::wallet::exists(SEED_PHRASE_MANAGER)?;
 
     match cli.command {
         Commands::Init { .. } | Commands::Restore { .. } => {
-            if wallet_count > 0 {
+            if has_seed_phrase {
                 println!("Wallet already exists");
                 return Ok(());
             }
         }
+        Commands::DecodeWad(_) => {}
         _ => {
-            if wallet_count != 1 {
+            if has_seed_phrase {
                 println!("Wallet is not initialized. Run `init` or `restore` first");
                 return Ok(());
             }
@@ -289,7 +288,7 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
-        Commands::Node(NodeCommands::Add { node_url, restore }) => {
+        Commands::Node(NodeCommands::Add { node_url }) => {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
             let mut node_client = wallet::connect_to_node(&node_url, opt_tls_root_ca_cert).await?;
 
@@ -302,22 +301,14 @@ async fn main() -> Result<()> {
                 &node_url, node_id
             );
 
-            let wallet = wallet::db::wallet::get(&db_conn)?.unwrap();
-            let should_restore = match restore {
-                Some(true) => true,
-                Some(false) => false,
-                None => wallet.is_restored,
-            };
-            if should_restore {
-                println!("Restoring proofs");
-                wallet::node::restore(SEED_PHRASE_MANAGER, pool, node_id, node_client).await?;
-                println!("Restoring done.");
+            println!("Restoring proofs");
+            wallet::node::restore(SEED_PHRASE_MANAGER, pool, node_id, node_client).await?;
+            println!("Restoring done.");
 
-                let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
-                println!("Balance for node {}:", node_id);
-                for Balance { unit, amount } in balances {
-                    println!("  {} {}", amount, unit);
-                }
+            let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
+            println!("Balance for node {}:", node_id);
+            for Balance { unit, amount } in balances {
+                println!("  {} {}", amount, unit);
             }
         }
         Commands::Node(NodeCommands::List {}) => {
@@ -555,11 +546,11 @@ async fn main() -> Result<()> {
                 )
                 .await?
                 .ok_or(anyhow!("not enough funds"))?;
-                node_and_proofs.push((node_url, proofs_ids));
+                node_and_proofs.push(((node_id, node_url), proofs_ids));
             }
 
-            // Load them from db, revert the one already loaded if it failed
-            let wads = load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), memo)?;
+            let wads =
+                load_proofs_and_create_wads(&mut db_conn, node_and_proofs, unit.as_str(), memo)?;
 
             match output {
                 Some((output_path, path_str)) => {
@@ -658,12 +649,12 @@ async fn main() -> Result<()> {
             sync::sync_all_pending_operations(pool).await?;
         }
         Commands::Init { yes } => {
-            init::init(&db_conn, yes)?;
+            init::init(yes)?;
             println!("Wallet saved!");
         }
         Commands::Restore { seed_phrase } => {
             let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
-            wallet::wallet::restore(SEED_PHRASE_MANAGER, &db_conn, seed_phrase)?;
+            wallet::wallet::save_seed_phrase(SEED_PHRASE_MANAGER, &seed_phrase)?;
             println!("Wallet saved!");
         }
         Commands::History { limit } => {

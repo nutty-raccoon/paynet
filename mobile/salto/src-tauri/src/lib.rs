@@ -7,9 +7,9 @@ mod migrations;
 mod quote_handler;
 
 use commands::{
-    add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads,
-    get_currencies, get_nodes_balance, get_pending_quotes, get_wad_history, init_wallet,
-    pay_melt_quote, pay_mint_quote, receive_wads, redeem_quote, refresh_node_keysets,
+    add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads, forget_node,
+    get_currencies, get_nodes_balance, get_pending_quotes, get_seed_phrase, get_wad_history,
+    init_wallet, pay_melt_quote, pay_mint_quote, receive_wads, redeem_quote, refresh_node_keysets,
     restore_wallet, set_price_provider_currency, sync_wads,
 };
 use connection_cache::ConnectionCache;
@@ -61,6 +61,8 @@ pub fn run() {
 
         #[cfg(target_os = "macos")]
         let builder = builder.plugin(tauri_plugin_macos_permissions::init());
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        let builder = builder.plugin(tauri_plugin_biometric::init());
 
         let builder = builder
             .plugin(tauri_plugin_os::init())
@@ -157,11 +159,13 @@ pub fn run() {
                 check_wallet_exists,
                 init_wallet,
                 restore_wallet,
+                get_seed_phrase,
                 set_price_provider_currency,
                 get_wad_history,
                 sync_wads,
                 create_melt_quote,
-                pay_melt_quote
+                pay_melt_quote,
+                forget_node
             ])
     };
 

@@ -8,7 +8,6 @@
   const SelectedMethod = {
     NONE: 0,
     QR_CODE: 1,
-    COPY: 2,
   } as const;
   type SelectedMethod = (typeof SelectedMethod)[keyof typeof SelectedMethod];
 
@@ -62,18 +61,20 @@
     </div>
 
     {#if selectedMethod == SelectedMethod.NONE}
-      {#if availableUnits.length === 0}
-        <div class="no-balance-message">
-          <p>No funds available for payment. Please deposit tokens first.</p>
-          <button class="close-button-alt" onclick={onClose}>Close</button>
-        </div>
-      {:else if !wads}
-        <AmountForm
-          {availableUnits}
-          {availableBalances}
-          onClose={() => {}}
-          onPaymentDataGenerated={handlePaymentDataGenerated}
-        />
+      {#if !wads}
+        {#if availableUnits.length === 0}
+          <div class="no-balance-message">
+            <p>No funds available for payment. Please deposit tokens first.</p>
+            <button class="close-button-alt" onclick={onClose}>Close</button>
+          </div>
+        {:else}
+          <AmountForm
+            {availableUnits}
+            {availableBalances}
+            onClose={() => {}}
+            onPaymentDataGenerated={handlePaymentDataGenerated}
+          />
+        {/if}
       {:else}
         <SendingMethodChoice
           {paymentStrings}
@@ -81,8 +82,8 @@
           onCopyChoice={() => handleCopyChoice(wads as Wads)}
         />
       {/if}
-    {:else if !!wads}
-      {#if selectedMethod === SelectedMethod.QR_CODE}
+    {:else if selectedMethod === SelectedMethod.QR_CODE}
+      {#if !!wads}
         <QRPaymentPortal
           data={wads}
           onClose={() => selectMethod(SelectedMethod.NONE)}
