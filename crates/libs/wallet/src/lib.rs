@@ -481,7 +481,7 @@ pub async fn receive_wad(
                     .map_err(ReceiveWadError::ExecuteInsertProofStatment)?;
             }
         }
-        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_url, memo, &ys)
+        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_id, node_url, memo, &ys)
             .map_err(ReceiveWadError::RegisterWad)?;
         let binding_data = BlindingData::load_from_db(seed_phrase_manager, &tx, node_id, unit)
             .map_err(CommonError::LoadBlindingData)?;

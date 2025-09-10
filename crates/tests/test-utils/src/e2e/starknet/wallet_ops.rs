@@ -40,8 +40,7 @@ impl WalletOps {
         let seed_phrase_manager =
             wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
 
-        let db_conn = &*self.db_pool.get()?;
-        wallet::wallet::init(seed_phrase_manager, db_conn, &seed_phrase)?;
+        wallet::wallet::save_seed_phrase(seed_phrase_manager, &seed_phrase)?;
 
         Ok(seed_phrase)
     }
@@ -49,10 +48,7 @@ impl WalletOps {
     pub async fn restore(&self, seed_phrase: Mnemonic) -> Result<()> {
         let seed_phrase_manager =
             wallet::wallet::sqlite::SeedPhraseManager::new(self.db_pool.clone())?;
-        {
-            let db_conn = &*self.db_pool.get()?;
-            wallet::wallet::restore(seed_phrase_manager.clone(), db_conn, seed_phrase)?;
-        };
+        wallet::wallet::save_seed_phrase(seed_phrase_manager.clone(), &seed_phrase)?;
 
         wallet::node::restore(
             seed_phrase_manager,
@@ -133,6 +129,7 @@ impl WalletOps {
 
     pub async fn send(
         &mut self,
+        node_id: u32,
         node_url: NodeUrl,
         amount: U256,
         asset: Asset,
@@ -177,6 +174,7 @@ impl WalletOps {
         wallet::db::wad::register_wad(
             &tx,
             wallet::db::wad::WadType::OUT,
+            node_id,
             &node_url,
             &None,
             &proofs_ids,

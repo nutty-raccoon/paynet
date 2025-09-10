@@ -3,7 +3,7 @@ use std::str::FromStr;
 use nuts::traits::Unit as UnitT;
 use starknet_types::Asset;
 use tauri::{AppHandle, State};
-use tracing::{Level, event};
+use tracing::{Level, event, warn};
 use wallet::types::NodeUrl;
 
 use crate::{AppState, front_events::emit_trigger_balance_poll};
@@ -68,13 +68,9 @@ pub async fn add_node(
         "Node registered"
     );
 
-    let wallet = wallet::db::wallet::get(&*state.pool.get()?)?.unwrap();
-
-    if wallet.is_restored {
-        event!(name: "restoring_node_from_wallet", Level::INFO, node_id = id, "Restoring node");
-        wallet::node::restore(crate::SEED_PHRASE_MANAGER, state.pool.clone(), id, client).await?;
-        event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
-    }
+    event!(name: "restoring_node_from_wallet", Level::INFO, node_id = id, "Restoring node");
+    wallet::node::restore(crate::SEED_PHRASE_MANAGER, state.pool.clone(), id, client).await?;
+    event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
 
     let _ = emit_trigger_balance_poll(&app);
 
@@ -92,6 +88,57 @@ pub async fn add_node(
         .await
         .assets
         .extend(new_assets);
+
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ForgetNodeError {
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    R2D2(#[from] r2d2::Error),
+    #[error(
+        "There are still funds deposited to this node. Withdraw them first, or call again with 'force = true'"
+    )]
+    HasFunds,
+}
+
+impl serde::Serialize for ForgetNodeError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+#[tauri::command]
+#[tracing::instrument(skip(app, state))]
+pub fn forget_node(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    node_id: u32,
+    force: bool,
+) -> Result<(), ForgetNodeError> {
+    let db_conn = state.pool.get()?;
+
+    if !force {
+        let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
+        let has_no_funds = balances.is_empty();
+        if !has_no_funds {
+            return Err(ForgetNodeError::HasFunds);
+        }
+    }
+
+    let n_row_deleted = wallet::db::node::delete_by_id(&db_conn, node_id)?;
+    if n_row_deleted != 1 {
+        warn!("unexpected number of node deleted: {}", n_row_deleted);
+    } else {
+        event!(name: "node_forgotten", Level::INFO, node_id);
+    }
+
+    let _ = emit_trigger_balance_poll(&app);
 
     Ok(())
 }

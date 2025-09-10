@@ -97,7 +97,7 @@ pub async fn create_wads(
         let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
             .expect("ids come form DB, there should be an url");
 
-        node_and_proofs.push((node_url, proofs_ids));
+        node_and_proofs.push(((node_id, node_url), proofs_ids));
     }
 
     event!(name: "creating_wads_from_proofs", Level::INFO,

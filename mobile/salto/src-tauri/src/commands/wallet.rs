@@ -1,7 +1,6 @@
-use tauri::{AppHandle, State};
+use tauri::AppHandle;
+use tracing::instrument;
 use wallet::seed_phrase;
-
-use crate::AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitWalletError {
@@ -51,28 +50,23 @@ pub struct InitWalletResponse {
     seed_phrase: String,
 }
 
+#[instrument]
 #[tauri::command]
-pub fn init_wallet(state: State<'_, AppState>) -> Result<InitWalletResponse, InitWalletError> {
-    let db_conn = state.pool.get()?;
-
+pub fn init_wallet() -> Result<InitWalletResponse, InitWalletError> {
     let seed_phrase = seed_phrase::create_random()?;
-    wallet::wallet::init(crate::SEED_PHRASE_MANAGER, &db_conn, &seed_phrase)?;
+    wallet::wallet::save_seed_phrase(crate::SEED_PHRASE_MANAGER, &seed_phrase)?;
 
     Ok(InitWalletResponse {
         seed_phrase: seed_phrase.to_string(),
     })
 }
 
+#[instrument(skip(seed_phrase))]
 #[tauri::command]
-pub fn restore_wallet(
-    state: State<'_, AppState>,
-    seed_phrase: String,
-) -> Result<(), RestoreWalletError> {
-    let db_conn = state.pool.get()?;
-
+pub fn restore_wallet(seed_phrase: String) -> Result<(), RestoreWalletError> {
     let seed_phrase = seed_phrase::create_from_str(&seed_phrase)?;
     let _opt_prev_seed_phrase =
-        wallet::wallet::restore(crate::SEED_PHRASE_MANAGER, &db_conn, seed_phrase)?;
+        wallet::wallet::save_seed_phrase(crate::SEED_PHRASE_MANAGER, &seed_phrase)?;
 
     Ok(())
 }

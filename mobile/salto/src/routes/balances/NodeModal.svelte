@@ -1,11 +1,16 @@
 <script lang="ts">
-  import type { NodeData, NodeId, Balance, NodeIdAndUrl } from "../../types";
+  import type { NodeId, Balance, NodeIdAndUrl } from "../../types";
   import { pendingQuotes } from "../../stores";
-  import { derived } from "svelte/store";
+  import { derived as derivedStore } from "svelte/store";
   import DepositModal from "./DepositModal.svelte";
   import WithdrawModal from "./WithdrawModal.svelte";
   import { formatBalance } from "../../utils";
-  import { payMeltQuote, payMintQuote, redeemQuote } from "../../commands";
+  import {
+    payMeltQuote,
+    payMintQuote,
+    redeemQuote,
+    forgetNode,
+  } from "../../commands";
   import type { QuoteId } from "../../types/quote";
 
   interface Props {
@@ -20,7 +25,7 @@
   let currentModal = $state<ModalState>("none");
 
   // Get pending quotes for this specific node
-  const nodePendingQuotes = derived(pendingQuotes, ($pendingQuotes) => {
+  const nodePendingQuotes = derivedStore(pendingQuotes, ($pendingQuotes) => {
     const nodeQuotes = $pendingQuotes.get(selectedNode.id);
     return {
       mint: nodeQuotes?.mint || { unpaid: [], paid: [] },
@@ -56,6 +61,24 @@
 
   function handleMeltUnpaidQuotePay(nodeId: NodeId, quoteId: QuoteId) {
     payMeltQuote(nodeId, quoteId);
+  }
+
+  // Check if node should show forget button (no balances and no pending quotes)
+  const shouldShowForgetButton = $derived.by(() => {
+    const hasBalances = selectedNodeBalances.length > 0;
+    const hasMintQuotes =
+      $nodePendingQuotes.mint.unpaid.length > 0 ||
+      $nodePendingQuotes.mint.paid.length > 0;
+    const hasMeltQuotes =
+      $nodePendingQuotes.melt.unpaid.length > 0 ||
+      $nodePendingQuotes.melt.pending.length > 0;
+
+    return !hasBalances && !hasMintQuotes && !hasMeltQuotes;
+  });
+
+  function handleForgetNode() {
+    forgetNode(selectedNode.id, false);
+    onClose();
   }
 </script>
 
@@ -209,9 +232,15 @@
         <button class="deposit-button" onclick={openDepositModal}>
           Deposit
         </button>
-        <button class="withdraw-button" onclick={openWithdrawModal}>
-          Withdraw
-        </button>
+        {#if shouldShowForgetButton}
+          <button class="forget-button" onclick={handleForgetNode}>
+            Forget
+          </button>
+        {:else}
+          <button class="withdraw-button" onclick={openWithdrawModal}>
+            Withdraw
+          </button>
+        {/if}
       </div>
     </div>
   </div>
@@ -443,6 +472,22 @@
   }
 
   .withdraw-button:hover {
+    background-color: #d32f2f;
+  }
+
+  .forget-button {
+    padding: 0.8rem 1rem;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .forget-button:hover {
     background-color: #d32f2f;
   }
 

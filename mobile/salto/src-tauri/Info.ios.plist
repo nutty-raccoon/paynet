@@ -9,5 +9,4 @@
     <key>NSFaceIDUsageDescription</key>
     <string>Authenticate with biometric</string>
   </dict>
-  </dict>
 </plist>

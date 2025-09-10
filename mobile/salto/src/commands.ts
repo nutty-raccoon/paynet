@@ -181,3 +181,12 @@ export async function refreshNodeKeysets(nodeId: NodeId) {
 
       return;
 }
+
+export async function forgetNode(nodeId: NodeId, force: boolean) {
+      await invoke("forget_node", {nodeId, force})
+      .catch((error) => {
+        console.error(`failed to forget node:`, error);
+      });
+
+      return;
+}

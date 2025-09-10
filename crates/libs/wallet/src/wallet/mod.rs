@@ -1,10 +1,6 @@
 use bip39::Mnemonic;
 use bitcoin::bip32::Xpriv;
-use rusqlite::Connection;
-use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
-
-use crate::db;
 
 pub mod keyring;
 #[cfg(feature = "sqlite-seed-phrase")]
@@ -44,10 +40,9 @@ pub trait SeedPhraseManager: Clone {
 
 /// Restore a wallet from an existing seed phrase
 /// This function stores the seed phrase in the keyring and creates a wallet record in the database
-pub fn restore(
+pub fn save_seed_phrase(
     seed_phrase_manager: impl SeedPhraseManager,
-    db_conn: &Connection,
-    seed_phrase: Mnemonic,
+    seed_phrase: &Mnemonic,
 ) -> Result<Option<Mnemonic>, Error> {
     // Check if wallet already exists in keyring
     let opt_previous_seed_phrase = if seed_phrase_manager
@@ -59,10 +54,10 @@ pub fn restore(
             .map_err(|e| Error::SeedPhraseManager(Box::new(e)))?;
         match previous_seed_phrase {
             None => None,
-            Some(mn) if mn == seed_phrase => None,
+            Some(mn) if &mn == seed_phrase => None,
             Some(mn) => {
                 seed_phrase_manager
-                    .store_seed_phrase(&seed_phrase)
+                    .store_seed_phrase(seed_phrase)
                     .map_err(|e| Error::SeedPhraseManager(Box::new(e)))?;
                 Some(mn)
             }
@@ -70,55 +65,12 @@ pub fn restore(
     } else {
         // Store seed phrase in keyring (secure OS-level storage)
         seed_phrase_manager
-            .store_seed_phrase(&seed_phrase)
+            .store_seed_phrase(seed_phrase)
             .map_err(|e| Error::SeedPhraseManager(Box::new(e)))?;
         None
     };
 
-    // Create wallet metadata record in database (without sensitive data)
-    let current_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let wallet = db::wallet::Wallet {
-        created_at: current_time,
-        updated_at: current_time,
-        is_restored: true,
-    };
-
-    db::wallet::create(db_conn, wallet)?;
-
     Ok(opt_previous_seed_phrase)
-}
-
-/// Initialize a new wallet with the provided seed phrase
-/// This function stores the seed phrase in the keyring and creates a wallet record in the database
-pub fn init(
-    seed_phrase_manager: impl SeedPhraseManager,
-    db_conn: &Connection,
-    seed_phrase: &Mnemonic,
-) -> Result<(), Error> {
-    // Store seed phrase in keyring (secure OS-level storage)
-    seed_phrase_manager
-        .store_seed_phrase(seed_phrase)
-        .map_err(|e| Error::SeedPhraseManager(Box::new(e)))?;
-
-    // Create wallet metadata record in database (without sensitive data)
-    let current_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let wallet = db::wallet::Wallet {
-        created_at: current_time,
-        updated_at: current_time,
-        is_restored: false,
-    };
-
-    db::wallet::create(db_conn, wallet)?;
-
-    Ok(())
 }
 
 /// Check if a wallet exists

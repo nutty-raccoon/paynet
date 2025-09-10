@@ -138,7 +138,7 @@ pub enum LoadProofsAndCreateWadsError {
 
 pub fn load_proofs_and_create_wads(
     db_conn: &mut Connection,
-    nodes_with_proofs: Vec<(NodeUrl, Vec<PublicKey>)>,
+    nodes_with_proofs: Vec<((u32, NodeUrl), Vec<PublicKey>)>,
     unit: &str,
     memo: Option<String>,
 ) -> Result<CompactWads, LoadProofsAndCreateWadsError> {
@@ -147,12 +147,13 @@ pub fn load_proofs_and_create_wads(
     let tx = db_conn
         .transaction()
         .map_err(CommonError::CreateDbTransaction)?;
-    for (node_url, proofs_ids) in nodes_with_proofs.iter() {
+    for ((node_id, node_url), proofs_ids) in nodes_with_proofs.iter() {
         let proofs = unprotected_load_tokens_from_db(&tx, proofs_ids)?;
         let wad = wad::create_from_parts(node_url.clone(), unit.to_string(), memo.clone(), proofs);
         db::wad::register_wad(
             &tx,
             db::wad::WadType::OUT,
+            *node_id,
             &wad.node_url,
             &wad.memo,
             proofs_ids,
