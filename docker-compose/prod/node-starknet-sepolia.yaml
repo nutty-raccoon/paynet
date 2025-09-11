@@ -1,7 +1,7 @@
 services:
 # Mint
   signer:
-    image: "ghcr.io/nutty-raccoon/paynet-signer:${SIGNER_VERSION}"
+    image: "ghcr.io/nutty-raccoon/paynet-signer:${SIGNER_VERSION-latest}"
     restart: always
     environment:
       - ROOT_KEY
@@ -16,7 +16,7 @@ services:
       retries: 3
 
   node:
-    image: "ghcr.io/nutty-raccoon/paynet-node:${NODE_VERSION}"
+    image: "ghcr.io/nutty-raccoon/paynet-node:${NODE_VERSION-latest}"
     restart: always
     environment:
       - PG_URL
@@ -54,13 +54,6 @@ services:
     volumes:
       - ./observability/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     restart: always
-    depends_on:
-      prometheus:
-        condition: service_started
-      jaeger:
-        condition: service_started
-      loki:
-        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:13133/"]
       interval: 5s

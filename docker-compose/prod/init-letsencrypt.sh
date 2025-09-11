@@ -6,7 +6,7 @@ if ! [ -x "$(command -v docker compose)" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/node-starknet-sepolia.yaml"
+export COMPOSE_FILE="$SCRIPT_DIR/node-starknet-sepolia.yaml"
 
 domains=("$DOMAIN_NAME")
 rsa_key_size=4096
