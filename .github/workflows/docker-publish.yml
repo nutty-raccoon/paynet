@@ -2,7 +2,8 @@ name: Build and Push to GHCR
 
 on:
   push:
-    branches: [staging]
+    tags:
+      - 'node-v*'
 
 jobs:
   build-and-push:
@@ -12,11 +13,23 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [node, signer]
+        include:
+          - service: node-starknet
+            dockerfile: node
+            build_args: |
+              CARGO_FEATURES=starknet
+          - service: signer
+            dockerfile: signer
+            build_args: |
+              CARGO_FEATURES=
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/node-}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -34,17 +47,18 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}-${{ matrix.service }}
           tags: |
-            type=ref,event=branch
-            type=sha
-            latest
+            type=raw,value=${{ steps.version.outputs.VERSION }}
+            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./dockerfiles/${{ matrix.service }}.Dockerfile
+          file: ./dockerfiles/${{ matrix.dockerfile }}.Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ${{ matrix.build_args }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
