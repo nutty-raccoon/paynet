@@ -69,7 +69,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./node-starknet-sepolia.nginx.conf:/etc/nginx/templates/default.conf.template
+      - ./node-starknet-sepolia.nginx.conf:/etc/nginx/conf.d
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     depends_on:
@@ -79,6 +79,7 @@ services:
   certbot:
     image: certbot/certbot
     volumes:
+      - ./certbot-logs:/var/log/letsencrypt/
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
