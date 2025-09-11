@@ -47,13 +47,13 @@ exporters:
 
   # Jaeger exporter: Sends distributed traces to Jaeger for trace visualization
   otlp/jaeger:
-    endpoint: "jaeger:4317"     # Send traces to Jaeger service
+    endpoint: "${JAEGER_ENDPOINT:-http://jaeger:4317}"     # Send traces to Jaeger service
     tls:
       insecure: true           # No TLS encryption (OK for local development)
 
   # Loki exporter: Sends logs to Loki for log aggregation and search
   loki:
-    endpoint: http://loki:3100/loki/api/v1/push
+    endpoint: "${LOKI_ENDPOINT:-http://loki:3100/loki/api/v1/push}"
 
   # Debug exporter: Outputs telemetry data to console (useful for troubleshooting)
   debug:
