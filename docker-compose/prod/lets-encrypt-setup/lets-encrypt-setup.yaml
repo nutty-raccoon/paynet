@@ -1,0 +1,16 @@
+services:
+  nginx:
+    image: nginx:1.29.1-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./default.conf:/etc/nginx/templates/default.conf.template
+      - ../certbot/conf:/etc/letsencrypt
+      - ../certbot/www:/var/www/certbot
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ../certbot/conf:/etc/letsencrypt
+      - ../certbot/www:/var/www/certbot

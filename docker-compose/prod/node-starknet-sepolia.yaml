@@ -33,6 +33,8 @@ services:
     depends_on:
       signer:
         condition: service_healthy
+      nginx:
+        condition: service_healthy
       otel-collector:
         condition: service_healthy
     healthcheck:
@@ -69,18 +71,19 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./node-starknet-sepolia.nginx.conf:/etc/nginx/conf.d
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    depends_on:
-      node:
-        condition: service_healthy
+      - ./node-starknet-sepolia.nginx.conf:/etc/nginx/templates/default.conf.template
+      - ../certbot/conf:/etc/letsencrypt
+      - ../certbot/www:/var/www/certbot
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf https://127.0.0.1/ -o /dev/null || exit 1"]
+      timeout: 10s
+
+
   certbot:
     image: certbot/certbot
     volumes:
-      - ./certbot-logs:/var/log/letsencrypt/
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
+      - ../certbot/conf:/etc/letsencrypt
+      - ../certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
