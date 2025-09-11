@@ -9,8 +9,6 @@ services:
       # Open telemetry
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_SERVICE_NAME=signer
-    ports:
-      - "10001:10001"
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
       start_period: 1s
@@ -32,8 +30,6 @@ services:
       - STARKNET_CASHIER_PRIVATE_KEY
       - STARKNET_RPC_NODE_URL=https://starknet-sepolia.public.blastapi.io/rpc/v0_8
       - STARKNET_SUBSTREAMS_URL=https://testnet.starknet.streamingfast.io:443
-    ports:
-      - "10003:10003"
     depends_on:
       signer:
         condition: service_healthy
@@ -70,3 +66,20 @@ services:
       interval: 5s
       timeout: 2s
       retries: 3
+
+# nginx
+  nginx:
+    image: nginx:latest
+    restart: always
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME}
+    volumes:
+      - ./node-starknet-sepolia.nginx.conf:/etc/nginx/templates/default.conf.template
+      - ${TLS_CERT_PATH}:/etc/nginx/ssl/cert.pem
+      - ${TLS_KEY_PATH}:/etc/nginx/ssl/key.pem
+    ports:
+      - "80:80"     # Add this for HTTP -> HTTPS redirects
+      - "443:443"
+    depends_on:
+      node:
+        condition: service_healthy
