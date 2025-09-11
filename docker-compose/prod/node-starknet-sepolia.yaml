@@ -33,8 +33,6 @@ services:
     depends_on:
       signer:
         condition: service_healthy
-      nginx:
-        condition: service_healthy
       otel-collector:
         condition: service_healthy
     healthcheck:
@@ -75,9 +73,6 @@ services:
       - ../certbot/conf:/etc/letsencrypt
       - ../certbot/www:/var/www/certbot
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf https://127.0.0.1/ -o /dev/null || exit 1"]
-      timeout: 10s
 
 
   certbot:
