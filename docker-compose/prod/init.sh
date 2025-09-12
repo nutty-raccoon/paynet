@@ -55,7 +55,3 @@ STARKNET_CASHIER_ADDRESS="${STARKNET_CASHIER_ADDRESS}"
 STARKNET_CASHIER_PRIVATE_KEY="${STARKNET_CASHIER_PRIVATE_KEY}"
 
 docker-compose up -d
-
-docker exec prod-nginx-1 /docker-entrypoint.d/20-envsubst-on-templates.sh
-docker exec prod-nginx-1 nginx -s reload
-
