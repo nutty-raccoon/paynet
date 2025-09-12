@@ -9,6 +9,9 @@ services:
       # Open telemetry
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_SERVICE_NAME=signer
+    depends_on:
+      otel-collector:
+        condition: service_started
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
       start_period: 1s
@@ -16,7 +19,7 @@ services:
       retries: 3
 
   node:
-    image: "ghcr.io/nutty-raccoon/paynet-node:${NODE_VERSION-latest}"
+    image: "ghcr.io/nutty-raccoon/paynet-node-starknet:${NODE_VERSION-latest}"
     restart: always
     environment:
       - PG_URL
@@ -34,7 +37,7 @@ services:
       signer:
         condition: service_healthy
       otel-collector:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
       start_period: 1s
