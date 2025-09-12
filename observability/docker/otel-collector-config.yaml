@@ -52,8 +52,8 @@ exporters:
       insecure: true           # No TLS encryption (OK for local development)
 
   # Loki exporter: Sends logs to Loki for log aggregation and search
-  loki:
-    endpoint: "${env:LOKI_ENDPOINT:-http://loki:3100/loki/api/v1/push}"
+  otlphttp/loki:
+    endpoint: "${env:LOKI_ENDPOINT:-http://loki:3100/otlp/v1/logs}"
 
   # Debug exporter: Outputs telemetry data to console (useful for troubleshooting)
   debug:
@@ -84,7 +84,7 @@ service:
     logs:
       receivers: [otlp]                          # Receive logs via OTLP
       processors: [batch, memory_limiter]        # Batch and limit memory usage
-      exporters: [loki]                         # Send to Loki for storage and search
+      exporters: [otlphttp/loki]                 # Send to Loki for storage and search
 
     # METRICS PIPELINE: Handles numerical measurements (counters, gauges, histograms)
     metrics:
