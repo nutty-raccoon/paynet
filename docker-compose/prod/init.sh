@@ -48,7 +48,6 @@ docker-compose down nginx
 
 export COMPOSE_FILE="$SCRIPT_DIR/node-starknet-sepolia.yaml"
 
-
 ROOT_KEY="${ROOT_KEY}"
 PG_URL="${PG_URL}"
 STARKNET_CASHIER_ADDRESS="${STARKNET_CASHIER_ADDRESS}"

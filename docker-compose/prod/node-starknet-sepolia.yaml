@@ -52,7 +52,7 @@ services:
       - "8889:8889"  
       - "13133:13133"  
     volumes:
-      - ./observability/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ../../observability/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     restart: always
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:13133/"]
