@@ -31,6 +31,8 @@ services:
       # Starknet
       - STARKNET_CASHIER_ACCOUNT_ADDRESS
       - STARKNET_CASHIER_PRIVATE_KEY
+      - STARKNET_CHAIN_ID
+      - STARKNET_INDEXER_START_BLOCK
       - STARKNET_RPC_NODE_URL=https://starknet-sepolia.public.blastapi.io/rpc/v0_8
       - STARKNET_SUBSTREAMS_URL=https://testnet.starknet.streamingfast.io:443
     depends_on:
