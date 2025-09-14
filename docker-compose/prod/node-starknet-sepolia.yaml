@@ -35,6 +35,8 @@ services:
       - STARKNET_INDEXER_START_BLOCK
       - STARKNET_RPC_NODE_URL=https://starknet-sepolia.public.blastapi.io/rpc/v0_8
       - STARKNET_SUBSTREAMS_URL=https://testnet.starknet.streamingfast.io:443
+    expose:
+      - "10003"
     depends_on:
       signer:
         condition: service_healthy
