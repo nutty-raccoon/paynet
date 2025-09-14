@@ -549,7 +549,7 @@ pub async fn connect_to_node(
         tonic::transport::Endpoint::new(url_str).map_err(ConnectToNodeError::Endpoint)?;
 
     if uses_tls {
-        let mut tls_config = tonic::transport::ClientTlsConfig::new();
+        let mut tls_config = tonic::transport::ClientTlsConfig::new().with_enabled_roots();
 
         if let Some(ca_cert) = root_ca_certificate {
             tls_config = tls_config.ca_certificate(ca_cert);
