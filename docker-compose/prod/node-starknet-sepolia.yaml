@@ -28,6 +28,8 @@ services:
       # Open telemetry
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_SERVICE_NAME=node
+      # Substreams
+      - SUBSTREAMS_API_TOKEN
       # Starknet
       - STARKNET_CASHIER_ACCOUNT_ADDRESS
       - STARKNET_CASHIER_PRIVATE_KEY
