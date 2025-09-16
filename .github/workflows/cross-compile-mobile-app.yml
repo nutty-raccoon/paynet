@@ -18,7 +18,7 @@ jobs:
           # - platform: macos-latest
           #   args: '--target x86_64-apple-darwin'
           - platform: ubuntu-22.04
-            args: '--verbose --bundles appimage'
+            args: '--verbose --bundles appimage,deb,rpm'
           # - platform: 'windows-latest'
           #   args: ''
 
@@ -44,6 +44,20 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           version: "28.x"
 
+      - name: Restore Rust cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ${{ matrix.platform }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.platform }}-cargo-
+
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04' 
         run: |
@@ -54,21 +68,6 @@ jobs:
         working-directory: mobile/salto
         run: bun install --frozen-lockfile
 
-      - name: Rust cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            mobile/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-          cache-on-failure: true
-          save-always: true
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
@@ -80,6 +79,11 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+          # appimage signing
+          SIGN: 1
+          APPIMAGETOOL_FORCE_SIGN: 1
+          SIGN_KEY: ${{ secrets.SIGN_KEY }} 
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APPIMAGETOOL_SIGN_PASSPHRASE }} 
 
         with:
           projectPath: mobile/salto
@@ -90,3 +94,16 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Save Rust cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ${{ matrix.platform }}-cargo-${{ hashFiles('**/Cargo.lock') }}
