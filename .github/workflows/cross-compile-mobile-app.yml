@@ -88,11 +88,20 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: actions/cache@v4
         with:
-          workspaces: |
-            . -> target
-            mobile -> mobile/target
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+          cache-on-failure: true
+          save-always: true
 
       - name: Import Apple Developer Certificate
         if: matrix.platform == 'macos-latest'
@@ -117,7 +126,7 @@ jobs:
           echo "Certificate imported."
 
       - name: Tauri build
-        uses: tauri-apps/tauri-action@v0.5
+        uses: tauri-apps/tauri-action@v0.5.23
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
