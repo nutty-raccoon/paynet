@@ -49,6 +49,8 @@ RUN pnpm run build
 
 FROM debian:bookworm-slim
 
+ARG TLS_FEATURE=""
+
 RUN if [ -n "$TLS_FEATURE" ]; then \
     apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*; \
   else \
@@ -74,7 +76,14 @@ ENV TLS_KEY_PATH=/certs/key.pem
 
 EXPOSE ${PORT}
 
+RUN if [ -n "$TLS_FEATURE" ]; then \
+      echo '#!/bin/sh\ncurl -f -k https://localhost:$PORT/ || exit 1' > /app/healthcheck.sh; \
+    else \
+      echo '#!/bin/sh\ncurl -f http://localhost:$PORT/ || exit 1' > /app/healthcheck.sh; \
+    fi && \
+    chmod +x /app/healthcheck.sh
+
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-     CMD curl -f -k https://localhost:${PORT}/ || exit 1
+     CMD ["/app/healthcheck.sh"]
 
 CMD ["./web-app"]
