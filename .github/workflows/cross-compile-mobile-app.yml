@@ -56,6 +56,13 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             libfuse2 \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
             patchelf
 
       - name: Install dependencies
