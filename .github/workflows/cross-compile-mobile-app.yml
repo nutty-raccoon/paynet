@@ -71,7 +71,7 @@ jobs:
         with:
           projectPath: mobile/salto
           # Release options
-          tagName: app-v__VERSION__
+          tagName: mobile-app-v__VERSION__
           releaseName: 'App v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
