@@ -55,6 +55,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
+            libfuse2 \
             patchelf
 
       - name: Install dependencies
@@ -71,6 +72,7 @@ jobs:
       - name: Import Apple Developer Certificate
         if: matrix.platform == 'macos-latest'
         env:
+          NO_STRIP: true
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
@@ -225,3 +227,11 @@ jobs:
             mobile/salto/gpg-public-key.gpg
             mobile/salto/src-tauri/target/release/bundle/appimage/*.sig
           if-no-files-found: error
+
+      - name: Setup tmate session on failure
+        if: failure() && matrix.platform == 'ubuntu-22.04'
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+          timeout-minutes: 15
+
