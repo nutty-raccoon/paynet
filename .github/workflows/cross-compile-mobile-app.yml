@@ -13,12 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
-          - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
-          # - platform: ubuntu-22.04
-          #   args: ''
+          # - platform: macos-latest
+          #   args: '--target aarch64-apple-darwin'
+          # - platform: macos-latest
+          #   args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04
+            args: ''
           # - platform: 'windows-latest'
           #   args: ''
 
@@ -45,7 +45,7 @@ jobs:
           version: "28.x"
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04' 
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
@@ -62,6 +62,7 @@ jobs:
             mobile -> mobile/target
 
       - name: Import Apple Developer Certificate
+        if: matrix.platform == 'macos-latest'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -75,8 +76,7 @@ jobs:
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security find-identity -v -p codesigning build.keychain
-      - name: Verify Certificate
-        run: |
+          # Verify certificate
           CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
@@ -88,9 +88,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
           WEB_APP_URL: https://invoice-payment.tdelabro.com
+          # macos signing
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+          # linux signing
+          SIGN: 1
+          APPIMAGETOOL_FORCE_SIGN: 1 # Fail if signing failed
+          SIGN_KEY: ${{ secrets.SIGN_KEY }}
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APPIMAGETOOL_SIGN_PASSPHRASE }}
 
         with:
           projectPath: mobile/salto
@@ -101,3 +107,114 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Export GPG public key (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: mobile/salto
+        env:
+          GPG_PASSPHRASE: ${{ secrets.APPIMAGETOOL_SIGN_PASSPHRASE }}
+          GPG_PRIVATE_KEY: ${{ secrets.SIGN_KEY }}
+        run: |
+          # Import GPG key
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          
+          # Get the key ID from the imported key
+          KEY_ID=$(gpg --list-secret-keys --with-colons | grep '^sec:' | cut -d: -f5 | head -1)
+          
+          if [ -n "$KEY_ID" ]; then
+            echo "Exporting public key for Key ID: $KEY_ID"
+            
+            # Export public key in binary format
+            gpg --batch --export "$KEY_ID" > gpg-public-key.gpg
+            
+            # Create a verification instructions file
+            {
+              echo "# GPG Signature Verification Instructions"
+              echo ""
+              echo "To verify the AppImage signature:"
+              echo ""
+              echo "1. Import the public key:"
+              echo "   gpg --import gpg-public-key.gpg"
+              echo ""
+              echo "2. Verify the signature:"
+              echo "   gpg --verify <AppImage-file>.sig <AppImage-file>"
+              echo ""
+              echo "The signature should show \"Good signature\" if the AppImage is authentic and unmodified."
+              echo ""
+              echo "Key ID: $KEY_ID"
+            } > VERIFICATION_INSTRUCTIONS.txt
+            
+            echo "Public key exported successfully"
+            ls -la gpg-public-key.gpg
+            ls -la VERIFICATION_INSTRUCTIONS.txt
+          else
+            echo "Failed to get GPG key ID"
+            exit 1
+          fi
+         
+          # Find the AppImage file
+          APPIMAGE_PATH=$(find ./src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
+          if [ -n "$APPIMAGE_PATH" ]; then
+            echo "Creating GPG detached signature for: $APPIMAGE_PATH"
+            
+            # Create detached signature
+            echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --detach-sign "$APPIMAGE_PATH"
+            
+            # Verify signature was created
+            if [ -f "${APPIMAGE_PATH}.sig" ]; then
+              echo "Signature created successfully: ${APPIMAGE_PATH}.sig"
+              ls -la "${APPIMAGE_PATH}.sig"
+            else
+              echo "Failed to create signature"
+              exit 1
+            fi
+          else
+            echo "No AppImage found to sign"
+            exit 1
+          fi
+
+      - name: Verify GPG signature before publishing (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: mobile/salto
+        run: |
+          # Clear any existing GPG state to simulate a fresh environment
+          gpg --batch --delete-secret-keys --yes || true
+          gpg --batch --delete-keys --yes || true
+          
+          # Import the public key we just exported
+          echo "Importing public key for verification..."
+          gpg --batch --import gpg-public-key.gpg
+          
+          # Find the AppImage and its signature
+          APPIMAGE_PATH=$(find ./src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
+          SIGNATURE_PATH="${APPIMAGE_PATH}.sig"
+          
+          if [ -f "$SIGNATURE_PATH" ] && [ -f "$APPIMAGE_PATH" ]; then
+            echo "Verifying signature for: $(basename "$APPIMAGE_PATH")"
+            
+            # Verify the signature
+            if gpg --batch --verify "$SIGNATURE_PATH" "$APPIMAGE_PATH" 2>&1; then
+              echo "✅ GPG signature verification PASSED"
+              echo "The AppImage signature is valid and ready for distribution"
+            else
+              echo "❌ GPG signature verification FAILED"
+              echo "The signature is invalid - build should not be published"
+              exit 1
+            fi
+          else
+            echo "❌ Required files not found:"
+            echo "AppImage: $APPIMAGE_PATH (exists: $(test -f "$APPIMAGE_PATH" && echo "yes" || echo "no"))"
+            echo "Signature: $SIGNATURE_PATH (exists: $(test -f "$SIGNATURE_PATH" && echo "yes" || echo "no"))"
+            exit 1
+          fi
+
+      - name: Upload GPG signature and public key as artifact (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-gpg-verification
+          path: |
+            mobile/salto/VERIFICATION_INSTRUCTIONS.txt
+            mobile/salto/gpg-public-key.gpg
+            mobile/salto/src-tauri/target/release/bundle/appimage/*.sig
+          if-no-files-found: error
