@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'mobile-app-v*'
 
 jobs:
   release:
@@ -65,6 +65,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
+          WEB_APP_URL: https://invoice-payment.tdelabro.com
+
         with:
           projectPath: mobile/salto
           # Release options

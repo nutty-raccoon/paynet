@@ -1,0 +1,23 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    uses: .github/workflows/ci/code-quality.yml
+  
+  build:
+    needs: code-quality
+    uses: .github/workflows/ci/build.yml
+  
+  tests:
+    needs: [code-quality, build]
+    uses: .github/workflows/ci/tests.yml
