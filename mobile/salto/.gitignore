@@ -9,5 +9,4 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-src-tauri/gen/
-src-tauri/gen/
+src-tauri/gen/android/keystore.properties
