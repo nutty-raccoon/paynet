@@ -71,10 +71,10 @@ jobs:
       - name: Import GPG Private Key
         if: matrix.platform == 'ubuntu-22.04' 
         env:
-          GPG_PRIVATE_KEY: ${{ secrets.SIGN_KEY }}
-          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.APPIMAGETOOL_SIGN_PASSPHRASE}}
+          GPG_PRIVATE_KEY: ${{ secrets.GPC_PRIVATE_KEY }}
+          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --passphrase ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
+          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --passphrase $GPG_PRIVATE_KEY_PASSPHRASE
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
@@ -89,8 +89,8 @@ jobs:
           # appimage signing
           SIGN: 1
           APPIMAGETOOL_FORCE_SIGN: 1
-          SIGN_KEY: ${{ secrets.SIGN_KEY }} 
-          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.APPIMAGETOOL_SIGN_PASSPHRASE }} 
+          SIGN_KEY: ${{ secrets.GPG_KEY_ID }} 
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }} 
 
         with:
           projectPath: mobile/salto
