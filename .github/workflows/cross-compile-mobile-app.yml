@@ -71,10 +71,10 @@ jobs:
       - name: Import GPG Private Key
         if: matrix.platform == 'ubuntu-22.04' 
         env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPC_PRIVATE_KEY }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --passphrase $GPG_PRIVATE_KEY_PASSPHRASE --verbose
+          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --yes --passphrase="$GPG_PRIVATE_KEY_PASSPHRASE"
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
