@@ -18,7 +18,7 @@ jobs:
           # - platform: macos-latest
           #   args: '--target x86_64-apple-darwin'
           - platform: ubuntu-22.04
-            args: '--verbose --bundles appimage,deb,rpm'
+            args: '--bundles appimage,deb,rpm'
           # - platform: 'windows-latest'
           #   args: ''
 
@@ -27,6 +27,23 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Import GPG Private Key
+        if: matrix.platform == 'ubuntu-22.04' 
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --yes --passphrase="$GPG_PRIVATE_KEY_PASSPHRASE"
+
+      - name: Check previous
+        run: |
+          curl -L -o  salto_0.1.0_amd64.AppImage https://github.com/nutty-raccoon/paynet/releases/download/untagged-b58e37b9a3165215ef92/salto_0.1.0_amd64.AppImage
+          curl -L -o validate https://github.com/AppImageCommunity/AppImageUpdate/releases/download/continuous/validate-x86_64.AppImage
+          chmod a+x ./validate
+          chmod a+x ./salto_0.1.0_amd64.AppImage
+          ./salto_0.1.0_amd64.AppImage --appimage-signature
+          ./validate salto_0.1.0_amd64.AppImage     
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -67,14 +84,6 @@ jobs:
       - name: Install dependencies
         working-directory: mobile/salto
         run: bun install --frozen-lockfile
-
-      - name: Import GPG Private Key
-        if: matrix.platform == 'ubuntu-22.04' 
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
-        run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --yes --passphrase="$GPG_PRIVATE_KEY_PASSPHRASE"
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
