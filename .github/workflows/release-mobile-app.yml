@@ -5,6 +5,10 @@ on:
     tags:
       - 'mobile-app-v*'
 
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     permissions:
