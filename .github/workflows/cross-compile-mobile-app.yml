@@ -62,12 +62,19 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04' 
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf gnupg2
 
       - name: Install dependencies
         working-directory: mobile/salto
         run: bun install --frozen-lockfile
 
+      - name: Import GPG Private Key
+        if: matrix.platform == 'ubuntu-22.04' 
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.SIGN_KEY }}
+          GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.APPIMAGETOOL_SIGN_PASSPHRASE}}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --passphrase ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
