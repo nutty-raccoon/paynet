@@ -17,7 +17,7 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: macos-latest
             args: '--target x86_64-apple-darwin'
-          - platform: ubuntu-22.04
+          - platform: ubuntu-latest
             args: '--bundles appimage,deb,rpm'
 
     runs-on: ${{ matrix.platform }}
@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Import GPG Private Key
-        if: matrix.platform == 'ubuntu-22.04' 
+        if: matrix.platform == 'ubuntu-latest' 
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
@@ -65,7 +65,7 @@ jobs:
             ${{ matrix.platform }}-cargo-
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' 
+        if: matrix.platform == 'ubuntu-latest' 
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf gnupg2
