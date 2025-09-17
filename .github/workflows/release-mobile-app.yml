@@ -128,10 +128,11 @@ jobs:
           echo "version_string=$VERSION_STRING" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Rename APK file
+      - name: Rename APK & AAB files
         working-directory: mobile/salto
         run: |
           mv ./src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk ./src-tauri/gen/android/app/build/outputs/apk/universal/release/salto-${{ steps.app-version.outputs.version_string }}.apk
+          mv ./src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab ./src-tauri/gen/android/app/build/outputs/bundle/universalRelease/salto-${{ steps.app-version.outputs.version_string }}.aab    
      
       - name: Publish
         uses: softprops/action-gh-release@v1
@@ -143,6 +144,7 @@ jobs:
           prerelease: false
           files: |
             mobile/salto/src-tauri/gen/android/app/build/outputs/apk/universal/release/salto-${{ steps.app-version.outputs.version_string }}.apk
+            mobile/salto/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/salto-${{ steps.app-version.outputs.version_string }}.aab    
 
       - name: Save Rust cache
         uses: actions/cache/save@v4
