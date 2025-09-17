@@ -1,4 +1,4 @@
-name: Release
+name: Descktop release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - 'desktop-app-v*'
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     strategy:
@@ -68,7 +68,7 @@ jobs:
         if: matrix.platform == 'ubuntu-latest' 
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf gnupg2
+          packages: libwebkit2gtk-4.1-dev patchelf gnupg2
           version: 1.0
 
       - name: install dependencies (ubuntu only)

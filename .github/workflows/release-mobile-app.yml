@@ -1,4 +1,4 @@
-name: Release
+name: Mobile release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - 'mobile-app-v*'
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -42,6 +42,7 @@ jobs:
           cmdline-tools-version: 12266719
 
       - name: Install NDK
+        if: steps.cache-android-sdk.outputs.cache-hit != 'true'
         run: sdkmanager "ndk;27.0.11902837"
 
       - name: setup Bun
@@ -89,7 +90,7 @@ jobs:
 
       - name: Build app bundle
         working-directory: mobile/salto
-        run: bun tauri android build -v
+        run: bun tauri android build
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.11902837
           PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
@@ -143,7 +144,7 @@ jobs:
           files: |
             mobile/salto/src-tauri/gen/android/app/build/outputs/apk/universal/release/salto-${{ steps.app-version.outputs.version_string }}.apk
 
-      - name: restore Rust cache
+      - name: Save Rust cache
         uses: actions/cache/save@v4
         if: always()
         with:
