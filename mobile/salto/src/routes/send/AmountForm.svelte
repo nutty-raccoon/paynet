@@ -3,6 +3,7 @@
   import { formatBalance, unitPrecision } from "../../utils";
   import { createWads } from "../../commands";
   import type { Wads } from "../../types/wad";
+  import { showSuccessToast } from "../../stores/toast";
 
   interface Props {
     availableUnits: string[];
@@ -58,6 +59,7 @@
 
       createWads(amountString, asset).then((wads) => {
         if (!!wads) {
+          showSuccessToast("Payment data generated successfully");
           onPaymentDataGenerated(amountString, asset, wads);
         }
       });

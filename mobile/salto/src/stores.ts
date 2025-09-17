@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Price } from './types/price';
 import type { PendingQuoteData  } from './types/quote';
 import type { NodeId, NodeData } from './types';
+import { showErrorToast } from './stores/toast';
 
 export const currentPlatform = platform();
 
@@ -13,6 +14,7 @@ export const isMobile = readable(false, (set) => {
 });
 
 export const displayCurrency = writable<string>('usd');
+export const showErrorDetail= writable<boolean>(false);
 
 // Global token prices store with managed event listener
 export const tokenPrices = readable<Price[] | null>(null, (set) => {
@@ -170,6 +172,7 @@ class QuotesPoller {
     } catch (error) {
       const duration = performance.now() - startTime;
       console.error('❌ Failed to poll pending quotes after', duration.toFixed(2) + 'ms:', error);
+      showErrorToast("Failed to refresh pending quotes. Please check your connection.", error);
       // Continue polling despite errors - the error might be temporary
     } finally {
       this.isCurrentlyPolling = false;
@@ -291,6 +294,7 @@ class NodeBalancesPoller {
     } catch (error) {
       const duration = performance.now() - startTime;
       console.error('❌ Failed to poll node balances after', duration.toFixed(2) + 'ms:', error);
+      showErrorToast("Failed to refresh account balances. Please check your connection.", error);
       // Continue polling despite errors - the error might be temporary
     } finally {
       this.isCurrentlyPolling = false;

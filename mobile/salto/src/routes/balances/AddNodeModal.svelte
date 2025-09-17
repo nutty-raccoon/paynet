@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
   import { addNode } from "../../commands";
+  import { showSuccessToast } from "../../stores/toast";
 
   interface Props {
     onClose: () => void;
@@ -9,7 +10,6 @@
   let { onClose }: Props = $props();
 
   let isLoading = $state(false);
-  let errorMessage = $state("");
 
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
@@ -22,10 +22,14 @@
 
     if (!!nodeAddress) {
       let nodeAddressString = nodeAddress.toString();
-      addNode(nodeAddressString);
+      const result = await addNode(nodeAddressString);
+      if (result !== undefined) {
+        showSuccessToast("Node added successfully");
+        onClose();
+      }
     }
-
-    onClose();
+    
+    isLoading = false;
   };
 </script>
 
@@ -52,12 +56,6 @@
         {isLoading ? "Adding node..." : "Add"}
       </button>
     </form>
-
-    {#if errorMessage}
-      <div class="error-message">
-        {errorMessage}
-      </div>
-    {/if}
   </div>
 </div>
 
@@ -162,16 +160,5 @@
   .form-group input:disabled {
     background-color: #f5f5f5;
     cursor: not-allowed;
-  }
-
-  .error-message {
-    background-color: #fee2e2;
-    color: #dc2626;
-    padding: 0.75rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    margin-top: 1rem;
-    border: 1px solid #fecaca;
-    text-align: center;
   }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { initWallet, restoreWallet } from "../../commands";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import { showErrorToast } from "../../stores/toast";
   import SeedPhraseCard from "../components/SeedPhraseCard.svelte";
 
   interface Props {
@@ -21,24 +22,24 @@
   let currentMode = $state<InitMode>(InitMode.CHOICE);
   let seedPhrase = $state("");
   let restoreSeedPhrase = $state("");
-  let errorMessage = $state("");
+  let validationError = $state("");
   let isLoading = $state(false);
   let hasSavedSeedPhrase = $state(false);
 
   const handleCreateNew = async () => {
     isLoading = true;
-    errorMessage = "";
+    validationError = "";
 
     try {
       const response = await initWallet();
       if (response) {
         seedPhrase = response.seedPhrase;
         currentMode = InitMode.SHOW_SEED;
-      } else {
-        errorMessage = "Failed to create wallet";
       }
+      // Error handling is now done in the command function via toast
     } catch (error) {
-      errorMessage = `Failed to create wallet: ${error}`;
+      // Critical errors are handled by the command function via toast
+      console.error("Unexpected error in handleCreateNew:", error);
     } finally {
       isLoading = false;
     }
@@ -46,18 +47,22 @@
 
   const handleRestore = async () => {
     if (!restoreSeedPhrase.trim()) {
-      errorMessage = "Please enter your seed phrase";
+      validationError = "Please enter your seed phrase";
       return;
     }
 
     isLoading = true;
-    errorMessage = "";
+    validationError = "";
 
     try {
-      await restoreWallet(restoreSeedPhrase.trim());
-      currentMode = InitMode.RECOVERY_SUCCESS;
+      const result = await restoreWallet(restoreSeedPhrase.trim());
+      if (result !== undefined) {
+        currentMode = InitMode.RECOVERY_SUCCESS;
+      }
+      // Error handling is now done in the command function via toast
     } catch (error) {
-      errorMessage = `Failed to restore wallet: ${error}`;
+      // Critical errors are handled by the command function via toast
+      console.error("Unexpected error in handleRestore:", error);
     } finally {
       isLoading = false;
     }
@@ -65,7 +70,7 @@
 
   const handleFinishSetup = () => {
     if (!hasSavedSeedPhrase) {
-      errorMessage = "Please confirm you have saved your seed phrase";
+      validationError = "Please confirm you have saved your seed phrase";
       return;
     }
     onWalletInitialized("pay");
@@ -76,7 +81,7 @@
   };
 
   const goBack = () => {
-    errorMessage = "";
+    validationError = "";
     if (
       currentMode === InitMode.CREATE_NEW ||
       currentMode === InitMode.RESTORE
@@ -234,9 +239,9 @@
     </div>
   {/if}
 
-  {#if errorMessage}
+  {#if validationError}
     <div class="error-message">
-      {errorMessage}
+      {validationError}
     </div>
   {/if}
 </div>

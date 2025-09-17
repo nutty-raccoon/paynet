@@ -4,6 +4,7 @@
   import ScanModal from "../scan/ScanModal.svelte";
   import { receiveWads } from "../../commands";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
+  import { showSuccessToast, showErrorToast } from "../../stores/toast";
 
   const Modal = {
     METHOD_CHOICE: 0,
@@ -27,14 +28,26 @@
     if (isMobile) {
       currentModal = Modal.QR_CODE;
     } else {
-      alert("qrcode scan only available on mobile");
+      showErrorToast("QR code scanning is only available on mobile devices");
     }
   };
 
   const handlePasteChoice = async () => {
-    const wads = await readText();
-    await receiveWads(wads);
-    onClose();
+    try {
+      const wads = await readText();
+      if (!wads || wads.trim() === "") {
+        showErrorToast("Clipboard is empty or contains no payment data");
+        return;
+      }
+      
+      const result = await receiveWads(wads);
+      if (result !== undefined) {
+        showSuccessToast("Payment received successfully");
+        onClose();
+      }
+    } catch (error) {
+      showErrorToast("Failed to read from clipboard", error);
+    }
   };
 </script>
 

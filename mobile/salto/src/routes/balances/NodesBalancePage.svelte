@@ -178,6 +178,7 @@
     gap: 1rem;
     flex: 1;
     margin-right: 1rem;
+    min-width: 0;
   }
 
   .node-url {
@@ -188,12 +189,17 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 60%;
+    min-width: 0;
+    flex-shrink: 1;
   }
 
   .node-balance {
     font-size: 1.25rem;
     font-weight: 600;
     color: #1e88e5;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .open-button {

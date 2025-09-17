@@ -2,6 +2,7 @@
   import type { EventHandler } from "svelte/elements";
   import type { NodeIdAndUrl } from "../../types";
   import { createMintQuote } from "../../commands";
+  import { showSuccessToast } from "../../stores/toast";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
@@ -11,7 +12,7 @@
   let { selectedNode, onClose }: Props = $props();
   let depositError = $state<string>("");
 
-  const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
+  const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
   ) => {
     event.preventDefault();
@@ -33,9 +34,11 @@
         return;
       }
 
-      createMintQuote(nodeId, amountString, token.toString());
-
-      onClose();
+      const result = await createMintQuote(nodeId, amountString, token.toString());
+      if (result !== undefined) {
+        showSuccessToast("Deposit quote created successfully");
+        onClose();
+      }
     }
   };
 
