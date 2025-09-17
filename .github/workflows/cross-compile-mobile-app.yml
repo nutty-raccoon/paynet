@@ -74,7 +74,7 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPC_PRIVATE_KEY }}
           GPG_PRIVATE_KEY_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --passphrase $GPG_PRIVATE_KEY_PASSPHRASE
+          echo "$GPG_PRIVATE_KEY" | gpg --import --batch --passphrase $GPG_PRIVATE_KEY_PASSPHRASE --verbose
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
