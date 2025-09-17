@@ -14,11 +14,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf gnupg2
+     
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libwebkit2gtk-4.1-dev
+          version: 1.0
 
       - name: setup Java
         uses: actions/setup-java@v4
@@ -91,6 +92,8 @@ jobs:
         run: bun tauri android build -v
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.11902837
+          PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
+          WEB_APP_URL: https://invoice-payment.tdelabro.com
 
       - name: Get Tauri App Version
         working-directory: mobile/salto
