@@ -113,11 +113,22 @@ impl PreMints {
             .collect()
     }
 
+    pub fn build_nuts_outputs(&self) -> Vec<nuts::nut00::BlindedMessage> {
+        self.pre_mints
+            .iter()
+            .map(|pm| nuts::nut00::BlindedMessage {
+                amount: pm.amount,
+                keyset_id: self.keyset_id,
+                blinded_secret: pm.blinded_secret,
+            })
+            .collect()
+    }
+
     pub fn store_new_tokens(
         self,
         tx: &Transaction,
         node_id: u32,
-        signatures: Vec<BlindSignature>,
+        signatures: Vec<nuts::nut00::BlindSignature>,
     ) -> Result<Vec<(PublicKey, Amount)>, Error> {
         db::keyset::set_counter(
             tx,
@@ -125,14 +136,7 @@ impl PreMints {
             self.initial_keyset_counter + self.pre_mints.len() as u32,
         )?;
         let signatures_iterator = self.pre_mints.into_iter().zip(signatures).map(
-            |(pm, bs)| -> Result<_, nuts::nut01::Error> {
-                Ok((
-                    PublicKey::from_slice(&bs.blind_signature)?,
-                    pm.secret,
-                    pm.r,
-                    pm.amount,
-                ))
-            },
+            |(pm, bs)| -> Result<_, nuts::nut01::Error> { Ok((bs.c, pm.secret, pm.r, pm.amount)) },
         );
 
         let new_tokens = store_new_proofs_from_blind_signatures(

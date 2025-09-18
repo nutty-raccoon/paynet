@@ -18,7 +18,7 @@ pub const CREATE_TABLE_KEYSET: &str = r#"
 pub fn upsert_many_for_node(
     conn: &Connection,
     node_id: u32,
-    keysets: Vec<node_client::Keyset>,
+    keysets: Vec<cashu_client::ClientKeyset>,
 ) -> Result<Vec<KeysetId>> {
     conn.execute(
         r#"

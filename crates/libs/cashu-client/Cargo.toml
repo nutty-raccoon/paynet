@@ -8,4 +8,5 @@ nuts = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true } 
 tonic = { workspace = true }
+tonic-types = { workspace = true }
 node-client = { workspace = true }

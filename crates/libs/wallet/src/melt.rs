@@ -1,15 +1,11 @@
-use node_client::{
-    MeltQuoteRequest, MeltQuoteResponse, MeltQuoteState, MeltResponse, NodeClient,
-    hash_melt_request,
-};
+use cashu_client::{CashuClient, ClientMeltQuoteRequest, ClientMeltQuoteResponse};
 use nuts::{Amount, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
 
 use crate::{
-    acknowledge, convert_inputs, db,
-    errors::{Error, handle_proof_verification_errors},
+    acknowledge, db,
+    errors::{Error, handle_already_spent_proofs, handle_crypto_invalid_proofs},
     fetch_inputs_ids_from_db_or_node, sync,
     types::ProofState,
     unprotected_load_tokens_from_db,
@@ -18,20 +14,19 @@ use crate::{
 
 pub async fn create_quote<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     method: String,
     unit: U,
     request: String,
-) -> Result<MeltQuoteResponse, Error> {
+) -> Result<ClientMeltQuoteResponse, Error> {
     let response = node_client
-        .melt_quote(MeltQuoteRequest {
+        .melt_quote(ClientMeltQuoteRequest {
             method: method.clone(),
             unit: unit.to_string(),
             request: request.clone(),
         })
-        .await?
-        .into_inner();
+        .await?;
 
     let db_conn = pool.get()?;
     db::melt_quote::store(&db_conn, node_id, method, request, &response)?;
@@ -43,13 +38,13 @@ pub async fn create_quote<U: Unit>(
 pub async fn pay_quote(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     quote_id: String,
     amount: Amount,
     method: String,
     unit: &str,
-) -> Result<MeltResponse, Error> {
+) -> Result<nuts::nut05::MeltResponse, Error> {
     // Gather the proofs
     let proofs_ids = fetch_inputs_ids_from_db_or_node(
         seed_phrase_manager,
@@ -64,23 +59,29 @@ pub async fn pay_quote(
     let inputs = unprotected_load_tokens_from_db(&*pool.get()?, &proofs_ids)?;
 
     // Create melt request
-    let melt_request = node_client::MeltRequest {
-        method: method.clone(),
+    let melt_request = nuts::nut05::MeltRequest {
         quote: quote_id.clone(),
-        inputs: convert_inputs(&inputs),
+        inputs: inputs,
     };
 
-    let melt_request_hash = hash_melt_request(&melt_request);
+    let melt_request_hash = nuts::nut19::hash_melt_request(&melt_request);
 
-    let melt_res = node_client.melt(melt_request).await;
+    let melt_res = node_client.melt(method, melt_request).await;
     // If this fail we won't be able to actualize the proof state. Which may lead to some bugs.
     let mut db_conn = pool.get()?;
 
     // Call the node and handle failure
     let melt_response = match melt_res {
-        Ok(r) => r.into_inner(),
+        Ok(r) => r,
         Err(e) => {
-            handle_proof_verification_errors(&e, &proofs_ids, &db_conn)?;
+            if let Some(errors) = node_client.extract_proof_errors(&e) {
+                if !errors[0].index.is_empty() {
+                    handle_already_spent_proofs(errors[0].index.clone(), &proofs_ids, &db_conn);
+                }
+                if !errors[1].index.is_empty() {
+                    handle_crypto_invalid_proofs(errors[1].index.clone(), &proofs_ids, &db_conn);
+                }
+            }
             return Err(e.into());
         }
     };
@@ -91,10 +92,10 @@ pub async fn pay_quote(
     // Relieve the node cache once we receive the answer
     acknowledge(node_client, nuts::nut19::Route::Melt, melt_request_hash).await?;
 
-    if melt_response.state == MeltQuoteState::MlqsPaid as i32 {
+    if melt_response.state == nuts::nut05::MeltQuoteState::Paid {
         let tx = db_conn.transaction()?;
         db::melt_quote::update_state(&tx, &quote_id, melt_response.state)?;
-        if !melt_response.transfer_ids.is_empty() {
+        if melt_response.transfer_ids.is_some() {
             let transfer_ids_to_store = serde_json::to_string(&melt_response.transfer_ids)?;
             db::melt_quote::register_transfer_ids(&tx, &quote_id, &transfer_ids_to_store)?;
         }
@@ -106,7 +107,7 @@ pub async fn pay_quote(
 
 pub async fn wait_for_payment(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: String,
 ) -> Result<Option<Vec<String>>, Error> {

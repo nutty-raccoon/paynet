@@ -1,5 +1,10 @@
+use std::collections::BTreeMap;
+
 use nuts::{
-    Amount, nut01, nut02,
+    Amount,
+    nut00::{BlindSignature, BlindedMessage},
+    nut01::{self, PublicKey, SetKeyPairs},
+    nut02::{self},
     nut03::{SwapRequest, SwapResponse},
     nut04::{self, MintQuoteResponse, MintRequest, MintResponse},
     nut05::{MeltQuoteState, MeltRequest, MeltResponse},
@@ -8,6 +13,12 @@ use nuts::{
 use thiserror::Error;
 
 mod grpc_client;
+mod proof_errors_handler;
+
+pub use grpc_client::GrpcClient;
+pub use proof_errors_handler::ProofErrorHandler;
+
+use crate::proof_errors_handler::ProofError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -21,6 +32,10 @@ pub enum Error {
     PublicKey(nut01::Error),
     #[error(transparent)]
     Method(nut04::Error),
+    #[error("invalid field format: '[' or ']' not found")]
+    InvalidFormat,
+    #[error("invalid index: {0}")]
+    ParseError(#[from] std::num::ParseIntError),
 }
 
 #[derive(Debug)]
@@ -58,8 +73,51 @@ pub struct NodeInfoResponse {
     pub info: String,
 }
 
+#[derive(Debug)]
+pub struct ClientKeyset {
+    pub id: Vec<u8>,
+    pub unit: String,
+    pub active: bool,
+}
+
+#[derive(Debug)]
+pub struct ClientKeysetsResponse {
+    pub keysets: Vec<ClientKeyset>,
+}
+
+#[derive(Debug)]
+pub struct ClientKeysRequest {
+    pub keyset_id: Option<Vec<u8>>,
+}
+
+#[derive(Debug)]
+pub struct ClientKey {
+    pub amount: Amount,
+    pub publickey: PublicKey,
+}
+
+#[derive(Debug)]
+pub struct ClientKeysetKeys {
+    pub id: Vec<u8>,
+    pub unit: String,
+    pub active: bool,
+    pub keys: Vec<ClientKey>,
+}
+
+pub struct ClientKeysResponse {
+    pub keysets: Vec<ClientKeysetKeys>,
+}
+
+#[derive(Debug)]
+pub struct ClientRestoreResponse {
+    pub outputs: Vec<BlindedMessage>,
+    pub signatures: Vec<BlindSignature>,
+}
+
 #[async_trait::async_trait]
-pub trait CashuClient: Send + Sync + Clone {
+pub trait CashuClient: ProofErrorHandler + Send + Sync + Clone {
+    async fn keysets(&mut self) -> Result<ClientKeysetsResponse, Error>;
+    async fn keys(&mut self, keyset_id: Option<Vec<u8>>) -> Result<ClientKeysResponse, Error>;
     async fn mint_quote(
         &mut self,
         req: ClientMintQuoteRequest,
@@ -92,4 +150,8 @@ pub trait CashuClient: Send + Sync + Clone {
     async fn info(&mut self) -> Result<NodeInfoResponse, Error>;
     async fn check_state(&mut self, req: CheckStateRequest) -> Result<CheckStateResponse, Error>;
     async fn acknowledge(&mut self, path: String, request_hash: u64) -> Result<(), Error>;
+    async fn restore(
+        &mut self,
+        outputs: Vec<BlindedMessage>,
+    ) -> Result<ClientRestoreResponse, Error>;
 }

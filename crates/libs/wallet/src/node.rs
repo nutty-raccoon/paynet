@@ -1,4 +1,5 @@
 use bitcoin::bip32::Xpriv;
+use cashu_client::CashuClient;
 use futures::{StreamExt, future::join_all};
 use node_client::{CheckStateRequest, GetKeysetsRequest, NodeClient, RestoreRequest};
 use nuts::{
@@ -36,7 +37,7 @@ pub enum RegisterNodeError {
 
 pub async fn register(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_url: &NodeUrl,
 ) -> Result<u32, RegisterNodeError> {
     let node_id = {
@@ -62,8 +63,6 @@ pub enum RestoreNodeError {
     #[error(transparent)]
     SeedPhrase(#[from] seed_phrase::Error),
     #[error(transparent)]
-    Client(#[from] tonic::Status),
-    #[error(transparent)]
     StoreNewTokens(#[from] StoreNewProofsError),
     #[error(transparent)]
     Nut01(#[from] nut01::Error),
@@ -73,13 +72,15 @@ pub enum RestoreNodeError {
     UnknownBlindSecretInRestoreResponse,
     #[error("failed to interact with wallet")]
     Wallet(#[from] crate::wallet::Error),
+    #[error(transparent)]
+    Client(#[from] cashu_client::Error),
 }
 
 pub async fn restore(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
-    node_client: NodeClient<Channel>,
+    node_client: impl CashuClient,
 ) -> Result<(), RestoreNodeError> {
     let keyset_ids = {
         let db_conn = pool.get()?;
@@ -108,7 +109,7 @@ pub async fn restore(
 async fn restore_keyset(
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
-    mut node_client: NodeClient<Channel>,
+    mut node_client: impl CashuClient,
     xpriv: Xpriv,
     keyset_id: KeysetId,
 ) -> Result<(), RestoreNodeError> {
@@ -124,20 +125,8 @@ async fn restore_keyset(
             start_count + 99,
         )?;
 
-        let outputs = blinded_messages
-            .iter()
-            .map(|bm| node_client::BlindedMessage {
-                amount: bm.amount.into(),
-                keyset_id: bm.keyset_id.to_bytes().to_vec(),
-                blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
-            })
-            .collect();
-
-        let request = RestoreRequest { outputs };
-
-        let response = node_client::NodeClient::restore(&mut node_client, request)
-            .await?
-            .into_inner();
+        let response =
+            cashu_client::CashuClient::restore(&mut node_client, blinded_messages.clone()).await?;
 
         if response.signatures.is_empty() {
             empty_response_counter += 1;
@@ -154,11 +143,11 @@ async fn restore_keyset(
                 + if response.outputs.len() == 100 {
                     99
                 } else {
-                    let last_bs =
-                        PublicKey::from_slice(&response.outputs.last().unwrap().blinded_secret)?;
                     blinded_messages
                         .iter()
-                        .position(|bm| bm.blinded_secret == last_bs)
+                        .position(|bm| {
+                            bm.blinded_secret == response.outputs.last().unwrap().blinded_secret
+                        })
                         .ok_or(RestoreNodeError::UnknownBlindSecretInRestoreResponse)?
                         as u32
                 };
@@ -167,7 +156,7 @@ async fn restore_keyset(
                 .outputs
                 .iter()
                 .map(|o| -> Result<Vec<u8>, RestoreNodeError> {
-                    let blinded_secret = PublicKey::from_slice(&o.blinded_secret)?;
+                    let blinded_secret = o.blinded_secret;
                     let (secret, _r) = secrets[&blinded_secret].clone();
                     let y: PublicKey = hash_to_curve(&secret.to_bytes())?;
 
@@ -175,30 +164,21 @@ async fn restore_keyset(
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let check_state_response = node_client
-                .check_state(CheckStateRequest { ys })
-                .await?
-                .into_inner();
+                .check_state(cashu_client::CheckStateRequest { ys })
+                .await?;
 
             let iterator = response
                 .outputs
                 .into_iter()
                 .zip(response.signatures)
-                .zip(check_state_response.states)
+                .zip(check_state_response.proof_check_states)
                 .filter_map(|((bm, bs), ps)| -> Option<Result<_, nut01::Error>> {
-                    if ps.state() != node_client::ProofState::PsUnspent {
+                    if ps.state != nuts::nut07::ProofState::Unspent {
                         None
                     } else {
-                        let blind_signature = match PublicKey::from_slice(&bs.blind_signature) {
-                            Ok(bs) => bs,
-                            Err(e) => return Some(Err(e)),
-                        };
-                        let blinded_secret = match PublicKey::from_slice(&bm.blinded_secret) {
-                            Ok(bs) => bs,
-                            Err(e) => return Some(Err(e)),
-                        };
-                        let (secret, r) = secrets[&blinded_secret].clone();
+                        let (secret, r) = secrets[&bm.blinded_secret].clone();
 
-                        Some(Ok((blind_signature, secret, r, Amount::from(bs.amount))))
+                        Some(Ok((bs.c, secret, r, Amount::from(bs.amount))))
                     }
                 });
 
@@ -217,7 +197,7 @@ async fn restore_keyset(
 #[derive(Debug, thiserror::Error)]
 pub enum RefreshNodeKeysetError {
     #[error("failed to get keysets from the node: {0}")]
-    GetKeysets(#[from] tonic::Status),
+    GetKeysets(#[from] cashu_client::Error),
     #[error("failed connect to database: {0}")]
     R2d2(#[from] r2d2::Error),
     #[error("fail to interact with the database: {0}")]
@@ -228,14 +208,10 @@ pub enum RefreshNodeKeysetError {
 
 pub async fn refresh_keysets(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
 ) -> Result<(), RefreshNodeKeysetError> {
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
+    let keysets = node_client.keysets().await?.keysets;
 
     let new_keyset_ids = {
         let db_conn = pool.get()?;
@@ -248,9 +224,7 @@ pub async fn refresh_keysets(
         let mut cloned_node_client = node_client.clone();
         futures.push(async move {
             cloned_node_client
-                .keys(node_client::GetKeysRequest {
-                    keyset_id: Some(new_keyset_id.to_bytes().to_vec()),
-                })
+                .keys(Some(new_keyset_id.to_bytes().to_vec()))
                 .await
         })
     }
@@ -259,7 +233,6 @@ pub async fn refresh_keysets(
         match res {
             // Save the keys in db
             Ok(resp) => {
-                let resp = resp.into_inner();
                 let keyset = resp.keysets;
                 let id = KeysetId::from_bytes(&keyset[0].id).map_err(|e| {
                     RefreshNodeKeysetError::InvalidKeysetValue(format!(
@@ -268,11 +241,12 @@ pub async fn refresh_keysets(
                     ))
                 })?;
                 let db_conn = pool.get()?;
-                db::insert_keyset_keys(
-                    &db_conn,
-                    id,
-                    keyset[0].keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
-                )?;
+                let keys: Vec<(u64, String)> = keyset[0]
+                    .keys
+                    .iter()
+                    .map(|k| (k.amount.into(), k.publickey.to_hex()))
+                    .collect();
+                db::insert_keyset_keys(&db_conn, id, keys.iter().map(|k| (k.0, k.1.as_str())))?;
             }
             Err(e) => {
                 error!("could not get keys for one of the keysets: {}", e);

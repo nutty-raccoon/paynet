@@ -1,3 +1,4 @@
+use cashu_client::CashuClient;
 use node_client::NodeClient;
 use num_traits::Zero;
 use nuts::{Amount, nut01::PublicKey, traits::Unit};
@@ -104,7 +105,7 @@ pub enum GatherProofIdsFromNodeError {
 pub async fn gather_proofs_ids_for_node<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
     seed_phrase_manager: impl SeedPhraseManager,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     amount: Amount,
     unit: U,

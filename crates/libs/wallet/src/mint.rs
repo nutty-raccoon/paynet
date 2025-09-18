@@ -1,14 +1,18 @@
-use node_client::{
-    MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient, hash_mint_request,
+use cashu_client::{CashuClient, ClientMintQuoteRequest, GrpcClient};
+use node_client::{MintRequest, NodeClient, hash_mint_request};
+use nuts::{
+    Amount, SplitTarget,
+    nut04::{MintQuoteResponse, MintQuoteState},
+    nut19::Route,
+    traits::Unit,
 };
-use nuts::{Amount, SplitTarget, nut04::MintQuoteState, nut19::Route, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
 
 use crate::{
     acknowledge, db,
-    errors::{Error, handle_out_of_sync_keyset_errors},
+    errors::Error,
     node::refresh_keysets,
     sync::{self, SyncMintQuoteError},
     types::{BlindingData, PreMints},
@@ -17,21 +21,20 @@ use crate::{
 
 pub async fn create_quote<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     method: String,
     amount: Amount,
     unit: U,
-) -> Result<MintQuoteResponse, Error> {
+) -> Result<MintQuoteResponse<String>, Error> {
     let response = node_client
-        .mint_quote(MintQuoteRequest {
+        .mint_quote(ClientMintQuoteRequest {
             method: method.clone(),
             amount: amount.into(),
             unit: unit.as_ref().to_string(),
             description: None,
         })
-        .await?
-        .into_inner();
+        .await?;
 
     let db_conn = pool.get()?;
     db::mint_quote::store(&db_conn, node_id, method, amount, unit.as_ref(), &response)?;
@@ -46,7 +49,7 @@ pub enum QuotePaymentIssue {
 
 pub async fn wait_for_quote_payment(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: String,
 ) -> Result<QuotePaymentIssue, SyncMintQuoteError> {
@@ -84,13 +87,15 @@ pub enum RedeemQuoteError {
     Grpc(#[from] tonic::Status),
     #[error("failed to generate pre-mints: {0}")]
     PreMints(#[from] crate::errors::Error),
+    #[error(transparent)]
+    CashuClient(#[from] cashu_client::Error),
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn redeem_quote(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: &str,
     node_id: u32,
@@ -106,22 +111,23 @@ pub async fn redeem_quote(
 
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
 
-    let outputs = pre_mints.build_node_client_outputs();
+    let outputs = pre_mints.build_nuts_outputs();
 
-    let mint_request = MintRequest {
-        method,
+    let mint_request = nuts::nut04::MintRequest {
         quote: quote_id.to_string(),
         outputs,
     };
 
-    let mint_request_hash = hash_mint_request(&mint_request);
+    let mint_request_hash = nuts::nut19::hash_mint_request(&mint_request);
 
-    let mint_result = node_client.mint(mint_request).await;
+    let mint_result = node_client.mint(mint_request, method).await;
     let mint_response = match mint_result {
-        Ok(r) => r.into_inner(),
+        Ok(r) => r,
         Err(e) => {
             // TODO: add retry once we are sync
-            handle_out_of_sync_keyset_errors(&e, pool, node_client, node_id).await?;
+            if node_client.keyset_refresh(&e) {
+                crate::node::refresh_keysets(pool, node_client, node_id).await?;
+            }
             return Err(e.into());
         }
     };

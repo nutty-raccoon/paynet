@@ -17,7 +17,7 @@ pub fn store(
     node_id: u32,
     method: String,
     request: String,
-    response: &node_client::MeltQuoteResponse,
+    response: &cashu_client::ClientMeltQuoteResponse,
 ) -> Result<()> {
     const INSERT_NEW_MELT_QUOTE: &str = r#"
         INSERT INTO melt_quote
@@ -90,7 +90,11 @@ pub fn get_pendings(conn: &Connection) -> Result<Vec<(u32, Vec<PendingMeltQuote>
     Ok(quote_per_node)
 }
 
-pub fn update_state(conn: &Connection, quote_id: &str, state: i32) -> Result<()> {
+pub fn update_state(
+    conn: &Connection,
+    quote_id: &str,
+    state: nuts::nut05::MeltQuoteState,
+) -> Result<()> {
     const UPDATE_MELT_QUOTE_STATE: &str = r#"
         UPDATE melt_quote
         SET state = ?2

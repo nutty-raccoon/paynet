@@ -1,10 +1,11 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use node_client::{NodeClient, QuoteStateRequest, UnspecifiedEnum};
-use nuts::{nut04::MintQuoteState, nut05::MeltQuoteState};
+use cashu_client::{CashuClient, CheckStateRequest};
+use node_client::UnspecifiedEnum;
+use nuts::{nut04::MintQuoteState, nut05::MeltQuoteState, nut07::ProofState};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::{Code, transport::Channel};
+use tonic::Code;
 use tracing::{Level, error, event};
 use uuid::Uuid;
 
@@ -31,7 +32,7 @@ pub struct MintQuotesStateUpdate {
 pub async fn mint_quotes(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     pending_mint_quotes: Vec<PendingMintQuote>,
 ) -> Result<MintQuotesStateUpdate, SyncMintQuotesError> {
@@ -104,8 +105,8 @@ pub enum SyncMintQuoteError {
     Delete(rusqlite::Error),
     #[error("failed to set quote state: {0}")]
     SetState(rusqlite::Error),
-    #[error("failed to intact witht he node: {0}")]
-    Tonic(#[from] tonic::Status),
+    #[error(transparent)]
+    Client(#[from] cashu_client::Error),
 }
 
 /// Sync the state of this quote from the node.
@@ -118,21 +119,16 @@ pub enum SyncMintQuoteError {
 /// otherwise returns its current state.
 pub async fn mint_quote(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: String,
 ) -> Result<Option<MintQuoteState>, SyncMintQuoteError> {
-    let response = node_client
-        .mint_quote_state(QuoteStateRequest {
-            method,
-            quote: quote_id.clone(),
-        })
-        .await;
+    let response = node_client.mint_quote_state(method, quote_id.clone()).await;
 
     let db_conn = pool.get()?;
     match response {
         Ok(response) => {
-            let response = response.into_inner();
+            let response = response;
             let state = MintQuoteState::try_from(
                 node_client::MintQuoteState::try_from(response.state)
                     .map_err(|e| SyncMintQuoteError::InvalidState(e.to_string()))?,
@@ -155,7 +151,7 @@ pub async fn mint_quote(
 
             Ok(Some(state))
         }
-        Err(s) if s.code() == Code::NotFound => {
+        Err(cashu_client::Error::Grpc(s)) if s.code() == Code::NotFound => {
             db::mint_quote::delete(&db_conn, &quote_id).map_err(SyncMintQuoteError::Delete)?;
             Ok(None)
         }
@@ -165,27 +161,22 @@ pub async fn mint_quote(
 
 pub async fn melt_quote(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: String,
 ) -> Result<Option<(MeltQuoteState, Vec<String>)>, Error> {
-    let response = node_client
-        .melt_quote_state(node_client::MeltQuoteStateRequest {
-            method,
-            quote: quote_id.clone(),
-        })
-        .await;
+    let response = node_client.melt_quote_state(method, quote_id.clone()).await;
 
     let mut db_conn = pool.get()?;
     match response {
-        Err(status) if status.code() == tonic::Code::DeadlineExceeded => {
+        Err(cashu_client::Error::Grpc(status))
+            if status.code() == tonic::Code::DeadlineExceeded =>
+        {
             db::melt_quote::delete(&db_conn, &quote_id)?;
             Ok(None)
         }
         Ok(response) => {
-            let response = response.into_inner();
-            let state =
-                MeltQuoteState::try_from(node_client::MeltQuoteState::try_from(response.state)?)?;
+            let state = response.state;
 
             let tx = db_conn.transaction()?;
             match state {
@@ -201,7 +192,7 @@ pub async fn melt_quote(
                 }
                 MeltQuoteState::Pending => {}
                 MeltQuoteState::Paid => {
-                    if !response.transfer_ids.is_empty() {
+                    if response.transfer_ids.is_some() {
                         let transfer_ids_to_store = serde_json::to_string(&response.transfer_ids)?;
                         db::melt_quote::register_transfer_ids(
                             &tx,
@@ -215,7 +206,7 @@ pub async fn melt_quote(
             db::melt_quote::update_state(&tx, &quote_id, response.state)?;
             tx.commit()?;
 
-            Ok(Some((state, response.transfer_ids)))
+            Ok(Some((state, response.transfer_ids.unwrap_or_default())))
         }
         Err(e) => Err(e)?,
     }
@@ -249,8 +240,6 @@ async fn sync_single_wad(
     sync_info: SyncData,
     root_ca_certificate: Option<tonic::transport::Certificate>,
 ) -> Result<Option<db::wad::WadStatus>, Error> {
-    use node_client::{CheckStateRequest, ProofState};
-
     let SyncData {
         id: wad_id,
         r#type: _wad_type,
@@ -273,24 +262,12 @@ async fn sync_single_wad(
     };
 
     let response = node_client.check_state(check_request).await?;
-    let states = response.into_inner().states;
-    let all_spent = states
-        .iter()
-        .all(|state| match ProofState::try_from(state.state) {
-            Ok(ProofState::PsSpent) => true,
-            Ok(ProofState::PsUnspent | ProofState::PsPending) => false,
-            Ok(_unexpected_state) => false,
-            Err(_) => false,
-        });
-
-    for state in &states {
-        ProofState::try_from(state.state).map_err(|_| {
-            Error::UnexpectedProofState(format!(
-                "Invalid proof state encountered for WAD {}: {:?}",
-                wad_id, state.state
-            ))
-        })?;
-    }
+    let states = response.proof_check_states;
+    let all_spent = states.iter().all(|state| match state.state {
+        ProofState::Spent => true,
+        ProofState::Unspent | ProofState::Pending => false,
+        ProofState::Unspecified => false,
+    });
 
     if all_spent {
         let db_conn = pool.get()?;

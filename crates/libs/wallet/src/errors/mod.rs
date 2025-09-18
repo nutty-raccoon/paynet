@@ -1,3 +1,4 @@
+use cashu_client::CashuClient;
 use node_client::{NodeClient, UnspecifiedEnum};
 use nuts::nut01::PublicKey;
 use r2d2::Pool;
@@ -74,6 +75,8 @@ pub enum Error {
     ParseError(#[from] std::num::ParseIntError),
     #[error("fail to refresh node keyset: {0}")]
     RefreshNodeKeyset(#[from] RefreshNodeKeysetError),
+    #[error(transparent)]
+    Cashu(#[from] cashu_client::Error),
 }
 
 impl From<StoreNewProofsError> for Error {
@@ -86,73 +89,7 @@ impl From<StoreNewProofsError> for Error {
     }
 }
 
-pub async fn handle_out_of_sync_keyset_errors(
-    status: &Status,
-    pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
-    node_id: u32,
-) -> Result<(), RefreshNodeKeysetError> {
-    let mut should_refresh = false;
-    if status.code() == Code::FailedPrecondition && status.message() == "inactive keyset" {
-        let error_details = status.get_error_details();
-        if let Some(precondition_failure) = error_details.precondition_failure() {
-            for failure in &precondition_failure.violations {
-                if failure.r#type == "keyset.state" {
-                    should_refresh = true;
-                }
-            }
-        }
-    }
-
-    if should_refresh {
-        crate::node::refresh_keysets(pool, node_client, node_id).await?;
-    }
-
-    Ok(())
-}
-
-pub fn handle_proof_verification_errors(
-    status: &Status,
-    proofs_ids: &[PublicKey],
-    conn: &Connection,
-) -> Result<(), Error> {
-    let error_details = status.get_error_details();
-
-    if let Some(bad_request) = error_details.bad_request() {
-        let mut crypto_failed_indices = Vec::new();
-        let mut already_spent_indices = Vec::new();
-
-        for violation in &bad_request.field_violations {
-            let proof_index = extract_proof_index(&violation.field)?;
-
-            match &violation.description {
-                desc if desc.contains("failed cryptographic verification") => {
-                    crypto_failed_indices.push(proof_index);
-                }
-                desc if desc.contains("already spent") => {
-                    already_spent_indices.push(proof_index);
-                }
-                _ => {
-                    error!(
-                        "Unknown proof error for index {}: {}",
-                        proof_index, violation.description
-                    );
-                }
-            }
-        }
-
-        if !crypto_failed_indices.is_empty() {
-            handle_crypto_invalid_proofs(crypto_failed_indices, proofs_ids, conn)?;
-        }
-
-        if !already_spent_indices.is_empty() {
-            handle_already_spent_proofs(already_spent_indices, proofs_ids, conn)?;
-        }
-    }
-    Ok(())
-}
-
-fn handle_crypto_invalid_proofs(
+pub fn handle_crypto_invalid_proofs(
     indices: Vec<u32>,
     proofs_ids: &[PublicKey],
     conn: &Connection,
@@ -176,7 +113,7 @@ fn handle_crypto_invalid_proofs(
     Ok(())
 }
 
-fn handle_already_spent_proofs(
+pub fn handle_already_spent_proofs(
     indices: Vec<u32>,
     proofs_ids: &[PublicKey],
     conn: &Connection,

@@ -6,6 +6,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
+use sqlx::types::Uuid;
 
 /// Mint settings
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -87,4 +88,57 @@ impl<'de> Deserialize<'de> for Route {
         Self::from_str(<&str>::deserialize(deserializer)?)
             .map_err(|e| serde::de::Error::custom(e.to_string()))
     }
+}
+
+use std::hash::{DefaultHasher, Hash, Hasher};
+
+use crate::{nut03::SwapRequest, nut04::MintRequest, nut05::MeltRequest};
+
+/// Hash MintRequest to a string
+/// This is used to create a unique identifier for the request
+pub fn hash_mint_request(request: &MintRequest<String>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+
+    request.quote.hash(&mut hasher);
+    for output in &request.outputs {
+        output.amount.hash(&mut hasher);
+        output.keyset_id.hash(&mut hasher);
+        output.blinded_secret.hash(&mut hasher);
+    }
+
+    hasher.finish()
+}
+
+/// Hash MeltRequest to a string
+/// This is used to create a unique identifier for the request
+pub fn hash_melt_request(request: &MeltRequest<String>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+
+    request.quote.hash(&mut hasher);
+    for input in &request.inputs {
+        input.amount.hash(&mut hasher);
+        input.keyset_id.hash(&mut hasher);
+        input.secret.hash(&mut hasher);
+        input.c.hash(&mut hasher);
+    }
+
+    hasher.finish()
+}
+
+pub fn hash_swap_request(request: &SwapRequest) -> u64 {
+    let mut hasher = DefaultHasher::new();
+
+    for input in &request.inputs {
+        input.amount.hash(&mut hasher);
+        input.keyset_id.hash(&mut hasher);
+        input.secret.hash(&mut hasher);
+        input.c.hash(&mut hasher);
+    }
+    for output in &request.outputs {
+        output.amount.hash(&mut hasher);
+        output.keyset_id.hash(&mut hasher);
+        output.blinded_secret.hash(&mut hasher);
+    }
+
+    hasher.finish()
 }

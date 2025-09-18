@@ -1,7 +1,13 @@
-use node_client::{AcknowledgeRequest, NodeClient, QuoteStateRequest};
+use std::collections::BTreeMap;
+
+use node_client::{
+    AcknowledgeRequest, GetKeysRequest, NodeClient, QuoteStateRequest, RestoreRequest,
+};
 use nuts::{
-    nut01::PublicKey,
-    nut02::KeysetId,
+    Amount,
+    nut00::{BlindSignature, BlindedMessage},
+    nut01::{KeyPair, PublicKey, SetKeyPairs},
+    nut02::{KeySet, KeysetId},
     nut03::{SwapRequest, SwapResponse},
     nut04::{MintQuoteResponse, MintQuoteState, MintRequest},
     nut05::{MeltQuoteState, MeltRequest, MeltResponse},
@@ -10,17 +16,69 @@ use nuts::{
 use tonic::transport::Channel;
 
 use crate::{
-    CashuClient, ClientMeltQuoteRequest, ClientMeltQuoteResponse, ClientMintQuoteRequest, Error,
-    NodeInfoResponse,
+    CashuClient, ClientKey, ClientKeysRequest, ClientKeysResponse, ClientKeyset, ClientKeysetKeys,
+    ClientKeysetsResponse, ClientMeltQuoteRequest, ClientMeltQuoteResponse, ClientMintQuoteRequest,
+    ClientRestoreResponse, Error, NodeInfoResponse,
 };
 
 #[derive(Clone)]
 pub struct GrpcClient {
-    node: NodeClient<Channel>,
+    pub node: NodeClient<Channel>,
 }
 
 #[async_trait::async_trait]
 impl CashuClient for GrpcClient {
+    async fn keysets(&mut self) -> Result<ClientKeysetsResponse, Error> {
+        let resp = self
+            .node
+            .keysets(node_client::GetKeysetsRequest {})
+            .await?
+            .into_inner();
+        Ok(ClientKeysetsResponse {
+            keysets: resp
+                .keysets
+                .into_iter()
+                .map(|k| ClientKeyset {
+                    id: k.id,
+                    unit: k.unit,
+                    active: k.active,
+                })
+                .collect(),
+        })
+    }
+
+    async fn keys(&mut self, keyset_id: Option<Vec<u8>>) -> Result<ClientKeysResponse, Error> {
+        let keys_request = GetKeysRequest { keyset_id };
+        let resp = self.node.keys(keys_request).await?.into_inner();
+        let keys_response = ClientKeysResponse {
+            keysets: resp
+                .keysets
+                .into_iter()
+                .map(|k| -> Result<ClientKeysetKeys, Error> {
+                    Ok(ClientKeysetKeys {
+                        id: k.id,
+                        unit: k.unit,
+                        active: k.active,
+                        keys: k
+                            .keys
+                            .into_iter()
+                            .map(|key| -> Result<ClientKey, Error> {
+                                Ok(ClientKey {
+                                    amount: Amount::from(key.amount),
+                                    publickey: PublicKey::from_slice(
+                                        &key.pubkey.as_bytes().to_vec(),
+                                    )
+                                    .map_err(crate::Error::PublicKey)?,
+                                })
+                            })
+                            .collect::<Result<Vec<ClientKey>, Error>>()?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?,
+        };
+        Ok(keys_response)
+    }
+
     async fn mint_quote(
         &mut self,
         req: ClientMintQuoteRequest,
@@ -301,5 +359,49 @@ impl CashuClient for GrpcClient {
             .await?
             .into_inner();
         Ok(())
+    }
+
+    async fn restore(
+        &mut self,
+        outputs: Vec<BlindedMessage>,
+    ) -> Result<ClientRestoreResponse, Error> {
+        let node_restore_req = RestoreRequest {
+            outputs: outputs
+                .into_iter()
+                .map(|bm| node_client::BlindedMessage {
+                    amount: bm.amount.into(),
+                    keyset_id: bm.keyset_id.to_bytes().to_vec(),
+                    blinded_secret: bm.blinded_secret.to_bytes().to_vec(),
+                })
+                .collect(),
+        };
+
+        let resp = self.node.restore(node_restore_req).await?.into_inner();
+        Ok(ClientRestoreResponse {
+            outputs: resp
+                .outputs
+                .into_iter()
+                .map(|bm| {
+                    Ok(BlindedMessage {
+                        amount: bm.amount.into(),
+                        keyset_id: KeysetId::from_bytes(&bm.keyset_id).map_err(Error::KeysetId)?,
+                        blinded_secret: PublicKey::from_slice(&bm.blinded_secret)
+                            .map_err(Error::PublicKey)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?,
+            signatures: resp
+                .signatures
+                .into_iter()
+                .map(|s| {
+                    Ok(BlindSignature {
+                        amount: s.amount.into(),
+                        keyset_id: KeysetId::from_bytes(&s.keyset_id).map_err(Error::KeysetId)?,
+                        c: PublicKey::from_slice(&s.blind_signature)
+                            .map_err(crate::Error::PublicKey)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?,
+        })
     }
 }
