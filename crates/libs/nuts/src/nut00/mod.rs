@@ -4,6 +4,7 @@ pub use errors::Error;
 use num_traits::CheckedAdd;
 use secret::Secret;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use crate::{Amount, dhke::hash_to_curve, nut01::PublicKey, nut02::KeysetId};
 
