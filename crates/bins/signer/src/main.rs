@@ -35,7 +35,7 @@ pub struct SignerState {
 
 #[tonic::async_trait]
 impl signer::Signer for SignerState {
-    #[instrument]
+    #[instrument(skip(self))]
     async fn declare_keyset(
         &self,
         declare_keyset_request: Request<DeclareKeysetRequest>,
@@ -84,7 +84,7 @@ impl signer::Signer for SignerState {
         }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn sign_blinded_messages(
         &self,
         sign_blinded_messages_request: Request<SignBlindedMessagesRequest>,
@@ -137,7 +137,7 @@ impl signer::Signer for SignerState {
         Ok(Response::new(SignBlindedMessagesResponse { signatures }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn verify_proofs(
         &self,
         verify_proofs_request: Request<VerifyProofsRequest>,
@@ -177,7 +177,7 @@ impl signer::Signer for SignerState {
         }
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn get_root_pub_key(
         &self,
         _get_root_pub_key_request: tonic::Request<GetRootPubKeyRequest>,

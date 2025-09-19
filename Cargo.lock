@@ -652,6 +652,7 @@ dependencies = [
  "nuts",
  "thiserror 2.0.12",
  "tonic 0.13.1",
+ "tonic-types",
 ]
 
 [[package]]
@@ -5532,6 +5533,7 @@ version = "0.1.0"
 dependencies = [
  "bip39",
  "bitcoin",
+ "cashu-client",
  "ciborium",
  "futures",
  "itertools",

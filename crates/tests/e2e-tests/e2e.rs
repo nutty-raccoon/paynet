@@ -23,6 +23,7 @@ pub async fn run_e2e() -> Result<()> {
     // Send
     let wad = wallet_ops
         .send(
+            node_id,
             node_url.clone(),
             10.into(),
             starknet_types::Asset::Strk,

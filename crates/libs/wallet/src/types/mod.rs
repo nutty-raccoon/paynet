@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bitcoin::bip32::Xpriv;
 use nuts::{
     Amount, SplitTarget,
@@ -144,6 +146,20 @@ pub enum ProofState {
     Pending = 2,
     Spent = 3,
     Reserved = 4,
+}
+
+impl Display for ProofState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(
+            match self {
+                ProofState::Unspent => "UNSPENT",
+                ProofState::Pending => "PENDING",
+                ProofState::Spent => "SPENT",
+                ProofState::Reserved => "RESERVED",
+            },
+            f,
+        )
+    }
 }
 
 impl ToSql for ProofState {

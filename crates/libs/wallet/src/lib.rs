@@ -12,7 +12,7 @@ pub mod wad;
 pub mod wallet;
 
 use cashu_client::{CashuClient, GrpcClient};
-use errors::Error;
+use errors::{CommonError, Error};
 use node_client::NodeClient;
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
@@ -261,11 +261,18 @@ pub async fn fetch_inputs_ids_from_db_or_node(
     Ok(Some(proofs_ids))
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("failed to load tokens from db: {0}")]
+pub enum UnprotectedLoadTokensFormDbError {
+    SetProofsToState(#[from] db::proof::SetProofsToStateError),
+    GetProofsByIds(#[from] db::proof::GetProofsByIdsError),
+}
+
 /// You should revert the state of the proofs yourself in case of error in your flow
 pub fn unprotected_load_tokens_from_db(
     db_conn: &Connection,
     proofs_ids: &[PublicKey],
-) -> Result<nut00::Proofs, rusqlite::Error> {
+) -> Result<nut00::Proofs, UnprotectedLoadTokensFormDbError> {
     if proofs_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -373,7 +380,30 @@ pub async fn swap_to_have_target_amount(
     Ok(new_tokens)
 }
 
-// TODO: custom error type
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveWadError {
+    #[error("failed to read or import node keysets: {0}")]
+    ReadOrImportNodeKeysets(#[source] crate::Error),
+    #[error("keyset unit mismatch, expected {0} got {0}")]
+    UnitMissmatch(String, String),
+    #[error(transparent)]
+    Common(#[from] CommonError),
+    #[error("amount overflow during computation of the wad total value")]
+    TotalWadAmountOverflow,
+    #[error("failed to register wad, most likely because we already seen it: {0}")]
+    RegisterWad(#[source] rusqlite::Error),
+    #[error("failed to prepare insert proof statement: {0}")]
+    PrepareInsertProofStatment(#[source] rusqlite::Error),
+    #[error("failed to prepare insert proof statement: {0}")]
+    ExecuteInsertProofStatment(#[source] rusqlite::Error),
+    #[error("failed to swap proofs with node: {0}")]
+    SwapWithNode(#[source] cashu_client::Error),
+    #[error(transparent)]
+    SetProofsToState(#[from] db::proof::SetProofsToStateError),
+    #[error(transparent)]
+    UpdateWadStatus(#[from] db::wad::UpdateWadStatusError),
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn receive_wad(
     seed_phrase_manager: impl SeedPhraseManager,
@@ -384,7 +414,7 @@ pub async fn receive_wad(
     unit: &str,
     compact_keyset_proofs: Vec<CompactKeysetProofs>,
     memo: &Option<String>,
-) -> Result<Amount, Error> {
+) -> Result<Amount, ReceiveWadError> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
             (y, node_id, keyset_id, amount, secret, unblind_signature, state)
@@ -405,36 +435,41 @@ pub async fn receive_wad(
             node_id,
             compact_keyset_proof.keyset_id,
         )
-        .await?;
+        .await
+        .map_err(ReceiveWadError::ReadOrImportNodeKeysets)?;
+
         if keyset_unit != unit {
-            return Err(Error::UnitMissmatch(keyset_unit, unit.to_string()));
+            return Err(ReceiveWadError::UnitMissmatch(
+                keyset_unit,
+                unit.to_string(),
+            ));
         }
 
         for compact_proof in compact_keyset_proof.proofs.into_iter() {
             let amount = u64::from(compact_proof.amount);
             if !amount.is_power_of_two() || amount == 0 {
-                return Err(Error::Protocol(
-                    "All proof amounts must be powers of two".to_string(),
-                ));
+                return Err(CommonError::ProofAmountPowerOfTwo(amount))?;
             }
             if amount >= max_order {
-                return Err(Error::Protocol(format!(
-                    "Proof amount {} is not less than max_order {} for keyset {}",
-                    amount, max_order, compact_keyset_proof.keyset_id
-                )));
+                return Err(CommonError::ProofAmountGreaterThanKeysetMaxOrder(
+                    compact_keyset_proof.keyset_id,
+                    max_order,
+                    amount,
+                ))?;
             }
-            let y = hash_to_curve(compact_proof.secret.as_ref())?;
+            let y =
+                hash_to_curve(compact_proof.secret.as_ref()).map_err(CommonError::HashToCurve)?;
             ys.push(y);
 
             total_amount = total_amount
                 .checked_add(&compact_proof.amount)
-                .ok_or(Error::AmountOverflow)?;
+                .ok_or(ReceiveWadError::TotalWadAmountOverflow)?;
 
-            inputs.push(node_client::Proof {
-                amount,
-                keyset_id: compact_keyset_proof.keyset_id.to_bytes().to_vec(),
-                secret: compact_proof.secret.to_string(),
-                unblind_signature: compact_proof.c.to_bytes().to_vec(),
+            inputs.push(Proof {
+                amount: amount.into(),
+                keyset_id: compact_keyset_proof.keyset_id,
+                secret: compact_proof.secret.clone(),
+                c: compact_proof.c,
             });
             stmt_params.push((
                 y,
@@ -449,38 +484,34 @@ pub async fn receive_wad(
     }
 
     let (wad_id, blinding_data) = {
-        let mut db_conn = pool.get()?;
-        let tx = db_conn.transaction()?;
+        let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
+        let tx = db_conn
+            .transaction()
+            .map_err(CommonError::CreateDbTransaction)?;
 
-        // Error if wad have already been seen
-        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_url, memo, &ys)?;
         {
-            let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
+            let mut insert_proof_stmt = tx
+                .prepare(INSERT_PROOF)
+                .map_err(ReceiveWadError::PrepareInsertProofStatment)?;
             for params in stmt_params {
-                insert_proof_stmt.execute(params)?;
+                insert_proof_stmt
+                    .execute(params)
+                    .map_err(ReceiveWadError::ExecuteInsertProofStatment)?;
             }
         }
-        let binding_data = BlindingData::load_from_db(seed_phrase_manager, &tx, node_id, unit)?;
+        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_id, node_url, memo, &ys)
+            .map_err(ReceiveWadError::RegisterWad)?;
+        let binding_data = BlindingData::load_from_db(seed_phrase_manager, &tx, node_id, unit)
+            .map_err(CommonError::LoadBlindingData)?;
 
-        tx.commit()?;
+        tx.commit().map_err(CommonError::CommitDbTransaction)?;
 
         (wad_id, binding_data)
     };
 
-    let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
+    let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)
+        .map_err(|e| CommonError::GeneratePremintsForAmount(total_amount, e))?;
     let outputs = pre_mints.build_nuts_outputs();
-
-    let inputs = inputs
-        .into_iter()
-        .map(|p| -> Result<Proof, Error> {
-            Ok(Proof {
-                amount: p.amount.into(),
-                keyset_id: KeysetId::from_bytes(&p.keyset_id)?,
-                secret: Secret::new(p.secret)?,
-                c: PublicKey::from_slice(&p.unblind_signature)?,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
 
     let swap_request = nuts::nut03::SwapRequest {
         inputs: inputs.clone(),
@@ -490,30 +521,38 @@ pub async fn receive_wad(
     let swap_result = node_client.swap(swap_request).await;
 
     {
-        let mut db_conn = pool.get()?;
+        let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
         let swap_response = match swap_result {
             Ok(r) => r,
             Err(e) => {
                 if let Some(errors) = node_client.extract_proof_errors(&e) {
                     if !errors[0].index.is_empty() {
-                        handle_already_spent_proofs(errors[0].index.clone(), &ys, &db_conn)?;
+                        handle_already_spent_proofs(errors[0].index.clone(), &ys, &db_conn)
+                            .map_err(CommonError::HandleProofVerificationErrors)?;
                     }
                     if !errors[1].index.is_empty() {
-                        handle_crypto_invalid_proofs(errors[1].index.clone(), &ys, &db_conn)?;
+                        handle_crypto_invalid_proofs(errors[1].index.clone(), &ys, &db_conn)
+                            .map_err(CommonError::HandleProofVerificationErrors)?;
                     }
                 }
-                return Err(e.into());
+                return Err(ReceiveWadError::SwapWithNode(e));
             }
         };
 
-        let tx = db_conn.transaction()?;
+        let tx = db_conn
+            .transaction()
+            .map_err(CommonError::CreateDbTransaction)?;
         db::proof::set_proofs_to_state(&tx, &ys, ProofState::Spent)?;
-        pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
+        pre_mints
+            .store_new_tokens(&tx, node_id, swap_response.signatures)
+            .map_err(CommonError::PreMintsStoreNewTokens)?;
         db::wad::update_wad_status(&tx, wad_id, db::wad::WadStatus::Finished)?;
-        tx.commit()?;
+        tx.commit().map_err(CommonError::CommitDbTransaction)?;
     }
 
-    acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
+    acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash)
+        .await
+        .map_err(|e| CommonError::AcknowledgeNodeResponse(nuts::nut19::SWAP, e))?;
 
     Ok(total_amount)
 }
@@ -597,7 +636,7 @@ pub async fn acknowledge(
     node_client: &mut impl CashuClient,
     route: Route,
     message_hash: u64,
-) -> Result<(), Error> {
+) -> Result<(), cashu_client::Error> {
     node_client
         .acknowledge(route.to_string(), message_hash)
         .await?;

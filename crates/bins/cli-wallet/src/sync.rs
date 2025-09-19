@@ -5,6 +5,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
 use wallet::db::melt_quote::PendingMeltQuote;
+use wallet::melt::format_melt_transfers_id_into_term_message;
 use wallet::types::NodeUrl;
 
 use crate::SEED_PHRASE_MANAGER;
@@ -31,6 +32,7 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
             &mut node_client,
             node_id,
             pending_quotes,
+            true,
         )
         .await?;
     }
@@ -126,20 +128,4 @@ async fn connect_to_node(
         .map_err(|e| anyhow!("Failed to connect to node {}: {}", node_url, e))?;
 
     Ok((node_client, node_url))
-}
-
-pub fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
-    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
-    if transfer_ids.len() != 1 {
-        string_to_print.push('s');
-    }
-    string_to_print.push_str(": ");
-    let mut iterator = transfer_ids.into_iter();
-    string_to_print.push_str(&iterator.next().unwrap());
-    for tx_hash in iterator {
-        string_to_print.push_str(", ");
-        string_to_print.push_str(&tx_hash);
-    }
-
-    string_to_print
 }

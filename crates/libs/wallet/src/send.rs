@@ -7,8 +7,10 @@ use rusqlite::Connection;
 use tracing::error;
 
 use crate::{
-    ConnectToNodeError, db, fetch_inputs_ids_from_db_or_node,
-    types::{NodeUrl, ProofState, compact_wad::CompactWads},
+    ConnectToNodeError, db,
+    errors::CommonError,
+    fetch_inputs_ids_from_db_or_node,
+    types::{NodeUrl, compact_wad::CompactWads},
     unprotected_load_tokens_from_db, wad,
     wallet::SeedPhraseManager,
 };
@@ -127,62 +129,39 @@ pub async fn gather_proofs_ids_for_node<U: Unit>(
 pub enum LoadProofsAndCreateWadsError {
     #[error("failed to load proofs form the database: {0}")]
     Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    Common(#[from] CommonError),
+    #[error(transparent)]
+    UnprotectedLoadTokensFormDb(#[from] crate::UnprotectedLoadTokensFormDbError),
 }
 
 pub fn load_proofs_and_create_wads(
-    db_conn: &Connection,
-    nodes_with_proofs: Vec<(NodeUrl, Vec<PublicKey>)>,
+    db_conn: &mut Connection,
+    nodes_with_proofs: Vec<((u32, NodeUrl), Vec<PublicKey>)>,
     unit: &str,
     memo: Option<String>,
 ) -> Result<CompactWads, LoadProofsAndCreateWadsError> {
     let mut wads = Vec::with_capacity(nodes_with_proofs.len());
-    let mut should_revert = None;
 
-    for (i, (node_url, proofs_ids)) in nodes_with_proofs.iter().enumerate() {
-        let proofs = match unprotected_load_tokens_from_db(db_conn, proofs_ids) {
-            Ok(p) => p,
-            Err(e) => {
-                should_revert = Some((i, e));
-                break;
-            }
-        };
-
+    let tx = db_conn
+        .transaction()
+        .map_err(CommonError::CreateDbTransaction)?;
+    for ((node_id, node_url), proofs_ids) in nodes_with_proofs.iter() {
+        let proofs = unprotected_load_tokens_from_db(&tx, proofs_ids)?;
         let wad = wad::create_from_parts(node_url.clone(), unit.to_string(), memo.clone(), proofs);
-        if let Err(e) = db::wad::register_wad(
-            db_conn,
+        db::wad::register_wad(
+            &tx,
             db::wad::WadType::OUT,
+            *node_id,
             &wad.node_url,
             &wad.memo,
             proofs_ids,
-        ) {
-            should_revert = Some((i, e));
-            break;
-        }
+        )?;
+
         wads.push(wad);
     }
-    if let Some((max_reached, cause_error)) = should_revert {
-        nodes_with_proofs
-            .iter()
-            .take(max_reached)
-            .for_each(|(node_url, proofs_id)| {
-                if let Err(e) =
-                    db::proof::set_proofs_to_state(db_conn, proofs_id, ProofState::Unspent)
-                {
-                    error!(
-                        "failed to revet state of the following proofs: {}\nProofs ids: {:?}",
-                        e, proofs_id
-                    );
-                }
-                if let Err(e) = db::wad::delete_wad(db_conn, node_url, proofs_id) {
-                    error!(
-                        "failed to revet state of wad: {}\nProofs ids: {:?}",
-                        e, proofs_id
-                    );
-                }
-            });
 
-        Err(LoadProofsAndCreateWadsError::Rusqlite(cause_error))
-    } else {
-        Ok(CompactWads::new(wads))
-    }
+    tx.commit().map_err(CommonError::CommitDbTransaction)?;
+
+    Ok(CompactWads::new(wads))
 }

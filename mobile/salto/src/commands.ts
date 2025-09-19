@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Balance, NodeData, NodeId } from "./types";
+import type { NodeData, NodeId } from "./types";
 import type { QuoteId } from "./types/quote";
 import type { WadHistoryItem, Wads } from "./types/wad";
 
@@ -10,8 +10,8 @@ export async function getNodesBalance() {
       return res;
   }
 
-export async function getPendingMintQuotes() {
-     let res =  await invoke("get_pending_mint_quotes")
+export async function getPendingQuotes() {
+     let res =  await invoke("get_pending_quotes")
        .then((message) => message as NodeData[] )
        .catch((error) => console.error(error));
       return res;
@@ -38,7 +38,6 @@ export async function getTokensPrices() {
 
 export async function addNode(nodeUrl: string) {
      const res = await invoke("add_node", {nodeUrl})
-      .then((message) => message as [NodeId, Balance[]] )
       .catch((error) => {
         console.error(`failed to add node with url '${nodeUrl}':`, error);
       });
@@ -55,10 +54,28 @@ export async function createMintQuote(nodeId: NodeId, amount: string, asset: str
       return res
 }
 
-export async function payQuote(nodeId: NodeId,quoteId: QuoteId) {
-     const res = await invoke("pay_quote", {nodeId, quoteId})
+export async function createMeltQuote(nodeId: NodeId, amount: string, asset: string, to:  string) {
+     const res = await invoke("create_melt_quote", {nodeId, method: "starknet", amount, asset, to})
+      .catch((error) => {
+        console.error(`failed to create melt quote:`, error);
+      });
+
+      return res
+}
+
+export async function payMintQuote(nodeId: NodeId, quoteId: QuoteId) {
+     const res = await invoke("pay_mint_quote", {nodeId, quoteId})
       .catch((error) => {
         console.error(`failed to pay mint quote:`, error);
+      });
+
+      return res
+}
+
+export async function payMeltQuote(nodeId: NodeId, quoteId: QuoteId) {
+     const res = await invoke("pay_melt_quote", {nodeId, quoteId})
+      .catch((error) => {
+        console.error(`failed to pay melt quote:`, error);
       });
 
       return res
@@ -127,6 +144,16 @@ export async function restoreWallet(seedPhrase: string) {
   return res;
 }
 
+export async function getSeedPhrase() {
+  const res = await invoke("get_seed_phrase")
+    .then((message) => message as string)
+    .catch((error) => {
+      console.error("failed to get seed phrase:", error);
+    });
+
+  return res;
+}
+
 export async function getWadHistory(limit?: number): Promise<WadHistoryItem[] | undefined> {
       const res = await invoke("get_wad_history", {limit})
       .then((message) => message as WadHistoryItem[])
@@ -150,6 +177,15 @@ export async function refreshNodeKeysets(nodeId: NodeId) {
       await invoke("refresh_node_keysets", {nodeId})
       .catch((error) => {
         console.error(`failed to refresh node keysets:`, error);
+      });
+
+      return;
+}
+
+export async function forgetNode(nodeId: NodeId, force: boolean) {
+      await invoke("forget_node", {nodeId, force})
+      .catch((error) => {
+        console.error(`failed to forget node:`, error);
       });
 
       return;

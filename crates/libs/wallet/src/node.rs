@@ -31,6 +31,8 @@ pub enum RegisterNodeError {
     Rusqlite(#[from] rusqlite::Error),
     #[error("fail to refresh the node {0} keyset: {1}")]
     RefreshNodeKeyset(u32, RefreshNodeKeysetError),
+    #[error("failed to get node infos: {0}")]
+    GetNodeInfso(#[from] tonic::Status),
 }
 
 pub async fn register(

@@ -1,28 +1,31 @@
 <script lang="ts">
   import { pushState } from "$app/navigation";
-  import type { NodeData, NodeId } from "../../types";
+  import type { NodeData, NodeId, NodeIdAndUrl } from "../../types";
   import { getTotalAmountInDisplayCurrency } from "../../utils";
   import {
     tokenPrices,
     displayCurrency,
-    pendingMintQuotes,
+    pendingQuotes,
+    nodeBalances,
   } from "../../stores";
   import { onMount, onDestroy } from "svelte";
   import AddNodeModal from "./AddNodeModal.svelte";
   import NodeModal from "./NodeModal.svelte";
-  import { getPendingMintQuotes } from "../../commands";
-  import { derived } from "svelte/store";
-
-  interface Props {
-    nodes: NodeData[];
-    onAddNode: (nodeData: NodeData) => void;
-  }
-
-  let { nodes, onAddNode }: Props = $props();
+  import { derived as derivedStore } from "svelte/store";
 
   // Modal state
   let isAddNodeModalOpen = $state(false);
-  let selectedNodeForModal = $state<NodeData | null>(null);
+  let selectedNodeForModal = $state<NodeIdAndUrl | null>(null);
+
+  // Reactive balances for selected node
+  let selectedNodeBalances = $derived.by(() => {
+    const selected = selectedNodeForModal;
+    if (!selected) {
+      return [];
+    } else {
+      return $nodeBalances.find((n) => n.id === selected.id)!.balances;
+    }
+  });
 
   // Modal control functions
   function openAddNodeModal() {
@@ -36,7 +39,7 @@
   }
 
   function openNodeModal(node: NodeData) {
-    selectedNodeForModal = node;
+    selectedNodeForModal = { id: node.id, url: node.url };
     // Add history entry to handle back button
     pushState("", { modal: true });
   }
@@ -74,13 +77,19 @@
     }
   }
   // Derived store that creates a Set of node IDs that have pending quotes
-  export const nodesWithPendingQuotes = derived(
-    pendingMintQuotes,
+  export const nodesWithPendingQuotes = derivedStore(
+    pendingQuotes,
     ($pendingMintQuotes) => {
       const nodeIdsWithPending = new Set<NodeId>();
 
       $pendingMintQuotes.forEach((quotes, nodeId) => {
-        if (!!quotes && (quotes.unpaid.length > 0 || quotes.paid.length > 0)) {
+        if (
+          !!quotes &&
+          (quotes.mint.unpaid.length > 0 ||
+            quotes.mint.paid.length > 0 ||
+            quotes.melt.pending.length > 0 ||
+            quotes.melt.unpaid.length > 0)
+        ) {
           nodeIdsWithPending.add(nodeId);
         }
       });
@@ -91,8 +100,6 @@
 
   onMount(() => {
     window.addEventListener("popstate", handlePopState);
-
-    getPendingMintQuotes();
   });
 
   onDestroy(() => {
@@ -101,7 +108,7 @@
 </script>
 
 <div class="nodes-container">
-  {#each nodes as node}
+  {#each $nodeBalances as node}
     <div class="node-row">
       <div class="node-info">
         <span class="node-url">{node.url}</span>
@@ -121,11 +128,15 @@
 </div>
 
 {#if isAddNodeModalOpen}
-  <AddNodeModal {nodes} onClose={closeAddNodeModal} {onAddNode} />
+  <AddNodeModal onClose={closeAddNodeModal} />
 {/if}
 
 {#if !!selectedNodeForModal}
-  <NodeModal selectedNode={selectedNodeForModal} onClose={closeNodeModal} />
+  <NodeModal
+    selectedNode={selectedNodeForModal}
+    {selectedNodeBalances}
+    onClose={closeNodeModal}
+  />
 {/if}
 
 <style>

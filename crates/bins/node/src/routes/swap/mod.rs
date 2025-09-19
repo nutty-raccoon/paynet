@@ -130,8 +130,8 @@ impl GrpcState {
         event!(
             name: "swap",
             Level::INFO,
-            name = "swap",
             amounts = serde_json::to_string(&outputs_amounts).unwrap(),
+            "Swap"
         );
         let meter = opentelemetry::global::meter("business");
         let n_swap_counter = meter.u64_counter("swap.operation.count").build();

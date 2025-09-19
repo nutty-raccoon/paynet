@@ -2,11 +2,9 @@ use std::str::FromStr;
 
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
 use tauri::{AppHandle, State};
+use tracing::{Level, event};
 
-use crate::{
-    AppState,
-    front_events::{BalanceDecreaseEvent, emit_balance_decrease_event},
-};
+use crate::{AppState, front_events::emit_trigger_balance_poll};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +29,8 @@ pub enum CreateWadsError {
     NotEnoughFundsInNode(u32),
     #[error("failed to connect to node: {0}")]
     ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error("cached connection error: {0}")]
+    CachedConnection(#[from] crate::connection_cache::ConnectionCacheError),
     #[error("failed to plan spending: {0}")]
     PlanSpending(#[from] wallet::send::PlanSpendingError),
     #[error("failed to load proofs to create wads: {0}")]
@@ -47,6 +47,7 @@ impl serde::Serialize for CreateWadsError {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip(app, state))]
 pub async fn create_wads(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -57,16 +58,29 @@ pub async fn create_wads(
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
-    let db_conn = state.pool.get()?;
+    event!(name: "planning_wad_spending", Level::INFO,
+        asset = %asset,
+        unit = %unit,
+        amount = %amount,
+        "Planning wad spending"
+    );
+
+    let mut db_conn = state.pool.get()?;
     let amount_to_use_per_node = wallet::send::plan_spending(&db_conn, amount, unit, &[])?;
 
-    let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
+    event!(name: "spending_plan_created", Level::INFO,
+        num_nodes = amount_to_use_per_node.len(),
+        total_amount = %amount,
+        "Spending plan created"
+    );
+
     let mut node_and_proofs = Vec::with_capacity(amount_to_use_per_node.len());
 
     for (node_id, amount_to_use) in amount_to_use_per_node {
-        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
-            .expect("ids come form DB, there should be an url");
-        let mut node_client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+        let mut node_client = state
+            .get_node_client_connection(node_id)
+            .await
+            .map_err(CreateWadsError::CachedConnection)?;
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
             crate::SEED_PHRASE_MANAGER,
@@ -79,19 +93,35 @@ pub async fn create_wads(
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
 
-        node_and_proofs.push((node_url, proofs_ids));
-        balance_decrease_events.push(BalanceDecreaseEvent {
-            node_id,
-            unit: unit.as_str().to_string(),
-            amount: amount_to_use.into(),
-        });
+        // Get node URL for wad creation (still needed by the wallet library)
+        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .expect("ids come form DB, there should be an url");
+
+        node_and_proofs.push(((node_id, node_url), proofs_ids));
     }
 
-    let wads =
-        wallet::send::load_proofs_and_create_wads(&db_conn, node_and_proofs, unit.as_str(), None)?;
-    for event in balance_decrease_events {
-        emit_balance_decrease_event(&app, event)?;
-    }
+    event!(name: "creating_wads_from_proofs", Level::INFO,
+        num_nodes = node_and_proofs.len(),
+        unit = %unit,
+        "Creating wads from proofs"
+    );
+
+    let wads = wallet::send::load_proofs_and_create_wads(
+        &mut db_conn,
+        node_and_proofs,
+        unit.as_str(),
+        None,
+    )?;
+
+    event!(name: "wads_created_successfully", Level::INFO,
+        wad_string_length = wads.to_string().len(),
+        unit = %unit,
+        total_amount = %amount,
+        "Wad created successfully"
+    );
+
+    // Trigger immediate balance polling
+    let _ = emit_trigger_balance_poll(&app);
 
     Ok(wads.to_string())
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { initWallet, restoreWallet } from "../../commands";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import SeedPhraseCard from "../components/SeedPhraseCard.svelte";
 
   interface Props {
     onWalletInitialized: (initialTab?: "pay" | "balances") => void;
@@ -142,12 +143,7 @@
         in a safe place. You'll need it to recover your wallet.
       </p>
 
-      <button
-        class="seed-phrase-box"
-        onclick={async () => await writeText(seedPhrase)}
-      >
-        <p class="seed-phrase-text">{seedPhrase}</p>
-      </button>
+      <SeedPhraseCard {seedPhrase} />
 
       <div class="checkbox-container">
         <label class="checkbox-label">
@@ -459,50 +455,4 @@
     max-width: 500px;
   }
 
-  .seed-phrase-box {
-    background-color: #f8f9fa;
-    border: 2px solid #e9ecef;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .seed-phrase-box::before {
-    content: "📋 Click to copy";
-    position: absolute;
-    top: 0.5rem;
-    right: 0.75rem;
-    font-size: 0.75rem;
-    color: #6b7280;
-    opacity: 0.7;
-    pointer-events: none;
-  }
-
-  .seed-phrase-box:hover {
-    background-color: #e3f2fd;
-    border-color: #1e88e5;
-    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.15);
-    transform: translateY(-1px);
-  }
-
-  .seed-phrase-box:hover::before {
-    color: #1e88e5;
-    opacity: 1;
-  }
-
-  .seed-phrase-box:active {
-    transform: translateY(0px) scale(0.98);
-    background-color: #bbdefb;
-    border-color: #1976d2;
-    box-shadow: 0 2px 6px rgba(30, 136, 229, 0.2);
-  }
-
-  .seed-phrase-box:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.3);
-  }
 </style>

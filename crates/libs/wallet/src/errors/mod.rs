@@ -1,10 +1,36 @@
 use node_client::UnspecifiedEnum;
-use nuts::nut01::PublicKey;
+use nuts::{Amount, nut01::PublicKey, nut02::KeysetId};
 use rusqlite::Connection;
 use thiserror::Error;
 use tracing::{error, info};
 
 use crate::{StoreNewProofsError, db, node::RefreshNodeKeysetError, seed_phrase};
+
+#[derive(Debug, thiserror::Error)]
+pub enum CommonError {
+    #[error("proof amounts must be powers of two, got {0}")]
+    ProofAmountPowerOfTwo(u64),
+    #[error("proof amounts cannot be greater that the keyset {0} max order {1}, got {2}")]
+    ProofAmountGreaterThanKeysetMaxOrder(KeysetId, u64, u64),
+    #[error("failed to hash the secret to the curve: {0}")]
+    HashToCurve(#[source] nuts::dhke::Error),
+    #[error("failed to start a database transaction: {0}")]
+    CreateDbTransaction(#[source] rusqlite::Error),
+    #[error("failed to commit a database transaction: {0}")]
+    CommitDbTransaction(#[source] rusqlite::Error),
+    #[error("failed to get database connection from the pool: {0}")]
+    GetDbConnection(#[source] r2d2::Error),
+    #[error("failed to load blinding data: {0}")]
+    LoadBlindingData(#[source] crate::Error),
+    #[error("failed to generate Premints for amount {0}: {1}")]
+    GeneratePremintsForAmount(Amount, #[source] crate::Error),
+    #[error("failed to handle the proofs verification errors: {0}")]
+    HandleProofVerificationErrors(#[source] crate::Error),
+    #[error("failed to store the PreMints new tokens: {0}")]
+    PreMintsStoreNewTokens(#[source] crate::Error),
+    #[error("failed to acknowledge node response to {0}: {0}")]
+    AcknowledgeNodeResponse(&'static str, #[source] cashu_client::Error),
+}
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -48,8 +74,6 @@ pub enum Error {
     Nuts(#[from] nuts::Error),
     #[error("Secret error: {0}")]
     Secret(#[from] nuts::nut00::secret::Error),
-    #[error("keyset unit mismatch, expected {0} got {0}")]
-    UnitMissmatch(String, String),
     #[error("failed to get a connection from the pool: {0}")]
     R2D2(#[from] r2d2::Error),
     #[error(transparent)]
@@ -70,6 +94,12 @@ pub enum Error {
     RefreshNodeKeyset(#[from] RefreshNodeKeysetError),
     #[error(transparent)]
     Cashu(#[from] cashu_client::Error),
+    #[error(transparent)]
+    SetProofsToState(#[from] db::proof::SetProofsToStateError),
+    #[error(transparent)]
+    GetProofsByIds(#[from] db::proof::GetProofsByIdsError),
+    #[error(transparent)]
+    UpdateWadStatusError(#[from] db::wad::UpdateWadStatusError),
 }
 
 impl From<StoreNewProofsError> for Error {
@@ -86,7 +116,7 @@ pub fn handle_crypto_invalid_proofs(
     indices: Vec<u32>,
     proofs_ids: &[PublicKey],
     conn: &Connection,
-) -> Result<(), rusqlite::Error> {
+) -> Result<(), Error> {
     info!(
         "Removing {} cryptographically invalid proofs: {:?}",
         indices.len(),
@@ -110,7 +140,7 @@ pub fn handle_already_spent_proofs(
     indices: Vec<u32>,
     proofs_ids: &[PublicKey],
     conn: &Connection,
-) -> Result<(), rusqlite::Error> {
+) -> Result<(), Error> {
     info!(
         "Removing {} already spent proofs: {:?}",
         indices.len(),

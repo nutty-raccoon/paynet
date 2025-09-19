@@ -1,23 +1,36 @@
 <script lang="ts">
-  import type { NodeData, NodeId } from "../../types";
-  import { pendingMintQuotes } from "../../stores";
-  import { derived } from "svelte/store";
+  import type { NodeId, Balance, NodeIdAndUrl } from "../../types";
+  import { pendingQuotes } from "../../stores";
+  import { derived as derivedStore } from "svelte/store";
   import DepositModal from "./DepositModal.svelte";
+  import WithdrawModal from "./WithdrawModal.svelte";
   import { formatBalance } from "../../utils";
-  import { payQuote, redeemQuote } from "../../commands";
+  import {
+    payMeltQuote,
+    payMintQuote,
+    redeemQuote,
+    forgetNode,
+  } from "../../commands";
   import type { QuoteId } from "../../types/quote";
 
   interface Props {
-    selectedNode: NodeData;
+    selectedNode: NodeIdAndUrl;
+    selectedNodeBalances: Balance[];
     onClose: () => void;
   }
 
-  let { selectedNode, onClose }: Props = $props();
-  let showDepositModal = $state(false);
+  let { selectedNode, selectedNodeBalances, onClose }: Props = $props();
+
+  type ModalState = "none" | "deposit" | "withdraw";
+  let currentModal = $state<ModalState>("none");
 
   // Get pending quotes for this specific node
-  const nodePendingQuotes = derived(pendingMintQuotes, ($pendingMintQuotes) => {
-    return $pendingMintQuotes.get(selectedNode.id) || { unpaid: [], paid: [] };
+  const nodePendingQuotes = derivedStore(pendingQuotes, ($pendingQuotes) => {
+    const nodeQuotes = $pendingQuotes.get(selectedNode.id);
+    return {
+      mint: nodeQuotes?.mint || { unpaid: [], paid: [] },
+      melt: nodeQuotes?.melt || { unpaid: [], pending: [] },
+    };
   });
 
   function handleBackdropClick(event: MouseEvent) {
@@ -27,19 +40,45 @@
   }
 
   function openDepositModal() {
-    showDepositModal = true;
+    currentModal = "deposit";
   }
 
-  function closeDepositModal() {
-    showDepositModal = false;
+  function openWithdrawModal() {
+    currentModal = "withdraw";
+  }
+
+  function closeModal() {
+    currentModal = "none";
   }
 
   function handleUnpaidQuotePay(nodeId: NodeId, quoteId: QuoteId) {
-    payQuote(nodeId, quoteId);
+    payMintQuote(nodeId, quoteId);
   }
 
   function handlePaidQuotePay(nodeId: NodeId, quoteId: QuoteId) {
     redeemQuote(nodeId, quoteId);
+  }
+
+  function handleMeltUnpaidQuotePay(nodeId: NodeId, quoteId: QuoteId) {
+    payMeltQuote(nodeId, quoteId);
+  }
+
+  // Check if node should show forget button (no balances and no pending quotes)
+  const shouldShowForgetButton = $derived.by(() => {
+    const hasBalances = selectedNodeBalances.length > 0;
+    const hasMintQuotes =
+      $nodePendingQuotes.mint.unpaid.length > 0 ||
+      $nodePendingQuotes.mint.paid.length > 0;
+    const hasMeltQuotes =
+      $nodePendingQuotes.melt.unpaid.length > 0 ||
+      $nodePendingQuotes.melt.pending.length > 0;
+
+    return !hasBalances && !hasMintQuotes && !hasMeltQuotes;
+  });
+
+  function handleForgetNode() {
+    forgetNode(selectedNode.id, false);
+    onClose();
   }
 </script>
 
@@ -54,9 +93,9 @@
       <!-- Balances Section -->
       <div class="section">
         <h3 class="section-title">Balances</h3>
-        {#if selectedNode.balances.length > 0}
+        {#if selectedNodeBalances.length > 0}
           <div class="balances-list">
-            {#each selectedNode.balances as balance}
+            {#each selectedNodeBalances as balance}
               {@const formatted = formatBalance(balance.unit, balance.amount)}
               <div class="balance-item">
                 <span class="quote-amount"
@@ -73,16 +112,16 @@
       <!-- Pending Mint Quotes Section -->
       <div class="section">
         <h3 class="section-title">Pending Mint Quotes</h3>
-        {#if $nodePendingQuotes.unpaid.length > 0 || $nodePendingQuotes.paid.length > 0}
-          {#if $nodePendingQuotes.unpaid.length > 0}
+        {#if $nodePendingQuotes.mint.unpaid.length > 0 || $nodePendingQuotes.mint.paid.length > 0}
+          {#if $nodePendingQuotes.mint.unpaid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Unpaid ({$nodePendingQuotes.unpaid.length})
+                Unpaid ({$nodePendingQuotes.mint.unpaid.length})
               </h4>
               <div class="quotes-list">
-                {#each $nodePendingQuotes.unpaid as quote}
+                {#each $nodePendingQuotes.mint.unpaid as quote}
                   {@const formatted = formatBalance(quote.unit, quote.amount)}
-                  <div class="quote-item unpaid">
+                  <div class="quote-item pending">
                     <div class="quote-info">
                       <span class="quote-amount"
                         >{formatted.assetAmount} {formatted.asset}</span
@@ -101,15 +140,15 @@
             </div>
           {/if}
 
-          {#if $nodePendingQuotes.paid.length > 0}
+          {#if $nodePendingQuotes.mint.paid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Paid ({$nodePendingQuotes.paid.length})
+                Paid ({$nodePendingQuotes.mint.paid.length})
               </h4>
               <div class="quotes-list">
-                {#each $nodePendingQuotes.paid as quote}
+                {#each $nodePendingQuotes.mint.paid as quote}
                   {@const formatted = formatBalance(quote.unit, quote.amount)}
-                  <div class="quote-item paid">
+                  <div class="quote-item pending">
                     <div class="quote-info">
                       <span class="quote-amount"
                         >{formatted.assetAmount} {formatted.asset}</span
@@ -131,18 +170,86 @@
           <p class="empty-state">No pending mint quotes</p>
         {/if}
       </div>
+
+      <!-- Pending Melt Quotes Section -->
+      <div class="section">
+        <h3 class="section-title">Pending Melt Quotes</h3>
+        {#if $nodePendingQuotes.melt.unpaid.length > 0 || $nodePendingQuotes.melt.pending.length > 0}
+          {#if $nodePendingQuotes.melt.unpaid.length > 0}
+            <div class="quotes-subsection">
+              <h4 class="subsection-title">
+                Unpaid ({$nodePendingQuotes.melt.unpaid.length})
+              </h4>
+              <div class="quotes-list">
+                {#each $nodePendingQuotes.melt.unpaid as quote}
+                  {@const formatted = formatBalance(quote.unit, quote.amount)}
+                  <div class="quote-item pending">
+                    <div class="quote-info">
+                      <span class="quote-amount"
+                        >{formatted.assetAmount} {formatted.asset}</span
+                      >
+                    </div>
+                    <button
+                      class="pay-button pending"
+                      onclick={() =>
+                        handleMeltUnpaidQuotePay(selectedNode.id, quote.id)}
+                    >
+                      Pay
+                    </button>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if $nodePendingQuotes.melt.pending.length > 0}
+            <div class="quotes-subsection">
+              <h4 class="subsection-title">
+                Pending ({$nodePendingQuotes.melt.pending.length})
+              </h4>
+              <div class="quotes-list">
+                {#each $nodePendingQuotes.melt.pending as quote}
+                  {@const formatted = formatBalance(quote.unit, quote.amount)}
+                  <div class="quote-item pending">
+                    <div class="quote-info">
+                      <span class="quote-amount"
+                        >{formatted.assetAmount} {formatted.asset}</span
+                      >
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        {:else}
+          <p class="empty-state">No pending melt quotes</p>
+        {/if}
+      </div>
     </div>
 
     <div class="modal-footer">
-      <button class="deposit-button" onclick={openDepositModal}>
-        Deposit
-      </button>
+      <div class="action-buttons">
+        <button class="deposit-button" onclick={openDepositModal}>
+          Deposit
+        </button>
+        {#if shouldShowForgetButton}
+          <button class="forget-button" onclick={handleForgetNode}>
+            Forget
+          </button>
+        {:else}
+          <button class="withdraw-button" onclick={openWithdrawModal}>
+            Withdraw
+          </button>
+        {/if}
+      </div>
     </div>
   </div>
 </div>
 
-{#if showDepositModal}
-  <DepositModal {selectedNode} onClose={closeDepositModal} />
+{#if currentModal === "deposit"}
+  <DepositModal {selectedNode} onClose={closeModal} />
+{:else if currentModal === "withdraw"}
+  <WithdrawModal {selectedNode} {selectedNodeBalances} onClose={closeModal} />
 {/if}
 
 <style>
@@ -274,6 +381,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .quote-item.pending {
     background-color: #fff3e0;
     border-left-color: #ff9800;
   }
@@ -324,8 +434,16 @@
     background-color: #f8f9fa;
   }
 
+  .action-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .action-buttons button {
+    flex: 1;
+  }
+
   .deposit-button {
-    width: 100%;
     padding: 0.8rem 1rem;
     background-color: #4caf50;
     color: white;
@@ -339,6 +457,38 @@
 
   .deposit-button:hover {
     background-color: #45a049;
+  }
+
+  .withdraw-button {
+    padding: 0.8rem 1rem;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .withdraw-button:hover {
+    background-color: #d32f2f;
+  }
+
+  .forget-button {
+    padding: 0.8rem 1rem;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .forget-button:hover {
+    background-color: #d32f2f;
   }
 
   /* Responsive adjustments */
@@ -368,7 +518,7 @@
       padding: 1rem;
     }
 
-    .deposit-button {
+    .action-buttons button {
       padding: 0.7rem 1rem;
       font-size: 0.9rem;
     }

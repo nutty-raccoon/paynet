@@ -7,10 +7,9 @@ use nuts::Amount;
 use starknet_types::{DepositPayload, Unit, constants::ON_CHAIN_CONSTANTS};
 use tonic::transport::Channel;
 
-use crate::{
-    common::error::{Error, Result},
-    common::utils::{EnvVariables, starknet::pay_invoices},
-};
+use anyhow::Result;
+
+use crate::common::utils::{EnvVariables, starknet::pay_invoices};
 
 pub async fn make_mint(
     req: MintRequest,
@@ -73,8 +72,7 @@ pub async fn wait_transac(
         match response {
             Ok(response) => {
                 let response = response.into_inner();
-                let state =
-                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
+                let state = MintQuoteState::try_from(response.state)?;
                 if state == MintQuoteState::MnqsPaid {
                     break;
                 }
@@ -100,7 +98,7 @@ pub async fn get_active_keyset(
     keysets
         .into_iter()
         .find(|ks| ks.active && ks.unit == unit)
-        .ok_or_else(|| Error::Other(anyhow::Error::msg("No active keyset found")))
+        .ok_or_else(|| anyhow::Error::msg("No active keyset found"))
 }
 
 pub async fn mint_quote_and_deposit_and_wait(

@@ -11,7 +11,9 @@ use std::fmt::{LowerHex, UpperHex};
 pub use deposit::{Depositer, Error as DepositError};
 use starknet_types::{CairoShortStringToFeltError, Unit};
 use starknet_types_core::{felt::Felt, hash::Poseidon};
-pub use withdraw::{Error as WithdrawalError, MeltPaymentRequest, Withdrawer};
+pub use withdraw::{
+    Error as WithdrawalError, MeltPaymentRequest, NewMeltPaymentRequestError, Withdrawer,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

@@ -63,27 +63,42 @@ fn build_ys_placeholder_string_for_in_statement(len: usize) -> String {
     placeholders
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("failed to set proofs to state {0}: {1}")]
+pub struct SetProofsToStateError(ProofState, #[source] rusqlite::Error);
+
 pub fn set_proofs_to_state(
     conn: &Connection,
     ys: &[PublicKey],
     state: ProofState,
-) -> Result<usize> {
+) -> Result<usize, SetProofsToStateError> {
     let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
 
     // Prepare the statement with dynamic placeholders
     let sql = format!("UPDATE proof SET state = ?1 WHERE y IN ({})", placeholders);
-    let mut stmt = conn.prepare(&sql)?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| SetProofsToStateError(state, e))?;
 
     // Bind state as first parameter
-    stmt.raw_bind_parameter(1, state)?;
+    stmt.raw_bind_parameter(1, state)
+        .map_err(|e| SetProofsToStateError(state, e))?;
     // Bind each public key string to its respective placeholder
     for (i, y) in ys.iter().enumerate() {
-        stmt.raw_bind_parameter(i + 2, y)?;
+        stmt.raw_bind_parameter(i + 2, y)
+            .map_err(|e| SetProofsToStateError(state, e))?;
     }
 
-    let rows_affected = stmt.raw_execute()?;
+    let rows_affected = stmt
+        .raw_execute()
+        .map_err(|e| SetProofsToStateError(state, e))?;
+
     Ok(rows_affected)
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed get proofs by id: {0}")]
+pub struct GetProofsByIdsError(#[from] rusqlite::Error);
 
 /// Return the proofs data related to the ids
 ///
@@ -93,7 +108,7 @@ pub fn set_proofs_to_state(
 pub fn get_proofs_by_ids(
     conn: &Connection,
     ys: &[PublicKey],
-) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>> {
+) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>, GetProofsByIdsError> {
     if ys.is_empty() {
         return Ok(Vec::new());
     }
