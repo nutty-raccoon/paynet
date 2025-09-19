@@ -54,6 +54,11 @@ pub async fn create_wads(
     amount: String,
     asset: String,
 ) -> Result<String, CreateWadsError> {
+    // Prevent two wads being created in parallel
+    // Even if our front end logic should protect us against it,
+    // is is better to also make sure it doesn't happen in the backed
+    let _create_wad_lock = state.wad_creation_lock.lock().await;
+
     let asset = Asset::from_str(&asset)?;
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;

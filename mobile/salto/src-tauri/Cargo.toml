@@ -42,7 +42,6 @@ reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 uuid = { workspace = true }
 itertools = { workspace = true }
 tonic = { workspace = true, features = ["tls-ring"] }

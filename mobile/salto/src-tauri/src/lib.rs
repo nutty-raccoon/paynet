@@ -27,10 +27,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tauri::{Listener, Manager, async_runtime};
-use tokio::sync::{RwLock, mpsc};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use tonic::transport::{Certificate, Channel};
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::background_tasks::start_price_fetcher;
 
@@ -44,19 +42,6 @@ pub fn run() {
         #[cfg(target_os = "android")]
         android_keyring::set_android_keyring_credential_builder().unwrap();
 
-        tracing_subscriber::registry()
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .with_target(false)
-                    .compact(),
-            )
-            .with(
-                EnvFilter::builder()
-                    .with_default_directive(LevelFilter::INFO.into())
-                    .from_env_lossy(),
-            )
-            .init();
-
         let builder = tauri::Builder::default();
 
         #[cfg(target_os = "macos")]
@@ -65,6 +50,7 @@ pub fn run() {
         let builder = builder.plugin(tauri_plugin_biometric::init());
 
         let builder = builder
+            .plugin(tauri_plugin_log::Builder::new().build())
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_clipboard_manager::init());
@@ -122,6 +108,7 @@ pub fn run() {
                         tls_root_ca_cert: read_tls_root_ca_cert(),
                         quote_event_sender: tx,
                         connection_cache: connection_cache.clone(),
+                        wad_creation_lock: Mutex::new(()),
                     });
 
                     // Start cache cleanup background task
@@ -185,6 +172,7 @@ struct AppState {
     tls_root_ca_cert: Certificate,
     quote_event_sender: mpsc::Sender<QuoteHandlerEvent>,
     connection_cache: Arc<ConnectionCache>,
+    wad_creation_lock: Mutex<()>,
 }
 
 #[derive(Clone, Debug)]
