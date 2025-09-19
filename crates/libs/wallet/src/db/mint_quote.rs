@@ -31,7 +31,7 @@ pub fn store(
     method: String,
     amount: Amount,
     unit: &str,
-    response: &node_client::MintQuoteResponse,
+    response: &nuts::nut04::MintQuoteResponse<String>,
 ) -> Result<()> {
     const INSERT_NEW_MINT_QUOTE: &str = r#"
         INSERT INTO mint_quote

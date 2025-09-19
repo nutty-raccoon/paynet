@@ -19,6 +19,7 @@ members = [
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
   "crates/libs/parse-asset-amount",
+  "crates/libs/cashu-client",
   # Starknet libs
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
@@ -51,6 +52,7 @@ default-members = [
   "crates/libs/wallet",
   "crates/libs/open-telemetry-tracing",
   "crates/libs/liquidity-source",
+  "crates/libs/cashu-client",
   # Starknet libs
   "crates/libs/starknet/liquidity-source",
   "crates/libs/starknet/types",
@@ -114,7 +116,7 @@ sha2 = "0.10"
 rustainers = "0.15.1"
 assert_matches = "1.5.0"
 phf = { version = "0.11.3" }
-async-trait = "0.1.88"
+async-trait = "0.1.89"
 async-stream = "0.3"
 itertools = "0.14"
 dashmap = "6.1.0"
@@ -164,3 +166,4 @@ wallet = { path = "crates/libs/wallet" }
 liquidity-source = { path = "crates/libs/liquidity-source" }
 test-utils = { path = "crates/tests/test-utils" }
 parse-asset-amount = { path = "crates/libs/parse-asset-amount" }
+cashu-client = { path = "crates/libs/cashu-client" }
