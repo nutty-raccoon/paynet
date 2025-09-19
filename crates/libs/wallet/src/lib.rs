@@ -347,14 +347,14 @@ pub async fn swap_to_have_target_amount(
                             errors[0].index.clone(),
                             &[proof_to_swap.0],
                             &db_conn,
-                        );
+                        )?;
                     }
                     if !errors[1].index.is_empty() {
                         handle_crypto_invalid_proofs(
                             errors[1].index.clone(),
                             &[proof_to_swap.0],
                             &db_conn,
-                        );
+                        )?;
                     }
                 }
                 return Err(e.into());
@@ -468,18 +468,7 @@ pub async fn receive_wad(
     };
 
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
-    let node_outputs = pre_mints.build_node_client_outputs();
-    let outputs = node_outputs
-        .clone()
-        .into_iter()
-        .map(|bm| -> Result<BlindedMessage, Error> {
-            Ok(BlindedMessage {
-                amount: bm.amount.into(),
-                keyset_id: KeysetId::from_bytes(&bm.keyset_id)?,
-                blinded_secret: PublicKey::from_slice(&bm.blinded_secret)?,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let outputs = pre_mints.build_nuts_outputs();
 
     let inputs = inputs
         .into_iter()
@@ -507,10 +496,10 @@ pub async fn receive_wad(
             Err(e) => {
                 if let Some(errors) = node_client.extract_proof_errors(&e) {
                     if !errors[0].index.is_empty() {
-                        handle_already_spent_proofs(errors[0].index.clone(), &ys, &db_conn);
+                        handle_already_spent_proofs(errors[0].index.clone(), &ys, &db_conn)?;
                     }
                     if !errors[1].index.is_empty() {
-                        handle_crypto_invalid_proofs(errors[1].index.clone(), &ys, &db_conn);
+                        handle_crypto_invalid_proofs(errors[1].index.clone(), &ys, &db_conn)?;
                     }
                 }
                 return Err(e.into());

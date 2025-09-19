@@ -1,11 +1,9 @@
 use cashu_client::CashuClient;
-use node_client::NodeClient;
 use num_traits::Zero;
 use nuts::{Amount, nut01::PublicKey, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
-use tonic::transport::Channel;
 use tracing::error;
 
 use crate::{

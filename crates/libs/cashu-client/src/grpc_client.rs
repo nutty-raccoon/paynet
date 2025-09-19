@@ -1,13 +1,11 @@
-use std::collections::BTreeMap;
-
 use node_client::{
     AcknowledgeRequest, GetKeysRequest, NodeClient, QuoteStateRequest, RestoreRequest,
 };
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
-    nut01::{KeyPair, PublicKey, SetKeyPairs},
-    nut02::{KeySet, KeysetId},
+    nut01::PublicKey,
+    nut02::KeysetId,
     nut03::{SwapRequest, SwapResponse},
     nut04::{MintQuoteResponse, MintQuoteState, MintRequest},
     nut05::{MeltQuoteState, MeltRequest, MeltResponse},
@@ -16,7 +14,7 @@ use nuts::{
 use tonic::transport::Channel;
 
 use crate::{
-    CashuClient, ClientKey, ClientKeysRequest, ClientKeysResponse, ClientKeyset, ClientKeysetKeys,
+    CashuClient, ClientKey, ClientKeysResponse, ClientKeyset, ClientKeysetKeys,
     ClientKeysetsResponse, ClientMeltQuoteRequest, ClientMeltQuoteResponse, ClientMintQuoteRequest,
     ClientRestoreResponse, Error, NodeInfoResponse,
 };

@@ -1,7 +1,6 @@
 use bitcoin::bip32::Xpriv;
 use cashu_client::CashuClient;
 use futures::{StreamExt, future::join_all};
-use node_client::{CheckStateRequest, GetKeysetsRequest, NodeClient, RestoreRequest};
 use nuts::{
     Amount,
     dhke::{self, hash_to_curve},
@@ -10,7 +9,6 @@ use nuts::{
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
 use tracing::error;
 
 use crate::{

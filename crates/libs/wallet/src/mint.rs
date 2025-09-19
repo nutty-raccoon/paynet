@@ -1,5 +1,4 @@
-use cashu_client::{CashuClient, ClientMintQuoteRequest, GrpcClient};
-use node_client::{MintRequest, NodeClient, hash_mint_request};
+use cashu_client::{CashuClient, ClientMintQuoteRequest};
 use nuts::{
     Amount, SplitTarget,
     nut04::{MintQuoteResponse, MintQuoteState},
@@ -8,7 +7,6 @@ use nuts::{
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
 
 use crate::{
     acknowledge, db,

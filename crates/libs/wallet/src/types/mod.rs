@@ -1,5 +1,4 @@
 use bitcoin::bip32::Xpriv;
-use node_client::{BlindSignature, BlindedMessage};
 use nuts::{
     Amount, SplitTarget,
     dhke::blind_message,
@@ -100,17 +99,6 @@ impl PreMints {
             initial_keyset_counter: blinding_data.keyset_counter,
             pre_mints,
         })
-    }
-
-    pub fn build_node_client_outputs(&self) -> Vec<BlindedMessage> {
-        self.pre_mints
-            .iter()
-            .map(|pm| node_client::BlindedMessage {
-                amount: pm.amount.into(),
-                keyset_id: self.keyset_id.to_bytes().to_vec(),
-                blinded_secret: pm.blinded_secret.to_bytes().to_vec(),
-            })
-            .collect()
     }
 
     pub fn build_nuts_outputs(&self) -> Vec<nuts::nut00::BlindedMessage> {

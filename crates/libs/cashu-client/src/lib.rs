@@ -1,9 +1,7 @@
-use std::collections::BTreeMap;
-
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
-    nut01::{self, PublicKey, SetKeyPairs},
+    nut01::{self, PublicKey},
     nut02::{self},
     nut03::{SwapRequest, SwapResponse},
     nut04::{self, MintQuoteResponse, MintRequest, MintResponse},
@@ -18,11 +16,9 @@ mod proof_errors_handler;
 pub use grpc_client::GrpcClient;
 pub use proof_errors_handler::ProofErrorHandler;
 
-use crate::proof_errors_handler::ProofError;
-
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error(transparent)]
+    #[error("gRPC error: {0}")]
     Grpc(#[from] tonic::Status),
     #[error("Invalid State in {method}")]
     InvalidState { method: String },
