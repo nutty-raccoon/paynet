@@ -40,5 +40,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Read QR codes</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authenticate with biometric</string>
 </dict>
 </plist>

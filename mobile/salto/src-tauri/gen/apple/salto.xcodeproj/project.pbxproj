@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -22,43 +22,43 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0793F1812FF0FC79F651C5F1 /* background_tasks.rs */ = {isa = PBXFileReference; path = background_tasks.rs; sourceTree = "<group>"; };
+		0793F1812FF0FC79F651C5F1 /* background_tasks.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = background_tasks.rs; sourceTree = "<group>"; };
 		0EAB19B590E981A50AA71DF7 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		10B9FC36530543F8F7EEE1C3 /* receive.rs */ = {isa = PBXFileReference; path = receive.rs; sourceTree = "<group>"; };
+		10B9FC36530543F8F7EEE1C3 /* receive.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = receive.rs; sourceTree = "<group>"; };
 		18AA8D292FC4C61704F57933 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		2A073A2779F8D506C2DC4016 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
-		2C2E1F746E22C03CE9186D30 /* migrations.rs */ = {isa = PBXFileReference; path = migrations.rs; sourceTree = "<group>"; };
-		311A9FF800CE84A02464B557 /* get_nodes_balance.rs */ = {isa = PBXFileReference; path = get_nodes_balance.rs; sourceTree = "<group>"; };
+		2A073A2779F8D506C2DC4016 /* lib.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = lib.rs; sourceTree = "<group>"; };
+		2C2E1F746E22C03CE9186D30 /* migrations.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = migrations.rs; sourceTree = "<group>"; };
+		311A9FF800CE84A02464B557 /* get_nodes_balance.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = get_nodes_balance.rs; sourceTree = "<group>"; };
 		381CBF6166D560C07FDF2D40 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
-		4364BB88AA174FFD332B3B41 /* wallet.rs */ = {isa = PBXFileReference; path = wallet.rs; sourceTree = "<group>"; };
+		4364BB88AA174FFD332B3B41 /* wallet.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = wallet.rs; sourceTree = "<group>"; };
 		51F2256C3620ED866BD57619 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		53D32623CB7F945DF4ED6DB0 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
-		5DBCCC9F1005E441BB51B366 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
-		5DF5BC227DB5E6F458E1002F /* salto_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = salto_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		647A53401CB44D5D11CA9024 /* prices_provider.rs */ = {isa = PBXFileReference; path = prices_provider.rs; sourceTree = "<group>"; };
+		5DBCCC9F1005E441BB51B366 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
+		5DF5BC227DB5E6F458E1002F /* salto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = salto.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		647A53401CB44D5D11CA9024 /* prices_provider.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = prices_provider.rs; sourceTree = "<group>"; };
 		6792E10C7C1FD755244CB9A3 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
-		6B59C7601462309492F4A82E /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		6B59C7601462309492F4A82E /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
 		6C09EC79575A805C61101DF9 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
-		77E7C39DF79D41E323616CA1 /* connection_cache.rs */ = {isa = PBXFileReference; path = connection_cache.rs; sourceTree = "<group>"; };
-		7860FBF46AED1AA946052B94 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
-		7DAE743B0D0FFA8B47B44CE6 /* withdraw.rs */ = {isa = PBXFileReference; path = withdraw.rs; sourceTree = "<group>"; };
+		77E7C39DF79D41E323616CA1 /* connection_cache.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = connection_cache.rs; sourceTree = "<group>"; };
+		7860FBF46AED1AA946052B94 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
+		7DAE743B0D0FFA8B47B44CE6 /* withdraw.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = withdraw.rs; sourceTree = "<group>"; };
 		8E57F4ABA53896857E3C14E2 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
-		A29C500C4949CF878E288A6B /* wad_events.rs */ = {isa = PBXFileReference; path = wad_events.rs; sourceTree = "<group>"; };
-		A3883AA16F94EC8C352F6D2B /* deposit.rs */ = {isa = PBXFileReference; path = deposit.rs; sourceTree = "<group>"; };
+		A29C500C4949CF878E288A6B /* wad_events.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = wad_events.rs; sourceTree = "<group>"; };
+		A3883AA16F94EC8C352F6D2B /* deposit.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = deposit.rs; sourceTree = "<group>"; };
 		AC0C8FBB22225F91A21EC60D /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		B57298FE0556180EA90342C2 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		B842D8C0DE6EB7E0BBB1AECE /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
-		BDB75193B3CF2FDDAD68E491 /* history.rs */ = {isa = PBXFileReference; path = history.rs; sourceTree = "<group>"; };
-		D6D0C9B6D542A93F89073F14 /* quote_handler.rs */ = {isa = PBXFileReference; path = quote_handler.rs; sourceTree = "<group>"; };
+		BDB75193B3CF2FDDAD68E491 /* history.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = history.rs; sourceTree = "<group>"; };
+		D6D0C9B6D542A93F89073F14 /* quote_handler.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = quote_handler.rs; sourceTree = "<group>"; };
 		D82E2885126D059EEC549BB6 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
-		DC12B5BD7C730C7DD6A8C994 /* create.rs */ = {isa = PBXFileReference; path = create.rs; sourceTree = "<group>"; };
+		DC12B5BD7C730C7DD6A8C994 /* create.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = create.rs; sourceTree = "<group>"; };
 		E359FAD06997B937D8FDA244 /* salto_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = salto_iOS.entitlements; sourceTree = "<group>"; };
-		E75E3D154C8B9CB3253F76C6 /* node.rs */ = {isa = PBXFileReference; path = node.rs; sourceTree = "<group>"; };
+		E75E3D154C8B9CB3253F76C6 /* node.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = node.rs; sourceTree = "<group>"; };
 		EE31D60AEEFFD51AAF981D2A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		F0C6ED1C4E6CDAEC25753E29 /* price_events.rs */ = {isa = PBXFileReference; path = price_events.rs; sourceTree = "<group>"; };
-		F3650F414B15A38D15C97B93 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		F0C6ED1C4E6CDAEC25753E29 /* price_events.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = price_events.rs; sourceTree = "<group>"; };
+		F3650F414B15A38D15C97B93 /* main.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.rs; sourceTree = "<group>"; };
 		FA137394F1A84323870A34DE /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
-		FB178476EFB4D8F71FED0208 /* errors.rs */ = {isa = PBXFileReference; path = errors.rs; sourceTree = "<group>"; };
+		FB178476EFB4D8F71FED0208 /* errors.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = errors.rs; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,7 +145,7 @@
 		49C64197EE530DBDCF712075 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				5DF5BC227DB5E6F458E1002F /* salto_iOS.app */,
+				5DF5BC227DB5E6F458E1002F /* salto.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -232,7 +232,7 @@
 			packageProductDependencies = (
 			);
 			productName = salto_iOS;
-			productReference = 5DF5BC227DB5E6F458E1002F /* salto_iOS.app */;
+			productReference = 5DF5BC227DB5E6F458E1002F /* salto.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -254,7 +254,6 @@
 			);
 			mainGroup = FF139DF800047AB9B9053759;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -316,12 +315,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = (
-					arm64,
-				);
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = salto_iOS/salto_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 8YYK3AW43Z;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -333,9 +331,21 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.salto.app;
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tdelabro.salto;
 				PRODUCT_NAME = salto;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -410,12 +420,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ARCHS = (
-					arm64,
-				);
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = salto_iOS/salto_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 8YYK3AW43Z;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -427,9 +436,21 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
-				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME) $(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.salto.app;
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION)",
+					"$(SDKROOT)/usr/lib/swift",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
+					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tdelabro.salto;
 				PRODUCT_NAME = salto;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

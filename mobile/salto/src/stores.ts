@@ -9,10 +9,6 @@ import { showErrorToast } from './stores/toast';
 
 export const currentPlatform = platform();
 
-export const isMobile = readable(false, (set) => {
-  set(currentPlatform == "ios" || currentPlatform == "android");
-});
-
 export const displayCurrency = writable<string>('usd');
 export const showErrorDetail= writable<boolean>(false);
 

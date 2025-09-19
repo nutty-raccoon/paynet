@@ -1,6 +1,5 @@
 <script lang="ts">
   import ReceivingMethodChoice from "./ReceivingMethodChoice.svelte";
-  import { isMobile } from "../..//stores.js";
   import ScanModal from "../scan/ScanModal.svelte";
   import { receiveWads } from "../../commands";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -25,11 +24,7 @@
   };
 
   const handleQRCodeChoice = () => {
-    if (isMobile) {
-      currentModal = Modal.QR_CODE;
-    } else {
-      showErrorToast("QR code scanning is only available on mobile devices");
-    }
+    currentModal = Modal.QR_CODE;
   };
 
   const handlePasteChoice = async () => {
@@ -39,7 +34,7 @@
         showErrorToast("Clipboard is empty or contains no payment data");
         return;
       }
-      
+
       const result = await receiveWads(wads);
       if (result !== undefined) {
         showSuccessToast("Payment received successfully");
