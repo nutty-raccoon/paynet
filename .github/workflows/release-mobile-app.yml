@@ -10,15 +10,94 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  ios:
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-     
+
+      - name: Setup CocoaPods
+        run: |
+          sudo gem install cocoapods
+          pod --version
+
+      - name: Setup Appstore Connect signing
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys/
+          base64 -d <<< "${{ secrets.APPSTORE_CONNECT_PRIVATE_KEY_BASE64 }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPSTORE_CONNECT_API_KEY }}.p8
+
+      - name: setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+
+      - name: install bun dependencies
+        working-directory: mobile/salto
+        run: bun install --frozen-lockfile
+
+      - name: restore Rust cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: macos-latest-cargo-mobile-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            macos-latest-cargo-mobile-
+
+      - name: Build iOS app
+        working-directory: mobile/salto
+        run: bun tauri ios build --export-method app-store-connect
+        env:
+          PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
+          WEB_APP_URL: https://invoice-payment.tdelabro.com
+
+      - name: Publish
+        run: |
+           xcrun altool --upload-app --type ios --file "mobile/salto/src-tauri/gen/apple/build/arm64/salto.ipa" --apiKey ${{ secrets.APPSTORE_CONNECT_API_KEY }} --apiIssuer ${{ secrets.APPSTORE_CONNECT_API_ISSUER }}
+
+      - name: Save Rust cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: macos-latest-cargo-mobile-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain || true
+
+  android:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+   
       - name: Install system dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
@@ -59,7 +138,7 @@ jobs:
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
-          
+        
       - uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -137,7 +216,7 @@ jobs:
         run: |
           mv ./src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk ./src-tauri/gen/android/app/build/outputs/apk/universal/release/salto-${{ steps.app-version.outputs.version_string }}.apk
           mv ./src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab ./src-tauri/gen/android/app/build/outputs/bundle/universalRelease/salto-${{ steps.app-version.outputs.version_string }}.aab    
-     
+   
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
