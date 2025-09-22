@@ -45,6 +45,6 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authenticate with biometric</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
+	<false/>
 </dict>
 </plist>

@@ -96,7 +96,7 @@ jobs:
           WEB_APP_URL: https://invoice-payment.tdelabro.com
           # macos signing
           APPLE_CERTIFICATE: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_PASSWORD }}
           # macos notarization
           APPLE_API_ISSUER: ${{ vars.APPSTORE_ISSUER_ID }}
           APPLE_API_KEY: ${{ vars.APPSTORE_API_KEY_ID }}

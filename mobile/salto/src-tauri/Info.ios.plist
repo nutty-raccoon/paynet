@@ -6,5 +6,7 @@
     <string>Read QR codes</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Authenticate with biometric</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
   </dict>
 </plist>
