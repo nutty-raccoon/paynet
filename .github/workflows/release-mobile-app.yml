@@ -65,8 +65,8 @@ jobs:
           WEB_APP_URL: https://invoice-payment.tdelabro.com
           # ios signing
           IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
-          IOS_CERTIFICATE: ${{ secrets.APPSTORE_IOS_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_IOS_DISTRIBUTION_CERTIFICATES_PASSWORD }}
+          IOS_CERTIFICATE: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_PASSWORD }}
 
       - name: 'Upload app to TestFlight'
         uses: apple-actions/upload-testflight-build@v3

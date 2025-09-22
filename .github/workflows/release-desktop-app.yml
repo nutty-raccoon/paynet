@@ -92,8 +92,8 @@ jobs:
           PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
           WEB_APP_URL: https://invoice-payment.tdelabro.com
           # macos signing
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
           APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
           # appimage signing
           SIGN: 1
