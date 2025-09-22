@@ -318,8 +318,11 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = salto_iOS/salto_iOS.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 8YYK3AW43Z;
+				CODE_SIGN_IDENTITY = "Apple Distribution: TIMOTHEE DELABROUILLE (8YYK3AW43Z)";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution: TIMOTHEE DELABROUILLE (8YYK3AW43Z)";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "8YYK3AW43Z";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = "8YYK3AW43Z";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -347,6 +350,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tdelabro.salto;
 				PRODUCT_NAME = "salto";
+				PROVISIONING_PROFILE_SPECIFIER = "8e18a9b8-b1e6-47a8-a22a-90db2950176e";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "8e18a9b8-b1e6-47a8-a22a-90db2950176e";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
@@ -423,8 +428,9 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = salto_iOS/salto_iOS.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 8YYK3AW43Z;
+				CODE_SIGN_IDENTITY = "Apple Distribution: TIMOTHEE DELABROUILLE (8YYK3AW43Z)";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "8YYK3AW43Z";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -452,11 +458,15 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tdelabro.salto;
 				PRODUCT_NAME = "salto";
+				PROVISIONING_PROFILE_SPECIFIER = "8e18a9b8-b1e6-47a8-a22a-90db2950176e";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution: TIMOTHEE DELABROUILLE (8YYK3AW43Z)";
 			};
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = "8YYK3AW43Z";
 			name = debug;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "8e18a9b8-b1e6-47a8-a22a-90db2950176e";
 		};
 		FE8819A854BE9ED18FB5EC42 /* release */ = {
 			isa = XCBuildConfiguration;
