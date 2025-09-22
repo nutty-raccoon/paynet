@@ -100,7 +100,6 @@ jobs:
           APPIMAGETOOL_FORCE_SIGN: 1
           SIGN_KEY: ${{ secrets.GPG_KEY_ID }} 
           APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }} 
-
         with:
           projectPath: mobile/salto
           # Release options
