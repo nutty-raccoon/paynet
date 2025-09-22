@@ -53,9 +53,9 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: macos-latest-cargo-mobile-${{ hashFiles('**/Cargo.lock') }}
+          key: ios-latest-cargo-mobile-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            macos-latest-cargo-mobile-
+            ios-latest-cargo-mobile-
 
       - name: Build iOS app
         working-directory: mobile/salto
@@ -87,7 +87,7 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: macos-latest-cargo-mobile-${{ hashFiles('**/Cargo.lock') }}
+          key: ios-latest-cargo-mobile-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cleanup keychain
         if: always()
