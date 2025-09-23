@@ -1,3 +1,3 @@
-package com.salto.app
+package com.tdelabro.salto
 
 class MainActivity : TauriActivity()

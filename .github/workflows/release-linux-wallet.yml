@@ -1,4 +1,4 @@
-name: Desktop release
+name: Linux Wallet Release
 
 on:
   push:

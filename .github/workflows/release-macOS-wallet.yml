@@ -1,4 +1,4 @@
-name: Release macOS wallet
+name: macOS Wallet Release
 
 on:
   push:
