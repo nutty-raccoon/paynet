@@ -185,5 +185,5 @@ jobs:
           draft: true
           prerelease: false
           files: |
-            ./artifacts/mobile/salto/src-tauri/gen/android/app/build/outputs/apk/universal/release/salto-${{ needs.build.outputs.version_string }}.apk
-            ./artifacts/mobile/salto/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/salto-${{ needs.build.outputs.version_string }}.aab
+            ./artifacts/apk/universal/release/salto-0.1.0.apk
+            ./artifacts/bundle/universalRelease/salto-0.1.0.aab
