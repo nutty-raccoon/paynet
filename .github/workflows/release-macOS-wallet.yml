@@ -96,8 +96,8 @@ jobs:
       - name: Build for Appstore
         working-directory: mobile/salto
         run: |
-          bun tauri build --no-bundle ${{ matrix.args }} 
-          bun tauri bundle --config src-tauri/tauri.appstore.conf.json --bundles app ${{ matrix.args }} 
+          bun tauri build --no-bundle --target ${{ matrix.target }} 
+          bun tauri bundle --config src-tauri/tauri.appstore.conf.json --bundles app --target ${{ matrix.target }} 
 
       - name: Import Apple Installer-Signing Certificates
         uses: apple-actions/import-codesign-certs@v3
