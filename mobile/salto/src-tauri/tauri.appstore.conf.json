@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "macOS": {
+      "entitlements": "./Entitlements.plist",
+      "files": {
+        "embedded.provisionprofile": "./macOS_distribution.provisionprofile"
+      },
+      "signingIdentity": "Apple Distribution: TIMOTHEE DELABROUILLE (8YYK3AW43Z)"
+    }
+  }
+}

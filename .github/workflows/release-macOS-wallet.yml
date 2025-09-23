@@ -1,0 +1,133 @@
+name: Release macOS wallet
+
+on:
+  push:
+    tags:
+      - 'macOS-wallet-v*'
+
+concurrency:
+  group: macOS-wallet-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: 'aarch64-apple-darwin'
+          - platform: macos-latest
+            target: 'x86_64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download appleconnect Private Key
+        if: matrix.platform == 'macos-latest' 
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo ${{ secrets.APPSTORE_CONNECT_PRIVATE_KEY_BASE64 }} | base64 -d >> ~/.appstoreconnect/private_keys/AuthKey_${{ vars.APPSTORE_API_KEY_ID }}.p8         
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Restore Rust cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.platform }}-${{ matrix.target}}-wallet-
+            ${{ matrix.platform }}-${{ matrix.target}}-
+
+      - name: Install js dependencies
+        working-directory: mobile/salto
+        run: bun install --frozen-lockfile
+
+      - name: Build for Ad Hoc
+        uses: tauri-apps/tauri-action@v0.5.23
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
+          WEB_APP_URL: https://invoice-payment.tdelabro.com
+          # macos signing
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_FILE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+        with:
+          projectPath: mobile/salto
+          # Release options
+          tagName: macOS-wallet-v__VERSION__
+          releaseName: 'macOS wallet v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+      - name: Import Apple Store Code-Signing Certificates
+        uses: apple-actions/import-codesign-certs@v3
+        with: 
+          p12-file-base64: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
+          p12-password: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_PASSWORD }}
+
+      - name: Build for Appstore
+        working-directory: mobile/salto
+        run: |
+          bun tauri build --no-bundle ${{ matrix.args }} 
+          bun tauri bundle --config src-tauri/tauri.appstore.conf.json --bundles app ${{ matrix.args }} 
+
+      - name: Import Apple Installer-Signing Certificates
+        uses: apple-actions/import-codesign-certs@v3
+        with: 
+          p12-file-base64: ${{ secrets.APPLE_3RD_PARTY_MAC_DEVELOPER_INSTALLER_CERTIFICATE_FILE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_3RD_PARTY_MAC_DEVELOPER_INSTALLER_CERTIFICATE_PASSWORD }}
+
+      - name: Sign Appstore build
+        working-directory: mobile
+        if: matrix.platform == 'macos-latest' 
+        run: |
+          xcrun productbuild --sign "3rd Party Mac Developer Installer: TIMOTHEE DELABROUILLE (8YYK3AW43Z)" \
+            --component "target/${{ matrix.target }}/release/bundle/macos/Salto.app" /Applications "Salto.pkg"
+
+      - name: Upload Appstore build
+        working-directory: mobile
+        if: matrix.platform == 'macos-latest' 
+        run: |
+          xcrun altool --upload-app --type macos --file "Salto.pkg" \
+            --apiKey ${{ vars.APPSTORE_API_KEY_ID }} --apiIssuer ${{ vars.APPSTORE_ISSUER_ID }}
+
+      - name: Save Rust cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('**/Cargo.lock') }}

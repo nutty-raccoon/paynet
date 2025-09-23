@@ -1,0 +1,91 @@
+name: Descktop release
+
+on:
+  push:
+    tags:
+      - 'linux-wallet-v*'
+
+concurrency:
+  group: linux-wallet-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Import GPG Private Key
+        run: |
+          echo ${{ secrets.GPG_PRIVATE_KEY }} | gpg --import --batch --yes --passphrase="${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}"
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@1.86.0
+          
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+
+      - name: Install system dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libwebkit2gtk-4.1-dev patchelf gnupg2
+          version: 1.0
+
+      - name: Install js Dependencies
+        working-directory: mobile/salto
+        run: bun install --frozen-lockfile
+
+      - name: Restore Rust cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ubuntu-latest-wallet-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-latest-wallet-
+            ubuntu-latest-
+
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@v0.5.23
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
+          WEB_APP_URL: https://invoice-payment.tdelabro.com
+          # appimage signing
+          SIGN: 1
+          APPIMAGETOOL_FORCE_SIGN: 1
+          SIGN_KEY: ${{ secrets.GPG_KEY_ID }} 
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }} 
+        with:
+          projectPath: mobile/salto
+          # Release options
+          tagName: linux-wallet-v__VERSION__
+          releaseName: 'Linux wallet v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
+          prerelease: false
+          args: --bundles appimage,deb,rpm
+
+      - name: Save Rust cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ubuntu-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
