@@ -13,7 +13,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # https://v2.tauri.app/distribute/appimage/#limitations
 
     steps:
       - name: Checkout repository
@@ -60,8 +60,8 @@ jobs:
             mobile/target/
           key: ubuntu-latest-wallet-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ubuntu-latest-wallet-
-            ubuntu-latest-
+            ubuntu-22.04-wallet-
+            ubuntu-22.04-
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
@@ -82,7 +82,7 @@ jobs:
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
-          args: --bundles appimage,deb,rpm
+          args: -v --bundles appimage,deb,rpm
 
       - name: Save Rust cache
         uses: actions/cache/save@v4
