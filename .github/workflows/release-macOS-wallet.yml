@@ -29,7 +29,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download appleconnect Private Key
-        if: matrix.platform == 'macos-latest' 
         run: |
           mkdir -p ~/.appstoreconnect/private_keys/
           echo ${{ secrets.APPSTORE_CONNECT_PRIVATE_KEY_BASE64 }} | base64 -d >> ~/.appstoreconnect/private_keys/AuthKey_${{ vars.APPSTORE_API_KEY_ID }}.p8         
@@ -109,14 +108,12 @@ jobs:
 
       - name: Sign Appstore build
         working-directory: mobile
-        if: matrix.platform == 'macos-latest' 
         run: |
           xcrun productbuild --sign "3rd Party Mac Developer Installer: TIMOTHEE DELABROUILLE (8YYK3AW43Z)" \
             --component "target/${{ matrix.target }}/release/bundle/macos/Salto.app" /Applications "Salto.pkg"
 
       - name: Upload Appstore build
         working-directory: mobile
-        if: matrix.platform == 'macos-latest' 
         run: |
           xcrun altool --upload-app --type macos --file "Salto.pkg" \
             --apiKey ${{ vars.APPSTORE_API_KEY_ID }} --apiIssuer ${{ vars.APPSTORE_ISSUER_ID }}
