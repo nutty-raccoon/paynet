@@ -90,6 +90,7 @@ jobs:
       - name: Import Apple Store Code-Signing Certificates
         uses: apple-actions/import-codesign-certs@v3
         with: 
+          keychain: code-signer
           p12-file-base64: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
           p12-password: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_PASSWORD }}
 
@@ -102,6 +103,7 @@ jobs:
       - name: Import Apple Installer-Signing Certificates
         uses: apple-actions/import-codesign-certs@v3
         with: 
+          keychain: installer-signer
           p12-file-base64: ${{ secrets.APPLE_3RD_PARTY_MAC_DEVELOPER_INSTALLER_CERTIFICATE_FILE_BASE64 }}
           p12-password: ${{ secrets.APPLE_3RD_PARTY_MAC_DEVELOPER_INSTALLER_CERTIFICATE_PASSWORD }}
 
