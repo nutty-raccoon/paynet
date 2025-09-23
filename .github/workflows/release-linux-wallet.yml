@@ -19,9 +19,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Import GPG Private Key
-        run: |
-          echo ${{ secrets.GPG_PRIVATE_KEY }} | gpg --import --batch --yes --passphrase="${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}"
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@1.86.0
