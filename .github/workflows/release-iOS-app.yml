@@ -1,0 +1,122 @@
+name: iOS Wallet Release
+
+on:
+  push:
+    tags:
+      - 'iOS-wallet-v*'
+      - 'wallet-v*'
+
+concurrency:
+  group: ios-wallet-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+    outputs:
+      version_string: ${{ steps.app-version.outputs.version_string }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup CocoaPods
+        run: |
+          sudo gem install cocoapods
+          pod --version
+
+      - name: setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "28.x"
+
+      - name: install bun dependencies
+        working-directory: mobile/salto
+        run: bun install --frozen-lockfile
+
+      - name: restore Rust cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ios-wallet-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ios-wallet-
+
+      - name: Build iOS app
+        working-directory: mobile/salto
+        run: bun tauri ios build --export-method app-store-connect
+        env:
+          PRICE_PROVIDER_URL: https://price-provider.mobile.tdelabro.com
+          WEB_APP_URL: https://invoice-payment.tdelabro.com
+          # ios signing
+          IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+          IOS_CERTIFICATE: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_FILE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPSTORE_DISTRIBUTION_CERTIFICATES_PASSWORD }}
+
+      - name: Save Rust cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            mobile/target/
+          key: ios-wallet-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Rename IPA file
+        working-directory: mobile/salto
+        run: |
+          mv ./src-tauri/gen/apple/build/arm64/salto.ipa ./src-tauri/gen/apple/build/arm64/salto-${{ steps.app-version.outputs.version_string }}.ipa
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ steps.app-version.outputs.version_string }}
+          path: './mobile/salto/src-tauri/gen/apple/build/arm64/salto-${{ steps.app-version.outputs.version_string }}.ipa'
+          retention-days: 1
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain || true
+
+  publish:
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-build-${{ needs.build.outputs.version_string }}
+          path: ./
+
+      - name: 'Upload app to TestFlight'
+        uses: apple-actions/upload-testflight-build@v3
+        with: 
+          app-path: './salto-${{ needs.build.outputs.version_string }}.ipa' 
+          issuer-id: ${{ vars.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ vars.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}

@@ -4,9 +4,10 @@ on:
   push:
     tags:
       - 'macOS-wallet-v*'
+      - 'wallet-v*'
 
 concurrency:
-  group: macOS-wallet-release-${{ github.ref }}
+  group: macos-wallet-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -83,8 +84,8 @@ jobs:
         with:
           projectPath: mobile/salto
           # Release options
-          tagName: macOS-wallet-v__VERSION__
-          releaseName: 'macOS wallet v__VERSION__'
+          tagName: salto-v__VERSION__
+          releaseName: 'Salto v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
@@ -103,7 +104,7 @@ jobs:
             mobile/target/
           key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('**/Cargo.lock') }}
 
-  appstore-release:
+  appstore-build:
     needs: build
     runs-on: macos-latest
     steps:
@@ -187,8 +188,29 @@ jobs:
           xcrun productbuild --sign "3rd Party Mac Developer Installer: TIMOTHEE DELABROUILLE (8YYK3AW43Z)" \
             --component "target/universal-apple-darwin/release/bundle/macos/Salto.app" /Applications "Salto.pkg"
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appstore-pkg
+          path: mobile/Salto.pkg
+          retention-days: 1
+
+  appstore-upload:
+    needs: appstore-build
+    runs-on: macos-latest
+    steps:
+      - name: Download appleconnect Private Key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo ${{ secrets.APPSTORE_CONNECT_PRIVATE_KEY_BASE64 }} | base64 -d >> ~/.appstoreconnect/private_keys/AuthKey_${{ vars.APPSTORE_API_KEY_ID }}.p8         
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: appstore-pkg
+          path: .
+
       - name: Upload Appstore build
-        working-directory: mobile
         run: |
           xcrun altool --upload-app --type macos --file "Salto.pkg" \
             --apiKey ${{ vars.APPSTORE_API_KEY_ID }} --apiIssuer ${{ vars.APPSTORE_ISSUER_ID }}

@@ -1,9 +1,10 @@
-name: Descktop release
+name: Desktop release
 
 on:
   push:
     tags:
       - 'linux-wallet-v*'
+      - 'wallet-v*'
 
 concurrency:
   group: linux-wallet-release-${{ github.ref }}
@@ -13,7 +14,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: ubuntu-22.04 # https://v2.tauri.app/distribute/appimage/#limitations
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
@@ -58,10 +59,10 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ubuntu-latest-wallet-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ubuntu-22.04-wallet-
-            ubuntu-22.04-
+            ${{ runner.os }}-${{ runner.arch }}-wallet-
+            ${{ runner.os }}-${{ runner.arch }}-
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0.5.23
@@ -77,8 +78,8 @@ jobs:
         with:
           projectPath: mobile/salto
           # Release options
-          tagName: linux-wallet-v__VERSION__
-          releaseName: 'Linux wallet v__VERSION__'
+          tagName: salto-v__VERSION__
+          releaseName: 'Salto v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
@@ -95,4 +96,4 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ubuntu-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
