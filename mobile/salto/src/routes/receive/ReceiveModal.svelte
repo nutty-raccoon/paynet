@@ -41,7 +41,7 @@
         onClose();
       }
     } catch (error) {
-      showErrorToast("Failed to read from clipboard", error);
+      showErrorToast("Failed receive wad", error);
     }
   };
 </script>

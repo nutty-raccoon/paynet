@@ -7,7 +7,7 @@ use tauri::{AppHandle, State};
 use crate::AppState;
 use crate::errors::CommonError;
 use crate::front_events::emit_trigger_pending_quote_poll;
-use crate::quote_handler::{MeltQuoteAction, QuoteHandlerEvent};
+use crate::quote_handler::{TryPayMeltQuoteError, try_pay_melt_quote};
 use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
@@ -122,20 +122,16 @@ pub async fn create_melt_quote(
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(app, state))]
 pub async fn pay_melt_quote(
+    app: AppHandle,
     state: State<'_, AppState>,
     node_id: u32,
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
-    state
-        .quote_event_sender
-        .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Pay {
-            node_id,
-            quote_id,
-        }))
-        .await
-        .map_err(|_| CommonError::QuoteHandlerChannel)?;
+    let _spend_proofs_lock = state.spend_proofs_lock.lock().await;
+
+    try_pay_melt_quote(app, node_id, quote_id).await?;
 
     Ok(())
 }
@@ -144,6 +140,8 @@ pub async fn pay_melt_quote(
 pub enum PayQuoteError {
     #[error(transparent)]
     Common(#[from] crate::errors::CommonError),
+    #[error("failed to pay melt quote: {0}")]
+    TryPayMeltQuote(#[from] TryPayMeltQuoteError),
 }
 
 impl serde::Serialize for PayQuoteError {

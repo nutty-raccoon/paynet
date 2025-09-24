@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { getCurrencies, setPriceProviderCurrency, getSeedPhrase } from "../../commands";
+  import {
+    getCurrencies,
+    setPriceProviderCurrency,
+    getSeedPhrase,
+  } from "../../commands";
   import { displayCurrency, showErrorDetail } from "../../stores";
   import SeedPhraseCard from "../components/SeedPhraseCard.svelte";
 
@@ -19,24 +23,19 @@
   });
 
   const handleShowSeedPhrase = async () => {
-    if (showSeedPhrase) {
+    if (!!showSeedPhrase) {
       // Hide the seed phrase
       showSeedPhrase = false;
       seedPhrase = ""; // Clear the seed phrase from memory
     } else {
       // Show the seed phrase - always fetch fresh from command
       isLoadingSeed = true;
-      try {
-        const phrase = await getSeedPhrase();
-        if (phrase) {
-          seedPhrase = phrase;
-          showSeedPhrase = true;
-        }
-      } catch (error) {
-        console.error("Failed to get seed phrase:", error);
-      } finally {
-        isLoadingSeed = false;
+      const phrase = await getSeedPhrase();
+      if (!!phrase) {
+        seedPhrase = phrase;
+        showSeedPhrase = true;
       }
+      isLoadingSeed = false;
     }
   };
 </script>
@@ -63,7 +62,7 @@
       {/each}
     </select>
   </div>
-  
+
   <div class="toggle-section">
     <h3>Error Details:</h3>
     <button
@@ -73,7 +72,7 @@
       {$showErrorDetail ? "Hide" : "Show"} detailed errors
     </button>
   </div>
-  
+
   <div class="seed-phrase-section">
     <h3>Wallet Recovery:</h3>
     <button
@@ -81,19 +80,24 @@
       onclick={handleShowSeedPhrase}
       disabled={isLoadingSeed}
     >
-      {isLoadingSeed ? "Loading..." : showSeedPhrase ? "Hide" : "Show seed phrase"}
+      {isLoadingSeed
+        ? "Loading..."
+        : showSeedPhrase
+          ? "Hide"
+          : "Show seed phrase"}
     </button>
-    
+
     {#if showSeedPhrase && seedPhrase}
       <div class="seed-phrase-container">
         <p class="warning-text">
-          Keep this seed phrase safe and secure. Anyone with access to it can control your wallet.
+          Keep this seed phrase safe and secure. Anyone with access to it can
+          control your wallet.
         </p>
         <SeedPhraseCard {seedPhrase} />
       </div>
     {/if}
   </div>
-  
+
   <button class="done-button" onclick={onClose}>Done</button>
 </div>
 

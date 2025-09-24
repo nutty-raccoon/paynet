@@ -108,7 +108,7 @@ pub fn run() {
                         tls_root_ca_cert: read_tls_root_ca_cert(),
                         quote_event_sender: tx,
                         connection_cache: connection_cache.clone(),
-                        wad_creation_lock: Mutex::new(()),
+                        spend_proofs_lock: Mutex::new(()),
                     });
 
                     // Start cache cleanup background task
@@ -172,7 +172,7 @@ struct AppState {
     tls_root_ca_cert: Certificate,
     quote_event_sender: mpsc::Sender<QuoteHandlerEvent>,
     connection_cache: Arc<ConnectionCache>,
-    wad_creation_lock: Mutex<()>,
+    spend_proofs_lock: Mutex<()>,
 }
 
 #[derive(Clone, Debug)]

@@ -115,7 +115,7 @@ impl serde::Serialize for ForgetNodeError {
 
 #[tauri::command]
 #[tracing::instrument(skip(app, state))]
-pub fn forget_node(
+pub async fn forget_node(
     app: AppHandle,
     state: State<'_, AppState>,
     node_id: u32,

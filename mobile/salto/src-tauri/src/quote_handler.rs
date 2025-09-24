@@ -243,15 +243,10 @@ pub enum Error {
         expected: MintQuoteState,
         got: MintQuoteState,
     },
-    #[error("invalid melt quote state for operation, expected {expected}, got {got}")]
-    InvalidMeltQuoteState {
-        expected: MeltQuoteState,
-        got: MeltQuoteState,
-    },
     #[error("failed to redeem mint quote {0}: {1}")]
     RedeemMintQuote(String, #[source] RedeemQuoteError),
-    #[error("failed to pay melt quote {0}: {1}")]
-    PayMeltQuote(String, #[source] PayMeltQuoteError),
+    #[error("failed to pay melt quote: {0}")]
+    TryPayMeltQuote(TryPayMeltQuoteError),
     #[error("failed to wait for payment of melt quote: {0}")]
     WaitForMeltQuotePayment(wallet::errors::Error),
 }
@@ -484,12 +479,25 @@ pub async fn sync_mint_quote_until_is_paid(
     Ok(())
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum TryPayMeltQuoteError {
+    #[error(transparent)]
+    Common(#[from] CommonError),
+    #[error("failed to pay melt quote {0}: {1}")]
+    PayMeltQuote(String, #[source] PayMeltQuoteError),
+    #[error("invalid melt quote state for operation, expected {expected}, got {got}")]
+    InvalidMeltQuoteState {
+        expected: MeltQuoteState,
+        got: MeltQuoteState,
+    },
+}
+
 #[tracing::instrument(skip(app))]
 pub async fn try_pay_melt_quote(
     app: AppHandle,
     node_id: u32,
     quote_id: String,
-) -> Result<(), Error> {
+) -> Result<(), TryPayMeltQuoteError> {
     let state = app.state::<AppState>();
 
     let MeltQuote {
@@ -514,7 +522,7 @@ pub async fn try_pay_melt_quote(
             quote_state = ?quote_state,
             "Wrong quote state for payment"
         );
-        return Err(Error::InvalidMeltQuoteState {
+        return Err(TryPayMeltQuoteError::InvalidMeltQuoteState {
             expected: MeltQuoteState::Paid,
             got: quote_state,
         });
@@ -547,7 +555,7 @@ pub async fn try_pay_melt_quote(
     .await
     {
         Ok(res) => res,
-        Err(e) => return Err(Error::PayMeltQuote(quote_id, e)),
+        Err(e) => return Err(TryPayMeltQuoteError::PayMeltQuote(quote_id, e)),
     };
 
     event!(name: "melt_quote_paid_successfully", Level::INFO,
@@ -580,7 +588,7 @@ pub async fn try_pay_melt_quote(
             .map_err(|_| CommonError::QuoteHandlerChannel)?;
     } else {
         // Should not occur
-        return Err(Error::InvalidMeltQuoteState {
+        return Err(TryPayMeltQuoteError::InvalidMeltQuoteState {
             expected: MeltQuoteState::Pending,
             got: MeltQuoteState::Unpaid,
         });

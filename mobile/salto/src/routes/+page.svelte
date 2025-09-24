@@ -44,12 +44,8 @@
   );
   // Effect to manage scrolling based on active tab
   $effect(() => {
-    // Allow scrolling for history page
-    if (activeTab === "history") {
-      document.body.classList.remove("no-scroll");
-    } else {
-      document.body.classList.add("no-scroll");
-    }
+    // All pages except history use no-scroll (history handles its own scrolling)
+    document.body.classList.add("no-scroll");
   });
 
   const onWalletInitialized = (initialTab: Tab = "pay") => {
