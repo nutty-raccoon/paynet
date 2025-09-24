@@ -245,8 +245,6 @@ pub enum Error {
     },
     #[error("failed to redeem mint quote {0}: {1}")]
     RedeemMintQuote(String, #[source] RedeemQuoteError),
-    #[error("failed to pay melt quote: {0}")]
-    TryPayMeltQuote(TryPayMeltQuoteError),
     #[error("failed to wait for payment of melt quote: {0}")]
     WaitForMeltQuotePayment(wallet::errors::Error),
 }
