@@ -56,9 +56,9 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ${{ runner.os }}-ios-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}
+          key: ${{ runner.os }}-ios-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}
           restore-keys: |
-            ${{ runner.os }}-ios-wallet-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-ios-wallet-${{ hashFiles('mobile/Cargo.lock') }}
             ${{ runner.os }}-ios-wallet-
 
       - name: Build iOS app
@@ -115,7 +115,7 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ${{ runner.os }}-ios-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-ios-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}-${{ github.run_id }}
 
       - name: Rename IPA file
         working-directory: mobile/salto

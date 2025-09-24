@@ -59,9 +59,9 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}
+          key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}
           restore-keys: |
-            ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('**/Cargo.lock') }}
+            ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('mobile/Cargo.lock') }}
             ${{ matrix.platform }}-${{ matrix.target}}-wallet-
             ${{ matrix.platform }}-${{ matrix.target}}-
 
@@ -103,7 +103,7 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}-${{ github.run_id }}
+          key: ${{ matrix.platform }}-${{ matrix.target}}-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}-${{ github.run_id }}
 
   appstore-build:
     needs: build
@@ -142,9 +142,9 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: macos-latest-aarch64-apple-darwin-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}
+          key: macos-latest-aarch64-apple-darwin-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}
           restore-keys: |
-            macos-latest-aarch64-apple-darwin-wallet-${{ hashFiles('**/Cargo.lock') }}
+            macos-latest-aarch64-apple-darwin-wallet-${{ hashFiles('mobile/Cargo.lock') }}
             macos-latest-aarch64-apple-darwin-wallet-
 
       - name: Restore Rust cache (x86_64)
@@ -157,9 +157,9 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: macos-latest-x86_64-apple-darwin-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}
+          key: macos-latest-x86_64-apple-darwin-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}
           restore-keys: |
-            macos-latest-x86_64-apple-darwin-wallet-${{ hashFiles('**/Cargo.lock') }}
+            macos-latest-x86_64-apple-darwin-wallet-${{ hashFiles('mobile/Cargo.lock') }}
             macos-latest-x86_64-apple-darwin-wallet-
 
       - name: Install js dependencies

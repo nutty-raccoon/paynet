@@ -59,9 +59,9 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('mobile/Cargo.lock') }}
             ${{ runner.os }}-${{ runner.arch }}-wallet-
             ${{ runner.os }}-${{ runner.arch }}-
 
@@ -97,4 +97,4 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-${{ runner.arch }}-wallet-${{ hashFiles('mobile/Cargo.lock') }}-${{ hashFiles('mobile/salto/bun.lock') }}-${{ github.run_id }}
