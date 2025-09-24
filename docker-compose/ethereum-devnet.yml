@@ -2,35 +2,15 @@ services:
   ethereum-devnet:
     build:
       context: ..
-      dockerfile: dockerfiles/ethereum-devnet.Dockerfile
+      dockerfile: dockerfiles/ethereum-setup.Dockerfile
     restart: always
-    command:
-      - anvil
-      - --host=0.0.0.0
-      - --port=8545
-      - --chain-id=1337
-      - --accounts=10
-      - --balance=10000
-      - --gas-limit=30000000
-      - --gas-price=1000000000
-      - --block-time=2
     ports:
       - "8545:8545"  # HTTP RPC
     environment:
       - ANVIL_IP_ADDR=0.0.0.0
+      - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # First Anvil account
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8545 -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' || exit 1"]
-      start_period: 5s
+      start_period: 10s
       interval: 5s
       retries: 5
-
-  ethereum-setup:
-    build:
-      context: ..
-      dockerfile: dockerfiles/ethereum-setup.Dockerfile
-    environment:
-      - RPC_URL=http://ethereum-devnet:8545
-      - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # First Anvil account
-    depends_on:
-      ethereum-devnet:
-        condition: service_healthy
