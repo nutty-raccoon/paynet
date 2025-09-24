@@ -1,5 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "version": "0.1.1",
   "productName": "Salto",
   "identifier": "com.tdelabro.salto",
   "build": {

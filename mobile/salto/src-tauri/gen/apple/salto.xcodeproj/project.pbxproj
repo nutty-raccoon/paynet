@@ -464,6 +464,7 @@
 				VALID_ARCHS = arm64;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution: TIMOTHEE DELABROUILLE (8YYK3AW43Z)";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = "8YYK3AW43Z";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "8e18a9b8-b1e6-47a8-a22a-90db2950176e";
 			};
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "8e18a9b8-b1e6-47a8-a22a-90db2950176e";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = "8YYK3AW43Z";
