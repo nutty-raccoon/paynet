@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "salto",
-  "version": "0.1.0",
+  "productName": "Salto",
   "identifier": "com.tdelabro.salto",
   "build": {
     "beforeDevCommand": "bun run dev",
@@ -13,7 +12,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "salto",
+        "title": "Salto",
         "width": 800,
         "height": 600
       }
@@ -35,7 +34,7 @@
     ],
     "iOS": {
       "developmentTeam": "8YYK3AW43Z",
-      "bundleVersion": "0.1.2"
+      "bundleVersion": "1"
     },
     "category": "Finance"
   },

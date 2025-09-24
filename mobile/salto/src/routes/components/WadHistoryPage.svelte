@@ -54,19 +54,19 @@
       loading = true;
       error = "";
 
+      // Show cached data immediately
       const history = await getWadHistory(20);
       wadHistory = history || [];
+      loading = false; // UI updates with cached data
 
-      // Then sync WADs (this will emit events that update the UI in real-time)
+      // Then sync in background
       syncing = true;
       await syncWads();
-      syncing = false;
     } catch (err) {
-      console.error("Failed to load transfer history:", err);
-      error = "Failed to load transfer history: " + String(err);
+      // handle error
     } finally {
-      loading = false;
       syncing = false;
+      loading = false;
     }
   }
 
@@ -83,7 +83,7 @@
       );
       return `${assetAmount} ${asset}`;
     } catch (e) {
-      console.log("failed to format amount: {e}");
+      console.log(`failed to format amount: ${e}`);
       return "";
     }
   }
@@ -131,96 +131,111 @@
 </script>
 
 <div class="history-page">
-  <div class="header">
-    <h1>Transfer History</h1>
-  </div>
+  <div class="history-container">
+    <div class="header">
+      <h1>Transfer History</h1>
+    </div>
 
-  <div class="content">
-    {#if loading}
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Loading transfer history...</p>
-      </div>
-    {:else if error}
-      <div class="error">
-        <p>{error}</p>
-        <button onclick={loadWadHistory}>Retry</button>
-      </div>
-    {:else if wadHistory.length === 0}
-      <div class="empty">
-        <p>No transfer history found</p>
-      </div>
-    {:else}
-      <div class="history-list">
-        {#each wadHistory as wad}
-          <div class="wad-item">
-            <button
-              class="wad-line clickable"
-              onclick={() => toggleWadExpansion(wad.id, wad.type)}
-            >
-              <span class="type-icon">{getTypeIcon(wad.type)}</span>
-              <span class="type-text">{getTypeDisplay(wad.type)}</span>
-              <span class="wad-time">{formatTimestamp(wad.createdAt)}</span>
-              <span class="spacer"></span>
-              {#if wad.amounts.length === 1}
-                <span class="wad-amount">{formatAmount([wad.amounts[0]])}</span>
-              {/if}
-              <span class="expand-icon"
-                >{isWadSelected(wad.id, wad.type) ? "▼" : "▶"}</span
+    <div class="content">
+      {#if loading}
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading transfer history...</p>
+        </div>
+      {:else if error}
+        <div class="error">
+          <p>{error}</p>
+          <button onclick={loadWadHistory}>Retry</button>
+        </div>
+      {:else if wadHistory.length === 0}
+        <div class="empty">
+          <p>No transfer history found</p>
+        </div>
+      {:else}
+        <div class="history-list">
+          {#each wadHistory as wad}
+            <div class="wad-item">
+              <button
+                class="wad-line clickable"
+                onclick={() => toggleWadExpansion(wad.id, wad.type)}
               >
-              <span
-                class="wad-status"
-                style="color: {getStatusColor(wad.status)}">{wad.status}</span
-              >
-            </button>
-            {#if isWadSelected(wad.id, wad.type)}
-              <div class="wad-details">
-                {#if wad.memo}
-                  <div class="memo-section">
-                    <div class="memo-header">Memo:</div>
-                    <div class="memo-text">{wad.memo}</div>
-                  </div>
+                <span class="type-icon">{getTypeIcon(wad.type)}</span>
+                <span class="type-text">{getTypeDisplay(wad.type)}</span>
+                <span class="wad-time">{formatTimestamp(wad.createdAt)}</span>
+                <span class="spacer"></span>
+                {#if wad.amounts.length === 1}
+                  <span class="wad-amount"
+                    >{formatAmount([wad.amounts[0]])}</span
+                  >
                 {/if}
-                <div class="balances-header">Balances:</div>
-                {#each wad.amounts as balance}
-                  <div class="balance-item">
-                    <span class="balance-amount">{formatAmount([balance])}</span
-                    >
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
+                <span class="expand-icon"
+                  >{isWadSelected(wad.id, wad.type) ? "▼" : "▶"}</span
+                >
+                <span
+                  class="wad-status"
+                  style="color: {getStatusColor(wad.status)}">{wad.status}</span
+                >
+              </button>
+              {#if isWadSelected(wad.id, wad.type)}
+                <div class="wad-details">
+                  {#if wad.memo}
+                    <div class="memo-section">
+                      <div class="memo-header">Memo:</div>
+                      <div class="memo-text">{wad.memo}</div>
+                    </div>
+                  {/if}
+                  <div class="balances-header">Balances:</div>
+                  {#each wad.amounts as balance}
+                    <div class="balance-item">
+                      <span class="balance-amount"
+                        >{formatAmount([balance])}</span
+                      >
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
 
-    <div class="refresh-container">
-      <button
-        class="refresh-btn"
-        onclick={loadWadHistory}
-        disabled={loading || syncing}
-      >
-        {#if syncing}
-          ⏳ Syncing...
-        {:else}
-          🔄 Refresh
-        {/if}
-      </button>
+      <div class="refresh-container">
+        <button
+          class="refresh-btn"
+          onclick={loadWadHistory}
+          disabled={loading || syncing}
+        >
+          {#if syncing}
+            ⏳ Syncing...
+          {:else}
+            🔄 Refresh
+          {/if}
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
   .history-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 70px; /* Account for navigation bar */
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    width: 100%;
     background: #ffffff;
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
+    overflow: hidden;
+  }
+
+  .history-container {
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .header {

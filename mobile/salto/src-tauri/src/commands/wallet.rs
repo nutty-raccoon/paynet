@@ -52,7 +52,7 @@ pub struct InitWalletResponse {
 
 #[instrument]
 #[tauri::command]
-pub fn init_wallet() -> Result<InitWalletResponse, InitWalletError> {
+pub async fn init_wallet() -> Result<InitWalletResponse, InitWalletError> {
     let seed_phrase = seed_phrase::create_random()?;
     wallet::wallet::save_seed_phrase(crate::SEED_PHRASE_MANAGER, &seed_phrase)?;
 
@@ -63,7 +63,7 @@ pub fn init_wallet() -> Result<InitWalletResponse, InitWalletError> {
 
 #[instrument(skip(seed_phrase))]
 #[tauri::command]
-pub fn restore_wallet(seed_phrase: String) -> Result<(), RestoreWalletError> {
+pub async fn restore_wallet(seed_phrase: String) -> Result<(), RestoreWalletError> {
     let seed_phrase = seed_phrase::create_from_str(&seed_phrase)?;
     let _opt_prev_seed_phrase =
         wallet::wallet::save_seed_phrase(crate::SEED_PHRASE_MANAGER, &seed_phrase)?;
@@ -87,7 +87,7 @@ impl serde::Serialize for CheckWalletError {
 }
 
 #[tauri::command]
-pub fn check_wallet_exists() -> Result<bool, CheckWalletError> {
+pub async fn check_wallet_exists() -> Result<bool, CheckWalletError> {
     let exists = wallet::wallet::exists(crate::SEED_PHRASE_MANAGER)?;
 
     Ok(exists)
@@ -113,7 +113,7 @@ impl serde::Serialize for GetSeedPhraseError {
 
 #[tauri::command]
 #[allow(unused_variables)]
-pub fn get_seed_phrase(app: AppHandle) -> Result<String, GetSeedPhraseError> {
+pub async fn get_seed_phrase(app: AppHandle) -> Result<String, GetSeedPhraseError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     bio_auth(&app)?;
 
@@ -129,7 +129,7 @@ fn bio_auth(app: &AppHandle) -> tauri_plugin_biometric::Result<()> {
 
     let options = AuthOptions {
         // Set True if you want the user to be able to authenticate using phone password
-        allow_device_credential: false,
+        allow_device_credential: true,
         cancel_title: None,
 
         // iOS only feature
