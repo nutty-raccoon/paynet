@@ -1,6 +1,8 @@
 services:
   ethereum-devnet:
-    image: "ghcr.io/foundry-rs/foundry:latest"
+    build:
+      context: ..
+      dockerfile: dockerfiles/ethereum-devnet.Dockerfile
     restart: always
     command:
       - anvil
@@ -21,3 +23,14 @@ services:
       start_period: 5s
       interval: 5s
       retries: 5
+
+  ethereum-setup:
+    build:
+      context: ..
+      dockerfile: dockerfiles/ethereum-setup.Dockerfile
+    environment:
+      - RPC_URL=http://ethereum-devnet:8545
+      - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # First Anvil account
+    depends_on:
+      ethereum-devnet:
+        condition: service_healthy
