@@ -7,12 +7,19 @@ import {InvoicePayment} from "../src/InvoicePayment.sol";
 contract InvoicePaymentScript is Script {
     InvoicePayment public invoicePayment;
 
+    // Fixed salt for deterministic deployment
+    bytes32 constant SALT = keccak256("PayNet.InvoicePayment.v1");
+
     function setUp() public {}
 
     function run() public {
         vm.startBroadcast();
 
-        invoicePayment = new InvoicePayment();
+        // Deploy using CREATE2 for deterministic address
+        invoicePayment = new InvoicePayment{salt: SALT}();
+
+        // Log the deployed address
+        console.log("InvoicePayment deployed at:", address(invoicePayment));
 
         vm.stopBroadcast();
     }
