@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "salto",
   "version": "0.1.0",
-  "identifier": "com.salto.app",
+  "identifier": "com.tdelabro.salto",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -27,11 +27,17 @@
     "targets": "all",
     "icon": [
       "icons/32x32.png",
+      "icons/64x64.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "iOS": {
+      "developmentTeam": "8YYK3AW43Z",
+      "bundleVersion": "0.1.2"
+    },
+    "category": "Finance"
   },
   "plugins": {
     "sql": {

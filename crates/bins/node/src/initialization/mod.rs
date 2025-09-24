@@ -32,4 +32,6 @@ pub enum Error {
     Uri(#[from] http::uri::InvalidUri),
     #[error("failed to build tonic server: {0}")]
     BuildServer(#[source] anyhow::Error),
+    #[error("failed to build tonic reflection service: {0}")]
+    TonicReflexion(#[from] tonic_reflection::server::Error),
 }

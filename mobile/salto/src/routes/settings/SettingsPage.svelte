@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getCurrencies, setPriceProviderCurrency, getSeedPhrase } from "../../commands";
-  import { displayCurrency } from "../../stores";
+  import { displayCurrency, showErrorDetail } from "../../stores";
   import SeedPhraseCard from "../components/SeedPhraseCard.svelte";
 
   interface Props {
@@ -62,6 +62,16 @@
         </option>
       {/each}
     </select>
+  </div>
+  
+  <div class="toggle-section">
+    <h3>Error Details:</h3>
+    <button
+      class="toggle-button {$showErrorDetail ? 'active' : ''}"
+      onclick={() => showErrorDetail.set(!$showErrorDetail)}
+    >
+      {$showErrorDetail ? "Hide" : "Show"} detailed errors
+    </button>
   </div>
   
   <div class="seed-phrase-section">
@@ -130,6 +140,45 @@
     border-color: #1e88e5;
     outline: none;
     box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+  }
+
+  .toggle-section {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .toggle-section h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #333;
+  }
+
+  .toggle-button {
+    background-color: #757575;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-left: 1rem;
+  }
+
+  .toggle-button:hover {
+    background-color: #616161;
+  }
+
+  .toggle-button.active {
+    background-color: #4caf50;
+  }
+
+  .toggle-button.active:hover {
+    background-color: #45a049;
   }
 
   .done-button {

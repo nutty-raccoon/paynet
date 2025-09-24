@@ -12,6 +12,7 @@
   import InitPage from "./init/InitPage.svelte";
   import { displayCurrency, tokenPrices, totalBalance } from "../stores";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
+  import Toast from "../components/Toast.svelte";
   import { page } from "$app/state";
 
   const Modal = {
@@ -189,6 +190,9 @@
     }}
   />
 {/if}
+
+<!-- Toast notifications - rendered at app root level -->
+<Toast />
 
 <style>
   :root {

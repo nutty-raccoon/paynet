@@ -530,8 +530,8 @@ pub async fn receive_wad(
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectToNodeError {
-    #[error("invalid server endpoint: {0}")]
-    Endpoint(#[source] tonic::transport::Error),
+    #[error("invalid server endpoint: {0:?}")]
+    Endpoint(String),
     #[error("failed to connect to node")]
     Tonic(#[source] tonic::transport::Error),
     #[error("invalid tls config: {0}")]
@@ -545,11 +545,11 @@ pub async fn connect_to_node(
     let uses_tls = node_url.0.scheme() == "https";
     let url_str = node_url.0.to_string();
 
-    let mut endpoint =
-        tonic::transport::Endpoint::new(url_str).map_err(ConnectToNodeError::Endpoint)?;
+    let mut endpoint = tonic::transport::Endpoint::new(url_str)
+        .map_err(|e| ConnectToNodeError::Endpoint(format!("endpoint error: {:?}", e)))?;
 
     if uses_tls {
-        let mut tls_config = tonic::transport::ClientTlsConfig::new();
+        let mut tls_config = tonic::transport::ClientTlsConfig::new().with_enabled_roots();
 
         if let Some(ca_cert) = root_ca_certificate {
             tls_config = tls_config.ca_certificate(ca_cert);
@@ -575,8 +575,8 @@ pub fn connect_to_node_lazy(
     let uses_tls = node_url.0.scheme() == "https";
     let url_str = node_url.0.to_string();
 
-    let mut endpoint =
-        tonic::transport::Endpoint::new(url_str).map_err(ConnectToNodeError::Endpoint)?;
+    let mut endpoint = tonic::transport::Endpoint::new(url_str)
+        .map_err(|e| ConnectToNodeError::Endpoint(format!("endpoint error: {:?}", e)))?;
 
     if uses_tls {
         let mut tls_config = tonic::transport::ClientTlsConfig::new();

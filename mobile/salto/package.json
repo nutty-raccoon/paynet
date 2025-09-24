@@ -13,12 +13,11 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@castlenine/svelte-qrcode": "^2.3.0",
     "@gandlaf21/bc-ur": "^1.1.12",
-    "@ngraveio/bc-ur": "^1.1.13",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "~2",
     "@tauri-apps/plugin-os": "~2",
-    "@tauri-apps/plugin-sql": "~2",
     "html5-qrcode": "^2.3.8"
   },
   "optionalDependencies": {

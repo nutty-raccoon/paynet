@@ -3,6 +3,7 @@
   import { formatBalance, unitPrecision } from "../../utils";
   import { createWads } from "../../commands";
   import type { Wads } from "../../types/wad";
+  import { showSuccessToast } from "../../stores/toast";
 
   interface Props {
     availableUnits: string[];
@@ -26,6 +27,7 @@
     availableUnits.length > 0 ? availableUnits[0] : "",
   );
   let paymentError = $state<string>("");
+  let isSubmitting = $state<boolean>(false);
 
   let { asset, assetAmount } = $derived(
     formatBalance(selectedUnit, availableBalances.get(selectedUnit) || 0),
@@ -35,6 +37,12 @@
     event,
   ) => {
     event.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
+
     const form = event.target as HTMLFormElement;
     const formDataObject = new FormData(form);
     const inputAsset = formDataObject.get("payment-asset");
@@ -56,11 +64,22 @@
         return;
       }
 
-      createWads(amountString, asset).then((wads) => {
-        if (!!wads) {
-          onPaymentDataGenerated(amountString, asset, wads);
-        }
-      });
+      isSubmitting = true;
+      
+      createWads(amountString, asset)
+        .then((wads) => {
+          if (!!wads) {
+            showSuccessToast("Payment data generated successfully");
+            onPaymentDataGenerated(amountString, asset, wads);
+          }
+        })
+        .catch((error) => {
+          paymentError = "Failed to generate payment data. Please try again.";
+          console.error("Error creating wads:", error);
+        })
+        .finally(() => {
+          isSubmitting = false;
+        });
     }
   };
 </script>
@@ -112,7 +131,9 @@
       </div>
     {/if}
 
-    <button type="submit" class="submit-button"> Pick a payment method </button>
+    <button type="submit" class="submit-button" disabled={isSubmitting}>
+      {isSubmitting ? "Generating..." : "Pick a payment method"}
+    </button>
   </form>
 </div>
 
@@ -198,6 +219,15 @@
 
   .submit-button:hover {
     background-color: #1976d2;
+  }
+
+  .submit-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+
+  .submit-button:disabled:hover {
+    background-color: #ccc;
   }
 
   .error-message {

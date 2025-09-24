@@ -3,6 +3,7 @@
   import type { Balance, NodeIdAndUrl } from "../../types";
   import { createMeltQuote } from "../../commands";
   import { formatBalance, isValidStarknetAddress } from "../../utils";
+  import { showSuccessToast } from "../../stores/toast";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
@@ -32,7 +33,7 @@
     return balance ? balance.formatted.assetAmount : 0;
   });
 
-  const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
+  const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
   ) => {
     event.preventDefault();
@@ -73,13 +74,16 @@
     }
 
     // Create melt quote
-    createMeltQuote(
+    const result = await createMeltQuote(
       selectedNode.id,
       amount.toString(),
       asset,
       toAddress.trim(),
     );
-    onClose();
+    if (result !== undefined) {
+      showSuccessToast("Withdrawal quote created successfully");
+      onClose();
+    }
   };
 
   function setMaxAmount() {

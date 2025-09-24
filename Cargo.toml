@@ -62,6 +62,7 @@ default-members = [
 axum = "0.8.1"
 axum-server = "0.7"
 tonic = "0.13.1"
+tonic-reflection = "0.13.1"
 tonic-types = "0.13.0"
 tonic-health = "0.13.0"
 hyper = "1.6.0"

@@ -3,6 +3,7 @@
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
   import Portal from "../components/Portal.svelte";
   import { receiveWads } from "../../commands";
+  import { showSuccessToast, showErrorToast } from "../../stores/toast";
 
   interface Props {
     onSuccess: () => void;
@@ -27,12 +28,18 @@
         const ur = decoder.resultUR();
         // Decode the CBOR message to a Buffer
         const decoded = ur.decodeCBOR();
-        receiveWads(decoded.toString());
-        onSuccess();
+        receiveWads(decoded.toString()).then((result) => {
+          if (result !== undefined) {
+            showSuccessToast("Payment received successfully");
+            onSuccess();
+          }
+        });
       } else {
         // log and handle the error
         const error = decoder.resultError();
         console.log("Error found while decoding", error);
+        showErrorToast("Failed to decode QR code", error);
+        paused = false; // Allow scanning to continue
       }
     }
   }

@@ -1,6 +1,6 @@
 services:
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.135.0
     command: ["--config=/etc/otel-collector-config.yaml"]
     ports:
       - "4317:4317"  # OTLP gRPC
@@ -9,7 +9,7 @@ services:
       - "8889:8889"  
       - "13133:13133"  
     volumes:
-      - ./observability/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ../observability/docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     restart: always
     depends_on:
       prometheus:
@@ -27,7 +27,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     volumes:
-      - ./observability/docker/prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ../observability/docker/prometheus.yaml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -63,7 +63,7 @@ services:
       - "3100:3100"
     volumes:
       - loki_data:/loki
-      - ./observability/docker/loki-config.yaml:/etc/loki/local-config.yaml
+      - ../observability/docker/loki-config.yaml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
     restart: always
     healthcheck:
@@ -76,7 +76,7 @@ services:
     image: grafana/grafana:latest
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./observability/docker/grafana/provisioning:/etc/grafana/provisioning
+      - ../observability/docker/grafana/provisioning:/etc/grafana/provisioning
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_ADMIN_USER=admin

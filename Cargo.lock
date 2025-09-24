@@ -1863,7 +1863,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 1.0.2",
 ]
 
 [[package]]
@@ -2504,6 +2504,7 @@ dependencies = [
  "tonic 0.13.1",
  "tonic-build",
  "tonic-health",
+ "tonic-reflection",
  "tonic-types",
  "tower 0.5.2",
  "tower-otel",
@@ -3548,7 +3549,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 1.0.2",
 ]
 
 [[package]]
@@ -5111,6 +5112,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "prost",
+ "rustls-native-certs",
  "socket2",
  "tokio",
  "tokio-rustls",
@@ -5119,6 +5121,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -5142,6 +5145,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb87334d340313fefa513b6e60794d44a86d5f039b523229c99c323e4e19ca4b"
 dependencies = [
  "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.13.1",
+]
+
+[[package]]
+name = "tonic-reflection"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9687bd5bfeafebdded2356950f278bba8226f0b32109537c4253406e09aafe1"
+dependencies = [
+ "prost",
+ "prost-types",
  "tokio",
  "tokio-stream",
  "tonic 0.13.1",
@@ -5680,6 +5696,15 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.26.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+dependencies = [
+ "webpki-roots 1.0.2",
 ]
 
 [[package]]

@@ -4,9 +4,9 @@
   <dict>
     <key>NSCameraUsageDescription</key>
     <string>Read QR codes</string>
-    <key>NFCReaderUsageDescription</key>
-    <string>Read and write various NFC tags</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Authenticate with biometric</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
   </dict>
 </plist>
