@@ -78,9 +78,10 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: android-wallet-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-android-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}
           restore-keys: |
-            android-wallet-
+            ${{ runner.os }}-android-wallet-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-android-wallet-
 
       - name: Setup Android signing
         working-directory: mobile/salto/src-tauri/gen/android
@@ -157,7 +158,7 @@ jobs:
             ~/.cargo/git/db/
             target/
             mobile/target/
-          key: android-wallet-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-android-wallet-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/bun.lockb', '**/package-lock.json') }}-${{ github.run_id }}
 
   publish:
     needs: build
