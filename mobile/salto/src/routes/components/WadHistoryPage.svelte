@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { getWadHistory, syncWads } from "../../commands";
-  import { formatBalance } from "../../utils";
+  import { formatBalance, getStatusDisplayText } from "../../utils";
   import type { WadHistoryItem, WadStatus } from "../../types/wad";
   import type { Balance } from "../../types";
   import { t } from "../../stores/i18n";
@@ -174,7 +174,7 @@
                 >
                 <span
                   class="wad-status"
-                  style="color: {getStatusColor(wad.status)}">{wad.status}</span
+                  style="color: {getStatusColor(wad.status)}">{getStatusDisplayText(wad.status)}</span
                 >
               </button>
               {#if isWadSelected(wad.id, wad.type)}

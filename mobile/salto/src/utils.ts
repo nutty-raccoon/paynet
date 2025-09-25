@@ -1,5 +1,8 @@
 import type {  BalanceChange, NodeData, Unit } from "./types";
 import type { Price } from "./types/price";
+import type { WadStatus } from "./types/wad";
+import { get } from 'svelte/store';
+import { t } from './stores/i18n';
 
 /**
  * Format a balance into separate amount and unit strings
@@ -127,4 +130,24 @@ export function isValidStarknetAddress(address: string): boolean {
   // Addresses should start with 0x and be between 3 and 66 characters
   const addressRegex = /^0x[a-fA-F0-9]{1,63}$/;
   return addressRegex.test(address) && address.length >= 3 && address.length <= 66;
+}
+
+/**
+ * Maps backend status values to internationalized display text
+ * @param status - The backend status value (PENDING, FINISHED, FAILED)
+ * @returns The translated status text
+ */
+export function getStatusDisplayText(status: WadStatus | string): string {
+  const translate = get(t);
+  
+  switch (status.toUpperCase()) {
+    case 'PENDING':
+      return translate('history.pending');
+    case 'FINISHED':
+      return translate('history.completed');
+    case 'FAILED':
+      return translate('history.failed');
+    default:
+      return status; // Fallback to original status if not recognized
+  }
 }
