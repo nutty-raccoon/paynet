@@ -4,13 +4,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use node_client::NodeClient;
+use node_client::{GetNodeInfoRequest, NodeClient};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::RwLock;
 use tonic::transport::{Certificate, Channel};
 use tracing::info;
 use wallet::{ConnectToNodeError, connect_to_node};
+
+pub type NodeInfo = nuts::nut06::NodeInfo<String, String, serde_json::Value>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionCacheError {
@@ -27,13 +29,20 @@ pub enum ConnectionCacheError {
 #[derive(Debug, Clone)]
 struct CachedConnection {
     client: NodeClient<Channel>,
+    info: Option<NodeInfo>,
     created_at: SystemTime,
 }
 
 impl CachedConnection {
-    fn new(client: NodeClient<Channel>) -> Self {
+    async fn new(mut client: NodeClient<Channel>) -> Self {
+        let opt_node_info = match client.get_node_info(GetNodeInfoRequest {}).await {
+            Ok(r) => serde_json::from_str(&r.into_inner().info).ok(),
+            Err(_) => None,
+        };
+
         Self {
             client,
+            info: opt_node_info,
             created_at: SystemTime::now(),
         }
     }
@@ -95,11 +104,17 @@ impl ConnectionCache {
         // Update cache
         {
             let mut cache = self.cache.write().await;
-            let cached_connection = CachedConnection::new(client.clone());
+            let cached_connection = CachedConnection::new(client.clone()).await;
             cache.insert(node_id, cached_connection);
         }
 
         Ok(client)
+    }
+
+    pub async fn get_node_info(
+        &self,
+        node_id: u32,
+    ) -> Result<Option<NodeInfo>, ConnectionCacheError> {
     }
 
     pub async fn cleanup_expired(&self) {
