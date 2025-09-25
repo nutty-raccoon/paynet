@@ -275,21 +275,34 @@ impl serde::Serialize for GetNodesDepositMethodsError {
     }
 }
 
-pub type MintMethodSettings = nuts::nut04::Settings<String, String, serde_json::Value>;
+pub type MintMethods = nuts::nut04::Settings<String, String, serde_json::Value>;
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeMintMethodSettings {
+    node_id: u32,
+    settings: Option<MintMethods>,
+}
 
 #[tauri::command]
 #[tracing::instrument(skip(state))]
 pub async fn get_nodes_deposit_methods(
     state: State<'_, AppState>,
-) -> Result<Vec<(u32, Option<MintMethodSettings>)>, GetNodesDepositMethodsError> {
-    let infos = state
-        .get_nodes_info()
-        .await
-        .map_err(CommonError::CachedConnection)?;
+) -> Result<Vec<NodeMintMethodSettings>, GetNodesDepositMethodsError> {
+    let ids = {
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
+        wallet::db::node::fetch_all_ids(&db_conn)
+    }
+    .map_err(CommonError::Db)?;
+
+    let infos = state.get_nodes_info(ids).await?;
 
     let ret = infos
         .into_iter()
-        .map(|(id, opt_info)| (id, opt_info.map(|i| i.nuts.nut04)))
+        .map(|(id, opt_info)| NodeMintMethodSettings {
+            node_id: id,
+            settings: opt_info.map(|i| i.nuts.nut04),
+        })
         .collect();
 
     Ok(ret)

@@ -4,15 +4,19 @@
   import { createMintQuote } from "../../commands";
   import { showSuccessToast } from "../../stores/toast";
   import { t } from "../../stores/i18n";
+  import type { MintSettings } from "../../types/NodeMintMethodInfo";
 
+  // Interface
   interface Props {
     selectedNode: NodeIdAndUrl;
+    nodeDepositSettings: MintSettings;
     onClose: () => void;
   }
+  let { selectedNode, onClose, nodeDepositSettings }: Props = $props();
 
-  let { selectedNode, onClose }: Props = $props();
   let depositError = $state<string>("");
 
+  // Handlers
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
   ) => {
@@ -31,20 +35,25 @@
       const nodeId = selectedNode["id"];
 
       if (amountValue <= 0) {
-        depositError = $t('modals.amountGreaterThanZero');
+        depositError = $t("modals.amountGreaterThanZero");
         return;
       }
 
-      const result = await createMintQuote(nodeId, amountString, token.toString());
+      const result = await createMintQuote(
+        nodeId,
+        amountString,
+        token.toString(),
+      );
       if (result !== undefined) {
-        showSuccessToast($t('modals.depositSuccess'));
+        showSuccessToast($t("modals.depositSuccess"));
         onClose();
       }
     }
   };
 
-  // Reset error when modal closes
+  // Effects
   $effect(() => {
+    // Reset error when modal closes
     if (!selectedNode) {
       depositError = "";
     }
@@ -54,13 +63,13 @@
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>{$t('modals.depositTokens')}</h3>
+      <h3>{$t("modals.depositTokens")}</h3>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <form onsubmit={handleFormSubmit}>
       <div class="form-group">
-        <label for="deposit-amount">{$t('forms.amount')}</label>
+        <label for="deposit-amount">{$t("forms.amount")}</label>
         <div class="amount-input-group">
           <input
             type="number"
@@ -79,7 +88,7 @@
       </div>
 
       <div class="deposit-info">
-        <p>{$t('modals.depositingTo')} {selectedNode.url}</p>
+        <p>{$t("modals.depositingTo")} {selectedNode.url}</p>
       </div>
 
       {#if depositError}
@@ -88,7 +97,8 @@
         </div>
       {/if}
 
-      <button type="submit" class="submit-button">{$t('modals.deposit')}</button>
+      <button type="submit" class="submit-button">{$t("modals.deposit")}</button
+      >
     </form>
   </div>
 </div>

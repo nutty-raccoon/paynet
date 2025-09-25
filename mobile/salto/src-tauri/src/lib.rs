@@ -12,9 +12,9 @@ use app_state::{
 };
 use commands::{
     add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads, forget_node,
-    get_currencies, get_nodes_balance, get_pending_quotes, get_seed_phrase, get_wad_history,
-    init_wallet, pay_melt_quote, pay_mint_quote, receive_wads, redeem_quote, refresh_node_keysets,
-    restore_wallet, set_price_provider_currency, sync_wads,
+    get_currencies, get_nodes_balance, get_nodes_deposit_methods, get_pending_quotes,
+    get_seed_phrase, get_wad_history, init_wallet, pay_melt_quote, pay_mint_quote, receive_wads,
+    redeem_quote, refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
 };
 use nuts::traits::Unit as UnitT;
 use quote_handler::start_syncing_quotes;
@@ -146,7 +146,8 @@ pub fn run() {
                 sync_wads,
                 create_melt_quote,
                 pay_melt_quote,
-                forget_node
+                forget_node,
+                get_nodes_deposit_methods,
             ])
     };
 

@@ -6,7 +6,7 @@ mod wad;
 mod wallet;
 mod withdraw;
 
-pub use deposit::{create_mint_quote, pay_mint_quote, redeem_quote};
+pub use deposit::{create_mint_quote, get_nodes_deposit_methods, pay_mint_quote, redeem_quote};
 pub use get_nodes_balance::{get_nodes_balance, get_pending_quotes};
 pub use node::{add_node, forget_node, refresh_node_keysets};
 pub use prices_provider::{get_currencies, set_price_provider_currency};

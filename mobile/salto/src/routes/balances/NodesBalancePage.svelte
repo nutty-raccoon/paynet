@@ -13,10 +13,26 @@
   import NodeModal from "./NodeModal.svelte";
   import { derived as derivedStore } from "svelte/store";
   import { t } from "../../stores/i18n";
+  import type { NodeMintMethodSettings } from "../../types/NodeMintMethodInfo";
+  import { invoke } from "@tauri-apps/api/core";
+  import { showErrorToast } from "../../stores/toast";
 
-  // Modal state
-  let isAddNodeModalOpen = $state(false);
+  // Commands
+  async function getNodesDepositMethods() {
+    const ret = await invoke("get_nodes_deposit_methods")
+      .then((ret) => ret as NodeMintMethodSettings[])
+      .catch((error) => {
+        console.log(`Failed to forget node:`, error);
+        showErrorToast("Failed to remove node. Please try again.", error);
+      });
+
+    return ret;
+  }
+
+  // States
   let selectedNodeForModal = $state<NodeIdAndUrl | null>(null);
+  let nodesDepositMethods = $state<null | NodeMintMethodSettings[]>(null);
+  let isAddNodeModalOpen = $state(false);
 
   // Reactive balances for selected node
   let selectedNodeBalances = $derived.by(() => {
@@ -28,55 +44,16 @@
     }
   });
 
-  // Modal control functions
-  function openAddNodeModal() {
-    isAddNodeModalOpen = true;
-    // Add history entry to handle back button
-    pushState("", { modal: true });
-  }
-
-  function closeAddNodeModal() {
-    isAddNodeModalOpen = false;
-  }
-
-  function openNodeModal(node: NodeData) {
-    selectedNodeForModal = { id: node.id, url: node.url };
-    // Add history entry to handle back button
-    pushState("", { modal: true });
-  }
-
-  function closeNodeModal() {
-    selectedNodeForModal = null;
-  }
-
-  // Function to compute total balance for a single node
-  function getNodeTotalBalance(node: NodeData): string {
-    const nodeBalanceMap = new Map();
-
-    // Convert node balances to the same format as computeTotalBalancePerUnit expects
-    node.balances.forEach((balance) => {
-      nodeBalanceMap.set(balance.unit, balance.amount);
-    });
-
-    if (!!$tokenPrices) {
-      const totalValue = getTotalAmountInDisplayCurrency(
-        nodeBalanceMap,
-        $tokenPrices,
-      );
-      return `${totalValue.toFixed(2)} ${$displayCurrency}`;
+  let selectedNodeDepositSettings = $derived.by(() => {
+    const selected = selectedNodeForModal;
+    if (!selected || !nodesDepositMethods) {
+      return null;
     } else {
-      return `??? ${$displayCurrency}`;
+      return nodesDepositMethods.find((elem) => elem.nodeId === selected.id)!
+        .settings!;
     }
-  }
+  });
 
-  // Set up back button listener
-  function handlePopState() {
-    if (!!selectedNodeForModal) {
-      closeNodeModal();
-    } else if (isAddNodeModalOpen) {
-      closeAddNodeModal();
-    }
-  }
   // Derived store that creates a Set of node IDs that have pending quotes
   export const nodesWithPendingQuotes = derivedStore(
     pendingQuotes,
@@ -99,8 +76,66 @@
     },
   );
 
+  // Modal control functions
+  function openAddNodeModal() {
+    isAddNodeModalOpen = true;
+    // Add history entry to handle back button
+    pushState("", { modal: true });
+  }
+
+  function closeAddNodeModal() {
+    isAddNodeModalOpen = false;
+  }
+
+  function openNodeModal(node: NodeData) {
+    selectedNodeForModal = { id: node.id, url: node.url };
+    // Add history entry to handle back button
+    pushState("", { modal: true });
+  }
+
+  function closeNodeModal() {
+    selectedNodeForModal = null;
+  }
+
+  // Set up back button listener
+  function handlePopState() {
+    if (!!selectedNodeForModal) {
+      closeNodeModal();
+    } else if (isAddNodeModalOpen) {
+      closeAddNodeModal();
+    }
+  }
+
+  // Utils
+  // Function to compute total balance for a single node
+  function getNodeTotalBalance(node: NodeData): string {
+    const nodeBalanceMap = new Map();
+
+    // Convert node balances to the same format as computeTotalBalancePerUnit expects
+    node.balances.forEach((balance) => {
+      nodeBalanceMap.set(balance.unit, balance.amount);
+    });
+
+    if (!!$tokenPrices) {
+      const totalValue = getTotalAmountInDisplayCurrency(
+        nodeBalanceMap,
+        $tokenPrices,
+      );
+      return `${totalValue.toFixed(2)} ${$displayCurrency}`;
+    } else {
+      return `??? ${$displayCurrency}`;
+    }
+  }
+
+  // Effects
   onMount(() => {
     window.addEventListener("popstate", handlePopState);
+    getNodesDepositMethods().then((settings) => {
+      if (!!settings) {
+        console.log("deposit settings:", settings);
+        nodesDepositMethods = settings;
+      }
+    });
   });
 
   onDestroy(() => {
@@ -120,12 +155,14 @@
         class:has-pending={$nodesWithPendingQuotes.has(node.id)}
         onclick={() => openNodeModal(node)}
       >
-        {$t('common.open')}
+        {$t("common.open")}
       </button>
     </div>
   {/each}
 
-  <button class="add-node-button" onclick={openAddNodeModal}>{$t('modals.addNode')}</button>
+  <button class="add-node-button" onclick={openAddNodeModal}
+    >{$t("modals.addNode")}</button
+  >
 </div>
 
 {#if isAddNodeModalOpen}
@@ -135,7 +172,8 @@
 {#if !!selectedNodeForModal}
   <NodeModal
     selectedNode={selectedNodeForModal}
-    {selectedNodeBalances}
+    nodeBalances={selectedNodeBalances}
+    nodeDepositSettings={selectedNodeDepositSettings}
     onClose={closeNodeModal}
   />
 {/if}
