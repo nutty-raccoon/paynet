@@ -35,6 +35,8 @@ pub mod traits {
 
     pub trait Method: Debug + Display + FromStr {}
 
+    impl Method for String {}
+
     pub trait Asset: Copy + Clone + AsRef<str> + Hash {
         fn precision(&self) -> u8;
     }
