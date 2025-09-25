@@ -4,17 +4,6 @@ import type { QuoteId } from "./types/quote";
 import type { WadHistoryItem, Wads } from "./types/wad";
 import { showErrorToast } from "./stores/toast";
 
-export async function getNodesBalance() {
-     let res =  await invoke("get_nodes_balance")
-       .then((message) => message as NodeData[] )
-       .catch((error) => {
-         console.log("Failed to get nodes balance:", error);
-         showErrorToast("Failed to load account balances. Please try again.", error);
-         return undefined;
-       });
-      return res;
-  }
-
 export async function getPendingQuotes() {
      let res =  await invoke("get_pending_quotes")
        .then((message) => message as NodeData[] )
@@ -236,3 +225,4 @@ export async function forgetNode(nodeId: NodeId, force: boolean) {
 
       return;
 }
+

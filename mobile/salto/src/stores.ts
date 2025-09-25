@@ -282,11 +282,8 @@ class NodeBalancesPoller {
     
     try {
       const nodesBalanceData = await invoke<NodeData[]>('get_nodes_balance');
-      
+     
       this.updateCallback(nodesBalanceData || []);
-      
-      const duration = performance.now() - startTime;
-      
     } catch (error) {
       const duration = performance.now() - startTime;
       console.error('❌ Failed to poll node balances after', duration.toFixed(2) + 'ms:', error);

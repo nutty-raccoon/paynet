@@ -12,14 +12,17 @@
     forgetNode,
   } from "../../commands";
   import type { QuoteId } from "../../types/quote";
+  import type { MintSettings } from "../../types/NodeMintMethodInfo";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
-    selectedNodeBalances: Balance[];
+    nodeBalances: Balance[];
+    nodeDepositSettings: MintSettings | null;
     onClose: () => void;
   }
 
-  let { selectedNode, selectedNodeBalances, onClose }: Props = $props();
+  let { selectedNode, nodeBalances, nodeDepositSettings, onClose }: Props =
+    $props();
 
   type ModalState = "none" | "deposit" | "withdraw";
   let currentModal = $state<ModalState>("none");
@@ -40,7 +43,11 @@
   }
 
   function openDepositModal() {
-    currentModal = "deposit";
+    if (!!nodeDepositSettings) {
+      currentModal = "deposit";
+    } else {
+      // TODO: display error message saying no deposit settings exist for this node
+    }
   }
 
   function openWithdrawModal() {
@@ -65,7 +72,7 @@
 
   // Check if node should show forget button (no balances and no pending quotes)
   const shouldShowForgetButton = $derived.by(() => {
-    const hasBalances = selectedNodeBalances.length > 0;
+    const hasBalances = nodeBalances.length > 0;
     const hasMintQuotes =
       $nodePendingQuotes.mint.unpaid.length > 0 ||
       $nodePendingQuotes.mint.paid.length > 0;
@@ -93,9 +100,9 @@
       <!-- Balances Section -->
       <div class="section">
         <h3 class="section-title">Balances</h3>
-        {#if selectedNodeBalances.length > 0}
+        {#if nodeBalances.length > 0}
           <div class="balances-list">
-            {#each selectedNodeBalances as balance}
+            {#each nodeBalances as balance}
               {@const formatted = formatBalance(balance.unit, balance.amount)}
               <div class="balance-item">
                 <span class="quote-amount"
@@ -247,9 +254,13 @@
 </div>
 
 {#if currentModal === "deposit"}
-  <DepositModal {selectedNode} onClose={closeModal} />
+  {#if !!nodeDepositSettings}
+    <DepositModal {selectedNode} onClose={closeModal} {nodeDepositSettings} />
+  {:else}
+    <div>Error: no deposit settings available</div>
+  {/if}
 {:else if currentModal === "withdraw"}
-  <WithdrawModal {selectedNode} {selectedNodeBalances} onClose={closeModal} />
+  <WithdrawModal {selectedNode} {nodeBalances} onClose={closeModal} />
 {/if}
 
 <style>

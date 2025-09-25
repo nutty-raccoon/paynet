@@ -3,15 +3,19 @@
   import type { NodeIdAndUrl } from "../../types";
   import { createMintQuote } from "../../commands";
   import { showSuccessToast } from "../../stores/toast";
+  import type { MintSettings } from "../../types/NodeMintMethodInfo";
 
+  // Interface
   interface Props {
     selectedNode: NodeIdAndUrl;
+    nodeDepositSettings: MintSettings;
     onClose: () => void;
   }
+  let { selectedNode, onClose, nodeDepositSettings }: Props = $props();
 
-  let { selectedNode, onClose }: Props = $props();
   let depositError = $state<string>("");
 
+  // Handlers
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
   ) => {
@@ -34,7 +38,11 @@
         return;
       }
 
-      const result = await createMintQuote(nodeId, amountString, token.toString());
+      const result = await createMintQuote(
+        nodeId,
+        amountString,
+        token.toString(),
+      );
       if (result !== undefined) {
         showSuccessToast("Deposit quote created successfully");
         onClose();
@@ -42,8 +50,9 @@
     }
   };
 
-  // Reset error when modal closes
+  // Effects
   $effect(() => {
+    // Reset error when modal closes
     if (!selectedNode) {
       depositError = "";
     }

@@ -7,17 +7,17 @@
 
   interface Props {
     selectedNode: NodeIdAndUrl;
-    selectedNodeBalances: Balance[];
+    nodeBalances: Balance[];
     onClose: () => void;
   }
 
-  let { selectedNode, selectedNodeBalances, onClose }: Props = $props();
+  let { selectedNode, nodeBalances, onClose }: Props = $props();
   let withdrawError = $state<string>("");
   let selectedAsset = $state<string>("");
 
   // Get available balances with formatted data
   let availableBalances = $derived(
-    selectedNodeBalances
+    nodeBalances
       .map((balance) => ({
         ...balance,
         formatted: formatBalance(balance.unit, balance.amount),

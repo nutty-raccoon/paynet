@@ -3,14 +3,16 @@ pub mod connection_cache;
 use std::{collections::HashSet, sync::Arc, time::SystemTime};
 
 use connection_cache::{ConnectionCache, NodeInfo};
+use futures::future::try_join_all;
 use node_client::NodeClient;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Asset;
 use tokio::sync::{Mutex, MutexGuard, RwLock, mpsc};
 use tonic::transport::{Certificate, Channel};
+use tracing::error;
 
-use crate::quote_handler::QuoteHandlerEvent;
+use crate::{errors::CommonError, quote_handler::QuoteHandlerEvent};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -53,10 +55,11 @@ impl AppState {
             pool,
             web_app_url,
             get_prices_config,
-            tls_root_ca_cert,
             quote_event_sender,
             connection_cache,
             spend_proofs_lock,
+            #[cfg(feature = "tls-local-mkcert")]
+            tls_root_ca_cert,
         }
     }
 
@@ -79,15 +82,30 @@ impl AppState {
 
     pub async fn get_nodes_info(
         &self,
-    ) -> Result<Vec<(u32, Option<NodeInfo>)>, connection_cache::ConnectionCacheError> {
-        let ids = self.connection_cache.list_nodes_ids().await?;
-        let mut ret = Vec::with_capacity(ids.len());
-        for node_id in ids {
-            let info = self.connection_cache.get_node_info(node_id).await?;
-            ret.push((node_id, info));
+        node_ids: Vec<u32>,
+    ) -> Result<Vec<(u32, Option<NodeInfo>)>, CommonError> {
+        let mut handles = Vec::with_capacity(node_ids.len());
+
+        for node_id in node_ids {
+            let cloned_conn_cache = self.connection_cache.clone();
+            handles.push(tokio::spawn(async move {
+                match cloned_conn_cache.get_node_info(node_id).await {
+                    Ok(s) => (node_id, s),
+                    Err(e) => {
+                        error!("failed to get node info for node {node_id}: {e}");
+                        (node_id, None)
+                    }
+                }
+            }));
         }
 
-        Ok(ret)
+        // TODO: this means the frontend will only get the data when the last node answered
+        // An optimization would be to send events to the front end as the responses arrive
+        let infos = try_join_all(handles)
+            .await
+            .map_err(CommonError::TokioJoin)?;
+
+        Ok(infos)
     }
 
     pub fn quote_event_sender(&self) -> mpsc::Sender<QuoteHandlerEvent> {
