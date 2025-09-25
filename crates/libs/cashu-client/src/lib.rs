@@ -34,7 +34,7 @@ pub enum Error {
     ParseError(#[from] std::num::ParseIntError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ClientMintQuoteRequest {
     pub method: String,
     pub amount: u64,

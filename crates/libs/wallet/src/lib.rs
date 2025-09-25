@@ -567,10 +567,16 @@ pub enum ConnectToNodeError {
     TlsConfig(#[source] tonic::transport::Error),
 }
 
+#[derive(Debug)]
+pub struct ConnectToNodeResponse<C: CashuClient> {
+    pub client: C,
+    pub url: NodeUrl,
+}
+
 pub async fn connect_to_node(
-    node_url: &NodeUrl,
+    node_url: NodeUrl,
     root_ca_certificate: Option<tonic::transport::Certificate>,
-) -> Result<impl CashuClient, ConnectToNodeError> {
+) -> Result<ConnectToNodeResponse<GrpcClient>, ConnectToNodeError> {
     let uses_tls = node_url.0.scheme() == "https";
     let url_str = node_url.0.to_string();
 
@@ -594,17 +600,18 @@ pub async fn connect_to_node(
         .await
         .map_err(ConnectToNodeError::Tonic)?;
 
-    let client = GrpcClient {
-        node: NodeClient::new(channel),
-    };
-
-    Ok(client)
+    Ok(ConnectToNodeResponse {
+        client: GrpcClient {
+            node: NodeClient::new(channel),
+        },
+        url: node_url,
+    })
 }
 
 pub fn connect_to_node_lazy(
-    node_url: &NodeUrl,
+    node_url: NodeUrl,
     root_ca_certificate: Option<tonic::transport::Certificate>,
-) -> Result<impl CashuClient, ConnectToNodeError> {
+) -> Result<ConnectToNodeResponse<GrpcClient>, ConnectToNodeError> {
     let uses_tls = node_url.0.scheme() == "https";
     let url_str = node_url.0.to_string();
 
@@ -629,7 +636,10 @@ pub fn connect_to_node_lazy(
         node: NodeClient::new(channel),
     };
 
-    Ok(client)
+    Ok(ConnectToNodeResponse {
+        client,
+        url: node_url,
+    })
 }
 
 pub async fn acknowledge(

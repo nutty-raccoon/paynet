@@ -52,13 +52,13 @@ async fn sync_single_wad(
         return Ok(None);
     }
 
-    let mut node_client = crate::connect_to_node(&node_url, root_ca_certificate).await?;
+    let mut node_client = crate::connect_to_node(node_url, root_ca_certificate).await?;
 
     let check_request = CheckStateRequest {
         ys: proof_ys.iter().map(|y| y.to_bytes().to_vec()).collect(),
     };
 
-    let response = node_client.check_state(check_request).await?;
+    let response = node_client.client.check_state(check_request).await?;
     let states = response.proof_check_states;
     let all_spent = states.iter().all(|state| match state.state {
         ProofState::Spent => true,
