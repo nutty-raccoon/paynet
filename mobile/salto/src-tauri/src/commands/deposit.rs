@@ -72,7 +72,7 @@ pub async fn create_mint_quote(
     );
 
     let response = wallet::mint::create_quote(
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         node_id,
         STARKNET_STR.to_string(),
@@ -104,7 +104,7 @@ pub async fn pay_mint_quote(
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
     let mint_quote = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
@@ -161,7 +161,7 @@ pub async fn redeem_quote(
     quote_id: String,
 ) -> Result<(), RedeemQuoteError> {
     let mint_quote = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
@@ -179,7 +179,7 @@ pub async fn redeem_quote(
     }
 
     state
-        .quote_event_sender
+        .quote_event_sender()
         .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
             node_id,
             quote_id,
@@ -209,7 +209,7 @@ async fn inner_pay_quote(
 
         );
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
                 node_id,
                 quote_id,
@@ -219,7 +219,7 @@ async fn inner_pay_quote(
         return Ok(());
     } else {
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(QuoteHandlerEvent::Mint(MintQuoteAction::SyncUntilIsPaid {
                 node_id,
                 quote_id: quote_id.clone(),
@@ -236,7 +236,7 @@ async fn inner_pay_quote(
 
     let url = format!(
         "{}/deposit/{}/{}/?payload={}",
-        &state.web_app_url,
+        state.web_app_url(),
         STARKNET_STR,
         deposit_payload.chain_id.as_str(),
         encoded_payload
@@ -258,4 +258,39 @@ async fn inner_pay_quote(
     app.opener().open_url(url, None::<&str>)?;
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetNodesDepositMethodsError {
+    #[error(transparent)]
+    Common(#[from] CommonError),
+}
+
+impl serde::Serialize for GetNodesDepositMethodsError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+pub type MintMethodSettings = nuts::nut04::Settings<String, String, serde_json::Value>;
+
+#[tauri::command]
+#[tracing::instrument(skip(state))]
+pub async fn get_nodes_deposit_methods(
+    state: State<'_, AppState>,
+) -> Result<Vec<(u32, Option<MintMethodSettings>)>, GetNodesDepositMethodsError> {
+    let infos = state
+        .get_nodes_info()
+        .await
+        .map_err(CommonError::CachedConnection)?;
+
+    let ret = infos
+        .into_iter()
+        .map(|(id, opt_info)| (id, opt_info.map(|i| i.nuts.nut04)))
+        .collect();
+
+    Ok(ret)
 }

@@ -60,7 +60,7 @@ pub async fn add_node(
         "Registering node"
     );
 
-    let id = wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
+    let id = wallet::node::register(state.pool().clone(), &mut client, &node_url).await?;
 
     event!(name: "node_registered_successfully", Level::INFO,
         node_id = id,
@@ -69,12 +69,12 @@ pub async fn add_node(
     );
 
     event!(name: "restoring_node_from_wallet", Level::INFO, node_id = id, "Restoring node");
-    wallet::node::restore(crate::SEED_PHRASE_MANAGER, state.pool.clone(), id, client).await?;
+    wallet::node::restore(crate::SEED_PHRASE_MANAGER, state.pool().clone(), id, client).await?;
     event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
 
     let _ = emit_trigger_balance_poll(&app);
 
-    let balances = wallet::db::balance::get_for_node(&*state.pool.get()?, id)?;
+    let balances = wallet::db::balance::get_for_node(&*state.pool().get()?, id)?;
     let new_assets = balances
         .clone()
         .into_iter()
@@ -83,7 +83,7 @@ pub async fn add_node(
         })
         .collect::<Result<Vec<_>, _>>()?;
     state
-        .get_prices_config
+        .get_prices_config()
         .write()
         .await
         .assets
@@ -121,7 +121,7 @@ pub async fn forget_node(
     node_id: u32,
     force: bool,
 ) -> Result<(), ForgetNodeError> {
-    let db_conn = state.pool.get()?;
+    let db_conn = state.pool().get()?;
 
     if !force {
         let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
@@ -176,7 +176,7 @@ pub async fn refresh_node_keysets(
         .map_err(|_| RefreshNodeKeysetsError::NodeId(node_id))?;
 
     event!(name: "refresh_node_keysets", Level::INFO, node_id, "Refreshing keyset");
-    wallet::node::refresh_keysets(state.pool.clone(), &mut node_client, node_id)
+    wallet::node::refresh_keysets(state.pool().clone(), &mut node_client, node_id)
         .await
         .map_err(|e| RefreshNodeKeysetsError::Wallet(node_id, e))?;
 

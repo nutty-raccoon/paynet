@@ -63,7 +63,7 @@ pub async fn receive_wads(
 
         // Try to find existing node_id by URL first
         let existing_node_id = {
-            let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+            let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
             wallet::db::node::get_id_by_url(&db_conn, &node_url).map_err(CommonError::Db)?
         };
 
@@ -89,7 +89,7 @@ pub async fn receive_wads(
                 .await
                 .map_err(ReceiveWadsError::CreateNodeClient)?;
             let node_id =
-                wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
+                wallet::node::register(state.pool().clone(), &mut client, &node_url).await?;
             event!(name: "new_node_registered", Level::INFO,
                 node_id = node_id,
                 node_url = %node_url,
@@ -107,7 +107,7 @@ pub async fn receive_wads(
 
         let amount_received = wallet::receive_wad(
             crate::SEED_PHRASE_MANAGER,
-            state.pool.clone(),
+            state.pool().clone(),
             &mut node_client,
             node_id,
             &node_url,
@@ -130,7 +130,7 @@ pub async fn receive_wads(
     }
 
     state
-        .get_prices_config
+        .get_prices_config()
         .write()
         .await
         .assets

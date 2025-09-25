@@ -55,7 +55,7 @@ impl serde::Serialize for GetNodesBalanceError {
 pub async fn get_nodes_balance(
     state: State<'_, AppState>,
 ) -> Result<Vec<GetForAllNodesData>, GetNodesBalanceError> {
-    let db_conn = state.pool.get()?;
+    let db_conn = state.pool().get()?;
     let nodes_balances = wallet::db::balance::get_for_all_nodes(&db_conn)?;
     Ok(nodes_balances)
 }
@@ -86,7 +86,7 @@ pub async fn get_pending_quotes(
     state: State<'_, AppState>,
 ) -> Result<Vec<MintOrMeltQuote>, GetPendingQuoteError> {
     let (pending_mint_quotes, pending_melt_quotes) = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
         let mint_quotes = wallet::db::mint_quote::get_pendings(&db_conn)
             .map_err(GetPendingQuoteError::ReadPendingsFromDb)?;
         let melt_quotes = wallet::db::melt_quote::get_pendings(&db_conn)
@@ -148,7 +148,7 @@ async fn sync_node_mint_quotes(
         .map_err(CommonError::CachedConnection)?;
     let state_updates = wallet::sync::mint_quotes(
         crate::SEED_PHRASE_MANAGER,
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         node_id,
         pending_mint_quotes,
@@ -217,7 +217,7 @@ async fn sync_node_melt_quotes(
         .map_err(CommonError::CachedConnection)?;
 
     let state_updates =
-        wallet::sync::melt_quotes(state.pool.clone(), &mut node_client, pending_melt_quotes)
+        wallet::sync::melt_quotes(state.pool().clone(), &mut node_client, pending_melt_quotes)
             .await
             .map_err(|e| SyncNodeError::SyncMelt(node_id, e))?;
 

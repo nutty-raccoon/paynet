@@ -7,7 +7,7 @@ use node_client::NodeClient;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Asset;
-use tokio::sync::{Mutex, RwLock, mpsc};
+use tokio::sync::{Mutex, MutexGuard, RwLock, mpsc};
 use tonic::transport::{Certificate, Channel};
 
 use crate::quote_handler::QuoteHandlerEvent;
@@ -61,12 +61,12 @@ impl AppState {
     }
 
     #[cfg(feature = "tls-local-mkcert")]
-    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+    pub fn opt_root_ca_cert(&self) -> Option<Certificate> {
         Some(self.tls_root_ca_cert.clone())
     }
 
     #[cfg(not(feature = "tls-local-mkcert"))]
-    fn opt_root_ca_cert(&self) -> Option<Certificate> {
+    pub fn opt_root_ca_cert(&self) -> Option<Certificate> {
         None
     }
 
@@ -77,12 +77,36 @@ impl AppState {
         self.connection_cache.get_or_create_client(node_id).await
     }
 
-    pub async fn get_node_info(
+    pub async fn get_nodes_info(
         &self,
-        node_id: u32,
-    ) -> Result<Option<NodeInfo>, connection_cache::ConnectionCacheError> {
-        let _ = self.connection_cache.get_or_create_client(node_id).await;
+    ) -> Result<Vec<(u32, Option<NodeInfo>)>, connection_cache::ConnectionCacheError> {
+        let ids = self.connection_cache.list_nodes_ids().await?;
+        let mut ret = Vec::with_capacity(ids.len());
+        for node_id in ids {
+            let info = self.connection_cache.get_node_info(node_id).await?;
+            ret.push((node_id, info));
+        }
 
-        Ok()
+        Ok(ret)
+    }
+
+    pub fn quote_event_sender(&self) -> mpsc::Sender<QuoteHandlerEvent> {
+        self.quote_event_sender.clone()
+    }
+
+    pub fn web_app_url(&self) -> &str {
+        &self.web_app_url
+    }
+
+    pub fn pool(&self) -> &Pool<SqliteConnectionManager> {
+        &self.pool
+    }
+
+    pub fn get_prices_config(&self) -> Arc<RwLock<PriceConfig>> {
+        self.get_prices_config.clone()
+    }
+
+    pub async fn lock_proof_spending(&self) -> MutexGuard<'_, ()> {
+        self.spend_proofs_lock.lock().await
     }
 }
