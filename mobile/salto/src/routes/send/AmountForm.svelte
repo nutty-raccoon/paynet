@@ -4,6 +4,7 @@
   import { createWads } from "../../commands";
   import type { Wads } from "../../types/wad";
   import { showSuccessToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     availableUnits: string[];
@@ -56,11 +57,11 @@
 
       const amountValue = parseFloat(amountString);
       if (amountValue <= 0) {
-        paymentError = "Amount must be greater than 0";
+        paymentError = $t('modals.amountGreaterThanZero');
         return;
       }
       if (amountValue > assetAmount) {
-        paymentError = `Amount cannot exceed ${assetAmount} ${selectedUnit}`;
+        paymentError = `${$t('errors.amountCannotExceed')} ${assetAmount} ${selectedUnit}`;
         return;
       }
 
@@ -69,12 +70,12 @@
       createWads(amountString, asset)
         .then((wads) => {
           if (!!wads) {
-            showSuccessToast("Payment data generated successfully");
+            showSuccessToast($t('send.paymentDataGenerated'));
             onPaymentDataGenerated(amountString, asset, wads);
           }
         })
         .catch((error) => {
-          paymentError = "Failed to generate payment data. Please try again.";
+          paymentError = $t('errors.failedGeneratePayment');
           console.error("Error creating wads:", error);
         })
         .finally(() => {
@@ -86,12 +87,12 @@
 
 <div class="amount-form-container">
   <div class="method-indicator">
-    <button class="back-button" onclick={onClose}>← Back</button>
+    <button class="back-button" onclick={onClose}>{$t('forms.backButton')}</button>
   </div>
 
   <form onsubmit={handleFormSubmit}>
     <div class="form-group">
-      <label for="payment-asset">Currency</label>
+      <label for="payment-asset">{$t('forms.currency')}</label>
       <select
         id="payment-asset"
         name="payment-asset"
@@ -105,14 +106,14 @@
       </select>
       {#if selectedUnit}
         <span class="balance-info">
-          Available: {assetAmount}
+          {$t('modals.available')} {assetAmount}
           {asset}
         </span>
       {/if}
     </div>
 
     <div class="form-group">
-      <label for="payment-amount">Amount</label>
+      <label for="payment-amount">{$t('forms.amount')}</label>
       <input
         type="number"
         id="payment-amount"
@@ -132,7 +133,7 @@
     {/if}
 
     <button type="submit" class="submit-button" disabled={isSubmitting}>
-      {isSubmitting ? "Generating..." : "Pick a payment method"}
+      {isSubmitting ? $t('send.generating') : $t('send.pickPaymentMethod')}
     </button>
   </form>
 </div>

@@ -4,6 +4,7 @@
   import { receiveWads } from "../../commands";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
   import { showSuccessToast, showErrorToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   const Modal = {
     METHOD_CHOICE: 0,
@@ -31,17 +32,17 @@
     try {
       const wads = await readText();
       if (!wads || wads.trim() === "") {
-        showErrorToast("Clipboard is empty or contains no payment data");
+        showErrorToast($t('receive.clipboardEmpty'));
         return;
       }
 
       const result = await receiveWads(wads);
       if (result !== undefined) {
-        showSuccessToast("Payment received successfully");
+        showSuccessToast($t('receive.paymentReceived'));
         onClose();
       }
     } catch (error) {
-      showErrorToast("Failed receive wad", error);
+      showErrorToast($t('receive.failedReceive'), error);
     }
   };
 </script>
@@ -49,7 +50,7 @@
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Receive Payment</h3>
+      <h3>{$t('receive.title')}</h3>
       <button class="close-button" onclick={handleModalClose}>✕</button>
     </div>
 

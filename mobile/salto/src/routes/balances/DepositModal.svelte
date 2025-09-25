@@ -3,6 +3,7 @@
   import type { NodeIdAndUrl } from "../../types";
   import { createMintQuote } from "../../commands";
   import { showSuccessToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
@@ -30,13 +31,13 @@
       const nodeId = selectedNode["id"];
 
       if (amountValue <= 0) {
-        depositError = "Amount must be greater than 0";
+        depositError = $t('modals.amountGreaterThanZero');
         return;
       }
 
       const result = await createMintQuote(nodeId, amountString, token.toString());
       if (result !== undefined) {
-        showSuccessToast("Deposit quote created successfully");
+        showSuccessToast($t('modals.depositSuccess'));
         onClose();
       }
     }
@@ -53,13 +54,13 @@
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Deposit Tokens</h3>
+      <h3>{$t('modals.depositTokens')}</h3>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <form onsubmit={handleFormSubmit}>
       <div class="form-group">
-        <label for="deposit-amount">Amount</label>
+        <label for="deposit-amount">{$t('forms.amount')}</label>
         <div class="amount-input-group">
           <input
             type="number"
@@ -78,7 +79,7 @@
       </div>
 
       <div class="deposit-info">
-        <p>Depositing to: {selectedNode.url}</p>
+        <p>{$t('modals.depositingTo')} {selectedNode.url}</p>
       </div>
 
       {#if depositError}
@@ -87,7 +88,7 @@
         </div>
       {/if}
 
-      <button type="submit" class="submit-button">Deposit</button>
+      <button type="submit" class="submit-button">{$t('modals.deposit')}</button>
     </form>
   </div>
 </div>

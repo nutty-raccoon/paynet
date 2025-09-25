@@ -3,3 +3,6 @@
 // See: https://v2.tauri.app/start/frontend/sveltekit/ for more info
 export const prerender = true;
 export const ssr = false;
+
+// Initialize i18n
+import '../lib/i18n';

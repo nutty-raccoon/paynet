@@ -4,6 +4,7 @@
   import { createMeltQuote } from "../../commands";
   import { formatBalance, isValidStarknetAddress } from "../../utils";
   import { showSuccessToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
@@ -49,27 +50,27 @@
 
     // Validation checks
     if (!asset) {
-      withdrawError = "Please select an asset";
+      withdrawError = $t('modals.selectAsset');
       return;
     }
 
     if (amount <= 0) {
-      withdrawError = "Amount must be greater than 0";
+      withdrawError = $t('modals.amountGreaterThanZero');
       return;
     }
 
     if (amount > maxWithdrawable) {
-      withdrawError = `Insufficient balance. Maximum withdrawable: ${maxWithdrawable} ${asset.toUpperCase()}`;
+      withdrawError = `${$t('modals.insufficientBalance')} ${maxWithdrawable} ${asset.toUpperCase()}`;
       return;
     }
 
     if (!toAddress.trim()) {
-      withdrawError = "Please enter a destination address";
+      withdrawError = $t('modals.enterAddress');
       return;
     }
 
     if (!isValidStarknetAddress(toAddress.trim())) {
-      withdrawError = "Please enter a valid Starknet address (0x...)";
+      withdrawError = $t('modals.invalidAddress');
       return;
     }
 
@@ -81,7 +82,7 @@
       toAddress.trim(),
     );
     if (result !== undefined) {
-      showSuccessToast("Withdrawal quote created successfully");
+      showSuccessToast($t('modals.withdrawSuccess'));
       onClose();
     }
   };
@@ -113,31 +114,31 @@
 <div class="modal-backdrop" onclick={handleBackdropClick}>
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Withdraw Tokens</h3>
+      <h3>{$t('modals.withdrawTokens')}</h3>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <form onsubmit={handleFormSubmit}>
       <div class="form-group">
-        <label for="withdraw-asset">Asset</label>
+        <label for="withdraw-asset">{$t('forms.asset')}</label>
         <select
           id="withdraw-asset"
           name="withdraw-asset"
           bind:value={selectedAsset}
           required
         >
-          <option value="">Select asset...</option>
+          <option value="">{$t('modals.selectAssetOption')}</option>
           {#each availableBalances as balance}
             <option value={balance.formatted.asset}>
               {balance.formatted.asset.toUpperCase()}
-              (Available: {balance.formatted.assetAmount})
+              ({$t('modals.available')} {balance.formatted.assetAmount})
             </option>
           {/each}
         </select>
       </div>
 
       <div class="form-group">
-        <label for="withdraw-amount">Amount</label>
+        <label for="withdraw-amount">{$t('forms.amount')}</label>
         <div class="amount-input-group">
           <input
             type="number"
@@ -151,19 +152,19 @@
           />
           {#if selectedAsset && maxWithdrawable > 0}
             <button type="button" class="max-button" onclick={setMaxAmount}>
-              MAX
+              {$t('modals.max')}
             </button>
           {/if}
         </div>
         {#if selectedAsset && maxWithdrawable > 0}
           <div class="balance-info">
-            <p>Available: {maxWithdrawable} {selectedAsset.toUpperCase()}</p>
+            <p>{$t('modals.available')} {maxWithdrawable} {selectedAsset.toUpperCase()}</p>
           </div>
         {/if}
       </div>
 
       <div class="form-group">
-        <label for="withdraw-to">To Address</label>
+        <label for="withdraw-to">{$t('forms.toAddress')}</label>
         <input
           type="text"
           id="withdraw-to"
@@ -174,7 +175,7 @@
       </div>
 
       <div class="withdraw-info">
-        <p>Withdrawing from: {selectedNode.url}</p>
+        <p>{$t('modals.withdrawingFrom')} {selectedNode.url}</p>
       </div>
 
       {#if withdrawError}
@@ -188,7 +189,7 @@
         class="submit-button"
         disabled={!selectedAsset || maxWithdrawable <= 0}
       >
-        Withdraw
+        {$t('modals.withdraw')}
       </button>
     </form>
   </div>

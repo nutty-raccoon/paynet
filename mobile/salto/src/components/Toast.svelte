@@ -2,6 +2,7 @@
   import { toasts, removeToast } from '../stores/toast';
   import { ToastType } from '../types/toast';
   import { onMount } from 'svelte';
+  import { t } from '../stores/i18n';
 
   // Subscribe to toast store
   $: activeToasts = $toasts;
@@ -61,7 +62,7 @@
         <button
           class="toast-close"
           onclick={() => dismissToast(toast.id)}
-          aria-label="Dismiss notification"
+          aria-label={$t('common.dismiss')}
           type="button"
         >
           ✕

@@ -12,6 +12,41 @@ export const currentPlatform = platform();
 export const displayCurrency = writable<string>('usd');
 export const showErrorDetail= writable<boolean>(false);
 
+// Language store for i18n with persistence
+function createLanguageStore() {
+  const defaultLanguage = 'en';
+  
+  // Try to get saved language from localStorage
+  let savedLanguage = defaultLanguage;
+  if (typeof window !== 'undefined') {
+    try {
+      savedLanguage = localStorage.getItem('language') || defaultLanguage;
+    } catch (error) {
+      console.warn('Failed to read language from localStorage:', error);
+    }
+  }
+  
+  const { subscribe, set, update } = writable<string>(savedLanguage);
+  
+  return {
+    subscribe,
+    set: (value: string) => {
+      set(value);
+      // Persist to localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('language', value);
+        } catch (error) {
+          console.warn('Failed to save language to localStorage:', error);
+        }
+      }
+    },
+    update
+  };
+}
+
+export const currentLanguage = createLanguageStore();
+
 // Global token prices store with managed event listener
 export const tokenPrices = readable<Price[] | null>(null, (set) => {
   let unlisten_new_prices: UnlistenFn | null = null;

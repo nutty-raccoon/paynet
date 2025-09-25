@@ -4,7 +4,8 @@
     setPriceProviderCurrency,
     getSeedPhrase,
   } from "../../commands";
-  import { displayCurrency, showErrorDetail } from "../../stores";
+  import { displayCurrency, showErrorDetail, currentLanguage } from "../../stores";
+  import { t } from "../../stores/i18n";
   import SeedPhraseCard from "../components/SeedPhraseCard.svelte";
 
   interface Props {
@@ -42,10 +43,10 @@
 
 <div class="settings-container">
   <div class="modal-header">
-    <h3>Settings</h3>
+    <h3>{$t('settings.title')}</h3>
   </div>
   <div class="select-currency">
-    <h3>Select your currency:</h3>
+    <h3>{$t('settings.currency.title')}</h3>
     <select
       name="deposit-token"
       value={$displayCurrency}
@@ -63,42 +64,56 @@
     </select>
   </div>
 
+  <div class="select-language">
+    <h3>{$t('settings.language.title')}</h3>
+    <select
+      name="language"
+      value={$currentLanguage}
+      onchange={(e) => {
+        currentLanguage.set((e.target as HTMLSelectElement).value);
+      }}
+      required
+    >
+      <option value="en">{$t('settings.language.english')}</option>
+      <option value="es">{$t('settings.language.spanish')}</option>
+    </select>
+  </div>
+
   <div class="toggle-section">
-    <h3>Error Details:</h3>
+    <h3>{$t('settings.errorDetails.title')}</h3>
     <button
       class="toggle-button {$showErrorDetail ? 'active' : ''}"
       onclick={() => showErrorDetail.set(!$showErrorDetail)}
     >
-      {$showErrorDetail ? "Hide" : "Show"} detailed errors
+      {$showErrorDetail ? $t('settings.errorDetails.hide') : $t('settings.errorDetails.show')}
     </button>
   </div>
 
   <div class="seed-phrase-section">
-    <h3>Wallet Recovery:</h3>
+    <h3>{$t('settings.walletRecovery.title')}</h3>
     <button
       class="show-seed-button"
       onclick={handleShowSeedPhrase}
       disabled={isLoadingSeed}
     >
       {isLoadingSeed
-        ? "Loading..."
+        ? $t('settings.walletRecovery.loadingSeed')
         : showSeedPhrase
-          ? "Hide"
-          : "Show seed phrase"}
+          ? $t('settings.walletRecovery.hideSeedPhrase')
+          : $t('settings.walletRecovery.showSeedPhrase')}
     </button>
 
     {#if showSeedPhrase && seedPhrase}
       <div class="seed-phrase-container">
         <p class="warning-text">
-          Keep this seed phrase safe and secure. Anyone with access to it can
-          control your wallet.
+          {$t('settings.walletRecovery.warning')}
         </p>
         <SeedPhraseCard {seedPhrase} />
       </div>
     {/if}
   </div>
 
-  <button class="done-button" onclick={onClose}>Done</button>
+  <button class="done-button" onclick={onClose}>{$t('common.done')}</button>
 </div>
 
 <style>
@@ -125,22 +140,28 @@
     color: #333;
   }
 
-  .select-currency {
+  .select-currency,
+  .select-language {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
+    align-items: center;
+    width: 100%;
   }
 
-  .select-currency select {
+  .select-currency select,
+  .select-language select {
     margin-left: 1rem;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 1rem;
     background-color: white;
     cursor: pointer;
+    padding: 0.5rem;
   }
 
-  .select-currency select:focus {
+  .select-currency select:focus,
+  .select-language select:focus {
     border-color: #1e88e5;
     outline: none;
     box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);

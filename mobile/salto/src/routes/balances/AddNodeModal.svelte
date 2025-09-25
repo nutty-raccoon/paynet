@@ -2,6 +2,7 @@
   import type { EventHandler } from "svelte/elements";
   import { addNode } from "../../commands";
   import { showSuccessToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     onClose: () => void;
@@ -24,7 +25,7 @@
       let nodeAddressString = nodeAddress.toString();
       const result = await addNode(nodeAddressString);
       if (result !== undefined) {
-        showSuccessToast("Node added successfully");
+        showSuccessToast($t('modals.nodeAddSuccess'));
         onClose();
       }
     }
@@ -36,13 +37,13 @@
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Add Node</h3>
+      <h3>{$t('modals.addNode')}</h3>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <form onsubmit={handleFormSubmit}>
       <div class="form-group">
-        <label for="node-address">Node's address</label>
+        <label for="node-address">{$t('forms.nodeAddress')}</label>
         <input
           type="url"
           id="node-address"
@@ -53,7 +54,7 @@
       </div>
 
       <button type="submit" class="submit-button" disabled={isLoading}>
-        {isLoading ? "Adding node..." : "Add"}
+        {isLoading ? $t('modals.addingNode') : $t('modals.addNode')}
       </button>
     </form>
   </div>

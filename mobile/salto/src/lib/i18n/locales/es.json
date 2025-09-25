@@ -1,0 +1,189 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "done": "Hecho",
+    "cancel": "Cancelar",
+    "send": "Enviar",
+    "receive": "Recibir",
+    "settings": "Configuración",
+    "show": "Mostrar",
+    "hide": "Ocultar",
+    "error": "Error",
+    "success": "Éxito",
+    "back": "Atrás",
+    "open": "Abrir",
+    "dismiss": "Descartar notificación"
+  },
+  "navigation": {
+    "pay": "Pagar",
+    "balances": "Saldos",
+    "history": "Historial",
+    "settings": "Configuración"
+  },
+  "balance": {
+    "totalBalance": "SALDO TOTAL",
+    "balances": "Saldos",
+    "pendingMintQuotes": "Cotizaciones de Acuñación Pendientes",
+    "pendingMeltQuotes": "Cotizaciones de Fusión Pendientes",
+    "noBalancesAvailable": "No hay saldos disponibles",
+    "noPendingMintQuotes": "No hay cotizaciones de acuñación pendientes",
+    "noPendingMeltQuotes": "No hay cotizaciones de fusión pendientes",
+    "unpaid": "Sin pagar",
+    "paid": "Pagado",
+    "pending": "Pendiente",
+    "pay": "Pagar",
+    "redeem": "Canjear",
+    "forget": "Olvidar"
+  },
+  "settings": {
+    "title": "Configuración",
+    "currency": {
+      "title": "Selecciona tu moneda:",
+      "label": "Moneda"
+    },
+    "language": {
+      "title": "Idioma:",
+      "english": "English",
+      "spanish": "Español"
+    },
+    "errorDetails": {
+      "title": "Detalles de Error:",
+      "show": "Mostrar errores detallados",
+      "hide": "Ocultar errores detallados"
+    },
+    "walletRecovery": {
+      "title": "Recuperación de Billetera:",
+      "showSeedPhrase": "Mostrar frase semilla",
+      "hideSeedPhrase": "Ocultar frase semilla",
+      "loadingSeed": "Cargando...",
+      "warning": "Mantén esta frase semilla segura y protegida. Cualquiera con acceso a ella puede controlar tu billetera."
+    }
+  },
+  "send": {
+    "title": "Enviar",
+    "amount": "Cantidad",
+    "recipient": "Destinatario",
+    "method": "Método de Envío",
+    "confirm": "Confirmar Envío",
+    "generating": "Generando...",
+    "pickPaymentMethod": "Elige un método de pago",
+    "paymentDataGenerated": "Datos de pago generados exitosamente",
+    "show": "Mostrar",
+    "copy": "Copiar",
+    "choosePaymentMethod": "Elige Método de Pago",
+    "copyToClipboard": "Copiar al portapapeles"
+  },
+  "forms": {
+    "amount": "Cantidad",
+    "asset": "Activo",
+    "address": "Dirección",
+    "toAddress": "Dirección de Destino",
+    "currency": "Moneda",
+    "retry": "Reintentar",
+    "nodeAddress": "Dirección del nodo",
+    "backButton": "← Atrás"
+  },
+  "placeholders": {
+    "seedPhrase": "Ingresa tu frase semilla aquí..."
+  },
+  "buttons": {
+    "syncing": "⏳ Sincronizando...",
+    "refresh": "🔄 Actualizar"
+  },
+  "receive": {
+    "title": "Recibir",
+    "method": "Método de Recepción",
+    "address": "Dirección",
+    "qrCode": "Código QR",
+    "paymentReceived": "Pago recibido exitosamente",
+    "clipboardEmpty": "El portapapeles está vacío o no contiene datos de pago",
+    "failedReceive": "Error al recibir wad",
+    "scan": "Escanear",
+    "paste": "Pegar",
+    "chooseReceivingMethod": "Elige Método de Recepción",
+    "pasteFromClipboard": "Pegar del portapapeles"
+  },
+  "scan": {
+    "title": "Escanear Código QR",
+    "instructions": "Apunta tu cámara a un código QR para escanear",
+    "failedDecode": "Error al decodificar código QR",
+    "scanned": "Escaneado:",
+    "pointCamera": "Apunta tu cámara a un código QR",
+    "scanToComplete": "Escanea este código QR para completar el pago",
+    "generatingQR": "Generando código QR..."
+  },
+  "errors": {
+    "connectionFailed": "Error al actualizar los saldos de la cuenta. Por favor verifica tu conexión.",
+    "quotesFailed": "Error al actualizar las cotizaciones pendientes. Por favor verifica tu conexión.",
+    "walletNotFound": "Billetera no encontrada",
+    "invalidAmount": "Cantidad inválida",
+    "insufficientBalance": "Saldo insuficiente",
+    "amountCannotExceed": "La cantidad no puede exceder",
+    "failedGeneratePayment": "Error al generar datos de pago. Por favor intenta de nuevo.",
+    "unknown": "Error desconocido",
+    "details": "Detalles del error"
+  },
+  "modals": {
+    "deposit": "Depositar",
+    "withdraw": "Retirar",
+    "addNode": "Agregar Nodo",
+    "nodeDetails": "Detalles del Nodo",
+    "depositSuccess": "Cotización de depósito creada exitosamente",
+    "withdrawSuccess": "Cotización de retiro creada exitosamente",
+    "nodeAddSuccess": "Nodo agregado exitosamente",
+    "addingNode": "Agregando nodo...",
+    "selectAsset": "Por favor selecciona un activo",
+    "enterAddress": "Por favor ingresa una dirección de destino",
+    "paymentQRCode": "Código QR de Pago",
+    "depositTokens": "Depositar Tokens",
+    "withdrawTokens": "Retirar Tokens",
+    "depositingTo": "Depositando a:",
+    "withdrawingFrom": "Retirando de:",
+    "available": "Disponible:",
+    "max": "MÁX",
+    "selectAssetOption": "Seleccionar activo...",
+    "insufficientBalance": "Saldo insuficiente. Máximo retirable:",
+    "invalidAddress": "Por favor ingresa una dirección Starknet válida (0x...)",
+    "amountGreaterThanZero": "La cantidad debe ser mayor que 0"
+  },
+  "history": {
+    "title": "Historial de Transacciones",
+    "transferHistory": "Historial de Transferencias",
+    "loadingHistory": "Cargando historial de transferencias...",
+    "noTransactions": "No se encontró historial de transferencias",
+    "pending": "Pendiente",
+    "completed": "Completado",
+    "failed": "Fallido",
+    "in": "ENTRADA",
+    "out": "SALIDA",
+    "balancesHeader": "Saldos:"
+  },
+  "wallet": {
+    "create": "Crear Billetera",
+    "creating": "Creando...",
+    "restore": "Restaurar Billetera",
+    "restoring": "Restaurando...",
+    "enterSeedPhrase": "Por favor ingresa tu frase semilla",
+    "confirmSaved": "Por favor confirma que has guardado tu frase semilla",
+    "welcome": "Bienvenido a Salto Wallet",
+    "getStarted": "Comienza creando una nueva billetera o restaurando una existente",
+    "newWalletDesc": "Se creará una nueva billetera con una frase semilla única que puedes usar para restaurar tu billetera más tarde.",
+    "restoreWalletDesc": "Ingresa tu frase semilla para restaurar tu billetera existente.",
+    "seedPhraseLabel": "Frase Semilla",
+    "createNew": "Crear Nueva Billetera",
+    "restoreWallet": "Restaurar Billetera",
+    "yourSeedPhrase": "Tu Frase Semilla",
+    "recoverySuccessful": "¡Recuperación Exitosa!",
+    "walletCreatedDesc": "Tu billetera ha sido creada. Anota esta frase semilla y guárdala en un lugar seguro. La necesitarás para recuperar tu billetera.",
+    "savedSeedPhrase": "He guardado de forma segura mi frase semilla",
+    "continue": "Continuar",
+    "walletRestoredDesc": "Tu billetera ha sido restaurada exitosamente. Ahora agrega de vuelta los nodos que usaste para depositar fondos, y recuperaremos tu dinero.",
+    "next": "Siguiente",
+    "restoreExisting": "Restaurar Billetera Existente"
+  },
+  "labels": {
+    "memo": "Memo:",
+    "qrCode": "Código QR",
+    "clickToCopy": "📋 Clic para copiar"
+  }
+}
