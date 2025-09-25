@@ -2,9 +2,10 @@
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { getWadHistory, syncWads } from "../../commands";
-  import { formatBalance } from "../../utils";
+  import { formatBalance, getStatusDisplayText } from "../../utils";
   import type { WadHistoryItem, WadStatus } from "../../types/wad";
   import type { Balance } from "../../types";
+  import { t } from "../../stores/i18n";
 
   let wadHistory: WadHistoryItem[] = $state([]);
   let loading = $state(true);
@@ -108,7 +109,7 @@
   }
 
   function getTypeDisplay(type: string): string {
-    return type.toLowerCase() === "in" ? "IN" : "OUT";
+    return type.toLowerCase() === "in" ? $t('history.in') : $t('history.out');
   }
 
   function toggleWadExpansion(wadId: string, wadType: string) {
@@ -133,23 +134,23 @@
 <div class="history-page">
   <div class="history-container">
     <div class="header">
-      <h1>Transfer History</h1>
+      <h1>{$t('history.transferHistory')}</h1>
     </div>
 
     <div class="content">
       {#if loading}
         <div class="loading">
           <div class="spinner"></div>
-          <p>Loading transfer history...</p>
+          <p>{$t('history.loadingHistory')}</p>
         </div>
       {:else if error}
         <div class="error">
           <p>{error}</p>
-          <button onclick={loadWadHistory}>Retry</button>
+          <button onclick={loadWadHistory}>{$t('forms.retry')}</button>
         </div>
       {:else if wadHistory.length === 0}
         <div class="empty">
-          <p>No transfer history found</p>
+          <p>{$t('history.noTransactions')}</p>
         </div>
       {:else}
         <div class="history-list">
@@ -173,18 +174,18 @@
                 >
                 <span
                   class="wad-status"
-                  style="color: {getStatusColor(wad.status)}">{wad.status}</span
+                  style="color: {getStatusColor(wad.status)}">{getStatusDisplayText(wad.status)}</span
                 >
               </button>
               {#if isWadSelected(wad.id, wad.type)}
                 <div class="wad-details">
                   {#if wad.memo}
                     <div class="memo-section">
-                      <div class="memo-header">Memo:</div>
+                      <div class="memo-header">{$t('labels.memo')}</div>
                       <div class="memo-text">{wad.memo}</div>
                     </div>
                   {/if}
-                  <div class="balances-header">Balances:</div>
+                  <div class="balances-header">{$t('history.balancesHeader')}</div>
                   {#each wad.amounts as balance}
                     <div class="balance-item">
                       <span class="balance-amount"
@@ -206,9 +207,9 @@
           disabled={loading || syncing}
         >
           {#if syncing}
-            ⏳ Syncing...
+            {$t('buttons.syncing')}
           {:else}
-            🔄 Refresh
+            {$t('buttons.refresh')}
           {/if}
         </button>
       </div>

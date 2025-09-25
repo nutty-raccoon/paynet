@@ -1,5 +1,6 @@
 <script lang="ts">
   import { pushState } from "$app/navigation";
+  import { t } from "../../stores/i18n";
 
   export type Tab = "pay" | "balances" | "settings" | "history";
 
@@ -24,21 +25,21 @@
     onclick={() => handleTabClick("pay")}
   >
     <div class="icon">💸</div>
-    <span>Pay</span>
+    <span>{$t('navigation.pay')}</span>
   </button>
   <button
     class="tab-item {activeTab === 'balances' ? 'active' : ''}"
     onclick={() => handleTabClick("balances")}
   >
     <div class="icon">💰</div>
-    <span>Balances</span>
+    <span>{$t('navigation.balances')}</span>
   </button>
   <button
     class="tab-item {activeTab === 'history' ? 'active' : ''}"
     onclick={() => handleTabClick("history")}
   >
     <div class="icon">📋</div>
-    <span>History</span>
+    <span>{$t('navigation.history')}</span>
   </button>
 </nav>
 

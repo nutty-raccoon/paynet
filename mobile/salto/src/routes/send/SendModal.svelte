@@ -3,6 +3,7 @@
   import AmountForm from "./AmountForm.svelte";
   import SendingMethodChoice from "./SendingMethodChoice.svelte";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import { t } from "../../stores/i18n";
   import type { Wads } from "../../types/wad";
 
   const SelectedMethod = {
@@ -56,7 +57,7 @@
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Make Payment</h3>
+      <h3>{$t('send.title')}</h3>
       <button class="close-button" onclick={handleModalClose}>✕</button>
     </div>
 
@@ -64,8 +65,8 @@
       {#if !wads}
         {#if availableUnits.length === 0}
           <div class="no-balance-message">
-            <p>No funds available for payment. Please deposit tokens first.</p>
-            <button class="close-button-alt" onclick={onClose}>Close</button>
+            <p>{$t('errors.insufficientBalance')}</p>
+            <button class="close-button-alt" onclick={onClose}>{$t('common.cancel')}</button>
           </div>
         {:else}
           <AmountForm

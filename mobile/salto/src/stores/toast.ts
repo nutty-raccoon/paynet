@@ -1,6 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { showErrorDetail } from '../stores';
 import type { ToastMessage, ToastConfig, ToastType } from '../types/toast';
+import { t } from './i18n';
 
 // Store for managing active toast messages
 export const toasts = writable<ToastMessage[]>([]);
@@ -27,8 +28,8 @@ export function addToast(config: ToastConfig, error?: any): string {
   let finalMessage = config.message;
   if (error && get(showErrorDetail)) {
     const errorText = typeof error === 'string' ? error :
-                     error?.message || error?.toString() || 'Unknown error';
-    finalMessage = `${config.message}\n\nError details: ${errorText}`;
+                     error?.message || error?.toString() || get(t)('errors.unknown');
+    finalMessage = `${config.message}\n\n${get(t)('errors.details')}: ${errorText}`;
   }
   
   const toast: ToastMessage = {

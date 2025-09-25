@@ -5,6 +5,7 @@
   import DepositModal from "./DepositModal.svelte";
   import WithdrawModal from "./WithdrawModal.svelte";
   import { formatBalance } from "../../utils";
+  import { t } from "../../stores/i18n";
   import {
     payMeltQuote,
     payMintQuote,
@@ -92,7 +93,7 @@
     <div class="modal-body">
       <!-- Balances Section -->
       <div class="section">
-        <h3 class="section-title">Balances</h3>
+        <h3 class="section-title">{$t('balance.balances')}</h3>
         {#if selectedNodeBalances.length > 0}
           <div class="balances-list">
             {#each selectedNodeBalances as balance}
@@ -105,18 +106,18 @@
             {/each}
           </div>
         {:else}
-          <p class="empty-state">No balances available</p>
+          <p class="empty-state">{$t('balance.noBalancesAvailable')}</p>
         {/if}
       </div>
 
       <!-- Pending Mint Quotes Section -->
       <div class="section">
-        <h3 class="section-title">Pending Mint Quotes</h3>
+        <h3 class="section-title">{$t('balance.pendingMintQuotes')}</h3>
         {#if $nodePendingQuotes.mint.unpaid.length > 0 || $nodePendingQuotes.mint.paid.length > 0}
           {#if $nodePendingQuotes.mint.unpaid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Unpaid ({$nodePendingQuotes.mint.unpaid.length})
+                {$t('balance.unpaid')} ({$nodePendingQuotes.mint.unpaid.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.mint.unpaid as quote}
@@ -132,7 +133,7 @@
                       onclick={() =>
                         handleUnpaidQuotePay(selectedNode.id, quote.id)}
                     >
-                      Pay
+                      {$t('balance.pay')}
                     </button>
                   </div>
                 {/each}
@@ -143,7 +144,7 @@
           {#if $nodePendingQuotes.mint.paid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Paid ({$nodePendingQuotes.mint.paid.length})
+                {$t('balance.paid')} ({$nodePendingQuotes.mint.paid.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.mint.paid as quote}
@@ -159,7 +160,7 @@
                       onclick={() =>
                         handlePaidQuotePay(selectedNode.id, quote.id)}
                     >
-                      Redeem
+                      {$t('balance.redeem')}
                     </button>
                   </div>
                 {/each}
@@ -167,18 +168,18 @@
             </div>
           {/if}
         {:else}
-          <p class="empty-state">No pending mint quotes</p>
+          <p class="empty-state">{$t('balance.noPendingMintQuotes')}</p>
         {/if}
       </div>
 
       <!-- Pending Melt Quotes Section -->
       <div class="section">
-        <h3 class="section-title">Pending Melt Quotes</h3>
+        <h3 class="section-title">{$t('balance.pendingMeltQuotes')}</h3>
         {#if $nodePendingQuotes.melt.unpaid.length > 0 || $nodePendingQuotes.melt.pending.length > 0}
           {#if $nodePendingQuotes.melt.unpaid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Unpaid ({$nodePendingQuotes.melt.unpaid.length})
+                {$t('balance.unpaid')} ({$nodePendingQuotes.melt.unpaid.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.melt.unpaid as quote}
@@ -194,7 +195,7 @@
                       onclick={() =>
                         handleMeltUnpaidQuotePay(selectedNode.id, quote.id)}
                     >
-                      Pay
+                      {$t('balance.pay')}
                     </button>
                   </div>
                 {/each}
@@ -205,7 +206,7 @@
           {#if $nodePendingQuotes.melt.pending.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Pending ({$nodePendingQuotes.melt.pending.length})
+                {$t('balance.pending')} ({$nodePendingQuotes.melt.pending.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.melt.pending as quote}
@@ -222,7 +223,7 @@
             </div>
           {/if}
         {:else}
-          <p class="empty-state">No pending melt quotes</p>
+          <p class="empty-state">{$t('balance.noPendingMeltQuotes')}</p>
         {/if}
       </div>
     </div>
@@ -230,15 +231,15 @@
     <div class="modal-footer">
       <div class="action-buttons">
         <button class="deposit-button" onclick={openDepositModal}>
-          Deposit
+          {$t('modals.deposit')}
         </button>
         {#if shouldShowForgetButton}
           <button class="forget-button" onclick={handleForgetNode}>
-            Forget
+            {$t('balance.forget')}
           </button>
         {:else}
           <button class="withdraw-button" onclick={openWithdrawModal}>
-            Withdraw
+            {$t('modals.withdraw')}
           </button>
         {/if}
       </div>

@@ -12,6 +12,7 @@
   import AddNodeModal from "./AddNodeModal.svelte";
   import NodeModal from "./NodeModal.svelte";
   import { derived as derivedStore } from "svelte/store";
+  import { t } from "../../stores/i18n";
 
   // Modal state
   let isAddNodeModalOpen = $state(false);
@@ -119,12 +120,12 @@
         class:has-pending={$nodesWithPendingQuotes.has(node.id)}
         onclick={() => openNodeModal(node)}
       >
-        Open
+        {$t('common.open')}
       </button>
     </div>
   {/each}
 
-  <button class="add-node-button" onclick={openAddNodeModal}> Add Node </button>
+  <button class="add-node-button" onclick={openAddNodeModal}>{$t('modals.addNode')}</button>
 </div>
 
 {#if isAddNodeModalOpen}

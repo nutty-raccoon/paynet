@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "../../stores/i18n";
+  
   interface Props {
     paymentStrings: [string, string] | null;
     onQRCodeChoice: () => void;
@@ -9,7 +11,7 @@
 </script>
 
 <div class="payment-method-choice">
-  <h4>Choose Payment Method</h4>
+  <h4>{$t('send.choosePaymentMethod')}</h4>
   {#if !!paymentStrings}
     <p class="payment-object">
       {paymentStrings[0]}
@@ -19,13 +21,13 @@
   <div class="method-buttons">
     <button class="method-button qr-button" onclick={onQRCodeChoice}>
       <div class="method-icon">📱</div>
-      <span>QR Code</span>
-      <small>Show</small>
+      <span>{$t('labels.qrCode')}</span>
+      <small>{$t('send.show')}</small>
     </button>
     <button class="method-button copy-button" onclick={onCopyChoice}>
       <div class="method-icon">📋</div>
-      <span>Copy</span>
-      <small>Copy to clipboard</small>
+      <span>{$t('send.copy')}</span>
+      <small>{$t('send.copyToClipboard')}</small>
     </button>
   </div>
 </div>
