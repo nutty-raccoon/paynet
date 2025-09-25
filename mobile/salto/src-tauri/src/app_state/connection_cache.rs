@@ -115,6 +115,42 @@ impl ConnectionCache {
         &self,
         node_id: u32,
     ) -> Result<Option<NodeInfo>, ConnectionCacheError> {
+        // Check cache first
+        {
+            let cache = self.cache.read().await;
+            if let Some(cached) = cache.get(&node_id) {
+                if !cached.is_expired(self.ttl) {
+                    return Ok(cached.info.clone());
+                }
+            }
+        }
+
+        // Get node URL from database
+        let node_url = {
+            let db_conn = self.pool.get()?;
+            wallet::db::node::get_url_by_id(&db_conn, node_id)?
+                .ok_or(ConnectionCacheError::NodeNotFound(node_id))?
+        };
+
+        // Update cache
+        let info = {
+            // Create new connection
+            let client = connect_to_node(&node_url, self.opt_root_ca_cert.clone()).await?;
+
+            let mut cache = self.cache.write().await;
+            let cached_connection = CachedConnection::new(client.clone()).await;
+            let info = cached_connection.info.clone();
+            cache.insert(node_id, cached_connection);
+
+            info
+        };
+
+        Ok(info)
+    }
+
+    pub async fn list_nodes_ids(&self) -> Result<Vec<u32>, ConnectionCacheError> {
+        let cache = self.cache.read().await;
+        Ok(cache.keys().cloned().collect())
     }
 
     pub async fn cleanup_expired(&self) {
