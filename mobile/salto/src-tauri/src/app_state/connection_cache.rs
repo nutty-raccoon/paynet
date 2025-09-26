@@ -148,11 +148,6 @@ impl ConnectionCache {
         Ok(info)
     }
 
-    pub async fn list_nodes_ids(&self) -> Result<Vec<u32>, ConnectionCacheError> {
-        let cache = self.cache.read().await;
-        Ok(cache.keys().cloned().collect())
-    }
-
     pub async fn cleanup_expired(&self) {
         let mut cache = self.cache.write().await;
 

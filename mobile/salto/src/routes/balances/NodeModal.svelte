@@ -44,10 +44,10 @@
   }
 
   function openDepositModal() {
-    if (!!nodeDepositSettings) {
+    if (!!nodeDepositSettings && !nodeDepositSettings.disabled) {
       currentModal = "deposit";
     } else {
-      // TODO: display error message saying no deposit settings exist for this node
+      // TODO: display error message saying deposits are not available for this node
     }
   }
 
@@ -238,7 +238,17 @@
 
     <div class="modal-footer">
       <div class="action-buttons">
-        <button class="deposit-button" onclick={openDepositModal}>
+        <button
+          class="deposit-button"
+          class:disabled={!nodeDepositSettings || nodeDepositSettings.disabled}
+          disabled={!nodeDepositSettings || nodeDepositSettings.disabled}
+          onclick={openDepositModal}
+          title={!nodeDepositSettings
+            ? "No deposit methods available"
+            : nodeDepositSettings.disabled
+              ? "Deposits are disabled for this node"
+              : ""}
+        >
           {$t("modals.deposit")}
         </button>
         {#if shouldShowForgetButton}
@@ -470,6 +480,16 @@
 
   .deposit-button:hover {
     background-color: #45a049;
+  }
+
+  .deposit-button.disabled {
+    background-color: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+  }
+
+  .deposit-button.disabled:hover {
+    background-color: #cccccc;
   }
 
   .withdraw-button {

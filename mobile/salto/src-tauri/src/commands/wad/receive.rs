@@ -6,7 +6,12 @@ use tauri::{AppHandle, State};
 use tracing::{Level, event};
 use wallet::types::compact_wad::{self, CompactWad, CompactWads};
 
-use crate::{AppState, errors::CommonError, front_events::emit_trigger_balance_poll};
+use crate::{
+    AppState,
+    commands::node::{AddNodeError, add_and_restore_node},
+    errors::CommonError,
+    front_events::emit_trigger_balance_poll,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReceiveWadsError {
@@ -20,6 +25,8 @@ pub enum ReceiveWadsError {
     CreateNodeClient(wallet::ConnectToNodeError),
     #[error(transparent)]
     ReceiveWad(#[from] wallet::ReceiveWadError),
+    #[error("failed to add new node: {0}")]
+    AddNode(#[from] AddNodeError),
 }
 
 impl serde::Serialize for ReceiveWadsError {
@@ -67,7 +74,7 @@ pub async fn receive_wads(
             wallet::db::node::get_id_by_url(&db_conn, &node_url).map_err(CommonError::Db)?
         };
 
-        let (mut node_client, node_id) = if let Some(existing_node_id) = existing_node_id {
+        let (node_id, mut node_client) = if let Some(existing_node_id) = existing_node_id {
             // Use cached connection if node exists
             event!(name: "known_node", Level::INFO,
                 node_id = existing_node_id,
@@ -78,24 +85,14 @@ pub async fn receive_wads(
                 .get_node_client_connection(existing_node_id)
                 .await
                 .map_err(CommonError::CachedConnection)?;
-            (client, existing_node_id)
+
+            (existing_node_id, client)
         } else {
-            // Create direct connection and register new node
             event!(name: "registering_new_node", Level::INFO,
                 node_url = %node_url,
                 "Registering new node"
             );
-            let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
-                .await
-                .map_err(ReceiveWadsError::CreateNodeClient)?;
-            let node_id =
-                wallet::node::register(state.pool().clone(), &mut client, &node_url).await?;
-            event!(name: "new_node_registered", Level::INFO,
-                node_id = node_id,
-                node_url = %node_url,
-                "New node registered"
-            );
-            (client, node_id)
+            add_and_restore_node(app.clone(), state.clone(), &node_url).await?
         };
 
         event!(name: "receiving_wad", Level::INFO,

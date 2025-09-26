@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
+use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
 use starknet_types::Asset;
 use tauri::{AppHandle, State};
+use tonic::transport::Channel;
 use tracing::{Level, event, warn};
 use wallet::types::NodeUrl;
 
@@ -39,15 +41,11 @@ impl serde::Serialize for AddNodeError {
     }
 }
 
-#[tauri::command]
-#[tracing::instrument(skip(app, state))]
-pub async fn add_node(
+pub async fn add_and_restore_node(
     app: AppHandle,
     state: State<'_, AppState>,
-    node_url: String,
-) -> Result<(), AddNodeError> {
-    let node_url = NodeUrl::from_str(&node_url)?;
-
+    node_url: &NodeUrl,
+) -> Result<(u32, NodeClient<Channel>), AddNodeError> {
     event!(name: "connecting_to_node", Level::INFO,
         node_url = %node_url,
         "Connecting to node"
@@ -69,10 +67,30 @@ pub async fn add_node(
     );
 
     event!(name: "restoring_node_from_wallet", Level::INFO, node_id = id, "Restoring node");
-    wallet::node::restore(crate::SEED_PHRASE_MANAGER, state.pool().clone(), id, client).await?;
+    wallet::node::restore(
+        crate::SEED_PHRASE_MANAGER,
+        state.pool().clone(),
+        id,
+        client.clone(),
+    )
+    .await?;
     event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
 
     let _ = emit_trigger_balance_poll(&app);
+
+    Ok((id, client))
+}
+
+#[tauri::command]
+#[tracing::instrument(skip(app, state))]
+pub async fn add_node(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    node_url: String,
+) -> Result<(), AddNodeError> {
+    let node_url = NodeUrl::from_str(&node_url)?;
+
+    let (id, _) = add_and_restore_node(app, state.clone(), &node_url).await?;
 
     let balances = wallet::db::balance::get_for_node(&*state.pool().get()?, id)?;
     let new_assets = balances
@@ -82,6 +100,7 @@ pub async fn add_node(
             starknet_types::Unit::from_str(&b.unit).map(|u| u.matching_asset())
         })
         .collect::<Result<Vec<_>, _>>()?;
+
     state
         .get_prices_config()
         .write()
