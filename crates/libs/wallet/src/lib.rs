@@ -198,11 +198,16 @@ pub async fn fetch_inputs_ids_from_db_or_node(
         }
 
         let mut stmt = db_conn.prepare(
-            "SELECT y, amount FROM proof WHERE node_id = ?1 AND state = ?2 ORDER BY amount DESC;",
+            "SELECT p.y, p.amount 
+                    FROM proof p 
+                    JOIN keyset k ON p.keyset_id = k.id 
+                    WHERE p.node_id = ?1 AND p.state = ?2 AND k.unit = ?3 
+                  ORDER BY p.amount DESC;",
         )?;
-        let proofs_res_iterator = stmt.query_map(params![node_id, ProofState::Unspent], |r| {
-            Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
-        })?;
+        let proofs_res_iterator = stmt
+            .query_map(params![node_id, ProofState::Unspent, unit], |r| {
+                Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
+            })?;
 
         for proof_res in proofs_res_iterator {
             let (y, proof_amount) = proof_res?;
@@ -366,7 +371,7 @@ pub async fn swap_to_have_target_amount(
 pub enum ReceiveWadError {
     #[error("failed to read or import node keysets: {0}")]
     ReadOrImportNodeKeysets(#[source] crate::Error),
-    #[error("keyset unit mismatch, expected {0} got {0}")]
+    #[error("keyset unit mismatch, expected `{0}` got `{0}`")]
     UnitMissmatch(String, String),
     #[error(transparent)]
     Common(#[from] CommonError),
@@ -420,6 +425,8 @@ pub async fn receive_wad(
         .await
         .map_err(ReceiveWadError::ReadOrImportNodeKeysets)?;
 
+        println!("ku: {}, len: {}", keyset_unit, keyset_unit.len());
+        println!("u: {} len {}", unit, unit.len());
         if keyset_unit != unit {
             return Err(ReceiveWadError::UnitMissmatch(
                 keyset_unit,
