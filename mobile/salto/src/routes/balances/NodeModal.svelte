@@ -244,9 +244,9 @@
           disabled={!nodeDepositSettings || nodeDepositSettings.disabled}
           onclick={openDepositModal}
           title={!nodeDepositSettings
-            ? "No deposit methods available"
+            ? $t("validation.noDepositMethodsAvailable")
             : nodeDepositSettings.disabled
-              ? "Deposits are disabled for this node"
+              ? $t("validation.depositsDisabledForNode")
               : ""}
         >
           {$t("modals.deposit")}
@@ -269,7 +269,7 @@
   {#if !!nodeDepositSettings}
     <DepositModal {selectedNode} onClose={closeModal} {nodeDepositSettings} />
   {:else}
-    <div>Error: no deposit settings available</div>
+    <div>{$t("validation.errorNoDepositSettings")}</div>
   {/if}
 {:else if currentModal === "withdraw"}
   <WithdrawModal {selectedNode} {nodeBalances} onClose={closeModal} />

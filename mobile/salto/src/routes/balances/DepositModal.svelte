@@ -69,7 +69,7 @@
 
       // Validate against min/max amounts
       if (amountValue < minUnitAmount) {
-        depositError = `Amount must be at least ${minUnitAmount} ${selectedUnit.toUpperCase()}`;
+        depositError = `${$t("validation.amountMustBeAtLeast")} ${minUnitAmount} ${selectedUnit.toUpperCase()}`;
         return;
       }
 
@@ -77,7 +77,7 @@
         selectedMethod.maxAmount !== undefined &&
         amountValue > selectedMethod.maxAmount
       ) {
-        depositError = `Amount cannot exceed ${selectedMethod.maxAmount} ${selectedUnit.toUpperCase()}`;
+        depositError = `${$t("validation.amountCannotExceed")} ${selectedMethod.maxAmount} ${selectedUnit.toUpperCase()}`;
         return;
       }
 
@@ -130,10 +130,10 @@
         </div>
       </div>
       <div class="deposit-limits">
-        <h4>Deposit Limits for {unitToAsset(selectedUnit)}</h4>
+        <h4>{$t("depositLimits.title")} {unitToAsset(selectedUnit)}</h4>
         <div class="limit-info">
           <span class="limits">
-            Min: {minUnitAmount}
+            {$t("depositLimits.min")} {minUnitAmount}
           </span>
         </div>
       </div>

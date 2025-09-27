@@ -185,5 +185,16 @@
     "memo": "Memo:",
     "qrCode": "Código QR",
     "clickToCopy": "📋 Clic para copiar"
+  },
+  "validation": {
+    "amountMustBeAtLeast": "La cantidad debe ser al menos",
+    "amountCannotExceed": "La cantidad no puede exceder",
+    "noDepositMethodsAvailable": "No hay métodos de depósito disponibles",
+    "depositsDisabledForNode": "Los depósitos están deshabilitados para este nodo",
+    "errorNoDepositSettings": "Error: no hay configuraciones de depósito disponibles"
+  },
+  "depositLimits": {
+    "title": "Límites de Depósito para",
+    "min": "Mín:"
   }
 }
