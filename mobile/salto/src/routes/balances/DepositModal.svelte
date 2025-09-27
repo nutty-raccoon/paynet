@@ -1,18 +1,48 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { NodeIdAndUrl } from "../../types";
+  import type { NodeIdAndUrl, Unit } from "../../types";
   import { createMintQuote } from "../../commands";
   import { showSuccessToast } from "../../stores/toast";
   import { t } from "../../stores/i18n";
+  import {
+    assetPrecision,
+    divideBigIntToFloat,
+    unitPrecision,
+    unitToAsset,
+  } from "../../utils";
+  import type { MintSettings } from "../../types/NodeMintMethodInfo";
 
+  // Interface
   interface Props {
     selectedNode: NodeIdAndUrl;
+    nodeDepositSettings: MintSettings;
     onClose: () => void;
   }
+  let { selectedNode, onClose, nodeDepositSettings }: Props = $props();
 
-  let { selectedNode, onClose }: Props = $props();
   let depositError = $state<string>("");
 
+  let selectedUnit = $state<Unit>(nodeDepositSettings.methods[0]?.unit || "");
+  $effect(() => {
+    selectedUnit; // Access selectedUnit to make the effect reactive to it
+    depositError = "";
+  });
+  // Get the selected method based on current token selection
+  let selectedMethod = $derived.by(() => {
+    return nodeDepositSettings.methods.find(
+      (method) => method.unit === selectedUnit,
+    )!;
+  });
+  let minUnitAmount = $derived.by(() => {
+    return parseFloat(
+      divideBigIntToFloat(
+        selectedMethod.minAmount,
+        assetPrecision(selectedUnit),
+      ),
+    );
+  });
+
+  // Handlers
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
   ) => {
@@ -26,25 +56,46 @@
     depositError = "";
 
     if (selectedNode && amount && token) {
+      const selectedUnit = token.toString();
       const amountString = amount.toString();
-      const amountValue = parseFloat(amountString);
+      const amountValue =
+        parseFloat(amountString) * unitPrecision(selectedUnit);
       const nodeId = selectedNode["id"];
 
       if (amountValue <= 0) {
-        depositError = $t('modals.amountGreaterThanZero');
+        depositError = $t("modals.amountGreaterThanZero");
         return;
       }
 
-      const result = await createMintQuote(nodeId, amountString, token.toString());
+      // Validate against min/max amounts
+      if (amountValue < minUnitAmount) {
+        depositError = `${$t("validation.amountMustBeAtLeast")} ${minUnitAmount} ${selectedUnit.toUpperCase()}`;
+        return;
+      }
+
+      if (
+        selectedMethod.maxAmount !== undefined &&
+        amountValue > selectedMethod.maxAmount
+      ) {
+        depositError = `${$t("validation.amountCannotExceed")} ${selectedMethod.maxAmount} ${selectedUnit.toUpperCase()}`;
+        return;
+      }
+
+      const result = await createMintQuote(
+        nodeId,
+        amountString,
+        unitToAsset(selectedUnit),
+      );
       if (result !== undefined) {
-        showSuccessToast($t('modals.depositSuccess'));
+        showSuccessToast($t("modals.depositSuccess"));
         onClose();
       }
     }
   };
 
-  // Reset error when modal closes
+  // Effects
   $effect(() => {
+    // Reset error when modal closes
     if (!selectedNode) {
       depositError = "";
     }
@@ -54,13 +105,13 @@
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>{$t('modals.depositTokens')}</h3>
+      <h3>{$t("modals.depositTokens")}</h3>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <form onsubmit={handleFormSubmit}>
       <div class="form-group">
-        <label for="deposit-amount">{$t('forms.amount')}</label>
+        <label for="deposit-amount">{$t("forms.amount")}</label>
         <div class="amount-input-group">
           <input
             type="number"
@@ -71,15 +122,24 @@
             step="any"
             required
           />
-          <select name="deposit-token" required>
-            <option value="strk">STRK</option>
-            <option value="eth">ETH</option>
+          <select name="deposit-token" bind:value={selectedUnit} required>
+            {#each nodeDepositSettings.methods as method}
+              <option value={method.unit}>{unitToAsset(method.unit)}</option>
+            {/each}
           </select>
+        </div>
+      </div>
+      <div class="deposit-limits">
+        <h4>{$t("depositLimits.title")} {unitToAsset(selectedUnit)}</h4>
+        <div class="limit-info">
+          <span class="limits">
+            {$t("depositLimits.min")} {minUnitAmount}
+          </span>
         </div>
       </div>
 
       <div class="deposit-info">
-        <p>{$t('modals.depositingTo')} {selectedNode.url}</p>
+        <p>{$t("modals.depositingTo")} {selectedNode.url}</p>
       </div>
 
       {#if depositError}
@@ -88,7 +148,8 @@
         </div>
       {/if}
 
-      <button type="submit" class="submit-button">{$t('modals.deposit')}</button>
+      <button type="submit" class="submit-button">{$t("modals.deposit")}</button
+      >
     </form>
   </div>
 </div>
@@ -235,5 +296,36 @@
     color: #c62828;
     font-size: 0.9rem;
     font-weight: 500;
+  }
+
+  .deposit-limits {
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #28a745;
+  }
+
+  .deposit-limits h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: #333;
+    font-weight: 600;
+  }
+
+  .limit-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .limit-info:last-child {
+    margin-bottom: 0;
+  }
+
+  .limits {
+    font-size: 0.8rem;
+    color: #6c757d;
   }
 </style>

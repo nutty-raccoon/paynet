@@ -14,7 +14,7 @@ use crate::Asset;
 // Warning: those values are used in database storage.
 // Modifying them without creating migration will result in db corruption.
 const GWEI_STR: &str = "gwei";
-const MILLI_STR: &str = "m-strk";
+const MILLI_STRK_STR: &str = "m-strk";
 const SATOSHI_STR: &str = "sat";
 const CENTI_USDT_STR: &str = "c-usdt";
 const CENTI_USDC_STR: &str = "c-usdc";
@@ -23,12 +23,16 @@ const CENTI_USDC_STR: &str = "c-usdc";
 ///
 /// Units provide a domain-specific abstraction layer over raw blockchain assets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
-#[serde(rename_all = "lowercase")]
 pub enum Unit {
+    #[serde(rename = "m-strk")]
     MilliStrk,
+    #[serde(rename = "gwei")]
     Gwei,
+    #[serde(rename = "sat")]
     Satoshi,
+    #[serde(rename = "c-usdt")]
     CentiUsdT,
+    #[serde(rename = "c-usdc")]
     CentiUsdC,
 }
 
@@ -50,7 +54,7 @@ impl Unit {
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            Unit::MilliStrk => MILLI_STR,
+            Unit::MilliStrk => MILLI_STRK_STR,
             Unit::Gwei => GWEI_STR,
             Unit::Satoshi => SATOSHI_STR,
             Unit::CentiUsdT => CENTI_USDT_STR,
@@ -90,7 +94,7 @@ impl FromStr for Unit {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let unit = match s.to_lowercase().as_str() {
-            MILLI_STR => Self::MilliStrk,
+            MILLI_STRK_STR => Self::MilliStrk,
             GWEI_STR => Self::Gwei,
             SATOSHI_STR => Self::Satoshi,
             CENTI_USDT_STR => Self::CentiUsdT,

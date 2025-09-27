@@ -185,5 +185,16 @@
     "memo": "Memo:",
     "qrCode": "QR Code",
     "clickToCopy": "📋 Click to copy"
+  },
+  "validation": {
+    "amountMustBeAtLeast": "Amount must be at least",
+    "amountCannotExceed": "Amount cannot exceed",
+    "noDepositMethodsAvailable": "No deposit methods available",
+    "depositsDisabledForNode": "Deposits are disabled for this node",
+    "errorNoDepositSettings": "Error: no deposit settings available"
+  },
+  "depositLimits": {
+    "title": "Deposit Limits for",
+    "min": "Min:"
   }
 }

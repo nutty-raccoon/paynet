@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
+use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
 use starknet_types::Asset;
 use tauri::{AppHandle, State};
+use tonic::transport::Channel;
 use tracing::{Level, event, warn};
 use wallet::types::NodeUrl;
 
@@ -39,6 +41,46 @@ impl serde::Serialize for AddNodeError {
     }
 }
 
+pub async fn add_and_restore_node(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    node_url: &NodeUrl,
+) -> Result<(u32, NodeClient<Channel>), AddNodeError> {
+    event!(name: "connecting_to_node", Level::INFO,
+        node_url = %node_url,
+        "Connecting to node"
+    );
+
+    let mut client = wallet::connect_to_node(node_url, state.opt_root_ca_cert()).await?;
+
+    event!(name: "registering_node", Level::INFO,
+        node_url = %node_url,
+        "Registering node"
+    );
+
+    let id = wallet::node::register(state.pool().clone(), &mut client, node_url).await?;
+
+    event!(name: "node_registered_successfully", Level::INFO,
+        node_id = id,
+        node_url = %node_url,
+        "Node registered"
+    );
+
+    event!(name: "restoring_node_from_wallet", Level::INFO, node_id = id, "Restoring node");
+    wallet::node::restore(
+        crate::SEED_PHRASE_MANAGER,
+        state.pool().clone(),
+        id,
+        client.clone(),
+    )
+    .await?;
+    event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
+
+    let _ = emit_trigger_balance_poll(&app);
+
+    Ok((id, client))
+}
+
 #[tauri::command]
 #[tracing::instrument(skip(app, state))]
 pub async fn add_node(
@@ -48,33 +90,9 @@ pub async fn add_node(
 ) -> Result<(), AddNodeError> {
     let node_url = NodeUrl::from_str(&node_url)?;
 
-    event!(name: "connecting_to_node", Level::INFO,
-        node_url = %node_url,
-        "Connecting to node"
-    );
+    let (id, _) = add_and_restore_node(app, state.clone(), &node_url).await?;
 
-    let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
-
-    event!(name: "registering_node", Level::INFO,
-        node_url = %node_url,
-        "Registering node"
-    );
-
-    let id = wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
-
-    event!(name: "node_registered_successfully", Level::INFO,
-        node_id = id,
-        node_url = %node_url,
-        "Node registered"
-    );
-
-    event!(name: "restoring_node_from_wallet", Level::INFO, node_id = id, "Restoring node");
-    wallet::node::restore(crate::SEED_PHRASE_MANAGER, state.pool.clone(), id, client).await?;
-    event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
-
-    let _ = emit_trigger_balance_poll(&app);
-
-    let balances = wallet::db::balance::get_for_node(&*state.pool.get()?, id)?;
+    let balances = wallet::db::balance::get_for_node(&*state.pool().get()?, id)?;
     let new_assets = balances
         .clone()
         .into_iter()
@@ -82,8 +100,9 @@ pub async fn add_node(
             starknet_types::Unit::from_str(&b.unit).map(|u| u.matching_asset())
         })
         .collect::<Result<Vec<_>, _>>()?;
+
     state
-        .get_prices_config
+        .get_prices_config()
         .write()
         .await
         .assets
@@ -121,7 +140,7 @@ pub async fn forget_node(
     node_id: u32,
     force: bool,
 ) -> Result<(), ForgetNodeError> {
-    let db_conn = state.pool.get()?;
+    let db_conn = state.pool().get()?;
 
     if !force {
         let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
@@ -176,7 +195,7 @@ pub async fn refresh_node_keysets(
         .map_err(|_| RefreshNodeKeysetsError::NodeId(node_id))?;
 
     event!(name: "refresh_node_keysets", Level::INFO, node_id, "Refreshing keyset");
-    wallet::node::refresh_keysets(state.pool.clone(), &mut node_client, node_id)
+    wallet::node::refresh_keysets(state.pool().clone(), &mut node_client, node_id)
         .await
         .map_err(|e| RefreshNodeKeysetsError::Wallet(node_id, e))?;
 

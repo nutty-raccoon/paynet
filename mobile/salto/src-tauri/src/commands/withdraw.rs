@@ -97,7 +97,7 @@ pub async fn create_melt_quote(
     );
 
     let response = wallet::melt::create_quote(
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         node_id,
         method.clone(),
@@ -129,7 +129,7 @@ pub async fn pay_melt_quote(
     node_id: u32,
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
-    let _spend_proofs_lock = state.spend_proofs_lock.lock().await;
+    let _spend_proofs_lock = state.lock_proof_spending().await;
 
     try_pay_melt_quote(app, node_id, quote_id).await?;
 

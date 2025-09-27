@@ -5168,6 +5168,7 @@ dependencies = [
  "bitcoin",
  "futures",
  "itertools",
+ "log",
  "node-client",
  "num-traits",
  "nuts",
@@ -6618,6 +6619,7 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.12",
  "time",
+ "tracing",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import { t } from "../../stores/i18n";
   import type { Wads } from "../../types/wad";
+  import type { Amount } from "../../types";
 
   const SelectedMethod = {
     NONE: 0,
@@ -13,7 +14,7 @@
   type SelectedMethod = (typeof SelectedMethod)[keyof typeof SelectedMethod];
 
   interface Props {
-    availableBalances: Map<string, number>;
+    availableBalances: Map<string, Amount>;
     onClose: () => void;
   }
 

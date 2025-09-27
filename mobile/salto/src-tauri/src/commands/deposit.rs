@@ -1,3 +1,6 @@
+use nuts::Amount;
+use nuts::traits::Unit as UnitT;
+use std::collections::HashMap;
 use std::str::FromStr;
 use tauri_plugin_opener::OpenerExt;
 use tracing::{Level, error, event};
@@ -72,7 +75,7 @@ pub async fn create_mint_quote(
     );
 
     let response = wallet::mint::create_quote(
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         node_id,
         STARKNET_STR.to_string(),
@@ -104,7 +107,7 @@ pub async fn pay_mint_quote(
     quote_id: String,
 ) -> Result<(), PayQuoteError> {
     let mint_quote = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
@@ -161,7 +164,7 @@ pub async fn redeem_quote(
     quote_id: String,
 ) -> Result<(), RedeemQuoteError> {
     let mint_quote = {
-        let db_conn = state.pool.get().map_err(CommonError::DbPool)?;
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
         wallet::db::mint_quote::get(&db_conn, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
@@ -179,7 +182,7 @@ pub async fn redeem_quote(
     }
 
     state
-        .quote_event_sender
+        .quote_event_sender()
         .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
             node_id,
             quote_id,
@@ -209,7 +212,7 @@ async fn inner_pay_quote(
 
         );
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
                 node_id,
                 quote_id,
@@ -219,7 +222,7 @@ async fn inner_pay_quote(
         return Ok(());
     } else {
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(QuoteHandlerEvent::Mint(MintQuoteAction::SyncUntilIsPaid {
                 node_id,
                 quote_id: quote_id.clone(),
@@ -236,7 +239,7 @@ async fn inner_pay_quote(
 
     let url = format!(
         "{}/deposit/{}/{}/?payload={}",
-        &state.web_app_url,
+        state.web_app_url(),
         STARKNET_STR,
         deposit_payload.chain_id.as_str(),
         encoded_payload
@@ -258,4 +261,94 @@ async fn inner_pay_quote(
     app.opener().open_url(url, None::<&str>)?;
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetNodesDepositMethodsError {
+    #[error(transparent)]
+    Common(#[from] CommonError),
+}
+
+impl serde::Serialize for GetNodesDepositMethodsError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MintUnitSettings {
+    min_amount: String,
+    max_amount: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeMintMethodSettings {
+    node_id: u32,
+    disabled: bool,
+    settings: HashMap<String, Vec<MintUnitSettings>>,
+}
+
+#[tauri::command]
+#[tracing::instrument(skip(state))]
+pub async fn get_nodes_deposit_methods(
+    state: State<'_, AppState>,
+) -> Result<Vec<NodeMintMethodSettings>, GetNodesDepositMethodsError> {
+    let ids = {
+        let db_conn = state.pool().get().map_err(CommonError::DbPool)?;
+        wallet::db::node::fetch_all_ids(&db_conn)
+    }
+    .map_err(CommonError::Db)?;
+
+    let infos = state.get_nodes_info(ids).await?;
+
+    let mut ret = Vec::new();
+    for (node_id, info) in infos {
+        let mut settings = NodeMintMethodSettings {
+            node_id,
+            disabled: info
+                .as_ref()
+                .map(|i| i.nuts.nut04.disabled)
+                .unwrap_or_default(),
+            settings: HashMap::new(),
+        };
+
+        if let Some(info) = info {
+            for mm_settings in info.nuts.nut04.methods {
+                if mm_settings.method != STARKNET_STR {
+                    continue;
+                }
+                let min_max = MintUnitSettings {
+                    min_amount: mm_settings
+                        .min_amount
+                        .map(|v| {
+                            format!(
+                                "{}{}",
+                                v,
+                                "0".repeat(mm_settings.unit.asset_extra_precision().into())
+                            )
+                        })
+                        .unwrap_or("0".to_string()),
+                    max_amount: format!(
+                        "{}{}",
+                        mm_settings.max_amount.unwrap_or(Amount::from(u64::MAX)),
+                        "0".repeat(mm_settings.unit.asset_extra_precision().into())
+                    ),
+                };
+                settings
+                    .settings
+                    .entry(mm_settings.unit.to_string())
+                    .or_default()
+                    .push(min_max);
+            }
+        }
+
+        ret.push(settings);
+    }
+
+    Ok(ret)
 }

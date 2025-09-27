@@ -9,7 +9,9 @@ pub enum CommonError {
     #[error("failed to push event in a the mint error channel")]
     QuoteHandlerChannel,
     #[error("failed wallet logic: {0}")]
-    Wallet(wallet::errors::Error),
+    Wallet(#[from] wallet::errors::Error),
     #[error("quote {0} not found")]
     QuoteNotFound(String),
+    #[error("failed to join tokio task: {0}")]
+    TokioJoin(#[from] tokio::task::JoinError),
 }

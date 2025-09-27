@@ -4,13 +4,16 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use node_client::NodeClient;
+use node_client::{GetNodeInfoRequest, NodeClient};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use starknet_types::Unit;
 use tokio::sync::RwLock;
 use tonic::transport::{Certificate, Channel};
 use tracing::info;
 use wallet::{ConnectToNodeError, connect_to_node};
+
+pub type NodeInfo = nuts::nut06::NodeInfo<String, Unit, serde_json::Value>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionCacheError {
@@ -27,13 +30,20 @@ pub enum ConnectionCacheError {
 #[derive(Debug, Clone)]
 struct CachedConnection {
     client: NodeClient<Channel>,
+    info: Option<NodeInfo>,
     created_at: SystemTime,
 }
 
 impl CachedConnection {
-    fn new(client: NodeClient<Channel>) -> Self {
+    async fn new(mut client: NodeClient<Channel>) -> Self {
+        let opt_node_info = match client.get_node_info(GetNodeInfoRequest {}).await {
+            Ok(r) => serde_json::from_str(&r.into_inner().info).ok(),
+            Err(_) => None,
+        };
+
         Self {
             client,
+            info: opt_node_info,
             created_at: SystemTime::now(),
         }
     }
@@ -95,11 +105,48 @@ impl ConnectionCache {
         // Update cache
         {
             let mut cache = self.cache.write().await;
-            let cached_connection = CachedConnection::new(client.clone());
+            let cached_connection = CachedConnection::new(client.clone()).await;
             cache.insert(node_id, cached_connection);
         }
 
         Ok(client)
+    }
+
+    pub async fn get_node_info(
+        &self,
+        node_id: u32,
+    ) -> Result<Option<NodeInfo>, ConnectionCacheError> {
+        // Check cache first
+        {
+            let cache = self.cache.read().await;
+            if let Some(cached) = cache.get(&node_id) {
+                if !cached.is_expired(self.ttl) {
+                    return Ok(cached.info.clone());
+                }
+            }
+        }
+
+        // Get node URL from database
+        let node_url = {
+            let db_conn = self.pool.get()?;
+            wallet::db::node::get_url_by_id(&db_conn, node_id)?
+                .ok_or(ConnectionCacheError::NodeNotFound(node_id))?
+        };
+
+        // Update cache
+        let info = {
+            // Create new connection
+            let client = connect_to_node(&node_url, self.opt_root_ca_cert.clone()).await?;
+
+            let mut cache = self.cache.write().await;
+            let cached_connection = CachedConnection::new(client.clone()).await;
+            let info = cached_connection.info.clone();
+            cache.insert(node_id, cached_connection);
+
+            info
+        };
+
+        Ok(info)
     }
 
     pub async fn cleanup_expired(&self) {

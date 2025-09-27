@@ -21,7 +21,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { workspace = true, features = ["tracing"] }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-sql = { workspace = true, features = ["sqlite"] }
-tauri-plugin-log = { workspace = true }
+tauri-plugin-log = { workspace = true, features = ["tracing"] }
 tauri-plugin-os = { workspace = true }
 tauri-plugin-clipboard-manager = { workspace = true }
 
@@ -42,6 +42,7 @@ reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
+log = { workspace = true }
 uuid = { workspace = true }
 itertools = { workspace = true }
 tonic = { workspace = true, features = ["tls-ring"] }
