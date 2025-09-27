@@ -4,7 +4,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type { Price } from './types/price';
 import type { PendingQuoteData  } from './types/quote';
-import type { NodeId, NodeData } from './types';
+import type { NodeId, NodeData, Amount } from './types';
 import { showErrorToast } from './stores/toast';
 
 export const currentPlatform = platform();
@@ -437,12 +437,12 @@ export const nodeBalances = readable<NodeData[]>([], (set) => {
 
 // Derived store for total balance across all nodes
 export const totalBalance = derived(nodeBalances, ($nodeBalances) => {
-  const totalBalanceMap = new Map<string, number>();
+  const totalBalanceMap = new Map<string, Amount>();
   
   $nodeBalances.forEach((node) => {
     node.balances.forEach((balance) => {
-      const currentAmount = totalBalanceMap.get(balance.unit) || 0;
-      totalBalanceMap.set(balance.unit, currentAmount + balance.amount);
+      const currentAmount = totalBalanceMap.get(balance.unit) || 0n;
+      totalBalanceMap.set(balance.unit, currentAmount + BigInt(balance.amount));
     });
   });
   

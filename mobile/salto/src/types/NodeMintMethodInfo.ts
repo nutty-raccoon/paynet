@@ -1,19 +1,21 @@
-import type { NodeId, Unit } from "./node"
+import type { Amount, NodeId, Unit } from "./node"
 
-export type MintMethodSettings = {
-  method: string,
-  unit: Unit,
-  minAmount?: number,
-  maxAmount?: number,
-  options: object,
+export type MintUnitSettings = {
+  minAmount: string,
+  maxAmount: string,
+}
+
+export type NodeMintMethodSettings = {
+  nodeId: NodeId,
+  disabled: boolean,
+  settings: Record<Unit, MintUnitSettings[]>,
 }
 
 export type MintSettings = {
-  methods: [MintMethodSettings]
   disabled: boolean,
-  
-}
-export type NodeMintMethodSettings = {
-  nodeId: NodeId,
-  settings?: MintSettings,
+  methods: Array<{
+    unit: Unit,
+    minAmount: Amount,
+    maxAmount: Amount,
+  }>,
 }

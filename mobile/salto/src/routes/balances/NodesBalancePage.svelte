@@ -1,6 +1,12 @@
 <script lang="ts">
   import { pushState } from "$app/navigation";
-  import type { NodeData, NodeId, NodeIdAndUrl } from "../../types";
+  import type {
+    Amount,
+    NodeData,
+    NodeId,
+    NodeIdAndUrl,
+    Unit,
+  } from "../../types";
   import { getTotalAmountInDisplayCurrency } from "../../utils";
   import {
     tokenPrices,
@@ -48,10 +54,40 @@
     const selected = selectedNodeForModal;
     if (!selected || !nodesDepositMethods) {
       return null;
-    } else {
-      return nodesDepositMethods.find((elem) => elem.nodeId === selected.id)!
-        .settings!;
     }
+
+    const nodeSettings = nodesDepositMethods.find(
+      (elem) => elem.nodeId === selected.id,
+    );
+    if (!nodeSettings) {
+      return null;
+    }
+
+    // Transform NodeMintMethodSettings to MintSettings format
+    const methods: Array<{
+      unit: Unit;
+      minAmount: Amount;
+      maxAmount: Amount;
+    }> = [];
+
+    Object.entries(nodeSettings.settings).forEach(
+      ([unit, mintUnitSettingsArray]) => {
+        // For each unit, use the first MintUnitSettings if available
+        if (mintUnitSettingsArray && mintUnitSettingsArray.length > 0) {
+          const settings = mintUnitSettingsArray[0];
+          methods.push({
+            unit: unit as Unit,
+            minAmount: BigInt(settings.minAmount),
+            maxAmount: BigInt(settings.maxAmount),
+          });
+        }
+      },
+    );
+
+    return {
+      disabled: nodeSettings.disabled,
+      methods: methods,
+    };
   });
 
   // Derived store that creates a Set of node IDs that have pending quotes
@@ -132,7 +168,6 @@
     window.addEventListener("popstate", handlePopState);
     getNodesDepositMethods().then((settings) => {
       if (!!settings) {
-        console.log("deposit settings:", settings);
         nodesDepositMethods = settings;
       }
     });

@@ -51,14 +51,14 @@ pub async fn add_and_restore_node(
         "Connecting to node"
     );
 
-    let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+    let mut client = wallet::connect_to_node(node_url, state.opt_root_ca_cert()).await?;
 
     event!(name: "registering_node", Level::INFO,
         node_url = %node_url,
         "Registering node"
     );
 
-    let id = wallet::node::register(state.pool().clone(), &mut client, &node_url).await?;
+    let id = wallet::node::register(state.pool().clone(), &mut client, node_url).await?;
 
     event!(name: "node_registered_successfully", Level::INFO,
         node_id = id,

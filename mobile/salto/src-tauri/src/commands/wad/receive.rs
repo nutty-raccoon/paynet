@@ -21,8 +21,6 @@ pub enum ReceiveWadsError {
     WadString(#[from] compact_wad::Error),
     #[error("failed to register node: {0}")]
     RegisterNode(#[from] wallet::node::RegisterNodeError),
-    #[error("failed to create node client: {0}")]
-    CreateNodeClient(wallet::ConnectToNodeError),
     #[error(transparent)]
     ReceiveWad(#[from] wallet::ReceiveWadError),
     #[error("failed to add new node: {0}")]

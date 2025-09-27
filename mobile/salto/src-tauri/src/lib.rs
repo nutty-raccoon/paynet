@@ -43,7 +43,11 @@ pub fn run() {
         let builder = builder.plugin(tauri_plugin_biometric::init());
 
         let builder = builder
-            .plugin(tauri_plugin_log::Builder::new().build())
+            .plugin(
+                tauri_plugin_log::Builder::new()
+                    .level(log::LevelFilter::Info)
+                    .build(),
+            )
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_clipboard_manager::init());

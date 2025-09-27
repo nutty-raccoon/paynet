@@ -1,3 +1,6 @@
+use nuts::Amount;
+use nuts::traits::Unit as UnitT;
+use std::collections::HashMap;
 use std::str::FromStr;
 use tauri_plugin_opener::OpenerExt;
 use tracing::{Level, error, event};
@@ -275,13 +278,19 @@ impl serde::Serialize for GetNodesDepositMethodsError {
     }
 }
 
-pub type MintMethods = nuts::nut04::Settings<String, String, serde_json::Value>;
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MintUnitSettings {
+    min_amount: String,
+    max_amount: String,
+}
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeMintMethodSettings {
     node_id: u32,
-    settings: Option<MintMethods>,
+    disabled: bool,
+    settings: HashMap<String, Vec<MintUnitSettings>>,
 }
 
 #[tauri::command]
@@ -297,13 +306,49 @@ pub async fn get_nodes_deposit_methods(
 
     let infos = state.get_nodes_info(ids).await?;
 
-    let ret = infos
-        .into_iter()
-        .map(|(id, opt_info)| NodeMintMethodSettings {
-            node_id: id,
-            settings: opt_info.map(|i| i.nuts.nut04),
-        })
-        .collect();
+    let mut ret = Vec::new();
+    for (node_id, info) in infos {
+        let mut settings = NodeMintMethodSettings {
+            node_id,
+            disabled: info
+                .as_ref()
+                .map(|i| i.nuts.nut04.disabled)
+                .unwrap_or_default(),
+            settings: HashMap::new(),
+        };
+
+        if let Some(info) = info {
+            for mm_settings in info.nuts.nut04.methods {
+                if mm_settings.method != STARKNET_STR {
+                    continue;
+                }
+                let min_max = MintUnitSettings {
+                    min_amount: mm_settings
+                        .min_amount
+                        .map(|v| {
+                            format!(
+                                "{}{}",
+                                v,
+                                "0".repeat(mm_settings.unit.asset_extra_precision().into())
+                            )
+                        })
+                        .unwrap_or("0".to_string()),
+                    max_amount: format!(
+                        "{}{}",
+                        mm_settings.max_amount.unwrap_or(Amount::from(u64::MAX)),
+                        "0".repeat(mm_settings.unit.asset_extra_precision().into())
+                    ),
+                };
+                settings
+                    .settings
+                    .entry(mm_settings.unit.to_string())
+                    .or_default()
+                    .push(min_max);
+            }
+        }
+
+        ret.push(settings);
+    }
 
     Ok(ret)
 }

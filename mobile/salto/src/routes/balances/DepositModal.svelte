@@ -1,9 +1,15 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { NodeIdAndUrl } from "../../types";
+  import type { NodeIdAndUrl, Unit } from "../../types";
   import { createMintQuote } from "../../commands";
   import { showSuccessToast } from "../../stores/toast";
   import { t } from "../../stores/i18n";
+  import {
+    assetPrecision,
+    divideBigIntToFloat,
+    unitPrecision,
+    unitToAsset,
+  } from "../../utils";
   import type { MintSettings } from "../../types/NodeMintMethodInfo";
 
   // Interface
@@ -15,23 +21,24 @@
   let { selectedNode, onClose, nodeDepositSettings }: Props = $props();
 
   let depositError = $state<string>("");
-  let selectedToken = $state<string>(
-    nodeDepositSettings.methods[0]?.unit || "",
-  );
 
-  // Get the selected method based on current token selection
-  const selectedMethod = $derived.by(() => {
-    return nodeDepositSettings.methods.find(
-      (method) => method.unit === selectedToken,
-    );
+  let selectedUnit = $state<Unit>(nodeDepositSettings.methods[0]?.unit || "");
+  $effect(() => {
+    selectedUnit; // Access selectedUnit to make the effect reactive to it
+    depositError = "";
   });
-
-  // Check if selected method has any limits defined
-  const hasLimits = $derived.by(() => {
-    return (
-      selectedMethod &&
-      (selectedMethod.minAmount !== undefined ||
-        selectedMethod.maxAmount !== undefined)
+  // Get the selected method based on current token selection
+  let selectedMethod = $derived.by(() => {
+    return nodeDepositSettings.methods.find(
+      (method) => method.unit === selectedUnit,
+    )!;
+  });
+  let minUnitAmount = $derived.by(() => {
+    return parseFloat(
+      divideBigIntToFloat(
+        selectedMethod.minAmount,
+        assetPrecision(selectedUnit),
+      ),
     );
   });
 
@@ -49,41 +56,36 @@
     depositError = "";
 
     if (selectedNode && amount && token) {
-      const amountString = amount.toString();
-      const amountValue = parseFloat(amountString);
-      const nodeId = selectedNode["id"];
       const selectedUnit = token.toString();
+      const amountString = amount.toString();
+      const amountValue =
+        parseFloat(amountString) * unitPrecision(selectedUnit);
+      const nodeId = selectedNode["id"];
 
       if (amountValue <= 0) {
         depositError = $t("modals.amountGreaterThanZero");
         return;
       }
 
-      // Find the method settings for the selected unit
-      const selectedMethod = nodeDepositSettings.methods.find(
-        (method) => method.unit === selectedUnit,
-      );
-
-      if (selectedMethod) {
-        // Validate against min/max amounts
-        if (
-          selectedMethod.minAmount !== undefined &&
-          amountValue < selectedMethod.minAmount
-        ) {
-          depositError = `Amount must be at least ${selectedMethod.minAmount} ${selectedUnit.toUpperCase()}`;
-          return;
-        }
-
-        if (
-          selectedMethod.maxAmount !== undefined &&
-          amountValue > selectedMethod.maxAmount
-        ) {
-          depositError = `Amount cannot exceed ${selectedMethod.maxAmount} ${selectedUnit.toUpperCase()}`;
-          return;
-        }
+      // Validate against min/max amounts
+      if (amountValue < minUnitAmount) {
+        depositError = `Amount must be at least ${minUnitAmount} ${selectedUnit.toUpperCase()}`;
+        return;
       }
 
-      const result = await createMintQuote(nodeId, amountString, selectedUnit);
+      if (
+        selectedMethod.maxAmount !== undefined &&
+        amountValue > selectedMethod.maxAmount
+      ) {
+        depositError = `Amount cannot exceed ${selectedMethod.maxAmount} ${selectedUnit.toUpperCase()}`;
+        return;
+      }
+
+      const result = await createMintQuote(
+        nodeId,
+        amountString,
+        unitToAsset(selectedUnit),
+      );
       if (result !== undefined) {
         showSuccessToast($t("modals.depositSuccess"));
         onClose();
@@ -120,30 +122,21 @@
             step="any"
             required
           />
-          <select name="deposit-token" bind:value={selectedToken} required>
+          <select name="deposit-token" bind:value={selectedUnit} required>
             {#each nodeDepositSettings.methods as method}
-              <option value={method.unit}>{method.unit.toUpperCase()}</option>
+              <option value={method.unit}>{unitToAsset(method.unit)}</option>
             {/each}
           </select>
         </div>
       </div>
-
-      {#if hasLimits && !!selectedMethod}
-        <div class="deposit-limits">
-          <h4>Deposit Limits for {selectedToken.toUpperCase()}</h4>
-          <div class="limit-info">
-            <span class="limits">
-              {#if selectedMethod.minAmount !== undefined && selectedMethod.maxAmount !== undefined}
-                Min: {selectedMethod.minAmount} - Max: {selectedMethod.maxAmount}
-              {:else if selectedMethod.minAmount !== undefined}
-                Min: {selectedMethod.minAmount}
-              {:else if selectedMethod.maxAmount !== undefined}
-                Max: {selectedMethod.maxAmount}
-              {/if}
-            </span>
-          </div>
+      <div class="deposit-limits">
+        <h4>Deposit Limits for {unitToAsset(selectedUnit)}</h4>
+        <div class="limit-info">
+          <span class="limits">
+            Min: {minUnitAmount}
+          </span>
         </div>
-      {/if}
+      </div>
 
       <div class="deposit-info">
         <p>{$t("modals.depositingTo")} {selectedNode.url}</p>
@@ -329,12 +322,6 @@
 
   .limit-info:last-child {
     margin-bottom: 0;
-  }
-
-  .asset-name {
-    font-weight: 600;
-    color: #495057;
-    font-size: 0.85rem;
   }
 
   .limits {

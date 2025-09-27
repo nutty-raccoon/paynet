@@ -7,12 +7,13 @@ use std::{
 use node_client::{GetNodeInfoRequest, NodeClient};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use starknet_types::Unit;
 use tokio::sync::RwLock;
 use tonic::transport::{Certificate, Channel};
 use tracing::info;
 use wallet::{ConnectToNodeError, connect_to_node};
 
-pub type NodeInfo = nuts::nut06::NodeInfo<String, String, serde_json::Value>;
+pub type NodeInfo = nuts::nut06::NodeInfo<String, Unit, serde_json::Value>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionCacheError {
