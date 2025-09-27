@@ -14,6 +14,7 @@
   } from "../../commands";
   import type { QuoteId } from "../../types/quote";
   import type { MintSettings } from "../../types/NodeMintMethodInfo";
+  import { showErrorToast } from "../../stores/toast";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
@@ -44,10 +45,12 @@
   }
 
   function openDepositModal() {
-    if (!!nodeDepositSettings && !nodeDepositSettings.disabled) {
-      currentModal = "deposit";
+    if (!!nodeDepositSettings) {
+      showErrorToast($t("validation.noDepositMethodsAvailable"));
+    } else if (!nodeDepositSettings!.disabled) {
+      showErrorToast("validation.depositsDisabledForNode");
     } else {
-      // TODO: display error message saying deposits are not available for this node
+      currentModal = "deposit";
     }
   }
 

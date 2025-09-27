@@ -371,7 +371,7 @@ pub async fn swap_to_have_target_amount(
 pub enum ReceiveWadError {
     #[error("failed to read or import node keysets: {0}")]
     ReadOrImportNodeKeysets(#[source] crate::Error),
-    #[error("keyset unit mismatch, expected `{0}` got `{0}`")]
+    #[error("keyset unit mismatch, expected `{0}` got `{1}`")]
     UnitMissmatch(String, String),
     #[error(transparent)]
     Common(#[from] CommonError),
@@ -425,8 +425,6 @@ pub async fn receive_wad(
         .await
         .map_err(ReceiveWadError::ReadOrImportNodeKeysets)?;
 
-        println!("ku: {}, len: {}", keyset_unit, keyset_unit.len());
-        println!("u: {} len {}", unit, unit.len());
         if keyset_unit != unit {
             return Err(ReceiveWadError::UnitMissmatch(
                 keyset_unit,
