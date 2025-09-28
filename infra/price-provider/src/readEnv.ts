@@ -5,6 +5,7 @@ export type Env = {
   currencies: string[];
   isPro: boolean;
   apiKey: string;
+  demoApiKeys?: string[];
   host: string;
   port: number;
 };
@@ -16,7 +17,7 @@ function assert(condition: any, message: string): asserts condition {
 export async function readEnv(): Promise<Env> {
   const {
     COIN_PRO_GECKO_API_KEY,
-    COIN_DEMO_GECKO_API_KEY,
+    COIN_DEMO_GECKO_API_KEYS,
     TOKENS,
     CURRENCIES,
     HOST,
@@ -24,11 +25,45 @@ export async function readEnv(): Promise<Env> {
   } = process.env;
 
   assert(
-    COIN_PRO_GECKO_API_KEY || COIN_DEMO_GECKO_API_KEY,
-    'Missing env var: either COIN_PRO_GECKO_API_KEY or COIN_DEMO_GECKO_API_KEY must be set',
+    COIN_PRO_GECKO_API_KEY || COIN_DEMO_GECKO_API_KEYS,
+    'Missing env var: either COIN_PRO_GECKO_API_KEY or COIN_DEMO_GECKO_API_KEYS must be set',
   );
   const isPro = Boolean(COIN_PRO_GECKO_API_KEY);
-  const apiKey = isPro ? COIN_PRO_GECKO_API_KEY! : COIN_DEMO_GECKO_API_KEY!;
+  
+  let apiKey: string;
+  let demoApiKeys: string[] | undefined;
+  
+  if (isPro) {
+    apiKey = COIN_PRO_GECKO_API_KEY!;
+  } else {
+    assert(COIN_DEMO_GECKO_API_KEYS, 'Missing env var: COIN_DEMO_GECKO_API_KEYS');
+    
+    let parsedDemoKeys: unknown;
+    try {
+      parsedDemoKeys = JSON.parse(COIN_DEMO_GECKO_API_KEYS!);
+    } catch {
+      throw new Error('COIN_DEMO_GECKO_API_KEYS is not valid JSON');
+    }
+    
+    assert(
+      Array.isArray(parsedDemoKeys),
+      'COIN_DEMO_GECKO_API_KEYS must be a JSON array of strings',
+    );
+    assert(
+      parsedDemoKeys.length > 0,
+      'COIN_DEMO_GECKO_API_KEYS array must contain at least one key',
+    );
+    
+    parsedDemoKeys.forEach((key, i) => {
+      assert(
+        typeof key === 'string' && key.length > 0,
+        `COIN_DEMO_GECKO_API_KEYS[${i}] must be a non-empty string`,
+      );
+    });
+    
+    demoApiKeys = parsedDemoKeys as string[];
+    apiKey = demoApiKeys[0]; // Use first key as default
+  }
 
   assert(TOKENS, 'Missing env var: TOKENS');
   assert(CURRENCIES, 'Missing env var: CURRENCIES');
@@ -109,6 +144,7 @@ export async function readEnv(): Promise<Env> {
     currencies: currencies as string[],
     isPro,
     apiKey,
+    demoApiKeys,
     host,
     port: portNum,
   };
