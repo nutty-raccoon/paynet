@@ -54,6 +54,10 @@ struct DepositTemplate {
     deposit_data: DepositData,
 }
 
+#[derive(Template)]
+#[template(path = "salto_landing.html")]
+struct SaltoLandingTemplate {}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct ConctractData {
     abi: Vec<AbiEntry>,
@@ -81,7 +85,8 @@ async fn main() {
 
     // Build our application with routes
     let app = Router::new()
-        .route("/", get(index))
+        .route("/salto", get(salto_landing))
+        .route("/deposit", get(deposit_landing))
         .route("/deposit/{method}/{network}/", get(handle_deposit))
         .nest_service("/static", ServeDir::new("crates/bins/web-app/static"))
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
@@ -95,8 +100,17 @@ async fn main() {
     serve(app, bind_address).await;
 }
 
-async fn index() -> impl IntoResponse {
+async fn deposit_landing() -> impl IntoResponse {
     Html(include_str!("../templates/index.html"))
+}
+
+async fn salto_landing() -> impl IntoResponse {
+    let template = SaltoLandingTemplate {};
+    Html(
+        template
+            .render()
+            .unwrap_or_else(|_| "Template render error".to_string()),
+    )
 }
 
 async fn handle_deposit(
