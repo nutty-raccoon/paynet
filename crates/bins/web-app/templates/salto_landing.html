@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Salto - Pagos Cripto para tu Negocio</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/salto-landing.css" />
+  </head>
+  <body>
+    <!-- Animated particles background -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Header -->
+    <header>
+      <div class="nav-container">
+        <div class="logo">Salto.</div>
+        <nav>
+          <ul class="nav-links">
+            <li><a href="#inicio">Inicio</a></li>
+            <li><a href="#funciones">Funciones</a></li>
+            <li><a href="#contacto">Contacto</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="inicio">
+      <div class="hero-content">
+        <h1>Salto.</h1>
+        <p class="subtitle">
+          La solución de pagos cripto que revoluciona tu negocio
+        </p>
+        <div class="main-argument">
+          Tus clientes tienen dólares,<br />
+          con Salto pueden gastarlos en tu negocio
+        </div>
+        <a
+          href="https://cal.com/timothee-27jwgk/30min"
+          class="cta-button"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Programa una llamada</a
+        >
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features fade-in" id="funciones">
+      <div class="features-container">
+        <h2>¿Por qué elegir Salto?</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🔗</div>
+            <h3>Cualquier activo, cualquier cadena</h3>
+            <p>
+              Acepta pagos en Bitcoin, Ethereum, stablecoins y más. Compatible
+              con todas las principales blockchains para máxima flexibilidad.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📱</div>
+            <h3>Pagos presenciales con código QR</h3>
+            <p>
+              Usando códigos QR animados, el dinero salta directamente de su
+              dispositivo al tuyo, permitiendo privacidad total.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">💬</div>
+            <h3>Pagos remotos por mensajes</h3>
+            <p>
+              Envía enlaces de pago por WhatsApp o email. Facilita las ventas a
+              distancia con la máxima comodidad.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats fade-in">
+      <div class="stats-container">
+        <div class="stat-item">
+          <h3>1%</h3>
+          <p>Al retirar</p>
+        </div>
+        <div class="stat-item">
+          <h3>0</h3>
+          <p>Comisiones ocultas</p>
+        </div>
+        <div class="stat-item">
+          <h3>24/7</h3>
+          <p>Disponibilidad</p>
+        </div>
+        <div class="stat-item">
+          <h3>∞</h3>
+          <p>Criptomonedas soportadas</p>
+        </div>
+        <div class="stat-item">
+          <h3>⚡</h3>
+          <p>Confirmación instantánea</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer id="contacto">
+      <div class="footer-container">
+        <div class="footer-logo">Salto.</div>
+        <p class="footer-text">
+          Transformando el comercio argentino con pagos cripto seguros y
+          accesibles.
+        </p>
+        <div class="social-links">
+          <a href="mailto:timothee.delabrouille@gmail.com">📧</a>
+          <a href="https://wa.me/33761946711">💬</a>
+        </div>
+        <p style="color: #666; font-size: 0.9rem">
+          © 2025 Salto. Todos los derechos reservados.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      // Create animated particles
+      function createParticles() {
+        const particlesContainer = document.getElementById("particles");
+
+        for (let i = 0; i < 50; i++) {
+          const particle = document.createElement("div");
+          particle.className = "particle";
+          particle.style.left = Math.random() * 100 + "%";
+          particle.style.width = particle.style.height =
+            Math.random() * 3 + 1 + "px";
+          particle.style.animationDelay = Math.random() * 20 + "s";
+          particle.style.animationDuration = Math.random() * 10 + 10 + "s";
+          particlesContainer.appendChild(particle);
+        }
+      }
+
+      // Smooth scrolling for navigation links
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", function (e) {
+          e.preventDefault();
+          document.querySelector(this.getAttribute("href")).scrollIntoView({
+            behavior: "smooth",
+          });
+        });
+      });
+
+      // Scroll animations
+      function handleScrollAnimations() {
+        const elements = document.querySelectorAll(".fade-in");
+        elements.forEach((element) => {
+          const elementTop = element.getBoundingClientRect().top;
+          const elementVisible = 150;
+
+          if (elementTop < window.innerHeight - elementVisible) {
+            element.classList.add("visible");
+          }
+        });
+      }
+
+      // Header background on scroll
+      function handleHeaderScroll() {
+        const header = document.querySelector("header");
+        if (window.scrollY > 50) {
+          header.style.background = "rgba(10, 10, 10, 0.98)";
+        } else {
+          header.style.background = "rgba(10, 10, 10, 0.95)";
+        }
+      }
+
+      // Event listeners
+      window.addEventListener("scroll", () => {
+        handleScrollAnimations();
+        handleHeaderScroll();
+      });
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        createParticles();
+        handleScrollAnimations();
+      });
+
+      // Add interactive effects to CTA button
+      document
+        .querySelector(".cta-button")
+        .addEventListener("mousemove", function (e) {
+          const rect = this.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+
+          this.style.background = `radial-gradient(circle at ${x}px ${y}px, #ff6b6b, #00d4ff)`;
+        });
+
+      document
+        .querySelector(".cta-button")
+        .addEventListener("mouseleave", function () {
+          this.style.background = "linear-gradient(45deg, #00d4ff, #ff6b6b)";
+        });
+    </script>
+  </body>
+</html>

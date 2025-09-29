@@ -143,7 +143,7 @@ export async function checkWalletExists() {
     .then((message) => message as boolean)
     .catch((error) => {
       console.log("Failed to check wallet exists:", error);
-      showErrorToast("Failed to check wallet status. Please restart the app.", error);
+      showErrorToast("Failed to check wallet status. ${error}");
       return false;
     });
 
