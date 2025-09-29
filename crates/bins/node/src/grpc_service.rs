@@ -62,7 +62,7 @@ impl GrpcState {
     pub fn new(
         pg_pool: PgPool,
         signer_client: SignerClient,
-        nuts_settings: NutsSettings<Method, Unit>,
+        nuts_settings: NutsSettings<Method, Unit, serde_json::Value>,
         quote_ttl: QuoteTTLConfig,
         liquidity_sources: LiquiditySources<Unit>,
     ) -> Self {
@@ -79,7 +79,7 @@ impl GrpcState {
 
     pub async fn init_first_keysets(
         &self,
-        units: &[Unit],
+        units: impl Iterator<Item = Unit>,
         index: u32,
         max_order: u32,
     ) -> Result<(), InitKeysetError> {
@@ -101,7 +101,7 @@ impl GrpcState {
             insert_keysets_query_builder.add_row(keyset_id, unit, max_order, index);
 
             self.keyset_cache
-                .insert_info(keyset_id, CachedKeysetInfo::new(true, *unit, max_order))
+                .insert_info(keyset_id, CachedKeysetInfo::new(true, unit, max_order))
                 .await;
 
             let keys = response
@@ -171,7 +171,7 @@ impl From<ParseGrpcError> for Status {
 
 #[tonic::async_trait]
 impl Node for GrpcState {
-    #[instrument]
+    #[instrument(skip(self))]
     async fn keysets(
         &self,
         _request: Request<GetKeysetsRequest>,
@@ -195,7 +195,7 @@ impl Node for GrpcState {
         Ok(Response::new(GetKeysetsResponse { keysets }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn keys(
         &self,
         request: Request<GetKeysRequest>,
@@ -219,7 +219,7 @@ impl Node for GrpcState {
         Ok(Response::new(GetKeysResponse { keysets }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn swap(
         &self,
         swap_request: Request<SwapRequest>,
@@ -298,7 +298,7 @@ impl Node for GrpcState {
         Ok(Response::new(swap_response))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn mint_quote(
         &self,
         mint_quote_request: Request<MintQuoteRequest>,
@@ -322,7 +322,7 @@ impl Node for GrpcState {
         Ok(Response::new(mint_quote_response))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
@@ -406,7 +406,7 @@ impl Node for GrpcState {
         }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn melt(
         &self,
         melt_request: Request<MeltRequest>,
@@ -462,7 +462,7 @@ impl Node for GrpcState {
         Ok(Response::new(melt_response))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn mint_quote_state(
         &self,
         mint_quote_state_request: Request<QuoteStateRequest>,
@@ -473,17 +473,21 @@ impl Node for GrpcState {
         let quote_id =
             Uuid::from_str(&mint_quote_state_request.quote).map_err(ParseGrpcError::Uuid)?;
 
-        let response = self.inner_mint_quote_state(method, quote_id).await?;
-
-        Ok(Response::new(MintQuoteResponse {
-            quote: response.quote.to_string(),
-            request: response.request,
-            state: node::MintQuoteState::from(response.state).into(),
-            expiry: response.expiry,
-        }))
+        match self.inner_mint_quote_state(method, quote_id).await? {
+            Some(response) => Ok(Response::new(MintQuoteResponse {
+                quote: response.quote.to_string(),
+                request: response.request,
+                state: node::MintQuoteState::from(response.state).into(),
+                expiry: response.expiry,
+            })),
+            None => Err(Status::not_found(format!(
+                "no mint quote with id {}",
+                quote_id
+            ))),
+        }
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn melt_quote_state(
         &self,
         melt_quote_state_request: Request<MeltQuoteStateRequest>,
@@ -506,7 +510,7 @@ impl Node for GrpcState {
         }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn get_node_info(
         &self,
         _node_info_request: Request<GetNodeInfoRequest>,
@@ -553,7 +557,7 @@ impl Node for GrpcState {
     }
 
     /// acknowledge is for the client to say he successfully stored the quote_id
-    #[instrument]
+    #[instrument(skip(self))]
     async fn acknowledge(
         &self,
         ack_request: Request<AcknowledgeRequest>,

@@ -1,16 +1,14 @@
-use std::str::FromStr;
-
 use anyhow::{Result, anyhow};
 use node_client::NodeClient;
-use nuts::nut04::MintQuoteState;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use starknet_types::Unit;
 use tonic::transport::Channel;
 use wallet::db::melt_quote::PendingMeltQuote;
-use wallet::db::mint_quote::PendingMintQuote;
+use wallet::melt::format_melt_transfers_id_into_term_message;
 use wallet::types::NodeUrl;
+
+use crate::SEED_PHRASE_MANAGER;
 
 const STARKNET_STR: &str = "starknet";
 
@@ -28,7 +26,15 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
         println!("Syncing node {} ({}) mint quotes", node_id, node_url);
 
         let (mut node_client, _) = connect_to_node(pool.clone(), node_id).await?;
-        sync_mint_quotes(&pool, &mut node_client, node_id, &pending_quotes).await?;
+        wallet::sync::mint_quotes(
+            SEED_PHRASE_MANAGER,
+            pool.clone(),
+            &mut node_client,
+            node_id,
+            pending_quotes,
+            true,
+        )
+        .await?;
     }
     for (node_id, pending_quotes) in pending_melt_quotes {
         let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
@@ -39,66 +45,20 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
         sync_melt_quotes(&pool, &mut node_client, &pending_quotes).await?;
     }
 
-    println!("Sync completed for all nodes");
-    Ok(())
-}
+    // Sync pending WADs using the lib wallet function i
+    println!("Syncing pending WADs");
+    let wad_results = wallet::sync::pending_wads(pool, None).await?;
 
-async fn sync_mint_quotes(
-    pool: &Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
-    node_id: u32,
-    pending_mint_quotes: &[PendingMintQuote],
-) -> Result<()> {
-    for pending_mint_quote in pending_mint_quotes {
-        let new_state = {
-            let db_conn = pool.get()?;
-
-            match wallet::mint::get_quote_state(
-                &db_conn,
-                node_client,
-                pending_mint_quote.method.clone(),
-                pending_mint_quote.id.clone(),
-            )
-            .await?
-            {
-                Some(new_state) => new_state,
-                None => {
-                    println!("Mint quote {} has expired", pending_mint_quote.id);
-                    continue;
-                }
-            }
-        };
-
-        if new_state == MintQuoteState::Paid {
-            println!(
-                "On-chain deposit received for mint quote {}",
-                pending_mint_quote.id
-            );
-
-            let unit = Unit::from_str(&pending_mint_quote.unit)?;
-
-            // Redeem the quote
-            if let Err(e) = wallet::mint::redeem_quote(
-                pool.clone(),
-                node_client,
-                STARKNET_STR.to_string(),
-                pending_mint_quote.id.clone(),
-                node_id,
-                unit,
-                pending_mint_quote.amount,
-            )
-            .await
-            {
-                eprintln!(
-                    "Failed to redeem mint quote {}: {}",
-                    pending_mint_quote.id, e
-                );
-            } else {
-                println!("Successfully redeemed mint quote {}", pending_mint_quote.id);
-            }
+    for result in wad_results {
+        match result.result {
+            // No status change
+            Ok(None) => {}
+            Ok(Some(status)) => println!("WAD {} updated to status: {:?}", result.wad_id, status),
+            Err(e) => eprintln!("Failed to sync WAD {}: {}", result.wad_id, e),
         }
     }
 
+    println!("Sync completed for all nodes");
     Ok(())
 }
 
@@ -163,25 +123,9 @@ async fn connect_to_node(
             .ok_or(anyhow!("unknown node id: {}", node_id))?
     };
 
-    let node_client = wallet::connect_to_node(&node_url)
+    let node_client = wallet::connect_to_node(&node_url, None)
         .await
         .map_err(|e| anyhow!("Failed to connect to node {}: {}", node_url, e))?;
 
     Ok((node_client, node_url))
-}
-
-pub fn format_melt_transfers_id_into_term_message(transfer_ids: Vec<String>) -> String {
-    let mut string_to_print = "Melt done. Withdrawal settled with tx".to_string();
-    if transfer_ids.len() != 1 {
-        string_to_print.push('s');
-    }
-    string_to_print.push_str(": ");
-    let mut iterator = transfer_ids.into_iter();
-    string_to_print.push_str(&iterator.next().unwrap());
-    for tx_hash in iterator {
-        string_to_print.push_str(", ");
-        string_to_print.push_str(&tx_hash);
-    }
-
-    string_to_print
 }

@@ -7,5 +7,21 @@
   "windows": [
     "main"
   ],
-  "permissions": []
+  "permissions": [
+    "biometric:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "starknet://**"
+        },
+        {
+          "url": "braavos://**"
+        },
+        {
+          "url": "argent://**"
+        }
+      ]
+    }
+  ]
 }

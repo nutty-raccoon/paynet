@@ -1,0 +1,3 @@
+[env]
+PRICE_PROVIDER_URL = "https://price-provider.mobile.tdelabro.com"
+WEB_APP_URL = "https://invoice-payment.tdelabro.com"

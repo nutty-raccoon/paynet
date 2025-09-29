@@ -4,13 +4,12 @@ use node_client::{
     SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::Amount;
-use starknet_types::Unit;
+use starknet_types::{DepositPayload, Unit, constants::ON_CHAIN_CONSTANTS};
 use tonic::transport::Channel;
 
-use crate::{
-    common::error::{Error, Result},
-    common::utils::{EnvVariables, starknet::pay_invoices},
-};
+use anyhow::Result;
+
+use crate::common::utils::{EnvVariables, starknet::pay_invoices};
 
 pub async fn make_mint(
     req: MintRequest,
@@ -73,8 +72,7 @@ pub async fn wait_transac(
         match response {
             Ok(response) => {
                 let response = response.into_inner();
-                let state =
-                    MintQuoteState::try_from(response.state).map_err(|e| Error::Other(e.into()))?;
+                let state = MintQuoteState::try_from(response.state)?;
                 if state == MintQuoteState::MnqsPaid {
                     break;
                 }
@@ -100,7 +98,7 @@ pub async fn get_active_keyset(
     keysets
         .into_iter()
         .find(|ks| ks.active && ks.unit == unit)
-        .ok_or_else(|| Error::Other(anyhow::Error::msg("No active keyset found")))
+        .ok_or_else(|| anyhow::Error::msg("No active keyset found"))
 }
 
 pub async fn mint_quote_and_deposit_and_wait(
@@ -120,8 +118,16 @@ pub async fn mint_quote_and_deposit_and_wait(
         .await?
         .into_inner();
 
-    let calls: [starknet_types::Call; 2] = serde_json::from_str(&quote.request)?;
-    pay_invoices(calls.to_vec(), env.clone()).await?;
+    let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
+    let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;
+    pay_invoices(
+        deposit_payload
+            .call_data
+            .to_starknet_calls(on_chain_constants.invoice_payment_contract_address)
+            .to_vec(),
+        env.clone(),
+    )
+    .await?;
 
     wait_transac(node_client.clone(), &quote).await?;
     Ok(quote)

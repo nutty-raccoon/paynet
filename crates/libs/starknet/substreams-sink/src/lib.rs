@@ -5,11 +5,16 @@ use std::{
 };
 
 use crate::pb::{invoice_contract::v1::RemittanceEvents, sf::substreams::rpc::v2::BlockScopedData};
-use anyhow::{Error, Result, anyhow, format_err};
+use anyhow::{Error, Result, anyhow};
 use db_node::PaymentEvent;
 use futures::StreamExt;
 use http::Uri;
+use nuts::traits::Unit as UnitT;
 use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
+use pb::{
+    invoice_contract::v1::RemittanceEvent,
+    sf::substreams::v1::module::input::{Input, Params},
+};
 use prost::Message;
 use sqlx::{
     PgConnection, PgPool,
@@ -34,9 +39,13 @@ pub async fn launch(
     pg_pool: PgPool,
     endpoint_url: Uri,
     chain_id: ChainId,
+    initial_block: i64,
     cashier_account_address: Felt,
 ) -> Result<()> {
-    let package = parse_inputs::read_package(vec![])?;
+    const OUTPUT_MODULE_NAME: &str = "map_invoice_contract_events";
+    const STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME: &str = "starknet:filtered_transactions";
+
+    let mut package = parse_inputs::read_package(vec![])?;
 
     let token = match env::var("SUBSTREAMS_API_TOKEN") {
         Err(VarError::NotPresent) => None,
@@ -45,19 +54,34 @@ pub async fn launch(
         Ok(val) => Some(val),
     };
 
-    let endpoint = Arc::new(SubstreamsEndpoint::new(endpoint_url, token).await?);
+    let on_chain_constants = ON_CHAIN_CONSTANTS
+        .get(chain_id.as_str())
+        .ok_or(anyhow!("unsuported chain id"))?;
 
-    const OUTPUT_MODULE_NAME: &str = "map_invoice_contract_events";
-
-    let initial_block = package
+    let starknet_filtered_transactions_expression = format!(
+        "ev:from_address:{}",
+        on_chain_constants
+            .invoice_payment_contract_address
+            .to_fixed_hex_string()
+    );
+    // Update tx filter
+    package
         .modules
-        .as_ref()
+        .as_mut()
         .unwrap()
         .modules
-        .iter()
-        .find(|m| m.name == OUTPUT_MODULE_NAME)
-        .ok_or_else(|| format_err!("module '{}' not found in package", OUTPUT_MODULE_NAME))?
-        .initial_block;
+        .iter_mut()
+        .find(|m| m.name == STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME)
+        .ok_or(anyhow!(
+            "module `{}` not found",
+            STARKNET_FILTERED_TRANSACTIONS_MODULE_NAME
+        ))?
+        .inputs[0]
+        .input = Some(Input::Params(Params {
+        value: starknet_filtered_transactions_expression,
+    }));
+
+    let endpoint = Arc::new(SubstreamsEndpoint::new(endpoint_url, token).await?);
 
     let mut db_conn = pg_pool.acquire().await?;
 
@@ -68,7 +92,7 @@ pub async fn launch(
         cursor,
         package.modules,
         OUTPUT_MODULE_NAME.to_string(),
-        initial_block as i64,
+        initial_block,
         0,
     );
 
@@ -109,14 +133,6 @@ async fn process_block_scoped_data(
     let date = DateTime::from_timestamp(timestamp.seconds, timestamp.nanos as u32)
         .expect("received timestamp should always be valid");
 
-    sqlx::query(r#"
-            INSERT INTO substreams_starknet_block (id, number, timestamp) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
-        "#)
-        .bind(&clock.id)
-            .bind(i64::try_from(clock.number).unwrap())
-                .bind(date)
-    .execute(&mut *conn).await?;
-
     let events = RemittanceEvents::decode(output.value.as_slice())?;
 
     println!(
@@ -127,14 +143,24 @@ async fn process_block_scoped_data(
         -date.signed_duration_since(Utc::now()).num_seconds()
     );
 
-    process_payment_event(
-        events,
-        conn,
-        chain_id,
-        cashier_account_address,
-        clock.id.clone(),
-    )
-    .await?;
+    if !events.events.is_empty() {
+        sqlx::query(r#"
+            INSERT INTO substreams_starknet_block (id, number, timestamp) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
+        "#)
+        .bind(&clock.id)
+            .bind(i64::try_from(clock.number).unwrap())
+                .bind(date)
+        .execute(&mut *conn).await?;
+
+        process_payment_event(
+            events.events,
+            conn,
+            chain_id,
+            cashier_account_address,
+            clock.id.clone(),
+        )
+        .await?;
+    }
 
     Ok(())
 }
@@ -184,13 +210,13 @@ async fn load_persisted_cursor(conn: &mut PgConnection) -> Result<Option<String>
 }
 
 async fn process_payment_event(
-    remittance_events: RemittanceEvents,
+    remittance_events: Vec<RemittanceEvent>,
     conn: &mut PgConnection,
     chain_id: &ChainId,
     cashier_account_address: Felt,
     block_id: String,
 ) -> Result<(), Error> {
-    for payment_event in remittance_events.events {
+    for payment_event in remittance_events {
         let invoice_id = Felt::from_bytes_be_slice(&payment_event.invoice_id);
         let (is_mint, quote_id, quote_amount, unit) = if let Some((quote_id, amount, unit)) =
             db_node::mint_quote::get_quote_infos_by_invoice_id::<Unit>(
@@ -323,8 +349,8 @@ async fn handle_mint_payment(
         event!(
             name: "mint-quote-paid",
             Level::INFO,
-            name = "mint-quote-paid",
             %quote_id,
+            "Mint quote paid"
         );
     }
 
@@ -365,8 +391,8 @@ async fn handle_melt_payment(
         event!(
             name: "melt-quote-paid",
             Level::INFO,
-            name = "melt-quote-paid",
             %quote_id,
+            "Melt quote paid"
         );
     }
 

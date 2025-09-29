@@ -10,18 +10,20 @@ use nuts::{
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tonic::transport::Channel;
+use tracing::error;
 
 use crate::{
-    StoreNewTokensError,
+    ConnectToNodeError, StoreNewProofsError,
     db::{self, keyset},
     seed_phrase, store_new_proofs_from_blind_signatures,
     types::NodeUrl,
+    wallet::SeedPhraseManager,
 };
 
 #[derive(Debug, thiserror::Error)]
 pub enum RegisterNodeError {
     #[error("failed connect to the node: {0}")]
-    NodeClient(#[from] tonic::transport::Error),
+    Connect(#[from] ConnectToNodeError),
     #[error("failed connect to database: {0}")]
     R2d2(#[from] r2d2::Error),
     #[error("unknown node with url: {0}")]
@@ -30,14 +32,15 @@ pub enum RegisterNodeError {
     Rusqlite(#[from] rusqlite::Error),
     #[error("fail to refresh the node {0} keyset: {1}")]
     RefreshNodeKeyset(u32, RefreshNodeKeysetError),
+    #[error("failed to get node infos: {0}")]
+    GetNodeInfso(#[from] tonic::Status),
 }
 
 pub async fn register(
     pool: Pool<SqliteConnectionManager>,
+    node_client: &mut NodeClient<Channel>,
     node_url: &NodeUrl,
-) -> Result<(NodeClient<tonic::transport::Channel>, u32), RegisterNodeError> {
-    let mut node_client = NodeClient::connect(node_url.to_string()).await?;
-
+) -> Result<u32, RegisterNodeError> {
     let node_id = {
         let db_conn = pool.get()?;
         db::node::insert(&db_conn, node_url)?;
@@ -45,11 +48,11 @@ pub async fn register(
             .ok_or(RegisterNodeError::NotFound(node_url.clone()))?
     };
 
-    refresh_keysets(pool, &mut node_client, node_id)
+    refresh_keysets(pool, node_client, node_id)
         .await
         .map_err(|e| RegisterNodeError::RefreshNodeKeyset(node_id, e))?;
 
-    Ok((node_client, node_id))
+    Ok(node_id)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,26 +66,29 @@ pub enum RestoreNodeError {
     #[error(transparent)]
     Client(#[from] tonic::Status),
     #[error(transparent)]
-    StoreNewTokens(#[from] StoreNewTokensError),
+    StoreNewTokens(#[from] StoreNewProofsError),
     #[error(transparent)]
     Nut01(#[from] nut01::Error),
     #[error(transparent)]
     Dhke(#[from] dhke::Error),
     #[error("`restore` restponse contains an output that was not part of the query")]
     UnknownBlindSecretInRestoreResponse,
+    #[error("failed to interact with wallet")]
+    Wallet(#[from] crate::wallet::Error),
 }
 
 pub async fn restore(
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
     node_client: NodeClient<Channel>,
-    xpriv: Xpriv,
 ) -> Result<(), RestoreNodeError> {
     let keyset_ids = {
         let db_conn = pool.get()?;
         keyset::get_all_ids_for_node(&db_conn, node_id)?
     };
 
+    let xpriv = crate::wallet::get_private_key(seed_phrase_manager)?;
     let mut handles = Vec::with_capacity(keyset_ids.len());
     for keyset_id in keyset_ids {
         handles.push(restore_keyset(
@@ -271,7 +277,7 @@ pub async fn refresh_keysets(
                 )?;
             }
             Err(e) => {
-                log::error!("could not get keys for one of the keysets: {}", e);
+                error!("could not get keys for one of the keysets: {}", e);
             }
         }
     }

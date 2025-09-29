@@ -1,0 +1,35 @@
+[package]
+name = "web-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+# Tracing
+tracing = { workspace = true }
+tracing-subscriber =  { workspace = true, features = ["env-filter"] }
+ 
+# Starknet 
+starknet-core = { workspace = true }
+starknet-types = { workspace = true }
+ 
+# Tower
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["fs", "cors"] }
+
+# Serde
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# HTML templating
+askama = { workspace = true, features = ["with-axum", "serde-json"] }
+askama_axum = { workspace = true }
+
+# TLS
+axum-server = { workspace = true, features = ["tls-rustls-no-provider"], optional = true }
+
+[features]
+default = []
+tls = ["dep:axum-server"]

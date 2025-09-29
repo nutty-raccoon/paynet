@@ -1,5 +1,17 @@
 use nuts::{Amount, nut04::MintQuoteState};
-use rusqlite::{Connection, Result, params};
+use rusqlite::{Connection, OptionalExtension, Result, params};
+
+pub const CREATE_TABLE_MINT_QUOTE: &str = r#"
+        CREATE TABLE IF NOT EXISTS mint_quote (
+            id BLOB(16) PRIMARY KEY,
+            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+            method TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            unit TEXT NOT NULL,
+            request TEXT NOT NULL,
+            state INTEGER NOT NULL CHECK (state IN (1, 2, 3)),
+            expiry INTEGER NOT NULL
+        );"#;
 
 #[derive(Debug)]
 pub struct MintQuote {
@@ -67,29 +79,31 @@ pub fn delete(conn: &Connection, quote_id: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn get(conn: &Connection, node_id: u32, quote_id: &str) -> Result<MintQuote> {
-    const GET_MINT_QUOTE_STATE: &str = r#"
+pub fn get(conn: &Connection, node_id: u32, quote_id: &str) -> Result<Option<MintQuote>> {
+    const GET_MINT_QUOTE: &str = r#"
         SELECT * FROM mint_quote
-        WHERE node_id = ?1 AND id = ?2;
+        WHERE node_id = ?1 AND id = ?2 LIMIT 1;
     "#;
 
-    let quote = conn.query_row(GET_MINT_QUOTE_STATE, params![node_id, quote_id], |r| {
-        Ok(MintQuote {
-            id: r.get::<_, _>(0)?,
-            node_id: r.get::<_, _>(1)?,
-            method: r.get::<_, _>(2)?,
-            amount: r.get::<_, _>(3)?,
-            unit: r.get::<_, _>(4)?,
-            request: r.get::<_, _>(5)?,
-            state: r.get::<_, _>(6)?,
-            expiry: r.get::<_, _>(7)?,
+    let quote = conn
+        .query_row(GET_MINT_QUOTE, params![node_id, quote_id], |r| {
+            Ok(MintQuote {
+                id: r.get::<_, _>(0)?,
+                node_id: r.get::<_, _>(1)?,
+                method: r.get::<_, _>(2)?,
+                amount: r.get::<_, _>(3)?,
+                unit: r.get::<_, _>(4)?,
+                request: r.get::<_, _>(5)?,
+                state: r.get::<_, _>(6)?,
+                expiry: r.get::<_, _>(7)?,
+            })
         })
-    })?;
+        .optional()?;
 
     Ok(quote)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PendingMintQuote {
     pub id: String,
     pub method: String,

@@ -12,6 +12,7 @@ use signer::SignBlindedMessagesRequest;
 use sqlx::PgConnection;
 use starknet_types::Unit;
 use thiserror::Error;
+use tonic_types::{ErrorDetails, StatusExt};
 
 use crate::{
     app_state::SignerClient,
@@ -35,9 +36,29 @@ pub enum Error {
     #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
-    Signer(#[from] tonic::Status),
+    Signer(tonic::Status),
     #[error(transparent)]
     KeysetCache(#[from] keyset_cache::Error),
+}
+
+// signer fields is `messages` while node uses `outputs`
+// whe have to substitute one for another
+fn rename_signer_error_details_field_name(status: tonic::Status) -> tonic::Status {
+    if status.code() == tonic::Code::InvalidArgument {
+        if let Some(mut bad_request) = status.get_details_bad_request() {
+            for f in &mut bad_request.field_violations {
+                f.field = f.field.replace("messages", "outputs");
+            }
+
+            return tonic::Status::with_error_details(
+                status.code(),
+                status.message(),
+                ErrorDetails::with_bad_request(bad_request.field_violations),
+            );
+        }
+    }
+
+    status
 }
 
 pub async fn check_outputs_allow_multiple_units(
@@ -112,7 +133,8 @@ pub async fn process_outputs<'a>(
                 })
                 .collect(),
         })
-        .await?
+        .await
+        .map_err(|s| Error::Signer(rename_signer_error_details_field_name(s)))?
         .into_inner()
         .signatures;
 

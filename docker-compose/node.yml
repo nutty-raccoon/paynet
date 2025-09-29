@@ -1,0 +1,80 @@
+services:
+  db:
+    image: "postgres"
+    environment:
+      - POSTGRES_USER=postgres
+      # Required by pg_isready
+      - PGUSER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=node
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  signer:
+    image: "signer"
+    restart: always
+    environment:
+      - ROOT_KEY=tprv8ZgxMBicQKsPeb6rodrmEXb1zRucvxYJgTKDhqQkZtbz8eY4Pf2EgbsT2swBXnnbDPQChQeFrFqHN72yFxzKfFAVsHdPeRWq2xqyUT2c4wH
+      - GRPC_PORT=10001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=signer
+    ports:
+      - "10001:10001"
+    build:
+      context: ..
+      dockerfile: ./dockerfiles/signer.Dockerfile
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10001"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+  node:
+    image: "node"
+    restart: always
+    build:
+      context: ..
+      dockerfile: ./dockerfiles/node.Dockerfile
+      args:
+        - CARGO_FEATURES=starknet
+    volumes:
+      - starknet-network-data:/shared
+    environment:
+      - PG_URL=postgres://postgres:password@db/node
+      - SIGNER_URL=http://signer:10001
+      - GRPC_PORT=10003
+      # Open telemetry
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=node
+      # Starknet
+      - STARKNET_CASHIER_ACCOUNT_ADDRESS=0x64b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691
+      - STARKNET_CASHIER_PRIVATE_KEY=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9
+      - STARKNET_RPC_NODE_URL=http://starknet-devnet:5050
+      - STARKNET_SUBSTREAMS_URL=http://starknet-firehose:10016
+    ports:
+      - "10003:10003"
+    depends_on:
+      db:
+        condition: service_healthy
+      signer:
+        condition: service_healthy
+      block-fetcher:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=localhost:10003"]
+      start_period: 1s
+      interval: 3s
+      retries: 3
+
+volumes:
+  database_data:
+    driver: local
+  starknet-network-data:

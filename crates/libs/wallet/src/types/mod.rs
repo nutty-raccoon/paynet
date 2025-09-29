@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bitcoin::bip32::Xpriv;
 use node_client::{BlindSignature, BlindedMessage};
 use nuts::{
@@ -6,7 +8,6 @@ use nuts::{
     nut00::{self, secret::Secret},
     nut01::{PublicKey, SecretKey},
     nut02::KeysetId,
-    traits::Unit,
 };
 
 use rusqlite::{
@@ -15,9 +16,8 @@ use rusqlite::{
 };
 
 use crate::{
-    db::{self, wallet},
-    errors::Error,
-    get_active_keyset_for_unit, store_new_tokens,
+    db, errors::Error, get_active_keyset_for_unit, store_new_proofs_from_blind_signatures,
+    wallet::SeedPhraseManager,
 };
 mod node_url;
 pub use node_url::{Error as NodeUrlError, NodeUrl};
@@ -31,13 +31,14 @@ pub struct BlindingData {
 }
 
 impl BlindingData {
-    pub fn load_from_db<U: Unit>(
+    pub fn load_from_db(
+        seed_phrase_manager: impl SeedPhraseManager,
         db_conn: &Connection,
         node_id: u32,
-        unit: U,
+        unit: &str,
     ) -> Result<Self, Error> {
         let (id, counter) = get_active_keyset_for_unit(db_conn, node_id, unit)?;
-        let pk = wallet::get_private_key(db_conn)?.unwrap();
+        let pk = crate::wallet::get_private_key(seed_phrase_manager)?;
 
         Ok(Self {
             xpriv: pk,
@@ -125,24 +126,48 @@ impl PreMints {
             self.keyset_id,
             self.initial_keyset_counter + self.pre_mints.len() as u32,
         )?;
-        let new_tokens = store_new_tokens(
+        let signatures_iterator = self.pre_mints.into_iter().zip(signatures).map(
+            |(pm, bs)| -> Result<_, nuts::nut01::Error> {
+                Ok((
+                    PublicKey::from_slice(&bs.blind_signature)?,
+                    pm.secret,
+                    pm.r,
+                    pm.amount,
+                ))
+            },
+        );
+
+        let new_tokens = store_new_proofs_from_blind_signatures(
             tx,
             node_id,
             self.keyset_id,
-            self.pre_mints.into_iter(),
-            signatures.into_iter(),
+            signatures_iterator,
         )?;
 
         Ok(new_tokens)
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProofState {
     Unspent = 1,
     Pending = 2,
     Spent = 3,
     Reserved = 4,
+}
+
+impl Display for ProofState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(
+            match self {
+                ProofState::Unspent => "UNSPENT",
+                ProofState::Pending => "PENDING",
+                ProofState::Spent => "SPENT",
+                ProofState::Reserved => "RESERVED",
+            },
+            f,
+        )
+    }
 }
 
 impl ToSql for ProofState {

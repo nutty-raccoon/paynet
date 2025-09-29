@@ -23,6 +23,7 @@ impl From<Error> for Status {
         }
     }
 }
+
 impl GrpcState {
     pub async fn inner_check_state(
         &self,

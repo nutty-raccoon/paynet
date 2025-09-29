@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invalid Payload</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>❌ Invalid Payload</h1>
+        <p>Payload must be deserializable as DepositPayload</p>
+      </header>
+      <main>
+        <div class="info-section">
+          <div class="info-item">
+            <label>Error:</label>
+            <span class="value">{{ error }}</span>
+          </div>
+          <div class="info-item payload-section">
+            <label>Received Payload:</label>
+            <pre class="payload-value">{{ payload_raw }}</pre>
+          </div>
+          <p><a href="/">Go back to home</a></p>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

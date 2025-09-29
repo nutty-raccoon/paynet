@@ -36,17 +36,15 @@ dashmap = { workspace = true }
 # gRPC
 prost = { workspace = true }
 tonic = { workspace = true }
+tonic-reflection = { workspace = true, features = ["server"] }
 tonic-health = { workspace = true }
+tonic-types = { workspace = true }
 
 # OPTL
 tracing = { workspace = true }
 open-telemetry-tracing = { workspace = true }
 tower-otel = { workspace = true }
 opentelemetry = { workspace = true }
-
-# tls optional
-openssl = { workspace = true, optional = true }
-tonic-tls= { workspace = true, features = ["openssl"], optional = true }
 
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }
@@ -55,7 +53,7 @@ starknet-liquidity-source = { workspace = true }
 default = ["starknet"]
 mock = ["starknet-liquidity-source/mock"]
 starknet = []
-tls = ["dep:openssl", "dep:tonic-tls"]
+tls = ["tonic/tls-ring"]
 keyset-rotation = []
 
 
