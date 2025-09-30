@@ -1,13 +1,16 @@
 use std::net::SocketAddr;
 
-use axum::Router;
+use axum::{extract::Request, Router, ServiceExt};
+
+use tower_http::normalize_path::NormalizePath;
 
 #[cfg(feature = "tls")]
 use axum_server::tls_rustls::RustlsConfig;
 
 #[cfg(feature = "tls")]
-pub async fn serve(app: Router, bind_address: SocketAddr) {
+pub async fn serve(app: NormalizePath<Router>, bind_address: SocketAddr) {
     // Get certificate and key paths from environment or use defaults
+
     let cert_path = std::env::var("TLS_CERT_PATH").unwrap_or_else(|_| "certs/cert.pem".to_string());
     let key_path = std::env::var("TLS_KEY_PATH").unwrap_or_else(|_| "certs/key.pem".to_string());
 
@@ -46,19 +49,19 @@ pub async fn serve(app: Router, bind_address: SocketAddr) {
 
     // Serve
     axum_server::bind_rustls(bind_address, tls_config)
-        .serve(app.into_make_service())
+        .serve(ServiceExt::<Request>::into_make_service(app))
         .await
         .expect("the server should run")
 }
 
 #[cfg(not(feature = "tls"))]
-pub async fn serve(app: Router, bind_address: SocketAddr) {
+pub async fn serve(app: NormalizePath<Router>, bind_address: SocketAddr) {
     let listener = tokio::net::TcpListener::bind(&bind_address)
         .await
         .expect("should be able to listen");
 
     println!("🚀 Server running on http://{}", bind_address);
-    axum::serve(listener, app)
+    axum::serve(listener, ServiceExt::<Request>::into_make_service(app))
         .await
         .expect("the server should run");
 }

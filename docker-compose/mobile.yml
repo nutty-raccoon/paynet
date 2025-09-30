@@ -6,7 +6,7 @@ services:
     restart: always
     environment:
       COIN_PRO_GECKO_API_KEY: ${COIN_PRO_GECKO_API_KEY}
-      COIN_DEMO_GECKO_API_KEY: ${COIN_DEMO_GECKO_API_KEY}
+      COIN_DEMO_GECKO_API_KEYS: ${COIN_DEMO_GECKO_API_KEYS}
       PORT: 80
       HOST: ""
       CURRENCIES: >

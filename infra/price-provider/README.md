@@ -34,7 +34,7 @@ Create an `.env` file (or pass via Docker) with the following:
 
 ```env
 # CoinGecko API keys
-COIN_DEMO_GECKO_API_KEY=your_demo_api_key
+COIN_DEMO_GECKO_API_KEYS=["key1", "key2", "key3"]
 COIN_PRO_GECK_API_KEY=your_pro_api_key
 
 # Server configuration (optional; defaults shown)
@@ -60,6 +60,7 @@ TOKENS=[
 ]
 ```
 
+- **COIN_DEMO_GECKO_API_KEYS**: JSON array of demo API keys. The service rotates through them for each API call to distribute rate limit usage.
 - **CURRENCIES**: JSON array of fiat or crypto currency codes. Examples: `["usd"]`, `["usd","eur"]`.
 - **TOKENS**: JSON array where each token has `symbol`, `chain`, and `address` fields.
 - **PORT** & **HOST**: Override the default listening port and host interface.

@@ -77,9 +77,9 @@ ENV TLS_KEY_PATH=/certs/key.pem
 EXPOSE ${PORT}
 
 RUN if [ -n "$TLS_FEATURE" ]; then \
-      echo '#!/bin/sh\ncurl -f -k https://localhost:$PORT/ || exit 1' > /app/healthcheck.sh; \
+      echo '#!/bin/sh\ncurl -f -k https://localhost:$PORT/health || exit 1' > /app/healthcheck.sh; \
     else \
-      echo '#!/bin/sh\ncurl -f http://localhost:$PORT/ || exit 1' > /app/healthcheck.sh; \
+      echo '#!/bin/sh\ncurl -f http://localhost:$PORT/health || exit 1' > /app/healthcheck.sh; \
     fi && \
     chmod +x /app/healthcheck.sh
 
