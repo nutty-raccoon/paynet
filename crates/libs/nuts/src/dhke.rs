@@ -11,10 +11,9 @@ use thiserror::Error;
 
 use crate::SECP256K1;
 use crate::nut00::secret::Secret;
-use crate::nut00::{BlindSignature, Proof, Proofs};
+use crate::nut00::{BlindSignature, Proof};
 use crate::nut01::PublicKey;
 use crate::nut01::SecretKey;
-use crate::nut01::SetPubKeys;
 
 const DOMAIN_SEPARATOR: &[u8; 28] = b"Secp256k1_HashToCurve_Cashu_";
 
@@ -113,42 +112,56 @@ pub fn unblind_message(
     Ok(blind_key.combine(&a)?.into()) // C_ + (-a)
 }
 
-/// Construct Proof
+/// Construct Proofs
+#[cfg(feature = "nut12")]
 pub fn construct_proofs(
     promises: Vec<BlindSignature>,
-    rs: Vec<SecretKey>,
+    rs: Vec<SecretKey>, // blinding factors
     secrets: Vec<Secret>,
-    keys: &SetPubKeys,
-) -> Result<Proofs, Error> {
-    if (promises.len() != rs.len()) || (promises.len() != secrets.len()) {
-        tracing::error!(
-            "Different length: Promises: {}, RS: {}, secrets:{}",
-            promises.len(),
-            rs.len(),
-            secrets.len()
-        );
+    keys: &std::collections::HashMap<u64, PublicKey>,
+) -> Result<Vec<Proof>, Error> {
+    if promises.len() != rs.len() || promises.len() != secrets.len() {
         return Err(Error::DifferentLength);
     }
-    let mut proofs = vec![];
-    for ((blind_signature, r), secret) in promises.into_iter().zip(rs).zip(secrets) {
-        let blind_c: PublicKey = blind_signature.c;
-        let a: PublicKey = keys
-            .amount_key(blind_signature.amount)
-            .ok_or(Error::CoudNotGetProof)?;
 
-        let unblind_signature: PublicKey = unblind_message(&blind_c, &r, &a)?;
+    promises
+        .iter()
+        .zip(rs.iter())
+        .zip(secrets.iter())
+        .map(|((promise, r), secret)| {
+            // This part handles the DLEQ proof, adding the blinding factor `r`
+            // which is required for Carol's verification scenario.
+            #[cfg(feature = "nut12")]
+            let dleq = promise.dleq.clone().map(|mut p| {
+                p.r = Some(hex::encode(r.to_secret_bytes()));
+                p
+            });
 
-        let proof = Proof {
-            amount: blind_signature.amount,
-            keyset_id: blind_signature.keyset_id,
-            secret,
-            c: unblind_signature,
-        };
+            #[cfg(not(feature = "nut12"))]
+            let dleq = None;
 
-        proofs.push(proof);
-    }
+            // Here we use your `unblind_message` function.
+            // It takes the blinded signature from the promise (C_), the blinding
+            // factor (r), and the mint's public key for that amount (K).
+            let c = unblind_message(
+                &promise.c,
+                r,
+                &keys[&(promise.amount.into_i64_repr() as u64)],
+            )?;
 
-    Ok(proofs)
+            let proof = Proof {
+                amount: promise.amount,
+                // The KeysetId from the promise is carried over to the proof
+                keyset_id: promise.keyset_id,
+                secret: secret.clone(),
+                // This is the final unblinded signature, ready for spending
+                c,
+                // The DLEQ proof, now including `r`, is attached to the final proof
+                dleq,
+            };
+            Ok(proof)
+        })
+        .collect()
 }
 
 /// Sign Blind Message

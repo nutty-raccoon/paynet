@@ -13,11 +13,13 @@ use wallet::{
     db::{balance::Balance, wad::delete_wad},
     types::{
         NodeUrl,
-        compact_wad::{CompactKeysetProofs, CompactProof, CompactWad},
+        compact_wad::{CompactKeysetProofs, CompactProof, CompactWad, DleqVerificationResult},
     },
 };
 
 use crate::common::utils::{EnvVariables, starknet::pay_invoices};
+
+use wallet::errors::Error as WalletError;
 
 type Pool = r2d2::Pool<SqliteConnectionManager>;
 pub struct WalletOps {
@@ -264,6 +266,13 @@ impl WalletOps {
         Ok(())
     }
 
+    pub async fn verify_wad_dleq_proofs(
+        &self,
+        wad: &CompactWad<Unit>,
+    ) -> std::result::Result<DleqVerificationResult, WalletError> {
+        let mut node_client = self.node_client.clone();
+        wallet::verify_compact_wad_dleq_proofs(wad, &mut node_client).await
+    }
     pub async fn sync_wads(&mut self) -> Result<()> {
         wallet::sync::pending_wads(self.db_pool.clone(), None).await?;
 

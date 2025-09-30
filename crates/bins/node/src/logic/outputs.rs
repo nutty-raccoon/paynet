@@ -146,6 +146,7 @@ pub async fn process_outputs<'a>(
                 amount: bm.amount,
                 keyset_id: bm.keyset_id,
                 c: PublicKey::from_slice(&bs).expect("the signer should return valid pubkey"),
+                dleq: None,
             };
 
             query_builder.add_row(bm.blinded_secret, &blind_signature);

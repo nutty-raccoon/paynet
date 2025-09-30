@@ -22,6 +22,9 @@ use wallet::{
     },
 };
 
+use crate::delq::verify_and_print_dleq_proofs;
+
+mod delq;
 mod init;
 mod sync;
 
@@ -153,10 +156,16 @@ enum Commands {
     Receive(WadArgs),
     /// Decode a wad to view its contents
     #[command(
-        about = "Decode a wad to print its contents",
-        long_about = "Decode a wad to print its contents in a friendly format"
+        about = "Decode a wad to print its contents and optionally verify DLEQ proofs",
+        long_about = "Decode a wad to print its contents in a friendly format. With --verify flag, also validates DLEQ proofs without consuming the tokens."
     )]
-    DecodeWad(WadArgs),
+    DecodeWad {
+        #[command(flatten)]
+        wad_args: WadArgs,
+        /// Verify DLEQ proofs in the received tokens
+        #[arg(long, help = "Verify DLEQ proofs without consuming tokens")]
+        verify: bool,
+    },
     /// Sync all pending operations
     #[command(
         about = "Sync all pending mint and melt operations",
@@ -614,21 +623,13 @@ async fn main() -> Result<()> {
                 };
             }
         }
-        Commands::DecodeWad(WadArgs {
-            opt_wad_string,
-            opt_wad_file_path,
-        }) => {
-            let args = WadArgs {
-                opt_wad_string,
-                opt_wad_file_path,
-            };
-            let wads = args.read_wads()?;
+        Commands::DecodeWad { wad_args, verify } => {
+            let wads = wad_args.read_wads()?;
 
-            for wad in wads {
-                let regular_wad = Wad {
-                    node_url: wad.node_url.clone(),
-                    proofs: wad.proofs(),
-                };
+            for (i, wad) in wads.iter().enumerate() {
+                if i > 0 {
+                    println!("\n---\n"); // Separator for multiple wads
+                }
 
                 println!("Node URL: {}", wad.node_url);
                 if let Some(memo) = wad.memo() {
@@ -637,11 +638,20 @@ async fn main() -> Result<()> {
                 match wad.value() {
                     Ok(v) => println!("Total Value: {} {}", v, wad.unit()),
                     Err(_) => {
-                        println!("sum of all proofs in the wad overflowed");
+                        println!("The sum of all proofs in the wad overflowed.");
                         continue;
                     }
                 };
+
+                if verify {
+                    verify_and_print_dleq_proofs(wad).await?;
+                }
+
                 println!("\nDetailed Contents:");
+                let regular_wad = Wad {
+                    node_url: wad.node_url.clone(),
+                    proofs: wad.proofs(),
+                };
                 println!("{}", serde_json::to_string_pretty(&regular_wad)?);
             }
         }

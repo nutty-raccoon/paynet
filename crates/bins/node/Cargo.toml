@@ -20,7 +20,8 @@ http = { workspace = true }
 log = { workspace = true }
 url = { workspace = true }
 toml = { workspace = true }
-nuts = { workspace = true, features = ["nut9", "nut19"] }
+clap = { workspace = true, features = ["derive"] }
+nuts = { workspace = true, features = ["nut9", "nut12", "nut19"] }
 starknet-types = { workspace = true }
 signer = { workspace = true }
 db-node = { workspace = true }
