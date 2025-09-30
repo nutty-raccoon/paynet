@@ -22,7 +22,7 @@ async fn main() {
     // Build our application with routes
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/salto", get(salto_landing))
+        .route("/", get(salto_landing))
         .route("/deposit", get(deposit_landing))
         .route("/deposit/{method}/{network}", get(handle_deposit))
         .nest_service("/static", ServeDir::new("crates/bins/web-app/static"))
