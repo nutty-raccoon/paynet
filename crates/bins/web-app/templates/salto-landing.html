@@ -1,11 +1,50 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" style="background: #0a0a0a">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Salto - Pagos Cripto para tu Negocio</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+
+    <!-- Critical inline CSS - must be first -->
+    <style>
+      html {
+        background: #0a0a0a;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(
+          135deg,
+          #0a0a0a 0%,
+          #1a1a2e 50%,
+          #16213e 100%
+        );
+        min-height: 100vh;
+        visibility: hidden;
+      }
+      body.loaded {
+        visibility: visible;
+        animation: fadeIn 0.3s ease-in;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+
     <link rel="stylesheet" href="/static/salto-landing.css" />
+
+    <!-- Load page immediately -->
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        document.body.classList.add("loaded");
+      });
+    </script>
   </head>
   <body>
     <!-- Animated particles background -->
@@ -75,6 +114,14 @@
               distancia con la máxima comodidad.
             </p>
           </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔐</div>
+            <h3>Efectivo digital</h3>
+            <p>
+              El dinero vive en tu dispositivo y se queda aquí para que lo uses
+              o lo conviertas.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -132,9 +179,10 @@
           const particle = document.createElement("div");
           particle.className = "particle";
           particle.style.left = Math.random() * 100 + "%";
+          particle.style.top = Math.random() * 100 + "vh";
           particle.style.width = particle.style.height =
             Math.random() * 3 + 1 + "px";
-          particle.style.animationDelay = Math.random() * 20 + "s";
+          particle.style.animationDelay = Math.random() * 5 + "s";
           particle.style.animationDuration = Math.random() * 10 + 10 + "s";
           particlesContainer.appendChild(particle);
         }

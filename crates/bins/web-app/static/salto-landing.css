@@ -19,8 +19,9 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: -1;
-  opacity: 0.1;
+  z-index: 1;
+  opacity: 0.15;
+  pointer-events: none;
 }
 
 .particle {
@@ -28,6 +29,7 @@ body {
   background: #00d4ff;
   border-radius: 50%;
   animation: float 20s infinite linear;
+  opacity: 0;
 }
 
 @keyframes float {
@@ -138,7 +140,7 @@ header {
 
 .hero-content {
   max-width: 800px;
-  z-index: 10;
+  z-index: 2;
   animation: fadeInUp 1s ease-out;
 }
 
@@ -268,7 +270,7 @@ header {
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 2rem;
   margin-top: 3rem;
 }
@@ -345,10 +347,11 @@ header {
   gap: 2rem;
   text-align: center;
 }
+
 .stat-item {
-flex: 0 0 200px;
-min-width: 200px;
-max-width: 250px;
+  flex: 0 0 200px;
+  min-width: 200px;
+  max-width: 250px;
 }
 
 .stat-item h3 {
@@ -368,6 +371,7 @@ footer {
   padding: 3rem 2rem;
   background: rgba(10, 10, 10, 0.9);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
 }
 
 .footer-container {

@@ -12,7 +12,7 @@ use starknet_types::{constants::ON_CHAIN_CONSTANTS, ChainId, PayInvoiceCallData}
 use std::{collections::HashMap, str::FromStr};
 
 pub async fn deposit_landing() -> impl IntoResponse {
-    Html(include_str!("../templates/index.html"))
+    Html(include_str!("../templates/deposit-landing.html"))
 }
 
 pub async fn salto_landing() -> impl IntoResponse {

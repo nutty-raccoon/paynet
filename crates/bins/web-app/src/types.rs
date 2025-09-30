@@ -55,5 +55,5 @@ pub struct DepositData {
 }
 
 #[derive(Template)]
-#[template(path = "salto_landing.html")]
+#[template(path = "salto-landing.html")]
 pub struct SaltoLandingTemplate {}
