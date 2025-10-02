@@ -1,13 +1,12 @@
 use anyhow::{Result, anyhow};
 use bip39::Mnemonic;
+use cashu_client::GrpcClient;
 use itertools::Itertools;
-use node_client::NodeClient;
 use nuts::{Amount, nut01::PublicKey};
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, DepositPayload, STARKNET_STR, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::felt::Felt;
-use tonic::transport::Channel;
 use wallet::{
     self,
     db::{balance::Balance, wad::delete_wad},
@@ -23,11 +22,11 @@ type Pool = r2d2::Pool<SqliteConnectionManager>;
 pub struct WalletOps {
     db_pool: Pool,
     node_id: u32,
-    node_client: NodeClient<Channel>,
+    node_client: GrpcClient,
 }
 
 impl WalletOps {
-    pub fn new(db_pool: Pool, node_id: u32, node_client: NodeClient<Channel>) -> Self {
+    pub fn new(db_pool: Pool, node_id: u32, node_client: GrpcClient) -> Self {
         WalletOps {
             db_pool,
             node_id,

@@ -19,7 +19,7 @@ use crate::{
     ClientRestoreResponse, Error, NodeInfoResponse,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GrpcClient {
     pub node: NodeClient<Channel>,
 }
