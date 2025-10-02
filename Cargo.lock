@@ -773,6 +773,7 @@ name = "cli-wallet"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cashu-client",
  "chrono",
  "clap",
  "colored",
@@ -2541,6 +2542,7 @@ name = "node-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cashu-client",
  "db-node",
  "dotenvy",
  "liquidity-source",
@@ -4808,6 +4810,7 @@ dependencies = [
  "anyhow",
  "bip39",
  "bitcoin",
+ "cashu-client",
  "futures",
  "itertools",
  "log",
