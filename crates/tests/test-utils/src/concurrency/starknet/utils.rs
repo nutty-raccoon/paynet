@@ -1,79 +1,67 @@
-use node_client::{
-    AcknowledgeRequest, GetKeysetsRequest, MeltRequest, MeltResponse, MintQuoteRequest,
-    MintQuoteResponse, MintQuoteState, MintRequest, MintResponse, NodeClient, QuoteStateRequest,
-    SwapRequest, SwapResponse, hash_melt_request, hash_mint_request, hash_swap_request,
+use cashu_client::{CashuClient, ClientKeyset, ClientMintQuoteRequest};
+use nuts::{
+    Amount,
+    nut19::{hash_melt_request, hash_mint_request, hash_swap_request},
 };
-use nuts::Amount;
 use starknet_types::{DepositPayload, Unit, constants::ON_CHAIN_CONSTANTS};
-use tonic::transport::Channel;
 
 use anyhow::Result;
 
 use crate::common::utils::{EnvVariables, starknet::pay_invoices};
 
 pub async fn make_mint(
-    req: MintRequest,
-    mut node_client: NodeClient<Channel>,
-) -> Result<MintResponse> {
-    let mint_response = node_client.mint(req.clone()).await?.into_inner();
+    req: nuts::nut04::MintRequest<String>,
+    mut node_client: impl CashuClient,
+) -> Result<nuts::nut04::MintResponse> {
+    let mint_response = node_client
+        .mint(req.clone(), "starknet".to_string())
+        .await?;
     let request_hash = hash_mint_request(&req);
     node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "mint".to_string(),
-            request_hash,
-        })
+        .acknowledge("mint".to_string(), request_hash)
         .await?;
     Ok(mint_response)
 }
 
 pub async fn make_swap(
-    mut node_client: NodeClient<Channel>,
-    swap_request: SwapRequest,
-) -> Result<SwapResponse> {
-    let original_swap_response = node_client.swap(swap_request.clone()).await?.into_inner();
+    mut node_client: impl CashuClient,
+    swap_request: nuts::nut03::SwapRequest,
+) -> Result<nuts::nut03::SwapResponse> {
+    let original_swap_response = node_client.swap(swap_request.clone()).await?;
     let request_hash = hash_swap_request(&swap_request);
     node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "swap".to_string(),
-            request_hash,
-        })
+        .acknowledge("swap".to_string(), request_hash)
         .await?;
     Ok(original_swap_response)
 }
 
 pub async fn make_melt(
-    mut node_client: NodeClient<Channel>,
-    melt_request: MeltRequest,
-) -> Result<MeltResponse> {
-    let original_melt_response = node_client.melt(melt_request.clone()).await?.into_inner();
+    mut node_client: impl CashuClient,
+    melt_request: nuts::nut05::MeltRequest<String>,
+) -> Result<nuts::nut05::MeltResponse> {
+    let original_melt_response = node_client
+        .melt("starknet".to_string(), melt_request.clone())
+        .await?;
     let request_hash = hash_melt_request(&melt_request);
     node_client
-        .acknowledge(AcknowledgeRequest {
-            path: "melt".to_string(),
-            request_hash,
-        })
+        .acknowledge("melt".to_string(), request_hash)
         .await?;
 
     Ok(original_melt_response)
 }
 
 pub async fn wait_transac(
-    mut node_client: NodeClient<Channel>,
-    quote: &MintQuoteResponse,
+    mut node_client: impl CashuClient,
+    quote: &nuts::nut04::MintQuoteResponse<String>,
 ) -> Result<()> {
     loop {
         let response = node_client
-            .mint_quote_state(QuoteStateRequest {
-                method: "starknet".to_string(),
-                quote: quote.quote.clone(),
-            })
+            .mint_quote_state("starknet".to_string(), quote.quote.clone())
             .await;
 
         match response {
             Ok(response) => {
-                let response = response.into_inner();
-                let state = MintQuoteState::try_from(response.state)?;
-                if state == MintQuoteState::MnqsPaid {
+                if response.state == nuts::nut04::MintQuoteState::Paid {
                     break;
                 }
             }
@@ -87,14 +75,10 @@ pub async fn wait_transac(
 }
 
 pub async fn get_active_keyset(
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     unit: &str,
-) -> Result<node_client::Keyset> {
-    let keysets = node_client
-        .keysets(GetKeysetsRequest {})
-        .await?
-        .into_inner()
-        .keysets;
+) -> Result<ClientKeyset> {
+    let keysets = node_client.keysets().await?.keysets;
     keysets
         .into_iter()
         .find(|ks| ks.active && ks.unit == unit)
@@ -102,21 +86,18 @@ pub async fn get_active_keyset(
 }
 
 pub async fn mint_quote_and_deposit_and_wait(
-    mut node_client: NodeClient<Channel>,
+    mut node_client: impl CashuClient,
     env: EnvVariables,
     amount: Amount,
-) -> Result<MintQuoteResponse> {
-    let mint_quote_request = MintQuoteRequest {
+) -> Result<nuts::nut04::MintQuoteResponse<String>> {
+    let mint_quote_request = ClientMintQuoteRequest {
         method: "starknet".to_string(),
         amount: amount.into(),
         unit: Unit::MilliStrk.to_string(),
         description: None,
     };
 
-    let quote = node_client
-        .mint_quote(mint_quote_request)
-        .await?
-        .into_inner();
+    let quote = node_client.mint_quote(mint_quote_request).await?;
 
     let on_chain_constants = ON_CHAIN_CONSTANTS.get(env.chain_id.as_str()).unwrap();
     let deposit_payload: DepositPayload = serde_json::from_str(&quote.request)?;

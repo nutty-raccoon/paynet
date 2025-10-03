@@ -81,7 +81,7 @@ pub struct MintQuoteRequest<U: Unit> {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct MintQuoteResponse<Q> {
     pub quote: Q,
     pub request: String,
@@ -89,13 +89,13 @@ pub struct MintQuoteResponse<Q> {
     pub expiry: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MintRequest<Q> {
     pub quote: Q,
     pub outputs: Vec<BlindedMessage>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct MintResponse {
     pub signatures: Vec<BlindSignature>,
 }

@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use cashu_client::GrpcClient;
 use std::time::{Duration, Instant};
 use tonic_health::pb::health_client::HealthClient;
 
@@ -33,9 +34,11 @@ pub async fn init_health_client() -> Result<HealthClient<tonic::transport::Chann
 
     Ok(client)
 }
-pub async fn init_node_client() -> Result<NodeClient<tonic::transport::Channel>> {
+pub async fn init_node_client() -> Result<GrpcClient> {
     let channel = get_grpc_channel().await?;
-    let client = NodeClient::new(channel);
+    let client = GrpcClient {
+        node: NodeClient::new(channel),
+    };
 
     Ok(client)
 }
