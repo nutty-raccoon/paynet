@@ -1,5 +1,5 @@
 use cashu_client::{CashuClient, ClientMeltQuoteRequest, ClientMeltQuoteResponse};
-use nuts::{Amount, traits::Unit};
+use nuts::Amount;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 
@@ -99,7 +99,7 @@ pub async fn pay_quote(
     // Create melt request
     let melt_request = nuts::nut05::MeltRequest {
         quote: quote_id.clone(),
-        inputs: inputs,
+        inputs,
     };
 
     let melt_request_hash = nuts::nut19::hash_melt_request(&melt_request);

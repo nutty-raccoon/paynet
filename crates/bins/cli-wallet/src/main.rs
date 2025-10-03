@@ -1,8 +1,7 @@
 use anyhow::{Result, anyhow};
-use cashu_client::{CashuClient, GrpcClient};
+use cashu_client::GrpcClient;
 use clap::{Args, Parser, Subcommand, ValueHint};
 use colored::*;
-use nuts::Amount;
 use parse_asset_amount::parse_asset_amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -13,12 +12,11 @@ use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
-    ConnectToNodeResponse,
     db::balance::Balance,
     melt::wait_for_payment,
     send::load_proofs_and_create_wads,
     types::{
-        NodeUrl, Wad,
+        Wad,
         compact_wad::{CompactWad, CompactWads},
     },
 };
@@ -476,7 +474,7 @@ async fn main() -> Result<()> {
                 &mut node_client.client,
                 node_id,
                 melt_quote_response.quote.clone(),
-                Amount::from(melt_quote_response.amount),
+                melt_quote_response.amount,
                 method.clone(),
                 unit.as_str(),
             )

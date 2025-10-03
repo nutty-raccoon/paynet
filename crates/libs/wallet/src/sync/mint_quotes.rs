@@ -1,11 +1,11 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cashu_client::CashuClient;
-use node_client::{NodeClient, QuoteStateRequest, UnspecifiedEnum};
+use node_client::UnspecifiedEnum;
 use nuts::nut04::MintQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::{Code, transport::Channel};
+use tonic::Code;
 use tracing::{Level, error, event};
 
 use crate::{
@@ -128,10 +128,8 @@ pub async fn mint_quote(
     let db_conn = pool.get()?;
     match response {
         Ok(response) => {
-            let state = MintQuoteState::try_from(
-                node_client::MintQuoteState::try_from(response.state)
-                    .map_err(|e| SyncMintQuoteError::InvalidState(e.to_string()))?,
-            )?;
+            let state =
+                MintQuoteState::try_from(node_client::MintQuoteState::from(response.state))?;
 
             if state == MintQuoteState::Unpaid {
                 let now = SystemTime::now()

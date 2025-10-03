@@ -95,7 +95,7 @@ pub async fn read_or_import_node_keyset(
         pairs.iter().map(|(amt, s)| (*amt, s.as_str())),
     )?;
 
-    Ok((keyset.unit.clone(), max_order.into()))
+    Ok((keyset.unit.clone(), max_order))
 }
 
 pub fn get_active_keyset_for_unit(

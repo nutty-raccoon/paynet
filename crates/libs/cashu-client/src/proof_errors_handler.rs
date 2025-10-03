@@ -43,15 +43,16 @@ impl ProofErrorHandler for GrpcClient {
                         invalid.push(idx);
                     }
                 }
-                let mut errs = Vec::with_capacity(2);
-                errs.push(ProofError {
-                    index: spent,
-                    kind: ProofErrorKind::AlreadySpent,
-                });
-                errs.push(ProofError {
-                    index: invalid,
-                    kind: ProofErrorKind::FailCryptoVerify,
-                });
+                let errs = vec![
+                    ProofError {
+                        index: spent,
+                        kind: ProofErrorKind::AlreadySpent,
+                    },
+                    ProofError {
+                        index: invalid,
+                        kind: ProofErrorKind::FailCryptoVerify,
+                    },
+                ];
                 return Some(errs);
             }
         }

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use node_client::{
     AcknowledgeRequest, GetKeysRequest, NodeClient, QuoteStateRequest, RestoreRequest,
 };
@@ -63,10 +65,8 @@ impl CashuClient for GrpcClient {
                             .map(|key| -> Result<ClientKey, Error> {
                                 Ok(ClientKey {
                                     amount: Amount::from(key.amount),
-                                    publickey: PublicKey::from_slice(
-                                        &key.pubkey.as_bytes().to_vec(),
-                                    )
-                                    .map_err(crate::Error::PublicKey)?,
+                                    publickey: PublicKey::from_str(&key.pubkey)
+                                        .map_err(crate::Error::PublicKey)?,
                                 })
                             })
                             .collect::<Result<Vec<ClientKey>, Error>>()?,
@@ -112,7 +112,7 @@ impl CashuClient for GrpcClient {
         method: String,
     ) -> Result<nuts::nut04::MintResponse, crate::Error> {
         let mint_request = node_client::MintRequest {
-            method: method,
+            method,
             quote: req.quote,
             outputs: req
                 .outputs

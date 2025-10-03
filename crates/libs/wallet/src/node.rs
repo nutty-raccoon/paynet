@@ -2,7 +2,6 @@ use bitcoin::bip32::Xpriv;
 use cashu_client::CashuClient;
 use futures::{StreamExt, future::join_all};
 use nuts::{
-    Amount,
     dhke::{self, hash_to_curve},
     nut01::{self, PublicKey},
     nut02::KeysetId,
@@ -178,7 +177,7 @@ async fn restore_keyset(
                     } else {
                         let (secret, r) = secrets[&bm.blinded_secret].clone();
 
-                        Some(Ok((bs.c, secret, r, Amount::from(bs.amount))))
+                        Some(Ok((bs.c, secret, r, bs.amount)))
                     }
                 });
 

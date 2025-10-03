@@ -1,14 +1,11 @@
 use anyhow::{Result, anyhow};
-use cashu_client::{CashuClient, GrpcClient};
-use node_client::NodeClient;
+use cashu_client::GrpcClient;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
 use wallet::ConnectToNodeResponse;
 use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::melt::format_melt_transfers_id_into_term_message;
-use wallet::types::NodeUrl;
 
 use crate::SEED_PHRASE_MANAGER;
 

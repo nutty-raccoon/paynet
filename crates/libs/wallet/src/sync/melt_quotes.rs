@@ -1,10 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use node_client::{NodeClient, UnspecifiedEnum};
+use node_client::UnspecifiedEnum;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::{Code, transport::Channel};
+use tonic::Code;
 use tracing::{Level, debug, event};
 
 use crate::{
@@ -115,10 +115,8 @@ pub async fn melt_quote(
     let mut db_conn = pool.get()?;
     match response {
         Ok(response) => {
-            let state = MeltQuoteState::try_from(
-                node_client::MeltQuoteState::try_from(response.state)
-                    .map_err(|e| SyncMeltQuoteError::InvalidState(e.to_string()))?,
-            )?;
+            let state =
+                MeltQuoteState::try_from(node_client::MeltQuoteState::from(response.state))?;
 
             let tx = db_conn
                 .transaction()

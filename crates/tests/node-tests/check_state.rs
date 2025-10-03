@@ -1,16 +1,12 @@
 use std::vec;
 
 use anyhow::Result;
-use node_client::{
-    BlindedMessage, CheckStateRequest, GetKeysRequest, MintRequest, Proof, SwapRequest,
-};
 
 use cashu_client::{CashuClient, ClientMintQuoteRequest};
 use node_tests::init_node_client;
 use nuts::Amount;
 use nuts::dhke::{blind_message, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
-use nuts::nut01::PublicKey;
 use nuts::nut02::KeysetId;
 use nuts::nut07::ProofState;
 use starknet_types::Unit;
