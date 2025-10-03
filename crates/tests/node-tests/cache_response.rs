@@ -63,9 +63,9 @@ async fn works() -> Result<()> {
     let mint_request = nuts::nut04::MintRequest {
         quote: original_mint_quote_response.quote,
         outputs: vec![nuts::nut00::BlindedMessage {
-            amount: amount.into(),
+            amount,
             keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-            blinded_secret: blinded_secret,
+            blinded_secret,
         }],
     };
     let original_mint_response = client
@@ -95,18 +95,18 @@ async fn works() -> Result<()> {
     let blind_signature = original_mint_response.signatures.first().unwrap().c;
     let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)?;
     let proof = nuts::nut00::Proof {
-        amount: amount.into(),
+        amount,
         keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-        secret: secret,
+        secret,
         c: unblinded_signature,
     };
 
     let secret = Secret::generate();
     let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
     let blind_message = nuts::nut00::BlindedMessage {
-        amount: amount.into(),
+        amount,
         keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-        blinded_secret: blinded_secret,
+        blinded_secret,
     };
 
     let swap_request = nuts::nut03::SwapRequest {
@@ -126,9 +126,9 @@ async fn works() -> Result<()> {
     let blind_signature = original_swap_response.signatures.first().unwrap().c;
     let unblinded_signature = unblind_message(&blind_signature, &r, &node_pubkey_for_amount)?;
     let proof = nuts::nut00::Proof {
-        amount: amount.into(),
+        amount,
         keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-        secret: secret,
+        secret,
         c: unblinded_signature,
     };
 

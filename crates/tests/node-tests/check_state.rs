@@ -56,9 +56,9 @@ async fn test_multiple_tokens() -> Result<()> {
         ys.push(hash_to_curve(secret.as_bytes())?.to_bytes().to_vec());
 
         outputs.push(nuts::nut00::BlindedMessage {
-            amount: (*amount).into(),
+            amount: *amount,
             keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-            blinded_secret: blinded_secret,
+            blinded_secret,
         });
     }
 

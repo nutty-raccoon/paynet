@@ -40,9 +40,9 @@ pub async fn mint_same_quote(node_client: impl CashuClient, env: EnvVariables) -
         let mint_request = nuts::nut04::MintRequest {
             quote: original_mint_quote_response.quote.clone(),
             outputs: vec![nuts::nut00::BlindedMessage {
-                amount: Amount::from(amount),
+                amount,
                 keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-                blinded_secret: blinded_secret,
+                blinded_secret,
             }],
         };
         mints_requests.push(mint_request);
@@ -131,7 +131,7 @@ pub async fn mint_same_output(mut node_client: impl CashuClient, env: EnvVariabl
         mints_requests.push(nuts::nut04::MintRequest {
             quote: quote.quote.clone(),
             outputs: vec![nuts::nut00::BlindedMessage {
-                amount: Amount::from(amount),
+                amount,
                 keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
                 blinded_secret,
             }],
@@ -203,7 +203,7 @@ pub async fn swap_same_output(mut node_client: impl CashuClient, env: EnvVariabl
         .enumerate()
         .map(|(i, s)| {
             Ok(nuts::nut00::Proof {
-                amount: Amount::from(swap_amount).into(),
+                amount: Amount::from(swap_amount),
                 keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
                 secret: secrets[i].clone(),
                 c: unblind_message(&s.c, &rs[i], &node_pubkey_for_amount)?,
@@ -216,7 +216,7 @@ pub async fn swap_same_output(mut node_client: impl CashuClient, env: EnvVariabl
     let blinded_message = nuts::nut00::BlindedMessage {
         amount: Amount::from(swap_amount),
         keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-        blinded_secret: blinded_secret,
+        blinded_secret,
     };
 
     let mut multi_swap = Vec::new();
@@ -290,7 +290,7 @@ pub async fn swap_same_input(mut node_client: impl CashuClient, env: EnvVariable
         let secret = Secret::generate();
         let (blinded_secret, _r) = blind_message(secret.as_bytes(), None)?;
         let blind_message = nuts::nut00::BlindedMessage {
-            amount: amount,
+            amount,
             keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
             blinded_secret,
         };
@@ -361,7 +361,7 @@ pub async fn melt_same_input(mut node_client: impl CashuClient, env: EnvVariable
         .unwrap()
         .keys
         .iter()
-        .find(|key| Amount::from(key.amount) == amount)
+        .find(|key| key.amount == amount)
         .unwrap()
         .publickey;
     let blind_signature = original_mint_response.signatures.first().unwrap().c;
@@ -475,7 +475,7 @@ pub async fn melt_same_quote(mut node_client: impl CashuClient, env: EnvVariable
         blind_messages.push(nuts::nut00::BlindedMessage {
             amount: Amount::from(melt_amount),
             keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
-            blinded_secret: blinded_secret,
+            blinded_secret,
         });
 
         rs.push(r);

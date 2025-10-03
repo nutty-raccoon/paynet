@@ -113,12 +113,12 @@ pub async fn pay_quote(
         Ok(r) => r,
         Err(e) => {
             if let Some(errors) = node_client.extract_proof_errors(&e) {
-                if !errors[0].index.is_empty() {
-                    handle_already_spent_proofs(errors[0].index.clone(), &proofs_ids, &db_conn)
+                if !errors[0].indexes.is_empty() {
+                    handle_already_spent_proofs(errors[0].indexes.clone(), &proofs_ids, &db_conn)
                         .map_err(PayMeltQuoteError::HandleProofsVerficationErrors)?;
                 }
-                if !errors[1].index.is_empty() {
-                    handle_crypto_invalid_proofs(errors[1].index.clone(), &proofs_ids, &db_conn)
+                if !errors[1].indexes.is_empty() {
+                    handle_crypto_invalid_proofs(errors[1].indexes.clone(), &proofs_ids, &db_conn)
                         .map_err(PayMeltQuoteError::HandleProofsVerficationErrors)?;
                 }
             }

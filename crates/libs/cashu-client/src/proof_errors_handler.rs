@@ -6,12 +6,11 @@ use tonic_types::StatusExt;
 pub enum ProofErrorKind {
     AlreadySpent,
     FailCryptoVerify,
-    Unknown(String),
 }
 
 #[derive(Debug)]
 pub struct ProofError {
-    pub index: Vec<u32>,
+    pub indexes: Vec<u32>,
     pub kind: ProofErrorKind,
 }
 
@@ -45,11 +44,11 @@ impl ProofErrorHandler for GrpcClient {
                 }
                 let errs = vec![
                     ProofError {
-                        index: spent,
+                        indexes: spent,
                         kind: ProofErrorKind::AlreadySpent,
                     },
                     ProofError {
-                        index: invalid,
+                        indexes: invalid,
                         kind: ProofErrorKind::FailCryptoVerify,
                     },
                 ];

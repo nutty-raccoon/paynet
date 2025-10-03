@@ -349,16 +349,16 @@ pub async fn swap_to_have_target_amount(
                     crate::node::refresh_keysets(pool, node_client, node_id).await?;
                 }
                 if let Some(errors) = node_client.extract_proof_errors(&e) {
-                    if !errors[0].index.is_empty() {
+                    if !errors[0].indexes.is_empty() {
                         handle_already_spent_proofs(
-                            errors[0].index.clone(),
+                            errors[0].indexes.clone(),
                             &[proof_to_swap.0],
                             &db_conn,
                         )?;
                     }
-                    if !errors[1].index.is_empty() {
+                    if !errors[1].indexes.is_empty() {
                         handle_crypto_invalid_proofs(
-                            errors[1].index.clone(),
+                            errors[1].indexes.clone(),
                             &[proof_to_swap.0],
                             &db_conn,
                         )?;
@@ -526,12 +526,12 @@ pub async fn receive_wad(
             Ok(r) => r,
             Err(e) => {
                 if let Some(errors) = node_client.extract_proof_errors(&e) {
-                    if !errors[0].index.is_empty() {
-                        handle_already_spent_proofs(errors[0].index.clone(), &ys, &db_conn)
+                    if !errors[0].indexes.is_empty() {
+                        handle_already_spent_proofs(errors[0].indexes.clone(), &ys, &db_conn)
                             .map_err(CommonError::HandleProofVerificationErrors)?;
                     }
-                    if !errors[1].index.is_empty() {
-                        handle_crypto_invalid_proofs(errors[1].index.clone(), &ys, &db_conn)
+                    if !errors[1].indexes.is_empty() {
+                        handle_crypto_invalid_proofs(errors[1].indexes.clone(), &ys, &db_conn)
                             .map_err(CommonError::HandleProofVerificationErrors)?;
                     }
                 }

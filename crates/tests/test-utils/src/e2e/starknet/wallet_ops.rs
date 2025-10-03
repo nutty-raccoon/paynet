@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use bip39::Mnemonic;
 use cashu_client::GrpcClient;
 use itertools::Itertools;
-use nuts::{Amount, nut01::PublicKey};
+use nuts::nut01::PublicKey;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::{Asset, DepositPayload, STARKNET_STR, constants::ON_CHAIN_CONSTANTS};
@@ -242,7 +242,7 @@ impl WalletOps {
             &mut self.node_client,
             self.node_id,
             melt_quote_response.quote.clone(),
-            Amount::from(melt_quote_response.amount),
+            melt_quote_response.amount,
             method.clone(),
             unit.as_str(),
         )
