@@ -9,7 +9,6 @@ use node::{
     MeltQuoteRequest, MeltQuoteResponse, MeltQuoteStateRequest, MeltRequest, MeltResponse,
     MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, Node, NodeInfoResponse,
     ProofCheckState, QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
-    hash_melt_request, hash_mint_request, hash_swap_request,
 };
 use nuts::{
     Amount, QuoteTTLConfig,
@@ -17,7 +16,7 @@ use nuts::{
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
-    nut19::{CacheResponseKey, Route},
+    nut19::{CacheResponseKey, Route, hash_melt_request, hash_mint_request, hash_swap_request},
 };
 use signer::GetRootPubKeyRequest;
 use sqlx::PgPool;
@@ -226,12 +225,6 @@ impl Node for GrpcState {
     ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
-        let cache_key = (Route::Swap, hash_swap_request(&swap_request));
-        // Try to get from cache first
-        if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(swap_response));
-        }
-
         if swap_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many inputs: maximum allowed is 64",
@@ -277,6 +270,17 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let nut_swap_request = nuts::nut03::SwapRequest {
+            inputs: inputs.clone(),
+            outputs: outputs.clone(),
+        };
+
+        let cache_key = (Route::Swap, hash_swap_request(&nut_swap_request));
+        // Try to get from cache first
+        if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(swap_response));
+        }
 
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
@@ -328,10 +332,8 @@ impl Node for GrpcState {
     ) -> Result<Response<MintResponse>, Status> {
         let mint_request = mint_request.into_inner();
 
-        let cache_key = (Route::Mint, hash_mint_request(&mint_request));
-        // Try to get from cache first
-        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(mint_response));
+        if mint_request.outputs.is_empty() {
+            return Err(Status::invalid_argument("Outputs cannot be empty"));
         }
 
         if mint_request.outputs.len() > 64 {
@@ -339,14 +341,6 @@ impl Node for GrpcState {
                 "Too many outputs: maximum allowed is 64",
             ));
         }
-
-        let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
-
-        if mint_request.outputs.is_empty() {
-            return Err(Status::invalid_argument("Outputs cannot be empty"));
-        }
-
-        let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
 
         let outputs = mint_request
             .outputs
@@ -361,6 +355,21 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let nut_mint_request = nuts::nut04::MintRequest {
+            quote: mint_request.quote.clone(),
+            outputs: outputs.clone(),
+        };
+
+        let cache_key = (Route::Mint, hash_mint_request(&nut_mint_request));
+        // Try to get from cache first
+        if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(mint_response));
+        }
+
+        let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
+
+        let quote_id = Uuid::from_str(&mint_request.quote).map_err(ParseGrpcError::Uuid)?;
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
         let signatures = promises
@@ -412,13 +421,6 @@ impl Node for GrpcState {
     ) -> Result<Response<MeltResponse>, Status> {
         let melt_request = melt_request.into_inner();
 
-        let cache_key = (Route::Melt, hash_melt_request(&melt_request));
-
-        // Try to get from cache first
-        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(melt_response));
-        }
-
         if melt_request.inputs.len() > 64 {
             return Err(Status::invalid_argument(
                 "Too many inputs: maximum allowed is 64",
@@ -429,8 +431,6 @@ impl Node for GrpcState {
             return Err(Status::invalid_argument("Inputs cannot be empty"));
         }
 
-        let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
-        let quote_id = Uuid::from_str(&melt_request.quote).map_err(ParseGrpcError::Uuid)?;
         let inputs = melt_request
             .clone()
             .inputs
@@ -446,6 +446,20 @@ impl Node for GrpcState {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let nut_melt_request = nuts::nut05::MeltRequest {
+            quote: melt_request.clone().quote,
+            inputs: inputs.clone(),
+        };
+        let cache_key = (Route::Melt, hash_melt_request(&nut_melt_request));
+
+        // Try to get from cache first
+        if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
+            return Ok(Response::new(melt_response));
+        }
+
+        let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
+        let quote_id = Uuid::from_str(&melt_request.quote).map_err(ParseGrpcError::Uuid)?;
 
         let response = self.inner_melt(method, quote_id, &inputs).await?;
 
