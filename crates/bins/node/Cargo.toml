@@ -36,6 +36,7 @@ cashu-client = { workspace = true }
 # gRPC
 prost = { workspace = true }
 tonic = { workspace = true }
+tonic-reflection = { workspace = true, features = ["server"] }
 tonic-health = { workspace = true }
 tonic-types = { workspace = true }
 

@@ -3,10 +3,13 @@
   import { formatBalance, unitPrecision } from "../../utils";
   import { createWads } from "../../commands";
   import type { Wads } from "../../types/wad";
+  import { showSuccessToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
+  import type { Amount } from "../../types";
 
   interface Props {
     availableUnits: string[];
-    availableBalances: Map<string, number>;
+    availableBalances: Map<string, Amount>;
     onClose: () => void;
     onPaymentDataGenerated: (
       amount: string,
@@ -26,15 +29,22 @@
     availableUnits.length > 0 ? availableUnits[0] : "",
   );
   let paymentError = $state<string>("");
+  let isSubmitting = $state<boolean>(false);
 
   let { asset, assetAmount } = $derived(
-    formatBalance(selectedUnit, availableBalances.get(selectedUnit) || 0),
+    formatBalance(selectedUnit, availableBalances.get(selectedUnit) || 0n),
   );
 
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = (
     event,
   ) => {
     event.preventDefault();
+
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
+
     const form = event.target as HTMLFormElement;
     const formDataObject = new FormData(form);
     const inputAsset = formDataObject.get("payment-asset");
@@ -48,31 +58,44 @@
 
       const amountValue = parseFloat(amountString);
       if (amountValue <= 0) {
-        paymentError = "Amount must be greater than 0";
+        paymentError = $t("modals.amountGreaterThanZero");
         return;
       }
       if (amountValue > assetAmount) {
-        paymentError = `Amount cannot exceed ${assetAmount} ${selectedUnit}`;
+        paymentError = `${$t("errors.amountCannotExceed")} ${assetAmount} ${selectedUnit}`;
         return;
       }
 
-      createWads(amountString, asset).then((wads) => {
-        if (!!wads) {
-          onPaymentDataGenerated(amountString, asset, wads);
-        }
-      });
+      isSubmitting = true;
+
+      createWads(amountString, asset)
+        .then((wads) => {
+          if (!!wads) {
+            showSuccessToast($t("send.paymentDataGenerated"));
+            onPaymentDataGenerated(amountString, asset, wads);
+          }
+        })
+        .catch((error) => {
+          paymentError = $t("errors.failedGeneratePayment");
+          console.error("Error creating wads:", error);
+        })
+        .finally(() => {
+          isSubmitting = false;
+        });
     }
   };
 </script>
 
 <div class="amount-form-container">
   <div class="method-indicator">
-    <button class="back-button" onclick={onClose}>← Back</button>
+    <button class="back-button" onclick={onClose}
+      >{$t("forms.backButton")}</button
+    >
   </div>
 
   <form onsubmit={handleFormSubmit}>
     <div class="form-group">
-      <label for="payment-asset">Currency</label>
+      <label for="payment-asset">{$t("forms.currency")}</label>
       <select
         id="payment-asset"
         name="payment-asset"
@@ -80,20 +103,21 @@
         required
       >
         {#each availableUnits as unit}
-          {@const formatted = formatBalance(unit, 0)}
+          {@const formatted = formatBalance(unit, 0n)}
           <option value={unit}>{formatted.asset}</option>
         {/each}
       </select>
       {#if selectedUnit}
         <span class="balance-info">
-          Available: {assetAmount}
+          {$t("modals.available")}
+          {assetAmount}
           {asset}
         </span>
       {/if}
     </div>
 
     <div class="form-group">
-      <label for="payment-amount">Amount</label>
+      <label for="payment-amount">{$t("forms.amount")}</label>
       <input
         type="number"
         id="payment-amount"
@@ -112,7 +136,9 @@
       </div>
     {/if}
 
-    <button type="submit" class="submit-button"> Pick a payment method </button>
+    <button type="submit" class="submit-button" disabled={isSubmitting}>
+      {isSubmitting ? $t("send.generating") : $t("send.pickPaymentMethod")}
+    </button>
   </form>
 </div>
 
@@ -198,6 +224,15 @@
 
   .submit-button:hover {
     background-color: #1976d2;
+  }
+
+  .submit-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+
+  .submit-button:disabled:hover {
+    background-color: #ccc;
   }
 
   .error-message {

@@ -1,36 +1,27 @@
+mod app_state;
 mod background_tasks;
 mod commands;
-mod connection_cache;
 mod errors;
 mod front_events;
 mod migrations;
 mod quote_handler;
 
-use cashu_client::GrpcClient;
+use app_state::{
+    AppState, PriceConfig,
+    connection_cache::{self, ConnectionCache},
+};
 use commands::{
     add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads, forget_node,
-    get_currencies, get_nodes_balance, get_pending_quotes, get_seed_phrase, get_wad_history,
-    init_wallet, pay_melt_quote, pay_mint_quote, receive_wads, redeem_quote, refresh_node_keysets,
-    restore_wallet, set_price_provider_currency, sync_wads,
+    get_currencies, get_nodes_balance, get_nodes_deposit_methods, get_pending_quotes,
+    get_seed_phrase, get_wad_history, init_wallet, pay_melt_quote, pay_mint_quote, receive_wads,
+    redeem_quote, refresh_node_keysets, restore_wallet, set_price_provider_currency, sync_wads,
 };
-use connection_cache::ConnectionCache;
 use nuts::traits::Unit as UnitT;
-use quote_handler::{QuoteHandlerEvent, start_syncing_quotes};
-use r2d2::Pool;
+use quote_handler::start_syncing_quotes;
 use r2d2_sqlite::SqliteConnectionManager;
-use starknet_types::Asset;
-use std::{
-    collections::HashSet,
-    env,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, env, str::FromStr, sync::Arc, time::Duration};
 use tauri::{Listener, Manager, async_runtime};
-use tokio::sync::{RwLock, mpsc};
-use tonic::transport::Certificate;
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tokio::sync::{Mutex, RwLock, mpsc};
 
 use crate::background_tasks::start_price_fetcher;
 
@@ -44,19 +35,6 @@ pub fn run() {
         #[cfg(target_os = "android")]
         android_keyring::set_android_keyring_credential_builder().unwrap();
 
-        tracing_subscriber::registry()
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .with_target(false)
-                    .compact(),
-            )
-            .with(
-                EnvFilter::builder()
-                    .with_default_directive(LevelFilter::INFO.into())
-                    .from_env_lossy(),
-            )
-            .init();
-
         let builder = tauri::Builder::default();
 
         #[cfg(target_os = "macos")]
@@ -65,6 +43,11 @@ pub fn run() {
         let builder = builder.plugin(tauri_plugin_biometric::init());
 
         let builder = builder
+            .plugin(
+                tauri_plugin_log::Builder::new()
+                    .level(log::LevelFilter::Info)
+                    .build(),
+            )
             .plugin(tauri_plugin_os::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_clipboard_manager::init());
@@ -109,20 +92,22 @@ pub fn run() {
                         None,
                     ));
 
-                    app.manage(AppState {
+                    let app_state = AppState::new(
                         pool,
-                        web_app_url: web_app_url.to_string(),
-                        get_prices_config: Arc::new(RwLock::new(PriceConfig {
+                        web_app_url.to_string(),
+                        Arc::new(RwLock::new(PriceConfig {
                             currency: "usd".to_string(),
                             assets: initial_assets,
                             url: price_provider_url.to_string(),
                             status: Default::default(),
                         })),
+                        tx,
+                        connection_cache.clone(),
+                        Mutex::new(()),
                         #[cfg(feature = "tls-local-mkcert")]
-                        tls_root_ca_cert: read_tls_root_ca_cert(),
-                        quote_event_sender: tx,
-                        connection_cache: connection_cache.clone(),
-                    });
+                        read_tls_root_ca_cert(),
+                    );
+                    app.manage(app_state);
 
                     // Start cache cleanup background task
                     async_runtime::spawn(connection_cache::start_cache_cleanup_task(
@@ -165,7 +150,8 @@ pub fn run() {
                 sync_wads,
                 create_melt_quote,
                 pay_melt_quote,
-                forget_node
+                forget_node,
+                get_nodes_deposit_methods,
             ])
     };
 
@@ -176,52 +162,7 @@ pub fn run() {
     }
 }
 
-#[derive(Debug)]
-struct AppState {
-    pool: Pool<SqliteConnectionManager>,
-    web_app_url: String,
-    get_prices_config: Arc<RwLock<PriceConfig>>,
-    #[cfg(feature = "tls-local-mkcert")]
-    tls_root_ca_cert: Certificate,
-    quote_event_sender: mpsc::Sender<QuoteHandlerEvent>,
-    connection_cache: Arc<ConnectionCache>,
-}
-
-#[derive(Clone, Debug)]
-pub struct PriceConfig {
-    pub currency: String,
-    pub assets: HashSet<Asset>,
-    pub url: String,
-    pub status: PriceSyncStatus,
-}
-
-#[derive(Debug, Clone, Default)]
-pub enum PriceSyncStatus {
-    #[default]
-    NotSynced,
-    Synced(SystemTime),
-}
-
-impl AppState {
-    #[cfg(feature = "tls-local-mkcert")]
-    fn opt_root_ca_cert(&self) -> Option<Certificate> {
-        Some(self.tls_root_ca_cert.clone())
-    }
-
-    #[cfg(not(feature = "tls-local-mkcert"))]
-    fn opt_root_ca_cert(&self) -> Option<Certificate> {
-        None
-    }
-
-    pub async fn get_node_client_connection(
-        &self,
-        node_id: u32,
-    ) -> Result<GrpcClient, connection_cache::ConnectionCacheError> {
-        self.connection_cache.get_or_create_client(node_id).await
-    }
-}
-
 #[cfg(feature = "tls-local-mkcert")]
-fn read_tls_root_ca_cert() -> Certificate {
+fn read_tls_root_ca_cert() -> tonic::transport::Certificate {
     tonic::transport::Certificate::from_pem(include_bytes!("../certs/rootCA.pem"))
 }

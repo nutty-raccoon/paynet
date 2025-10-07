@@ -19,12 +19,6 @@
       "allow": [
         {
           "url": "https://localhost:3005/**"
-        },
-        {
-          "url": "braavos://**"
-        },
-        {
-          "url": "argent://**"
         }
       ]
     }

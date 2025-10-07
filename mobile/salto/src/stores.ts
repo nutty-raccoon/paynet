@@ -4,15 +4,48 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type { Price } from './types/price';
 import type { PendingQuoteData  } from './types/quote';
-import type { NodeId, NodeData } from './types';
+import type { NodeId, NodeData, Amount } from './types';
+import { showErrorToast } from './stores/toast';
 
 export const currentPlatform = platform();
 
-export const isMobile = readable(false, (set) => {
-  set(currentPlatform == "ios" || currentPlatform == "android");
-});
-
 export const displayCurrency = writable<string>('usd');
+export const showErrorDetail= writable<boolean>(false);
+
+// Language store for i18n with persistence
+function createLanguageStore() {
+  const defaultLanguage = 'en';
+  
+  // Try to get saved language from localStorage
+  let savedLanguage = defaultLanguage;
+  if (typeof window !== 'undefined') {
+    try {
+      savedLanguage = localStorage.getItem('language') || defaultLanguage;
+    } catch (error) {
+      console.warn('Failed to read language from localStorage:', error);
+    }
+  }
+  
+  const { subscribe, set, update } = writable<string>(savedLanguage);
+  
+  return {
+    subscribe,
+    set: (value: string) => {
+      set(value);
+      // Persist to localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('language', value);
+        } catch (error) {
+          console.warn('Failed to save language to localStorage:', error);
+        }
+      }
+    },
+    update
+  };
+}
+
+export const currentLanguage = createLanguageStore();
 
 // Global token prices store with managed event listener
 export const tokenPrices = readable<Price[] | null>(null, (set) => {
@@ -170,6 +203,7 @@ class QuotesPoller {
     } catch (error) {
       const duration = performance.now() - startTime;
       console.error('❌ Failed to poll pending quotes after', duration.toFixed(2) + 'ms:', error);
+      showErrorToast("Failed to refresh pending quotes. Please check your connection.", error);
       // Continue polling despite errors - the error might be temporary
     } finally {
       this.isCurrentlyPolling = false;
@@ -283,14 +317,12 @@ class NodeBalancesPoller {
     
     try {
       const nodesBalanceData = await invoke<NodeData[]>('get_nodes_balance');
-      
+     
       this.updateCallback(nodesBalanceData || []);
-      
-      const duration = performance.now() - startTime;
-      
     } catch (error) {
       const duration = performance.now() - startTime;
       console.error('❌ Failed to poll node balances after', duration.toFixed(2) + 'ms:', error);
+      showErrorToast("Failed to refresh account balances. Please check your connection.", error);
       // Continue polling despite errors - the error might be temporary
     } finally {
       this.isCurrentlyPolling = false;
@@ -405,12 +437,12 @@ export const nodeBalances = readable<NodeData[]>([], (set) => {
 
 // Derived store for total balance across all nodes
 export const totalBalance = derived(nodeBalances, ($nodeBalances) => {
-  const totalBalanceMap = new Map<string, number>();
+  const totalBalanceMap = new Map<string, Amount>();
   
   $nodeBalances.forEach((node) => {
     node.balances.forEach((balance) => {
-      const currentAmount = totalBalanceMap.get(balance.unit) || 0;
-      totalBalanceMap.set(balance.unit, currentAmount + balance.amount);
+      const currentAmount = totalBalanceMap.get(balance.unit) || 0n;
+      totalBalanceMap.set(balance.unit, currentAmount + BigInt(balance.amount));
     });
   });
   

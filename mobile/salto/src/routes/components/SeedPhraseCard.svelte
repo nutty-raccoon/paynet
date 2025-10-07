@@ -1,5 +1,6 @@
 <script lang="ts">
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     seedPhrase: string;
@@ -12,7 +13,9 @@
 <button
   class="seed-phrase-box"
   onclick={async () => await writeText(seedPhrase)}
+  title={$t('labels.clickToCopy')}
 >
+  <div class="copy-hint">{$t('labels.clickToCopy')}</div>
   <p class="seed-phrase-text">{seedPhrase}</p>
 </button>
 
@@ -30,8 +33,7 @@
     width: 100%;
   }
 
-  .seed-phrase-box::before {
-    content: "📋 Click to copy";
+  .copy-hint {
     position: absolute;
     top: 0.5rem;
     right: 0.75rem;
@@ -48,7 +50,7 @@
     transform: translateY(-1px);
   }
 
-  .seed-phrase-box:hover::before {
+  .seed-phrase-box:hover .copy-hint {
     color: #1e88e5;
     opacity: 1;
   }

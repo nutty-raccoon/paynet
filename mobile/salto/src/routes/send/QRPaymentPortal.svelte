@@ -4,6 +4,7 @@
   import { UR, UREncoder } from "@gandlaf21/bc-ur";
   import { Buffer } from "buffer";
   import Portal from "../components/Portal.svelte";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     data: string;
@@ -88,7 +89,7 @@
   };
 </script>
 
-<Portal onClose={handleClose} title="Payment QR Code">
+<Portal onClose={handleClose} title={$t('modals.paymentQRCode')}>
   <div class="qr-code-section">
     {#if partToDisplay}
       {#key partToDisplay}
@@ -99,14 +100,14 @@
         class="loading-placeholder"
         style="width: {qrSize}px; height: {qrSize}px;"
       >
-        <p>Generating QR code...</p>
+        <p>{$t('scan.generatingQR')}</p>
       </div>
     {/if}
-    <p class="qr-instructions">Scan this QR code to complete the payment</p>
+    <p class="qr-instructions">{$t('scan.scanToComplete')}</p>
   </div>
 
   <div class="actions">
-    <button class="done-button" onclick={handleClose}>Done</button>
+    <button class="done-button" onclick={handleClose}>{$t('common.done')}</button>
   </div>
 </Portal>
 

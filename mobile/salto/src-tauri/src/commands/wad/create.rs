@@ -54,6 +54,11 @@ pub async fn create_wads(
     amount: String,
     asset: String,
 ) -> Result<String, CreateWadsError> {
+    // Prevent two wads being created in parallel
+    // Even if our front end logic should protect us against it,
+    // is is better to also make sure it doesn't happen in the backed
+    let _spend_proofs_lock = state.lock_proof_spending().await;
+
     let asset = Asset::from_str(&asset)?;
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
@@ -65,7 +70,7 @@ pub async fn create_wads(
         "Planning wad spending"
     );
 
-    let mut db_conn = state.pool.get()?;
+    let mut db_conn = state.pool().get()?;
     let amount_to_use_per_node = wallet::send::plan_spending(&db_conn, amount, unit, &[])?;
 
     event!(name: "spending_plan_created", Level::INFO,
@@ -84,7 +89,7 @@ pub async fn create_wads(
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
             crate::SEED_PHRASE_MANAGER,
-            state.pool.clone(),
+            state.pool().clone(),
             &mut node_client,
             node_id,
             amount_to_use,

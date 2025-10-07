@@ -1,11 +1,11 @@
-import type { NodeId, Unit } from "./node";
+import type { Amount, NodeId, Unit } from "./node";
 
 export type QuoteId = string;
 
 export type PendingQuoteData  = {
     id: string,
     unit: Unit,
-    amount: number,
+    amount: Amount,
 }
 
 export type PendingQuotesUpdateEvent = {

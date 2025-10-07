@@ -151,12 +151,6 @@ main {
 }
 
 
-footer {
-  text-align: center;
-  color: white;
-  opacity: 0.8;
-}
-
 /* Wallet Button Styles */
 .wallet-btn {
   margin-left: 10px;
@@ -216,8 +210,13 @@ footer {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* State-based text content */
@@ -235,12 +234,29 @@ footer {
 }
 
 /* Show appropriate text based on state */
-.wallet-btn.disconnected .connect-text { display: inline; }
-.wallet-btn.connected .disconnect-text { display: inline; }
-.wallet-btn.connecting .connecting-text { display: inline; }
-.wallet-btn.disconnecting .disconnecting-text { display: inline; }
-.wallet-btn.deposit .deposit-text { display: inline; }
-.wallet-btn.depositing .depositing-text { display: inline; }
+.wallet-btn.disconnected .connect-text {
+  display: inline;
+}
+
+.wallet-btn.connected .disconnect-text {
+  display: inline;
+}
+
+.wallet-btn.connecting .connecting-text {
+  display: inline;
+}
+
+.wallet-btn.disconnecting .disconnecting-text {
+  display: inline;
+}
+
+.wallet-btn.deposit .deposit-text {
+  display: inline;
+}
+
+.wallet-btn.depositing .depositing-text {
+  display: inline;
+}
 
 /* Responsive design */
 @media (max-width: 768px) {

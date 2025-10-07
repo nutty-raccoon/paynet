@@ -5,6 +5,7 @@
   import DepositModal from "./DepositModal.svelte";
   import WithdrawModal from "./WithdrawModal.svelte";
   import { formatBalance } from "../../utils";
+  import { t } from "../../stores/i18n";
   import {
     payMeltQuote,
     payMintQuote,
@@ -12,14 +13,18 @@
     forgetNode,
   } from "../../commands";
   import type { QuoteId } from "../../types/quote";
+  import type { MintSettings } from "../../types/NodeMintMethodInfo";
+  import { showErrorToast } from "../../stores/toast";
 
   interface Props {
     selectedNode: NodeIdAndUrl;
-    selectedNodeBalances: Balance[];
+    nodeBalances: Balance[];
+    nodeDepositSettings: MintSettings | null;
     onClose: () => void;
   }
 
-  let { selectedNode, selectedNodeBalances, onClose }: Props = $props();
+  let { selectedNode, nodeBalances, nodeDepositSettings, onClose }: Props =
+    $props();
 
   type ModalState = "none" | "deposit" | "withdraw";
   let currentModal = $state<ModalState>("none");
@@ -40,7 +45,13 @@
   }
 
   function openDepositModal() {
-    currentModal = "deposit";
+    if (!!nodeDepositSettings) {
+      showErrorToast($t("validation.noDepositMethodsAvailable"));
+    } else if (!nodeDepositSettings!.disabled) {
+      showErrorToast("validation.depositsDisabledForNode");
+    } else {
+      currentModal = "deposit";
+    }
   }
 
   function openWithdrawModal() {
@@ -65,7 +76,7 @@
 
   // Check if node should show forget button (no balances and no pending quotes)
   const shouldShowForgetButton = $derived.by(() => {
-    const hasBalances = selectedNodeBalances.length > 0;
+    const hasBalances = nodeBalances.length > 0;
     const hasMintQuotes =
       $nodePendingQuotes.mint.unpaid.length > 0 ||
       $nodePendingQuotes.mint.paid.length > 0;
@@ -92,10 +103,10 @@
     <div class="modal-body">
       <!-- Balances Section -->
       <div class="section">
-        <h3 class="section-title">Balances</h3>
-        {#if selectedNodeBalances.length > 0}
+        <h3 class="section-title">{$t("balance.balances")}</h3>
+        {#if nodeBalances.length > 0}
           <div class="balances-list">
-            {#each selectedNodeBalances as balance}
+            {#each nodeBalances as balance}
               {@const formatted = formatBalance(balance.unit, balance.amount)}
               <div class="balance-item">
                 <span class="quote-amount"
@@ -105,18 +116,18 @@
             {/each}
           </div>
         {:else}
-          <p class="empty-state">No balances available</p>
+          <p class="empty-state">{$t("balance.noBalancesAvailable")}</p>
         {/if}
       </div>
 
       <!-- Pending Mint Quotes Section -->
       <div class="section">
-        <h3 class="section-title">Pending Mint Quotes</h3>
+        <h3 class="section-title">{$t("balance.pendingMintQuotes")}</h3>
         {#if $nodePendingQuotes.mint.unpaid.length > 0 || $nodePendingQuotes.mint.paid.length > 0}
           {#if $nodePendingQuotes.mint.unpaid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Unpaid ({$nodePendingQuotes.mint.unpaid.length})
+                {$t("balance.unpaid")} ({$nodePendingQuotes.mint.unpaid.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.mint.unpaid as quote}
@@ -132,7 +143,7 @@
                       onclick={() =>
                         handleUnpaidQuotePay(selectedNode.id, quote.id)}
                     >
-                      Pay
+                      {$t("balance.pay")}
                     </button>
                   </div>
                 {/each}
@@ -143,7 +154,7 @@
           {#if $nodePendingQuotes.mint.paid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Paid ({$nodePendingQuotes.mint.paid.length})
+                {$t("balance.paid")} ({$nodePendingQuotes.mint.paid.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.mint.paid as quote}
@@ -159,7 +170,7 @@
                       onclick={() =>
                         handlePaidQuotePay(selectedNode.id, quote.id)}
                     >
-                      Redeem
+                      {$t("balance.redeem")}
                     </button>
                   </div>
                 {/each}
@@ -167,18 +178,18 @@
             </div>
           {/if}
         {:else}
-          <p class="empty-state">No pending mint quotes</p>
+          <p class="empty-state">{$t("balance.noPendingMintQuotes")}</p>
         {/if}
       </div>
 
       <!-- Pending Melt Quotes Section -->
       <div class="section">
-        <h3 class="section-title">Pending Melt Quotes</h3>
+        <h3 class="section-title">{$t("balance.pendingMeltQuotes")}</h3>
         {#if $nodePendingQuotes.melt.unpaid.length > 0 || $nodePendingQuotes.melt.pending.length > 0}
           {#if $nodePendingQuotes.melt.unpaid.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Unpaid ({$nodePendingQuotes.melt.unpaid.length})
+                {$t("balance.unpaid")} ({$nodePendingQuotes.melt.unpaid.length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.melt.unpaid as quote}
@@ -194,7 +205,7 @@
                       onclick={() =>
                         handleMeltUnpaidQuotePay(selectedNode.id, quote.id)}
                     >
-                      Pay
+                      {$t("balance.pay")}
                     </button>
                   </div>
                 {/each}
@@ -205,7 +216,8 @@
           {#if $nodePendingQuotes.melt.pending.length > 0}
             <div class="quotes-subsection">
               <h4 class="subsection-title">
-                Pending ({$nodePendingQuotes.melt.pending.length})
+                {$t("balance.pending")} ({$nodePendingQuotes.melt.pending
+                  .length})
               </h4>
               <div class="quotes-list">
                 {#each $nodePendingQuotes.melt.pending as quote}
@@ -222,23 +234,33 @@
             </div>
           {/if}
         {:else}
-          <p class="empty-state">No pending melt quotes</p>
+          <p class="empty-state">{$t("balance.noPendingMeltQuotes")}</p>
         {/if}
       </div>
     </div>
 
     <div class="modal-footer">
       <div class="action-buttons">
-        <button class="deposit-button" onclick={openDepositModal}>
-          Deposit
+        <button
+          class="deposit-button"
+          class:disabled={!nodeDepositSettings || nodeDepositSettings.disabled}
+          disabled={!nodeDepositSettings || nodeDepositSettings.disabled}
+          onclick={openDepositModal}
+          title={!nodeDepositSettings
+            ? $t("validation.noDepositMethodsAvailable")
+            : nodeDepositSettings.disabled
+              ? $t("validation.depositsDisabledForNode")
+              : ""}
+        >
+          {$t("modals.deposit")}
         </button>
         {#if shouldShowForgetButton}
           <button class="forget-button" onclick={handleForgetNode}>
-            Forget
+            {$t("balance.forget")}
           </button>
         {:else}
           <button class="withdraw-button" onclick={openWithdrawModal}>
-            Withdraw
+            {$t("modals.withdraw")}
           </button>
         {/if}
       </div>
@@ -247,9 +269,13 @@
 </div>
 
 {#if currentModal === "deposit"}
-  <DepositModal {selectedNode} onClose={closeModal} />
+  {#if !!nodeDepositSettings}
+    <DepositModal {selectedNode} onClose={closeModal} {nodeDepositSettings} />
+  {:else}
+    <div>{$t("validation.errorNoDepositSettings")}</div>
+  {/if}
 {:else if currentModal === "withdraw"}
-  <WithdrawModal {selectedNode} {selectedNodeBalances} onClose={closeModal} />
+  <WithdrawModal {selectedNode} {nodeBalances} onClose={closeModal} />
 {/if}
 
 <style>
@@ -457,6 +483,16 @@
 
   .deposit-button:hover {
     background-color: #45a049;
+  }
+
+  .deposit-button.disabled {
+    background-color: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+  }
+
+  .deposit-button.disabled:hover {
+    background-color: #cccccc;
   }
 
   .withdraw-button {

@@ -3,6 +3,8 @@
   import QrCodeScanner from "./components/QrCodeScanner.svelte";
   import Portal from "../components/Portal.svelte";
   import { receiveWads } from "../../commands";
+  import { showSuccessToast, showErrorToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   interface Props {
     onSuccess: () => void;
@@ -27,12 +29,18 @@
         const ur = decoder.resultUR();
         // Decode the CBOR message to a Buffer
         const decoded = ur.decodeCBOR();
-        receiveWads(decoded.toString());
-        onSuccess();
+        receiveWads(decoded.toString()).then((result) => {
+          if (result !== undefined) {
+            showSuccessToast($t('receive.paymentReceived'));
+            onSuccess();
+          }
+        });
       } else {
         // log and handle the error
         const error = decoder.resultError();
         console.log("Error found while decoding", error);
+        showErrorToast($t('scan.failedDecode'), error);
+        paused = false; // Allow scanning to continue
       }
     }
   }
@@ -41,18 +49,18 @@
 <Portal onClose={onCancell} backgroundColor="rgba(0, 0, 0, 0.95)">
   {#snippet children()}
     <div class="scan-content">
-      <p class="scan-instructions">Point your camera at a QR code</p>
+      <p class="scan-instructions">{$t('scan.pointCamera')}</p>
 
       <QrCodeScanner {onCodeDetected} {paused} />
 
       {#if percentageEstimate}
         <div class="scan-result">
-          <h3>Scanned:</h3>
+          <h3>{$t('scan.scanned')}</h3>
           <p>{percentageEstimate}</p>
         </div>
       {/if}
 
-      <button class="cancel-button" onclick={onCancell}>Cancel</button>
+      <button class="cancel-button" onclick={onCancell}>{$t('common.cancel')}</button>
     </div>
   {/snippet}
 </Portal>

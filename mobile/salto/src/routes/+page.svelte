@@ -11,7 +11,9 @@
   import SettingsModal from "./settings/SettingsPage.svelte";
   import InitPage from "./init/InitPage.svelte";
   import { displayCurrency, tokenPrices, totalBalance } from "../stores";
+  import { t } from "../stores/i18n";
   import WadHistoryPage from "./components/WadHistoryPage.svelte";
+  import Toast from "../components/Toast.svelte";
   import { page } from "$app/state";
 
   const Modal = {
@@ -43,12 +45,8 @@
   );
   // Effect to manage scrolling based on active tab
   $effect(() => {
-    // Allow scrolling for history page
-    if (activeTab === "history") {
-      document.body.classList.remove("no-scroll");
-    } else {
-      document.body.classList.add("no-scroll");
-    }
+    // All pages except history use no-scroll (history handles its own scrolling)
+    document.body.classList.add("no-scroll");
   });
 
   const onWalletInitialized = (initialTab: Tab = "pay") => {
@@ -115,20 +113,20 @@
   {#if walletExists === null}
     <!-- Loading state -->
     <div class="loading-container">
-      <p>Loading...</p>
+      <p>{$t('common.loading')}</p>
     </div>
   {:else if walletExists === false}
     <!-- Show initialization page -->
     <InitPage {onWalletInitialized} />
   {:else}
-    <!-- Settigs button float above all pages -->
+    <!-- Settings button float above all pages -->
     {#if activeTab !== "settings"}
       <button
         class="settings"
         onclick={() => {
           pushState("", { previousTab: activeTab });
           activeTab = "settings";
-        }}>Settings</button
+        }}>{$t('common.settings')}</button
       >
     {/if}
 
@@ -137,7 +135,7 @@
       {#if currentModal == Modal.ROOT}
         <div class="pay-container">
           <div class="total-balance-card">
-            <h2 class="balance-title">TOTAL BALANCE</h2>
+            <h2 class="balance-title">{$t('balance.totalBalance')}</h2>
             {#if !!totalAmount}
               <p class="total-currency-amount">
                 {totalAmount.toFixed(2)}
@@ -157,11 +155,11 @@
             </div>
           {/if}
           <button class="pay-button" onclick={() => openModal(Modal.SEND)}
-            >Send</button
+            >{$t('common.send')}</button
           >
           <button
             class="receive-button"
-            onclick={() => openModal(Modal.RECEIVE)}>Receive</button
+            onclick={() => openModal(Modal.RECEIVE)}>{$t('common.receive')}</button
           >
         </div>
       {:else if currentModal == Modal.SEND}
@@ -189,6 +187,9 @@
     }}
   />
 {/if}
+
+<!-- Toast notifications - rendered at app root level -->
+<Toast />
 
 <style>
   :root {
