@@ -6,6 +6,7 @@ mod front_events;
 mod migrations;
 mod quote_handler;
 
+use cashu_client::GrpcClient;
 use commands::{
     add_node, check_wallet_exists, create_melt_quote, create_mint_quote, create_wads, forget_node,
     get_currencies, get_nodes_balance, get_pending_quotes, get_seed_phrase, get_wad_history,
@@ -13,7 +14,6 @@ use commands::{
     restore_wallet, set_price_provider_currency, sync_wads,
 };
 use connection_cache::ConnectionCache;
-use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
 use quote_handler::{QuoteHandlerEvent, start_syncing_quotes};
 use r2d2::Pool;
@@ -28,7 +28,7 @@ use std::{
 };
 use tauri::{Listener, Manager, async_runtime};
 use tokio::sync::{RwLock, mpsc};
-use tonic::transport::{Certificate, Channel};
+use tonic::transport::Certificate;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -216,7 +216,7 @@ impl AppState {
     pub async fn get_node_client_connection(
         &self,
         node_id: u32,
-    ) -> Result<NodeClient<Channel>, connection_cache::ConnectionCacheError> {
+    ) -> Result<GrpcClient, connection_cache::ConnectionCacheError> {
         self.connection_cache.get_or_create_client(node_id).await
     }
 }

@@ -306,9 +306,9 @@ checksum = "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
 
 [[package]]
 name = "async-trait"
-version = "0.1.88"
+version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -884,6 +884,18 @@ checksum = "02260d489095346e5cafd04dea8e8cb54d1d74fcd759022a9b72986ebe9a1257"
 dependencies = [
  "serde",
  "toml 0.8.23",
+]
+
+[[package]]
+name = "cashu-client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "node-client",
+ "nuts",
+ "thiserror 2.0.12",
+ "tonic 0.13.1",
+ "tonic-types",
 ]
 
 [[package]]
@@ -5184,6 +5196,7 @@ version = "0.1.0"
 dependencies = [
  "android-keyring",
  "bitcoin",
+ "cashu-client",
  "futures",
  "itertools",
  "node-client",
@@ -7691,6 +7704,7 @@ version = "0.1.0"
 dependencies = [
  "bip39",
  "bitcoin",
+ "cashu-client",
  "ciborium",
  "futures",
  "itertools",

@@ -56,6 +56,7 @@ starknet-types = { workspace = true }
 nuts = { workspace = true }
 parse-asset-amount = { workspace = true }
 starknet-liquidity-source = { workspace = true }
+cashu-client = { workspace = true }
 
 # Keyring
 [target.'cfg(target_os = "android")'.dependencies]

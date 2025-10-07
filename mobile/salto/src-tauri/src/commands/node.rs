@@ -53,7 +53,9 @@ pub async fn add_node(
         "Connecting to node"
     );
 
-    let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert()).await?;
+    let mut client = wallet::connect_to_node(node_url.clone(), state.opt_root_ca_cert())
+        .await?
+        .client;
 
     event!(name: "registering_node", Level::INFO,
         node_url = %node_url,

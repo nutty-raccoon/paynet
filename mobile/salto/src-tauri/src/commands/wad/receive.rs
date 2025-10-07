@@ -85,9 +85,10 @@ pub async fn receive_wads(
                 node_url = %node_url,
                 "Registering new node"
             );
-            let mut client = wallet::connect_to_node(&node_url, state.opt_root_ca_cert())
+            let mut client = wallet::connect_to_node(node_url.clone(), state.opt_root_ca_cert())
                 .await
-                .map_err(ReceiveWadsError::CreateNodeClient)?;
+                .map_err(ReceiveWadsError::CreateNodeClient)?
+                .client;
             let node_id =
                 wallet::node::register(state.pool.clone(), &mut client, &node_url).await?;
             event!(name: "new_node_registered", Level::INFO,

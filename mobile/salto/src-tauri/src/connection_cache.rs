@@ -4,11 +4,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use node_client::NodeClient;
+use cashu_client::GrpcClient;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::RwLock;
-use tonic::transport::{Certificate, Channel};
+use tonic::transport::Certificate;
 use tracing::info;
 use wallet::{ConnectToNodeError, connect_to_node};
 
@@ -26,12 +26,12 @@ pub enum ConnectionCacheError {
 
 #[derive(Debug, Clone)]
 struct CachedConnection {
-    client: NodeClient<Channel>,
+    client: GrpcClient,
     created_at: SystemTime,
 }
 
 impl CachedConnection {
-    fn new(client: NodeClient<Channel>) -> Self {
+    fn new(client: GrpcClient) -> Self {
         Self {
             client,
             created_at: SystemTime::now(),
@@ -71,7 +71,7 @@ impl ConnectionCache {
     pub async fn get_or_create_client(
         &self,
         node_id: u32,
-    ) -> Result<NodeClient<Channel>, ConnectionCacheError> {
+    ) -> Result<GrpcClient, ConnectionCacheError> {
         // Check cache first
         {
             let cache = self.cache.read().await;
@@ -90,16 +90,16 @@ impl ConnectionCache {
         };
 
         // Create new connection
-        let client = connect_to_node(&node_url, self.opt_root_ca_cert.clone()).await?;
+        let client = connect_to_node(node_url, self.opt_root_ca_cert.clone()).await?;
 
         // Update cache
         {
             let mut cache = self.cache.write().await;
-            let cached_connection = CachedConnection::new(client.clone());
+            let cached_connection = CachedConnection::new(client.client.clone());
             cache.insert(node_id, cached_connection);
         }
 
-        Ok(client)
+        Ok(client.client)
     }
 
     pub async fn cleanup_expired(&self) {

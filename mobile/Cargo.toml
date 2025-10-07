@@ -47,3 +47,4 @@ starknet-liquidity-source = { path = "../crates/libs/starknet/liquidity-source" 
 nuts = { path = "../crates/libs/nuts" }
 parse-asset-amount = { path = "../crates/libs/parse-asset-amount" }
 node-client = { path = "../crates/libs/node-client" }
+cashu-client = { path = "../crates/libs/cashu-client" }
