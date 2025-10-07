@@ -37,7 +37,7 @@ else
 
     # Insert CAMERA permission after INTERNET permission
     sed -i '' '/android.permission.INTERNET/a\
-        <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.CAMERA" />
     ' "$MANIFEST_FILE"
 
     # Verify the insertion was successful

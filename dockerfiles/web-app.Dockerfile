@@ -13,18 +13,22 @@ RUN cargo chef prepare --recipe-path recipe.json --bin web-app
 
 FROM chef AS rust-builder
 
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+ARG TLS_FEATURE=""
+
+RUN if [ -n "$TLS_FEATURE" ]; then \
+      apt-get update && apt-get install -y libssl-dev && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json --features="tls"
+RUN FEATURES=$([ -n "$TLS_FEATURE" ] && echo "tls" || echo "") \
+      cargo chef cook --release --recipe-path recipe.json --features="$FEATURES";
 
 COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./rust-toolchain.toml ./
 COPY ./crates/ ./crates/
 
-RUN cargo build --release --bin web-app --features="tls"
+RUN FEATURES=$([ -n "$TLS_FEATURE" ] && echo "tls" || echo "") \
+      cargo build --release --bin web-app --features="$FEATURES";
 
 #------------
  
@@ -45,10 +49,13 @@ RUN pnpm run build
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+ARG TLS_FEATURE=""
+
+RUN if [ -n "$TLS_FEATURE" ]; then \
+    apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*; \
+  else \
+    apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*; \
+  fi
 
 RUN useradd -r -s /bin/false appuser
 
@@ -69,7 +76,14 @@ ENV TLS_KEY_PATH=/certs/key.pem
 
 EXPOSE ${PORT}
 
+RUN if [ -n "$TLS_FEATURE" ]; then \
+      echo '#!/bin/sh\ncurl -f -k https://localhost:$PORT/health || exit 1' > /app/healthcheck.sh; \
+    else \
+      echo '#!/bin/sh\ncurl -f http://localhost:$PORT/health || exit 1' > /app/healthcheck.sh; \
+    fi && \
+    chmod +x /app/healthcheck.sh
+
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-     CMD curl -f -k https://localhost:${PORT}/ || exit 1
+     CMD ["/app/healthcheck.sh"]
 
 CMD ["./web-app"]

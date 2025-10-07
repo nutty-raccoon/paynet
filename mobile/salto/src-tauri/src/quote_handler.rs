@@ -243,15 +243,8 @@ pub enum Error {
         expected: MintQuoteState,
         got: MintQuoteState,
     },
-    #[error("invalid melt quote state for operation, expected {expected}, got {got}")]
-    InvalidMeltQuoteState {
-        expected: MeltQuoteState,
-        got: MeltQuoteState,
-    },
     #[error("failed to redeem mint quote {0}: {1}")]
     RedeemMintQuote(String, #[source] RedeemQuoteError),
-    #[error("failed to pay melt quote {0}: {1}")]
-    PayMeltQuote(String, #[source] PayMeltQuoteError),
     #[error("failed to wait for payment of melt quote: {0}")]
     WaitForMeltQuotePayment(wallet::errors::Error),
 }
@@ -265,7 +258,7 @@ pub async fn start_syncing_quotes(
 
     let state = app.state::<AppState>();
     let events_to_send = {
-        let conn = state.pool.get().map_err(CommonError::DbPool)?;
+        let conn = state.pool().get().map_err(CommonError::DbPool)?;
 
         // Get pending mint quotes
         let pending_mint_quotes_by_node =
@@ -318,7 +311,7 @@ pub async fn start_syncing_quotes(
 
     for event in events_to_send {
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(event)
             .await
             .map_err(|_| Error::SendMessage)?;
@@ -342,7 +335,7 @@ pub async fn try_redeem_mint_quote(
         state: quote_state,
         ..
     } = {
-        let pool = state.pool.get().map_err(CommonError::DbPool)?;
+        let pool = state.pool().get().map_err(CommonError::DbPool)?;
         db::mint_quote::get(&pool, node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?
@@ -376,7 +369,7 @@ pub async fn try_redeem_mint_quote(
 
     wallet::mint::redeem_quote(
         crate::SEED_PHRASE_MANAGER,
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         method,
         &quote_id,
@@ -399,10 +392,10 @@ pub async fn try_redeem_mint_quote(
 
     let asset = Unit::from_str(&unit)?.matching_asset();
 
-    state.get_prices_config.write().await.assets.insert(asset);
+    state.get_prices_config().write().await.assets.insert(asset);
 
     state
-        .quote_event_sender
+        .quote_event_sender()
         .send(QuoteHandlerEvent::Mint(MintQuoteAction::Done {
             node_id,
             quote_id: quote_id.clone(),
@@ -427,12 +420,12 @@ pub async fn sync_mint_quote_until_is_paid(
         .map_err(CommonError::CachedConnection)?;
 
     loop {
-        let quote = db::mint_quote::get(&state.pool.get().unwrap(), node_id, &quote_id)
+        let quote = db::mint_quote::get(&state.pool().get().unwrap(), node_id, &quote_id)
             .map_err(CommonError::Db)?
             .ok_or(CommonError::QuoteNotFound(quote_id.clone()))?;
 
         let res = wallet::sync::mint_quote(
-            state.pool.clone(),
+            state.pool().clone(),
             &mut node_client,
             quote.method,
             quote_id.clone(),
@@ -445,7 +438,7 @@ pub async fn sync_mint_quote_until_is_paid(
                 event!(name: "mint-quote-paid", Level::INFO, quote_id = %quote_id, "Mint quote paid");
 
                 state
-                    .quote_event_sender
+                    .quote_event_sender()
                     .send(QuoteHandlerEvent::Mint(MintQuoteAction::TryRedeem {
                         node_id,
                         quote_id: quote_id.clone(),
@@ -484,12 +477,25 @@ pub async fn sync_mint_quote_until_is_paid(
     Ok(())
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum TryPayMeltQuoteError {
+    #[error(transparent)]
+    Common(#[from] CommonError),
+    #[error("failed to pay melt quote {0}: {1}")]
+    PayMeltQuote(String, #[source] PayMeltQuoteError),
+    #[error("invalid melt quote state for operation, expected {expected}, got {got}")]
+    InvalidMeltQuoteState {
+        expected: MeltQuoteState,
+        got: MeltQuoteState,
+    },
+}
+
 #[tracing::instrument(skip(app))]
 pub async fn try_pay_melt_quote(
     app: AppHandle,
     node_id: u32,
     quote_id: String,
-) -> Result<(), Error> {
+) -> Result<(), TryPayMeltQuoteError> {
     let state = app.state::<AppState>();
 
     let MeltQuote {
@@ -500,7 +506,7 @@ pub async fn try_pay_melt_quote(
         state: quote_state,
         ..
     } = {
-        let pool = state.pool.get().map_err(CommonError::DbPool)?;
+        let pool = state.pool().get().map_err(CommonError::DbPool)?;
         match wallet::db::melt_quote::get(&pool, node_id, &quote_id).map_err(CommonError::Db)? {
             Some(mq) => mq,
             None => return Err(CommonError::QuoteNotFound(quote_id.clone()).into()),
@@ -514,7 +520,7 @@ pub async fn try_pay_melt_quote(
             quote_state = ?quote_state,
             "Wrong quote state for payment"
         );
-        return Err(Error::InvalidMeltQuoteState {
+        return Err(TryPayMeltQuoteError::InvalidMeltQuoteState {
             expected: MeltQuoteState::Paid,
             got: quote_state,
         });
@@ -536,7 +542,7 @@ pub async fn try_pay_melt_quote(
 
     let melt_response = match wallet::melt::pay_quote(
         crate::SEED_PHRASE_MANAGER,
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         node_id,
         quote_id.clone(),
@@ -547,7 +553,7 @@ pub async fn try_pay_melt_quote(
     .await
     {
         Ok(res) => res,
-        Err(e) => return Err(Error::PayMeltQuote(quote_id, e)),
+        Err(e) => return Err(TryPayMeltQuoteError::PayMeltQuote(quote_id, e)),
     };
 
     event!(name: "melt_quote_paid_successfully", Level::INFO,
@@ -560,7 +566,7 @@ pub async fn try_pay_melt_quote(
 
     if melt_response.state == node_client::MeltQuoteState::MlqsPending as i32 {
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(QuoteHandlerEvent::Melt(
                 MeltQuoteAction::WaitOnChainPayment {
                     node_id,
@@ -571,7 +577,7 @@ pub async fn try_pay_melt_quote(
             .map_err(|_| CommonError::QuoteHandlerChannel)?;
     } else if melt_response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
         state
-            .quote_event_sender
+            .quote_event_sender()
             .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {
                 node_id,
                 quote_id: quote_id.clone(),
@@ -580,7 +586,7 @@ pub async fn try_pay_melt_quote(
             .map_err(|_| CommonError::QuoteHandlerChannel)?;
     } else {
         // Should not occur
-        return Err(Error::InvalidMeltQuoteState {
+        return Err(TryPayMeltQuoteError::InvalidMeltQuoteState {
             expected: MeltQuoteState::Pending,
             got: MeltQuoteState::Unpaid,
         });
@@ -597,7 +603,7 @@ pub async fn sync_melt_quote_until_is_paid(
 ) -> Result<(), Error> {
     let state = app.state::<AppState>();
     let melt_quote = {
-        let pool = state.pool.get().map_err(CommonError::DbPool)?;
+        let pool = state.pool().get().map_err(CommonError::DbPool)?;
         match wallet::db::melt_quote::get(&pool, node_id, &quote_id).map_err(CommonError::Db)? {
             Some(mq) => mq,
             None => return Err(CommonError::QuoteNotFound(quote_id.clone()).into()),
@@ -615,7 +621,7 @@ pub async fn sync_melt_quote_until_is_paid(
     );
 
     match wallet::melt::wait_for_payment(
-        state.pool.clone(),
+        state.pool().clone(),
         &mut node_client,
         melt_quote.method,
         quote_id.clone(),
@@ -632,7 +638,7 @@ pub async fn sync_melt_quote_until_is_paid(
             let _ = emit_trigger_pending_quote_poll(&app);
 
             state
-                .quote_event_sender
+                .quote_event_sender()
                 .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {
                     node_id,
                     quote_id,
@@ -650,7 +656,7 @@ pub async fn sync_melt_quote_until_is_paid(
             // If we were able to pay it, it cannot expire anymore
             // But let's handle it anyway, at least for the front
             state
-                .quote_event_sender
+                .quote_event_sender()
                 .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {
                     node_id,
                     quote_id,

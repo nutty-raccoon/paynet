@@ -1,6 +1,8 @@
 <script lang="ts">
   import { initWallet, restoreWallet } from "../../commands";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import { showErrorToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
   import SeedPhraseCard from "../components/SeedPhraseCard.svelte";
 
   interface Props {
@@ -21,24 +23,24 @@
   let currentMode = $state<InitMode>(InitMode.CHOICE);
   let seedPhrase = $state("");
   let restoreSeedPhrase = $state("");
-  let errorMessage = $state("");
+  let validationError = $state("");
   let isLoading = $state(false);
   let hasSavedSeedPhrase = $state(false);
 
   const handleCreateNew = async () => {
     isLoading = true;
-    errorMessage = "";
+    validationError = "";
 
     try {
       const response = await initWallet();
       if (response) {
         seedPhrase = response.seedPhrase;
         currentMode = InitMode.SHOW_SEED;
-      } else {
-        errorMessage = "Failed to create wallet";
       }
+      // Error handling is now done in the command function via toast
     } catch (error) {
-      errorMessage = `Failed to create wallet: ${error}`;
+      // Critical errors are handled by the command function via toast
+      console.error("Unexpected error in handleCreateNew:", error);
     } finally {
       isLoading = false;
     }
@@ -46,18 +48,22 @@
 
   const handleRestore = async () => {
     if (!restoreSeedPhrase.trim()) {
-      errorMessage = "Please enter your seed phrase";
+      validationError = $t('wallet.enterSeedPhrase');
       return;
     }
 
     isLoading = true;
-    errorMessage = "";
+    validationError = "";
 
     try {
-      await restoreWallet(restoreSeedPhrase.trim());
-      currentMode = InitMode.RECOVERY_SUCCESS;
+      const result = await restoreWallet(restoreSeedPhrase.trim());
+      if (result !== undefined) {
+        currentMode = InitMode.RECOVERY_SUCCESS;
+      }
+      // Error handling is now done in the command function via toast
     } catch (error) {
-      errorMessage = `Failed to restore wallet: ${error}`;
+      // Critical errors are handled by the command function via toast
+      console.error("Unexpected error in handleRestore:", error);
     } finally {
       isLoading = false;
     }
@@ -65,7 +71,7 @@
 
   const handleFinishSetup = () => {
     if (!hasSavedSeedPhrase) {
-      errorMessage = "Please confirm you have saved your seed phrase";
+      validationError = $t('wallet.confirmSaved');
       return;
     }
     onWalletInitialized("pay");
@@ -76,7 +82,7 @@
   };
 
   const goBack = () => {
-    errorMessage = "";
+    validationError = "";
     if (
       currentMode === InitMode.CREATE_NEW ||
       currentMode === InitMode.RESTORE
@@ -90,9 +96,9 @@
 <div class="init-container">
   {#if currentMode === InitMode.CHOICE}
     <div class="choice-container">
-      <h1 class="title">Welcome to Salto Wallet</h1>
+      <h1 class="title">{$t('wallet.welcome')}</h1>
       <p class="subtitle">
-        Get started by creating a new wallet or restoring an existing one
+        {$t('wallet.getStarted')}
       </p>
 
       <div class="button-group">
@@ -101,7 +107,7 @@
           onclick={() => (currentMode = InitMode.CREATE_NEW)}
           disabled={isLoading}
         >
-          Create New Wallet
+          {$t('wallet.createNew')}
         </button>
 
         <button
@@ -109,16 +115,15 @@
           onclick={() => (currentMode = InitMode.RESTORE)}
           disabled={isLoading}
         >
-          Restore Existing Wallet
+          {$t('wallet.restoreExisting')}
         </button>
       </div>
     </div>
   {:else if currentMode === InitMode.CREATE_NEW}
     <div class="create-container">
-      <h2 class="section-title">Create New Wallet</h2>
+      <h2 class="section-title">{$t('wallet.createNew')}</h2>
       <p class="description">
-        A new wallet will be created with a unique seed phrase that you can use
-        to recover your wallet.
+        {$t('wallet.newWalletDesc')}
       </p>
 
       <div class="button-group">
@@ -127,20 +132,19 @@
           onclick={handleCreateNew}
           disabled={isLoading}
         >
-          {isLoading ? "Creating..." : "Create Wallet"}
+          {isLoading ? $t('wallet.creating') : $t('wallet.create')}
         </button>
 
         <button class="secondary-button" onclick={goBack} disabled={isLoading}>
-          Back
+          {$t('common.back')}
         </button>
       </div>
     </div>
   {:else if currentMode === InitMode.SHOW_SEED}
     <div class="seed-container">
-      <h2 class="section-title">Your Seed Phrase</h2>
+      <h2 class="section-title">{$t('wallet.yourSeedPhrase')}</h2>
       <p class="warning-text">
-        Your wallet has been created. Write down this seed phrase and store it
-        in a safe place. You'll need it to recover your wallet.
+        {$t('wallet.walletCreatedDesc')}
       </p>
 
       <SeedPhraseCard {seedPhrase} />
@@ -152,7 +156,7 @@
             bind:checked={hasSavedSeedPhrase}
             class="checkbox"
           />
-          I have safely stored my seed phrase
+          {$t('wallet.savedSeedPhrase')}
         </label>
       </div>
 
@@ -162,23 +166,23 @@
           onclick={handleFinishSetup}
           disabled={!hasSavedSeedPhrase}
         >
-          Continue
+          {$t('wallet.continue')}
         </button>
       </div>
     </div>
   {:else if currentMode === InitMode.RESTORE}
     <div class="restore-container">
-      <h2 class="section-title">Restore Wallet</h2>
+      <h2 class="section-title">{$t('wallet.restoreWallet')}</h2>
       <p class="description">
-        Enter your seed phrase to restore your existing wallet.
+        {$t('wallet.restoreWalletDesc')}
       </p>
 
       <div class="input-group">
-        <label for="seedPhrase" class="input-label">Seed Phrase</label>
+        <label for="seedPhrase" class="input-label">{$t('wallet.seedPhraseLabel')}</label>
         <textarea
           id="seedPhrase"
           bind:value={restoreSeedPhrase}
-          placeholder="Enter your seed phrase here..."
+          placeholder={$t('placeholders.seedPhrase')}
           class="seed-input"
           rows="4"
           disabled={isLoading}
@@ -191,11 +195,11 @@
           onclick={handleRestore}
           disabled={isLoading || !restoreSeedPhrase.trim()}
         >
-          {isLoading ? "Restoring..." : "Restore Wallet"}
+          {isLoading ? $t('wallet.restoring') : $t('wallet.restore')}
         </button>
 
         <button class="secondary-button" onclick={goBack} disabled={isLoading}>
-          Back
+          {$t('common.back')}
         </button>
       </div>
     </div>
@@ -220,23 +224,22 @@
         </svg>
       </div>
 
-      <h2 class="success-title">Recovery Successful!</h2>
+      <h2 class="success-title">{$t('wallet.recoverySuccessful')}</h2>
       <p class="success-description">
-        Your wallet has been successfully restored. Now add back the nodes you
-        used to deposit funds, and we will get your money back.
+        {$t('wallet.walletRestoredDesc')}
       </p>
 
       <div class="button-group">
         <button class="primary-button" onclick={handleRecoveryNext}>
-          Next
+          {$t('wallet.next')}
         </button>
       </div>
     </div>
   {/if}
 
-  {#if errorMessage}
+  {#if validationError}
     <div class="error-message">
-      {errorMessage}
+      {validationError}
     </div>
   {/if}
 </div>

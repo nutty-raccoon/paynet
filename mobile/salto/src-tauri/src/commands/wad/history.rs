@@ -45,7 +45,7 @@ pub async fn get_wad_history(
     state: State<'_, AppState>,
     limit: Option<u32>,
 ) -> Result<Vec<WadHistoryItem>, GetWadHistoryError> {
-    let db_conn = state.pool.get()?;
+    let db_conn = state.pool().get()?;
     let wad_records = wallet::db::wad::get_recent_wads(&db_conn, limit.unwrap_or(20))?;
 
     let mut history_items = Vec::with_capacity(wad_records.len());
@@ -90,7 +90,7 @@ impl serde::Serialize for SyncWadsError {
 #[tauri::command]
 pub async fn sync_wads(app: AppHandle, state: State<'_, AppState>) -> Result<(), SyncWadsError> {
     let wad_results =
-        wallet::sync::pending_wads(state.pool.clone(), state.opt_root_ca_cert()).await?;
+        wallet::sync::pending_wads(state.pool().clone(), state.opt_root_ca_cert()).await?;
 
     for result in wad_results {
         match result.result {

@@ -14,6 +14,34 @@ export type Token = {
     address: string;
 }
 
+// Rotating client wrapper for multiple demo API keys
+class RotatingCoingeckoClient {
+  private clients: Coingecko[];
+  private currentIndex: number = 0;
+
+  constructor(demoKeys: string[]) {
+    this.clients = demoKeys.map(key => new Coingecko({
+      demoAPIKey: key,
+      environment: "demo"
+    }));
+  }
+
+  private getNextClient(): Coingecko {
+    const client = this.clients[this.currentIndex];
+    this.currentIndex = (this.currentIndex + 1) % this.clients.length;
+    return client;
+  }
+
+  // Proxy all method calls to the rotating client
+  get simple() {
+    return this.getNextClient().simple;
+  }
+
+  get coins() {
+    return this.getNextClient().coins;
+  }
+}
+
 dotenv.config();
 
 const env = await readEnv();
@@ -23,13 +51,18 @@ export const fastify = Fastify({
   logger: true
 });
 
-// Set Coingecko SDK
-export const client = new Coingecko({
-  ...(env.isPro
-    ? { proAPIKey: env.apiKey }
-    : { demoAPIKey: env.apiKey }), 
-  environment: env.isPro ? "pro" : "demo",
-})
+// Set Coingecko SDK with rotation support
+export const client = env.isPro
+  ? new Coingecko({
+      proAPIKey: env.apiKey,
+      environment: "pro"
+    })
+  : env.demoApiKeys && env.demoApiKeys.length > 1
+    ? new RotatingCoingeckoClient(env.demoApiKeys) as unknown as Coingecko
+    : new Coingecko({
+        demoAPIKey: env.apiKey,
+        environment: "demo"
+      });
 
 // Set default tokens
 appCache.set("tokens", env.tokens);

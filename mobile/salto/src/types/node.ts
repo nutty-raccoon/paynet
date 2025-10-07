@@ -1,5 +1,6 @@
 export type NodeId = number;
 export type Unit = string;
+export type Amount = bigint;
 
 export type NodeIdAndUrl = {
   id: NodeId;
@@ -15,11 +16,11 @@ export type NodeData = {
 
 export type Balance = {
   unit: Unit;
-  amount: number;
+  amount: Amount;
 }
 
 export type BalanceChange = {
-  nodeId: NodeId,
-  unit: Unit,
-  amount: number
+  nodeId: NodeId;
+  unit: Unit;
+  amount: Amount;
 }

@@ -279,7 +279,7 @@ async fn main() -> Result<()> {
         }
         Commands::DecodeWad(_) => {}
         _ => {
-            if has_seed_phrase {
+            if !has_seed_phrase {
                 println!("Wallet is not initialized. Run `init` or `restore` first");
                 return Ok(());
             }

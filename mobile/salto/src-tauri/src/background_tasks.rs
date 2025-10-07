@@ -8,7 +8,8 @@ use tokio::sync::RwLock;
 use tracing::error;
 
 use crate::{
-    AppState, PriceConfig, PriceSyncStatus,
+    AppState, PriceConfig,
+    app_state::PriceSyncStatus,
     front_events::price_events::{
         NewPriceEvent, OutOfSyncPriceEvent, emit_new_price_event, emit_out_of_sync_price_event,
     },
@@ -80,14 +81,14 @@ pub async fn fetch_and_emit_prices(
 
 // TODO: pause price fetching when app is not used (background/not-focused)
 pub async fn start_price_fetcher(app: tauri::AppHandle) {
-    let config = app.state::<AppState>().get_prices_config.clone();
+    let config = app.state::<AppState>().get_prices_config().clone();
     let mut retry_delay = 1;
     loop {
         let res = fetch_and_emit_prices(&app, &config).await;
         if let Err(err) = res {
             tracing::error!("price fetch error: {}", err);
             match config.read().await.status {
-                crate::PriceSyncStatus::Synced(last_sync_time)
+                PriceSyncStatus::Synced(last_sync_time)
                     if SystemTime::now()
                         .duration_since(last_sync_time)
                         .unwrap()

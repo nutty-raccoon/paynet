@@ -1,6 +1,6 @@
 [package]
 name = "salto"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
@@ -21,7 +21,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { workspace = true, features = ["tracing"] }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-sql = { workspace = true, features = ["sqlite"] }
-tauri-plugin-log = { workspace = true }
+tauri-plugin-log = { workspace = true, features = ["tracing"] }
 tauri-plugin-os = { workspace = true }
 tauri-plugin-clipboard-manager = { workspace = true }
 
@@ -42,7 +42,7 @@ reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tokio = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+log = { workspace = true }
 uuid = { workspace = true }
 itertools = { workspace = true }
 tonic = { workspace = true, features = ["tls-ring"] }
@@ -50,7 +50,6 @@ urlencoding = { workspace = true }
 futures = { workspace = true }
 
 # Local
-wallet = { workspace = true }
 node-client = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
@@ -65,9 +64,14 @@ android-keyring = { workspace = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-macos-permissions = "2.3.0"
 
-# Biometrics
+# Mobile
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-biometric = "2"
+wallet = { workspace = true, features = ["mobile"] }
+
+# Desktop
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+wallet = { workspace = true, features = ["desktop"] }
 
 [features]
 tls-local-mkcert = []

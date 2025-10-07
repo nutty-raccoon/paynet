@@ -1,0 +1,200 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "done": "Done",
+    "cancel": "Cancel",
+    "send": "Send",
+    "receive": "Receive",
+    "settings": "Settings",
+    "show": "Show",
+    "hide": "Hide",
+    "error": "Error",
+    "success": "Success",
+    "back": "Back",
+    "open": "Open",
+    "dismiss": "Dismiss notification"
+  },
+  "navigation": {
+    "pay": "Pay",
+    "balances": "Balances",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "balance": {
+    "totalBalance": "TOTAL BALANCE",
+    "balances": "Balances",
+    "pendingMintQuotes": "Pending Mint Quotes",
+    "pendingMeltQuotes": "Pending Melt Quotes",
+    "noBalancesAvailable": "No balances available",
+    "noPendingMintQuotes": "No pending mint quotes",
+    "noPendingMeltQuotes": "No pending melt quotes",
+    "unpaid": "Unpaid",
+    "paid": "Paid",
+    "pending": "Pending",
+    "pay": "Pay",
+    "redeem": "Redeem",
+    "forget": "Forget"
+  },
+  "settings": {
+    "title": "Settings",
+    "currency": {
+      "title": "Select your currency:",
+      "label": "Currency"
+    },
+    "language": {
+      "title": "Language:",
+      "english": "English",
+      "spanish": "Español"
+    },
+    "errorDetails": {
+      "title": "Error Details:",
+      "show": "Show detailed errors",
+      "hide": "Hide detailed errors"
+    },
+    "walletRecovery": {
+      "title": "Wallet Recovery:",
+      "showSeedPhrase": "Show seed phrase",
+      "hideSeedPhrase": "Hide seed phrase",
+      "loadingSeed": "Loading...",
+      "warning": "Keep this seed phrase safe and secure. Anyone with access to it can control your wallet."
+    }
+  },
+  "send": {
+    "title": "Send",
+    "amount": "Amount",
+    "recipient": "Recipient",
+    "method": "Sending Method",
+    "confirm": "Confirm Send",
+    "generating": "Generating...",
+    "pickPaymentMethod": "Pick a payment method",
+    "paymentDataGenerated": "Payment data generated successfully",
+    "show": "Show",
+    "copy": "Copy",
+    "choosePaymentMethod": "Choose Payment Method",
+    "copyToClipboard": "Copy to clipboard"
+  },
+  "forms": {
+    "amount": "Amount",
+    "asset": "Asset",
+    "address": "Address",
+    "toAddress": "To Address",
+    "currency": "Currency",
+    "retry": "Retry",
+    "nodeAddress": "Node's address",
+    "backButton": "← Back"
+  },
+  "placeholders": {
+    "seedPhrase": "Enter your seed phrase here..."
+  },
+  "buttons": {
+    "syncing": "⏳ Syncing...",
+    "refresh": "🔄 Refresh"
+  },
+  "receive": {
+    "title": "Receive",
+    "method": "Receiving Method",
+    "address": "Address",
+    "qrCode": "QR Code",
+    "paymentReceived": "Payment received successfully",
+    "clipboardEmpty": "Clipboard is empty or contains no payment data",
+    "failedReceive": "Failed receive wad",
+    "scan": "Scan",
+    "paste": "Paste",
+    "chooseReceivingMethod": "Choose Receiving Method",
+    "pasteFromClipboard": "Paste from clipboard"
+  },
+  "scan": {
+    "title": "Scan QR Code",
+    "instructions": "Point your camera at a QR code to scan",
+    "failedDecode": "Failed to decode QR code",
+    "scanned": "Scanned:",
+    "pointCamera": "Point your camera at a QR code",
+    "scanToComplete": "Scan this QR code to complete the payment",
+    "generatingQR": "Generating QR code..."
+  },
+  "errors": {
+    "connectionFailed": "Failed to refresh account balances. Please check your connection.",
+    "quotesFailed": "Failed to refresh pending quotes. Please check your connection.",
+    "walletNotFound": "Wallet not found",
+    "invalidAmount": "Invalid amount",
+    "insufficientBalance": "Insufficient balance",
+    "amountCannotExceed": "Amount cannot exceed",
+    "failedGeneratePayment": "Failed to generate payment data. Please try again.",
+    "unknown": "Unknown error",
+    "details": "Error details"
+  },
+  "modals": {
+    "deposit": "Deposit",
+    "withdraw": "Withdraw",
+    "addNode": "Add Node",
+    "nodeDetails": "Node Details",
+    "depositSuccess": "Deposit quote created successfully",
+    "withdrawSuccess": "Withdrawal quote created successfully",
+    "nodeAddSuccess": "Node added successfully",
+    "addingNode": "Adding node...",
+    "selectAsset": "Please select an asset",
+    "enterAddress": "Please enter a destination address",
+    "paymentQRCode": "Payment QR Code",
+    "depositTokens": "Deposit Tokens",
+    "withdrawTokens": "Withdraw Tokens",
+    "depositingTo": "Depositing to:",
+    "withdrawingFrom": "Withdrawing from:",
+    "available": "Available:",
+    "max": "MAX",
+    "selectAssetOption": "Select asset...",
+    "insufficientBalance": "Insufficient balance. Maximum withdrawable:",
+    "invalidAddress": "Please enter a valid Starknet address (0x...)",
+    "amountGreaterThanZero": "Amount must be greater than 0"
+  },
+  "history": {
+    "title": "Transaction History",
+    "transferHistory": "Transfer History",
+    "loadingHistory": "Loading transfer history...",
+    "noTransactions": "No transfer history found",
+    "pending": "Pending",
+    "completed": "Completed",
+    "failed": "Failed",
+    "in": "IN",
+    "out": "OUT",
+    "balancesHeader": "Balances:"
+  },
+  "wallet": {
+    "create": "Create Wallet",
+    "creating": "Creating...",
+    "restore": "Restore Wallet", 
+    "restoring": "Restoring...",
+    "enterSeedPhrase": "Please enter your seed phrase",
+    "confirmSaved": "Please confirm you have saved your seed phrase",
+    "welcome": "Welcome to Salto Wallet",
+    "getStarted": "Get started by creating a new wallet or restoring an existing one",
+    "newWalletDesc": "A new wallet will be created with a unique seed phrase that you can use to restore your wallet later.",
+    "restoreWalletDesc": "Enter your seed phrase to restore your existing wallet.",
+    "seedPhraseLabel": "Seed Phrase",
+    "createNew": "Create New Wallet",
+    "restoreWallet": "Restore Wallet",
+    "yourSeedPhrase": "Your Seed Phrase",
+    "recoverySuccessful": "Recovery Successful!",
+    "walletCreatedDesc": "Your wallet has been created. Write down this seed phrase and store it in a safe place. You'll need it to recover your wallet.",
+    "savedSeedPhrase": "I have safely stored my seed phrase",
+    "continue": "Continue",
+    "walletRestoredDesc": "Your wallet has been successfully restored. Now add back the nodes you used to deposit funds, and we will get your money back.",
+    "next": "Next",
+    "restoreExisting": "Restore Existing Wallet"
+  },
+  "labels": {
+    "memo": "Memo:",
+    "qrCode": "QR Code",
+    "clickToCopy": "📋 Click to copy"
+  },
+  "validation": {
+    "amountMustBeAtLeast": "Amount must be at least",
+    "amountCannotExceed": "Amount cannot exceed",
+    "noDepositMethodsAvailable": "No deposit methods available",
+    "depositsDisabledForNode": "Deposits are disabled for this node",
+    "errorNoDepositSettings": "Error: no deposit settings available"
+  },
+  "depositLimits": {
+    "title": "Deposit Limits for",
+    "min": "Min:"
+  }
+}

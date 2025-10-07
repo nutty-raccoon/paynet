@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "../../stores/i18n";
+  
   interface Props {
     onQRCodeChoice: () => void;
     onPasteChoice: () => void;
@@ -8,17 +10,17 @@
 </script>
 
 <div class="payment-method-choice">
-  <h4>Choose Receiving Method</h4>
+  <h4>{$t('receive.chooseReceivingMethod')}</h4>
   <div class="method-buttons">
     <button class="method-button qr-button" onclick={onQRCodeChoice}>
       <div class="method-icon">📱</div>
-      <span>QR Code</span>
-      <small>Scan</small>
+      <span>{$t('labels.qrCode')}</span>
+      <small>{$t('receive.scan')}</small>
     </button>
     <button class="method-button paste-button" onclick={onPasteChoice}>
       <div class="method-icon">📋</div>
-      <span>Paste</span>
-      <small>Paste from clipboard</small>
+      <span>{$t('receive.paste')}</span>
+      <small>{$t('receive.pasteFromClipboard')}</small>
     </button>
   </div>
 </div>

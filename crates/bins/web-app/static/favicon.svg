@@ -1,4 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <rect width="32" height="32" fill="#667eea"/>
-  <text x="16" y="22" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="white">P</text>
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="90s S app logo">
+  <defs>
+    <!-- Gold metallic gradient -->
+    <linearGradient id="retroGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff27c"/>
+      <stop offset="0.25" stop-color="#ffd700"/>
+      <stop offset="0.5" stop-color="#ffae00"/>
+      <stop offset="0.75" stop-color="#ffd700"/>
+      <stop offset="1" stop-color="#fff27c"/>
+    </linearGradient>
+
+    <!-- Hard black shadow offset -->
+    <filter id="retroShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feOffset dx="12" dy="12" in="SourceAlpha" result="off"/>
+      <feFlood flood-color="#000" result="flood"/>
+      <feComposite in="flood" in2="off" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Dark gradient background -->
+    <linearGradient id="darkBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Larger rounded square background (32px margin) -->
+  <rect x="32" y="32" width="448" height="448" rx="88" fill="url(#darkBg)" />
+
+  <!-- The Letter S -->
+  <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
+        font-family="Impact, Haettenschweiler, sans-serif"
+        font-weight="900" font-size="300"
+        fill="url(#retroGold)"
+        filter="url(#retroShadow)">
+    S
+  </text>
 </svg>

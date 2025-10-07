@@ -78,6 +78,13 @@ pub async fn launch_tonic_server_task(
         .layer(optl_layer)
         .named_layer(NodeServer::new(grpc_state.clone()));
 
+    const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("node_service_desciptor");
+
+    let reflexion_service = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
+        .build_v1()?;
+
     let tonic_future = {
         let tonic_server = build_server(
             #[cfg(feature = "tls")]
@@ -87,6 +94,7 @@ pub async fn launch_tonic_server_task(
         let mut tonic_server = tonic_server.layer(tower_otel::metrics::HttpLayer::server(&meter));
 
         let router = tonic_server
+            .add_service(reflexion_service)
             .add_service(health_service)
             .add_service(node_service);
         #[cfg(feature = "keyset-rotation")]

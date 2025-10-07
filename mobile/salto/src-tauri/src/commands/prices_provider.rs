@@ -31,12 +31,13 @@ pub async fn set_price_provider_currency(
     new_currency: String,
 ) -> Result<(), SetPriceProviderCurrencyError> {
     {
-        let mut config = state.get_prices_config.write().await;
+        let config = state.get_prices_config();
+        let mut config = config.write().await;
         config.currency = new_currency;
         config.status = Default::default();
     }
 
-    let res = fetch_and_emit_prices(&app, &state.get_prices_config).await;
+    let res = fetch_and_emit_prices(&app, &state.get_prices_config()).await;
     if let Err(err) = res {
         tracing::error!("price fetch error: {}", err);
         emit_out_of_sync_price_event(&app, OutOfSyncPriceEvent)
@@ -65,8 +66,9 @@ impl serde::Serialize for GetCurrenciesError {
 pub async fn get_currencies(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<String>, GetCurrenciesError> {
-    let cfg = state.get_prices_config.read().await;
-    let host = cfg.url.clone();
+    let config = state.get_prices_config();
+    let config = config.read().await;
+    let host = config.url.clone();
     let resp: CurrenciesResponce = reqwest::get(host + "/currencies")
         .await?
         .json::<CurrenciesResponce>()
