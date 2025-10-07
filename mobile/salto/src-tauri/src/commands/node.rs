@@ -1,11 +1,9 @@
 use std::str::FromStr;
 
 use cashu_client::GrpcClient;
-use node_client::NodeClient;
 use nuts::traits::Unit as UnitT;
 use starknet_types::Asset;
 use tauri::{AppHandle, State};
-use tonic::transport::Channel;
 use tracing::{Level, event, warn};
 use wallet::types::NodeUrl;
 
