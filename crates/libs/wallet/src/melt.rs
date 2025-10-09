@@ -1,11 +1,11 @@
 use cashu_client::{CashuClient, ClientMeltQuoteRequest, ClientMeltQuoteResponse};
-use nuts::Amount;
+use nuts::{Amount, nut19::MELT};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 
 use crate::{
     acknowledge, db,
-    errors::{Error, handle_already_spent_proofs, handle_crypto_invalid_proofs},
+    errors::{CommonError, Error, handle_already_spent_proofs, handle_crypto_invalid_proofs},
     fetch_inputs_ids_from_db_or_node, sync,
     types::ProofState,
     unprotected_load_tokens_from_db,
@@ -36,18 +36,12 @@ pub async fn create_quote(
 
 #[derive(Debug, thiserror::Error)]
 pub enum PayMeltQuoteError {
-    #[error("failed get db connection from pool: {0}")]
-    Pool(#[from] r2d2::Error),
+    #[error(transparent)]
+    Common(#[from] CommonError),
     #[error("failed to load the proofs ids from db or node: {0}")]
     FetchInputsIds(#[source] Error),
     #[error("not enough funds")]
     NotEnoughFunds,
-    #[error("failed to start database transaction: {0}")]
-    StartDbTransaction(#[source] rusqlite::Error),
-    #[error("failed to commit database transaction: {0}")]
-    CommitDbTransaction(#[source] rusqlite::Error),
-    #[error("failed to load the proofs from db: {0}")]
-    LoadTokens(#[source] rusqlite::Error),
     #[error(transparent)]
     SetProofsState(#[from] db::proof::SetProofsToStateError),
     #[error("failed update quote state: {0}")]
@@ -58,8 +52,6 @@ pub enum PayMeltQuoteError {
     HandleProofsVerficationErrors(#[source] Error),
     #[error("melt operation failed: {0}")]
     MeltOperationFailed(#[source] cashu_client::CashuClientError),
-    #[error("failed to acknowledge: {0}")]
-    Acknowledge(#[source] cashu_client::CashuClientError),
     #[error("failed to serialize transfer ids: {0}")]
     SerializeTransferIds(#[from] serde_json::Error),
     #[error(transparent)]
@@ -92,7 +84,7 @@ pub async fn pay_quote(
     .map_err(PayMeltQuoteError::FetchInputsIds)?
     .ok_or(PayMeltQuoteError::NotEnoughFunds)?;
     let inputs = {
-        let db_conn = pool.get()?;
+        let db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
         unprotected_load_tokens_from_db(&db_conn, &proofs_ids)?
     };
 
@@ -106,22 +98,23 @@ pub async fn pay_quote(
 
     let melt_res = node_client.melt(method, melt_request).await;
     // If this fail we won't be able to actualize the proof state. Which may lead to some bugs.
-    let mut db_conn = pool.get()?;
+    let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
 
     // Call the node and handle failure
     let melt_response = match melt_res {
         Ok(r) => r,
         Err(e) => {
-            if let Some(errors) = node_client.extract_proof_errors(&e) {
+            if let cashu_client::CashuClientError::Proof(errors) = &e {
                 if !errors[0].indexes.is_empty() {
                     handle_already_spent_proofs(errors[0].indexes.clone(), &proofs_ids, &db_conn)
-                        .map_err(PayMeltQuoteError::HandleProofsVerficationErrors)?;
+                        .map_err(CommonError::HandleProofVerificationErrors)?;
                 }
                 if !errors[1].indexes.is_empty() {
                     handle_crypto_invalid_proofs(errors[1].indexes.clone(), &proofs_ids, &db_conn)
-                        .map_err(PayMeltQuoteError::HandleProofsVerficationErrors)?;
+                        .map_err(CommonError::HandleProofVerificationErrors)?;
                 }
             }
+
             return Err(PayMeltQuoteError::MeltOperationFailed(e));
         }
     };
@@ -132,12 +125,12 @@ pub async fn pay_quote(
     // Relieve the node cache once we receive the answer
     acknowledge(node_client, nuts::nut19::Route::Melt, melt_request_hash)
         .await
-        .map_err(PayMeltQuoteError::Acknowledge)?;
+        .map_err(|e| CommonError::AcknowledgeNodeResponse(MELT, e))?;
 
     if melt_response.state == nuts::nut05::MeltQuoteState::Paid {
         let tx = db_conn
             .transaction()
-            .map_err(PayMeltQuoteError::StartDbTransaction)?;
+            .map_err(CommonError::CreateDbTransaction)?;
         db::melt_quote::set_state(&tx, &quote_id, melt_response.state)
             .map_err(PayMeltQuoteError::UpdateQuoteState)?;
         if melt_response.transfer_ids.is_some() {
@@ -145,8 +138,7 @@ pub async fn pay_quote(
             db::melt_quote::register_transfer_ids(&tx, &quote_id, &transfer_ids_to_store)
                 .map_err(PayMeltQuoteError::RegisterTransfersIds)?;
         }
-        tx.commit()
-            .map_err(PayMeltQuoteError::CommitDbTransaction)?;
+        tx.commit().map_err(CommonError::CommitDbTransaction)?;
     }
 
     Ok(melt_response)

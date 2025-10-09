@@ -349,27 +349,29 @@ pub async fn swap_to_have_target_amount(
             }
             Err(e) => {
                 // TODO: add retry once we are sync
-
-                if node_client.keyset_refresh(&e) {
-                    crate::node::refresh_keysets(pool, node_client, node_id).await?;
-                }
-                if let Some(errors) = node_client.extract_proof_errors(&e) {
-                    if !errors[0].indexes.is_empty() {
-                        handle_already_spent_proofs(
-                            errors[0].indexes.clone(),
-                            &[proof_to_swap.0],
-                            &db_conn,
-                        )?;
+                match &e {
+                    cashu_client::CashuClientError::Proof(proof_errors) => {
+                        if !proof_errors[0].indexes.is_empty() {
+                            handle_already_spent_proofs(
+                                proof_errors[0].indexes.clone(),
+                                &[proof_to_swap.0],
+                                &db_conn,
+                            )?;
+                        }
+                        if !proof_errors[1].indexes.is_empty() {
+                            handle_crypto_invalid_proofs(
+                                proof_errors[1].indexes.clone(),
+                                &[proof_to_swap.0],
+                                &db_conn,
+                            )?;
+                        }
                     }
-                    if !errors[1].indexes.is_empty() {
-                        handle_crypto_invalid_proofs(
-                            errors[1].indexes.clone(),
-                            &[proof_to_swap.0],
-                            &db_conn,
-                        )?;
+                    cashu_client::CashuClientError::InactiveKeyset => {
+                        crate::node::refresh_keysets(pool, node_client, node_id).await?;
                     }
-                }
-                return Err(e.into());
+                    _ => {}
+                };
+                return Err((e).into());
             }
         };
 
@@ -530,7 +532,7 @@ pub async fn receive_wad(
         let swap_response = match swap_result {
             Ok(r) => r,
             Err(e) => {
-                if let Some(errors) = node_client.extract_proof_errors(&e) {
+                if let cashu_client::CashuClientError::Proof(errors) = &e {
                     if !errors[0].indexes.is_empty() {
                         handle_already_spent_proofs(errors[0].indexes.clone(), &ys, &db_conn)
                             .map_err(CommonError::HandleProofVerificationErrors)?;
@@ -540,6 +542,7 @@ pub async fn receive_wad(
                             .map_err(CommonError::HandleProofVerificationErrors)?;
                     }
                 }
+
                 return Err(ReceiveWadError::SwapWithNode(e));
             }
         };

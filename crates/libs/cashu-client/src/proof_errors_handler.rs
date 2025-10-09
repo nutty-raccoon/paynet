@@ -1,6 +1,4 @@
-use crate::{GrpcClient, grpc_client::Error};
-use tonic::Code;
-use tonic_types::StatusExt;
+use crate::grpc_client::Error;
 
 #[derive(Debug)]
 pub enum ProofErrorKind {
@@ -14,68 +12,7 @@ pub struct ProofError {
     pub kind: ProofErrorKind,
 }
 
-pub trait ProofErrorHandler {
-    fn extract_proof_errors(
-        &self,
-        raw: &(dyn std::error::Error + 'static),
-    ) -> Option<Vec<ProofError>>;
-    fn keyset_refresh(&self, raw: &(dyn std::error::Error + 'static)) -> bool;
-}
-
-impl ProofErrorHandler for GrpcClient {
-    fn extract_proof_errors(
-        &self,
-        raw: &(dyn std::error::Error + 'static),
-    ) -> Option<Vec<ProofError>> {
-        if let Some(status) = raw.downcast_ref::<tonic::Status>() {
-            if let Some(bad_request) = status.get_error_details().bad_request() {
-                let mut spent = Vec::new();
-                let mut invalid = Vec::new();
-                for violation in &bad_request.field_violations {
-                    let idx = extract_proof_index(&violation.field).unwrap_or(0);
-                    if violation.description.contains("already spent") {
-                        spent.push(idx);
-                    } else if violation
-                        .description
-                        .contains("failed cryptographic verification")
-                    {
-                        invalid.push(idx);
-                    }
-                }
-                let errs = vec![
-                    ProofError {
-                        indexes: spent,
-                        kind: ProofErrorKind::AlreadySpent,
-                    },
-                    ProofError {
-                        indexes: invalid,
-                        kind: ProofErrorKind::FailCryptoVerify,
-                    },
-                ];
-                return Some(errs);
-            }
-        }
-        None
-    }
-
-    fn keyset_refresh(&self, raw: &(dyn std::error::Error + 'static)) -> bool {
-        if let Some(status) = raw.downcast_ref::<tonic::Status>() {
-            if status.code() == Code::FailedPrecondition && status.message() == "inactive keyset" {
-                let error_details = status.get_error_details();
-                if let Some(precondition_failure) = error_details.precondition_failure() {
-                    for failure in &precondition_failure.violations {
-                        if failure.r#type == "keyset.state" {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        false
-    }
-}
-
-fn extract_proof_index(field: &str) -> Result<u32, Error> {
+pub fn extract_proof_index(field: &str) -> Result<u32, Error> {
     if let Some(start) = field.find('[') {
         if let Some(end) = field.find(']') {
             let index_str = &field[start + 1..end];

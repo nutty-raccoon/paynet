@@ -123,7 +123,7 @@ pub async fn redeem_quote(
         Ok(r) => r,
         Err(e) => {
             // TODO: add retry once we are sync
-            if node_client.keyset_refresh(&e) {
+            if let cashu_client::CashuClientError::InactiveKeyset = e {
                 crate::node::refresh_keysets(pool, node_client, node_id).await?;
             }
             return Err(e.into());

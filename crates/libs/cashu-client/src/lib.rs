@@ -8,13 +8,13 @@ use nuts::{
     nut05::{MeltQuoteState, MeltRequest, MeltResponse},
     nut07::CheckStateResponse,
 };
+use proof_errors_handler::ProofError;
 use thiserror::Error;
 
 mod grpc_client;
 mod proof_errors_handler;
 
 pub use grpc_client::GrpcClient;
-pub use proof_errors_handler::ProofErrorHandler;
 
 #[derive(Debug, Clone)]
 pub struct ClientMintQuoteRequest {
@@ -94,12 +94,10 @@ pub struct ClientRestoreResponse {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CashuClientError {
-    #[error("proofs already spent at indexes: {indexes:?}")]
-    AlreadySpent { indexes: Vec<u32> },
-    #[error("invalid proofs at indexes: {indexes:?}")]
-    InvalidProof { indexes: Vec<u32> },
-    #[error("keyset with id {keyset_id} inactive")]
-    InactiveKeyset { keyset_id: KeysetId },
+    #[error("invalid proofs: {0:?}")]
+    Proof(Vec<ProofError>),
+    #[error("inactive keyset")]
+    InactiveKeyset,
     #[error("quote not found")]
     QuoteNotFound,
     #[error(transparent)]
@@ -107,7 +105,7 @@ pub enum CashuClientError {
 }
 
 #[async_trait::async_trait]
-pub trait CashuClient: ProofErrorHandler + Send + Sync + Clone {
+pub trait CashuClient: Send + Sync + Clone {
     type InnerError: std::error::Error;
 
     async fn keysets(&mut self) -> Result<ClientKeysetsResponse, CashuClientError>;
