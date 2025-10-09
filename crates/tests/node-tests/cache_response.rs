@@ -82,7 +82,9 @@ async fn works() -> Result<()> {
 
     // SWAP
     let node_pubkey_for_amount = client
-        .keys(Some(active_keyset.id.clone()))
+        .keys(Some(
+            KeysetId::from_bytes(&active_keyset.id.clone()).unwrap(),
+        ))
         .await?
         .keysets
         .first()

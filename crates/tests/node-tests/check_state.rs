@@ -83,7 +83,11 @@ async fn test_multiple_tokens() -> Result<()> {
     }
 
     // Get node public keys for all amounts
-    let get_keys_resonse = client.keys(Some(active_keyset.id.clone())).await?;
+    let get_keys_resonse = client
+        .keys(Some(
+            KeysetId::from_bytes(&active_keyset.id.clone()).unwrap(),
+        ))
+        .await?;
     let node_keys = &get_keys_resonse.keysets.first().unwrap().keys;
 
     // Create proofs for all tokens

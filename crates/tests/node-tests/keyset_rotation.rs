@@ -2,6 +2,7 @@ use anyhow::Result;
 use cashu_client::{CashuClient, ClientKeysResponse, ClientKeysetsResponse};
 use node_client::RotateKeysetsRequest;
 use node_tests::{init_keyset_client, init_node_client};
+use nuts::nut02::KeysetId;
 use std::collections::HashMap;
 
 #[tokio::test]
@@ -33,8 +34,9 @@ async fn ok() -> Result<()> {
     // Check that old keysets are deactivated
     for (old_id, was_active) in &old_keysets {
         if *(was_active) {
-            let get_keys_response: ClientKeysResponse =
-                node_client.keys(Some(old_id.clone())).await?;
+            let get_keys_response: ClientKeysResponse = node_client
+                .keys(Some(KeysetId::from_bytes(&old_id.clone()).unwrap()))
+                .await?;
 
             let keyset = get_keys_response
                 .keysets
