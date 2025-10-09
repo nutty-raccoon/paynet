@@ -122,9 +122,9 @@ async fn connect_to_node(
             .ok_or(anyhow!("unknown node id: {}", node_id))?
     };
 
-    let client = wallet::connect_to_node(node_url, None)
+    let connect_to_node_restponse = wallet::connect_to_node(node_url, None)
         .await
         .map_err(|e| anyhow!("Failed to connect to node: {}", e))?;
 
-    Ok(client)
+    Ok(connect_to_node_restponse)
 }

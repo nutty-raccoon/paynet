@@ -12,6 +12,7 @@ use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
+    ConnectToNodeResponse,
     db::balance::Balance,
     melt::wait_for_payment,
     send::load_proofs_and_create_wads,
@@ -289,21 +290,22 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Node(NodeCommands::Add { node_url }) => {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
-            let mut node_client = wallet::connect_to_node(node_url, opt_tls_root_ca_cert).await?;
+            let ConnectToNodeResponse {
+                client: mut node_client,
+                url: node_url,
+            } = wallet::connect_to_node(node_url, opt_tls_root_ca_cert).await?;
 
             let tx = db_conn.transaction()?;
-            let node_id =
-                wallet::node::register(pool.clone(), &mut node_client.client, &node_client.url)
-                    .await?;
+            let node_id = wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
             tx.commit()?;
 
             println!(
                 "Successfully registered {} as node with id `{}`",
-                &node_client.url, node_id
+                &node_url, node_id
             );
 
             println!("Restoring proofs");
-            wallet::node::restore(SEED_PHRASE_MANAGER, pool, node_id, node_client.client).await?;
+            wallet::node::restore(SEED_PHRASE_MANAGER, pool, node_id, node_client).await?;
             println!("Restoring done.");
 
             let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
@@ -581,18 +583,20 @@ async fn main() -> Result<()> {
             let wads = args.read_wads()?;
 
             for wad in wads {
-                let mut node_client =
-                    wallet::connect_to_node(wad.node_url, opt_tls_root_ca_cert.clone()).await?;
+                let ConnectToNodeResponse {
+                    client: mut node_client,
+                    url: node_url,
+                } = wallet::connect_to_node(wad.node_url, opt_tls_root_ca_cert.clone()).await?;
+
                 let node_id =
-                    wallet::node::register(pool.clone(), &mut node_client.client, &node_client.url)
-                        .await?;
+                    wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
 
                 match wallet::receive_wad(
                     SEED_PHRASE_MANAGER,
                     pool.clone(),
-                    &mut node_client.client,
+                    &mut node_client,
                     node_id,
-                    &node_client.url,
+                    &node_url,
                     &wad.unit,
                     wad.proofs,
                     &wad.memo,
@@ -609,7 +613,7 @@ async fn main() -> Result<()> {
                     Err(e) => {
                         println!(
                             "failed to receive_wad from node {} ({}): {}",
-                            node_id, node_client.url, e
+                            node_id, node_url, e
                         );
                         continue;
                     }
@@ -701,6 +705,6 @@ pub async fn connect_to_node(
 ) -> Result<wallet::ConnectToNodeResponse<GrpcClient>> {
     let node_url = wallet::db::node::get_url_by_id(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = wallet::connect_to_node(node_url, None).await?;
-    Ok(node_client)
+    let connect_to_node_response = wallet::connect_to_node(node_url, None).await?;
+    Ok(connect_to_node_response)
 }

@@ -5,7 +5,7 @@ use nuts::traits::Unit as UnitT;
 use starknet_types::Asset;
 use tauri::{AppHandle, State};
 use tracing::{Level, event, warn};
-use wallet::types::NodeUrl;
+use wallet::{ConnectToNodeResponse, types::NodeUrl};
 
 use crate::{AppState, front_events::emit_trigger_balance_poll};
 
@@ -50,14 +50,17 @@ pub async fn add_and_restore_node(
         "Connecting to node"
     );
 
-    let mut client = wallet::connect_to_node(node_url.clone(), state.opt_root_ca_cert()).await?;
+    let ConnectToNodeResponse {
+        client: mut node_client,
+        url: node_url,
+    } = wallet::connect_to_node(node_url.clone(), state.opt_root_ca_cert()).await?;
 
     event!(name: "registering_node", Level::INFO,
         node_url = %node_url,
         "Registering node"
     );
 
-    let id = wallet::node::register(state.pool().clone(), &mut client.client, node_url).await?;
+    let id = wallet::node::register(state.pool().clone(), &mut node_client, &node_url).await?;
 
     event!(name: "node_registered_successfully", Level::INFO,
         node_id = id,
@@ -70,14 +73,14 @@ pub async fn add_and_restore_node(
         crate::SEED_PHRASE_MANAGER,
         state.pool().clone(),
         id,
-        client.client.clone(),
+        node_client.clone(),
     )
     .await?;
     event!(name: "node_restore_completed", Level::INFO, node_id = id, "Node restored");
 
     let _ = emit_trigger_balance_poll(&app);
 
-    Ok((id, client.client))
+    Ok((id, node_client))
 }
 
 #[tauri::command]
