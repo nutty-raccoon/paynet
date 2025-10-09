@@ -26,7 +26,7 @@ use uuid::Uuid;
 use crate::{
     app_state::{AppState, KeysetKeys},
     methods::Method,
-    response_cache::CachedResponse,
+    response_cache::{CachedResponse, ResponseCache},
 };
 
 /// HTTP error response
@@ -74,7 +74,7 @@ async fn get_keysets(
 ) -> Result<Json<GetKeysetsResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut conn = app_state.pg_pool.acquire().await.map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -85,7 +85,7 @@ async fn get_keysets(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -108,7 +108,7 @@ async fn get_keys(
 ) -> Result<Json<GetKeysResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut db_conn = app_state.pg_pool.acquire().await.map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -120,7 +120,7 @@ async fn get_keys(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -138,7 +138,7 @@ async fn get_keys_by_id(
 ) -> Result<Json<GetKeysResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut db_conn = app_state.pg_pool.acquire().await.map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -158,7 +158,7 @@ async fn get_keys_by_id(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -221,7 +221,7 @@ async fn swap(
 
     let promises = app_state.inner_swap(&inputs, &outputs).await.map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -264,7 +264,7 @@ async fn mint_quote(
 ) -> Result<Json<RestMintQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
     let method = Method::from_str(&method).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -273,7 +273,7 @@ async fn mint_quote(
     let amount = Amount::from(request.amount);
     let unit = Unit::from_str(&request.unit).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -284,7 +284,7 @@ async fn mint_quote(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -301,6 +301,8 @@ async fn mint_quote(
     Ok(Json(mint_quote_response))
 }
 
+/// NUT-04: Mint Tokens
+/// /v1/mint/
 async fn mint(
     State(app_state): State<AppState>,
     Path(method): Path<String>,
@@ -328,7 +330,7 @@ async fn mint(
     }
     let method = Method::from_str(&method).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -339,7 +341,7 @@ async fn mint(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -359,12 +361,11 @@ async fn mint(
 
 async fn mint_quote_state(
     State(app_state): State<AppState>,
-    Path(method): Path<String>,
-    Path(quote_id): Path<String>,
+    Path((method, quote_id)): Path<(String, String)>,
 ) -> Result<Json<RestMintQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
     let method = Method::from_str(&method).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -372,7 +373,7 @@ async fn mint_quote_state(
     })?;
     let quote_id = Uuid::from_str(&quote_id).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -383,7 +384,7 @@ async fn mint_quote_state(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -421,7 +422,7 @@ async fn melt_quote(
 ) -> Result<Json<RestMeltQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
     let method = Method::from_str(&method).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -429,7 +430,7 @@ async fn melt_quote(
     })?;
     let unit = Unit::from_str(&request.unit).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -441,7 +442,7 @@ async fn melt_quote(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -488,7 +489,7 @@ async fn melt(
 
     let method = Method::from_str(&method).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -500,7 +501,7 @@ async fn melt(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -511,7 +512,7 @@ async fn melt(
         .cache_response(cache_key, CachedResponse::Melt(response.clone()))
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -527,7 +528,7 @@ async fn melt_quote_state(
 ) -> Result<Json<RestMeltQuoteResponse>, (StatusCode, Json<ErrorResponse>)> {
     let method = Method::from_str(&method).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -535,7 +536,7 @@ async fn melt_quote_state(
     })?;
     let quote_id = Uuid::from_str(&quote_id).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -547,7 +548,7 @@ async fn melt_quote_state(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -583,7 +584,7 @@ async fn info(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -595,7 +596,7 @@ async fn info(
         name: Some("Paynet Test Node".to_string()),
         pubkey: Some(PublicKey::from_str(&pub_key).map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -620,7 +621,7 @@ async fn info(
 
     let node_info_str = serde_json::to_string(&node_info).map_err(|e| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: e.to_string(),
             }),
@@ -642,7 +643,7 @@ async fn checkstate(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -653,7 +654,7 @@ async fn checkstate(
         .await
         .map_err(|e| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),
@@ -664,6 +665,37 @@ async fn checkstate(
     Ok(Json(CheckStateResponse {
         proof_check_states: proof_state,
     }))
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AcknowledgeRequest {
+    pub path: String,
+    pub request_hash: u64,
+}
+
+async fn acknowledge(
+    State(app_state): State<AppState>,
+    Json(request): Json<AcknowledgeRequest>,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    let path_str: String = request.path.clone();
+    let path: Route = Route::from_str(&path_str).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    let request_hash = request.request_hash;
+
+    let cache_key = (path, request_hash);
+
+    // check if the request is already in the cache, if so, remove it
+    let exist = app_state.response_cache.get(&cache_key);
+    if exist.is_some() {
+        app_state.response_cache.remove(&cache_key);
+    }
+    Ok(())
 }
 
 pub fn create_router() -> Router<AppState> {
@@ -680,4 +712,5 @@ pub fn create_router() -> Router<AppState> {
         .route("/v1/melt/quote/{method}/{quote_id}", get(melt_quote_state))
         .route("/v1/info", get(info))
         .route("/v1/checkstate", post(checkstate))
+        .route("/v1/acknowledge", post(acknowledge))
 }
