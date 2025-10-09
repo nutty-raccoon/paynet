@@ -162,7 +162,9 @@ pub async fn swap_same_output(mut node_client: impl CashuClient, env: EnvVariabl
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
     let node_pubkey_for_amount = node_client
-        .keys(Some(active_keyset.id.clone()))
+        .keys(Some(
+            KeysetId::from_bytes(&active_keyset.id.clone()).unwrap(),
+        ))
         .await?
         .keysets
         .first()
@@ -266,7 +268,9 @@ pub async fn swap_same_input(mut node_client: impl CashuClient, env: EnvVariable
         .await?;
 
     let node_pubkey_for_amount = node_client
-        .keys(Some(active_keyset.id.clone()))
+        .keys(Some(
+            KeysetId::from_bytes(&active_keyset.id.clone()).unwrap(),
+        ))
         .await?
         .keysets
         .first()
@@ -354,7 +358,9 @@ pub async fn melt_same_input(mut node_client: impl CashuClient, env: EnvVariable
         .await?;
 
     let node_pubkey_for_amount = node_client
-        .keys(Some(active_keyset.id.clone()))
+        .keys(Some(
+            KeysetId::from_bytes(&active_keyset.id.clone()).unwrap(),
+        ))
         .await?
         .keysets
         .first()
@@ -448,7 +454,9 @@ pub async fn melt_same_quote(mut node_client: impl CashuClient, env: EnvVariable
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
 
     let node_pubkey_for_amount = node_client
-        .keys(Some(active_keyset.id.clone()))
+        .keys(Some(
+            KeysetId::from_bytes(&active_keyset.id.clone()).unwrap(),
+        ))
         .await?
         .keysets
         .first()
