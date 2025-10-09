@@ -31,6 +31,7 @@ bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
+cashu-client = { workspace = true }
 
 # gRPC
 prost = { workspace = true }

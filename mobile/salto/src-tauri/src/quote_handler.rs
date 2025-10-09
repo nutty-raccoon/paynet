@@ -246,7 +246,7 @@ pub enum Error {
     #[error("failed to redeem mint quote {0}: {1}")]
     RedeemMintQuote(String, #[source] RedeemQuoteError),
     #[error("failed to wait for payment of melt quote: {0}")]
-    WaitForMeltQuotePayment(wallet::errors::Error),
+    WaitForMeltQuotePayment(wallet::melt::PayMeltQuoteError),
 }
 
 pub async fn start_syncing_quotes(
@@ -559,12 +559,12 @@ pub async fn try_pay_melt_quote(
     event!(name: "melt_quote_paid_successfully", Level::INFO,
         node_id = node_id,
         quote_id = %quote_id,
-        response_state = melt_response.state,
+        response_state = melt_response.state as i32,
         "Melt quote paid"
     );
     let _ = emit_trigger_pending_quote_poll(&app);
 
-    if melt_response.state == node_client::MeltQuoteState::MlqsPending as i32 {
+    if melt_response.state == nuts::nut05::MeltQuoteState::Pending {
         state
             .quote_event_sender()
             .send(QuoteHandlerEvent::Melt(
@@ -575,7 +575,7 @@ pub async fn try_pay_melt_quote(
             ))
             .await
             .map_err(|_| CommonError::QuoteHandlerChannel)?;
-    } else if melt_response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
+    } else if melt_response.state == nuts::nut05::MeltQuoteState::Paid {
         state
             .quote_event_sender()
             .send(QuoteHandlerEvent::Melt(MeltQuoteAction::Done {

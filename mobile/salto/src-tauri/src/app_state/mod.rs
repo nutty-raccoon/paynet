@@ -2,14 +2,14 @@ pub mod connection_cache;
 
 use std::{collections::HashSet, sync::Arc, time::SystemTime};
 
+use cashu_client::GrpcClient;
 use connection_cache::{ConnectionCache, NodeInfo};
 use futures::future::try_join_all;
-use node_client::NodeClient;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Asset;
 use tokio::sync::{Mutex, MutexGuard, RwLock, mpsc};
-use tonic::transport::{Certificate, Channel};
+use tonic::transport::Certificate;
 use tracing::error;
 
 use crate::{errors::CommonError, quote_handler::QuoteHandlerEvent};
@@ -76,7 +76,7 @@ impl AppState {
     pub async fn get_node_client_connection(
         &self,
         node_id: u32,
-    ) -> Result<NodeClient<Channel>, connection_cache::ConnectionCacheError> {
+    ) -> Result<GrpcClient, connection_cache::ConnectionCacheError> {
         self.connection_cache.get_or_create_client(node_id).await
     }
 

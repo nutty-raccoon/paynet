@@ -1,3 +1,5 @@
+use cashu_client::{CashuClient, CheckStateRequest};
+use nuts::nut07::ProofState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use uuid::Uuid;
@@ -35,8 +37,6 @@ async fn sync_single_wad(
     sync_info: SyncData,
     root_ca_certificate: Option<tonic::transport::Certificate>,
 ) -> Result<Option<db::wad::WadStatus>, Error> {
-    use node_client::{CheckStateRequest, ProofState};
-
     let SyncData {
         id: wad_id,
         r#type: _wad_type,
@@ -52,31 +52,19 @@ async fn sync_single_wad(
         return Ok(None);
     }
 
-    let mut node_client = crate::connect_to_node(&node_url, root_ca_certificate).await?;
+    let mut node_client = crate::connect_to_node(node_url, root_ca_certificate).await?;
 
     let check_request = CheckStateRequest {
         ys: proof_ys.iter().map(|y| y.to_bytes().to_vec()).collect(),
     };
 
-    let response = node_client.check_state(check_request).await?;
-    let states = response.into_inner().states;
-    let all_spent = states
-        .iter()
-        .all(|state| match ProofState::try_from(state.state) {
-            Ok(ProofState::PsSpent) => true,
-            Ok(ProofState::PsUnspent | ProofState::PsPending) => false,
-            Ok(_unexpected_state) => false,
-            Err(_) => false,
-        });
-
-    for state in &states {
-        ProofState::try_from(state.state).map_err(|_| {
-            Error::UnexpectedProofState(format!(
-                "Invalid proof state encountered for WAD {}: {:?}",
-                wad_id, state.state
-            ))
-        })?;
-    }
+    let response = node_client.client.check_state(check_request).await?;
+    let states = response.proof_check_states;
+    let all_spent = states.iter().all(|state| match state.state {
+        ProofState::Spent => true,
+        ProofState::Unspent | ProofState::Pending => false,
+        ProofState::Unspecified => false,
+    });
 
     if all_spent {
         let db_conn = pool.get()?;

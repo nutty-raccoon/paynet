@@ -1,8 +1,7 @@
 use anyhow::{Result, anyhow};
+use cashu_client::GrpcClient;
 use clap::{Args, Parser, Subcommand, ValueHint};
 use colored::*;
-use node_client::NodeClient;
-use nuts::Amount;
 use parse_asset_amount::parse_asset_amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -13,11 +12,12 @@ use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
+    ConnectToNodeResponse,
     db::balance::Balance,
     melt::wait_for_payment,
     send::load_proofs_and_create_wads,
     types::{
-        NodeUrl, Wad,
+        Wad,
         compact_wad::{CompactWad, CompactWads},
     },
 };
@@ -290,7 +290,10 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Node(NodeCommands::Add { node_url }) => {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
-            let mut node_client = wallet::connect_to_node(&node_url, opt_tls_root_ca_cert).await?;
+            let ConnectToNodeResponse {
+                client: mut node_client,
+                url: node_url,
+            } = wallet::connect_to_node(node_url, opt_tls_root_ca_cert).await?;
 
             let tx = db_conn.transaction()?;
             let node_id = wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
@@ -345,15 +348,18 @@ async fn main() -> Result<()> {
             asset,
             node_id,
         }) => {
-            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
-            println!("Requesting {} to mint {} {}", &node_url, amount, asset);
+            let mut node_client = connect_to_node(&mut db_conn, node_id).await?;
+            println!(
+                "Requesting {} to mint {} {}",
+                &node_client.url, amount, asset
+            );
 
             let unit = asset.find_best_unit();
             let amount = parse_asset_amount(&amount, asset, unit)?;
 
             let mint_quote_response = wallet::mint::create_quote(
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 node_id,
                 STARKNET_STR.to_string(),
                 amount,
@@ -398,7 +404,7 @@ async fn main() -> Result<()> {
 
             match wallet::mint::wait_for_quote_payment(
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 STARKNET_STR.to_string(),
                 mint_quote_response.quote.clone(),
             )
@@ -413,7 +419,7 @@ async fn main() -> Result<()> {
             wallet::mint::redeem_quote(
                 SEED_PHRASE_MANAGER,
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 STARKNET_STR.to_string(),
                 &mint_quote_response.quote,
                 node_id,
@@ -431,7 +437,7 @@ async fn main() -> Result<()> {
             node_id,
             to,
         } => {
-            let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            let mut node_client = connect_to_node(&mut db_conn, node_id).await?;
 
             println!("Melting {} {} tokens", amount, asset);
 
@@ -455,7 +461,7 @@ async fn main() -> Result<()> {
             // Create the quote
             let melt_quote_response = wallet::melt::create_quote(
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 node_id,
                 method.clone(),
                 unit.to_string(),
@@ -467,22 +473,25 @@ async fn main() -> Result<()> {
             let melt_response = wallet::melt::pay_quote(
                 SEED_PHRASE_MANAGER,
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 node_id,
                 melt_quote_response.quote.clone(),
-                Amount::from(melt_quote_response.amount),
+                melt_quote_response.amount,
                 method.clone(),
                 unit.as_str(),
             )
             .await?;
             println!("Melt submited!");
 
-            if melt_response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
-                display_paid_melt_quote(melt_quote_response.quote, melt_response.transfer_ids);
+            if melt_response.state == nuts::nut05::MeltQuoteState::Paid {
+                display_paid_melt_quote(
+                    melt_quote_response.quote,
+                    melt_response.transfer_ids.unwrap_or_default(),
+                );
             } else {
                 match wait_for_payment(
                     pool.clone(),
-                    &mut node_client,
+                    &mut node_client.client,
                     method,
                     melt_quote_response.quote.clone(),
                 )
@@ -534,19 +543,19 @@ async fn main() -> Result<()> {
             // Get the ids of the proofs that we are going to spend for each node
             let mut node_and_proofs = Vec::with_capacity(node_ids_with_amount_to_use.len());
             for (node_id, amount_to_use) in node_ids_with_amount_to_use {
-                let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
+                let mut node_client = connect_to_node(&mut db_conn, node_id).await?;
 
                 let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
                     crate::SEED_PHRASE_MANAGER,
                     pool.clone(),
-                    &mut node_client,
+                    &mut node_client.client,
                     node_id,
                     amount_to_use,
                     unit.as_str(),
                 )
                 .await?
                 .ok_or(anyhow!("not enough funds"))?;
-                node_and_proofs.push(((node_id, node_url), proofs_ids));
+                node_and_proofs.push(((node_id, node_client.url), proofs_ids));
             }
 
             let wads =
@@ -574,16 +583,13 @@ async fn main() -> Result<()> {
             let wads = args.read_wads()?;
 
             for wad in wads {
-                let mut node_client =
-                    wallet::connect_to_node(&wad.node_url, opt_tls_root_ca_cert.clone()).await?;
+                let ConnectToNodeResponse {
+                    client: mut node_client,
+                    url: node_url,
+                } = wallet::connect_to_node(wad.node_url, opt_tls_root_ca_cert.clone()).await?;
+
                 let node_id =
-                    wallet::node::register(pool.clone(), &mut node_client, &wad.node_url).await?;
-                let CompactWad {
-                    node_url,
-                    unit,
-                    memo,
-                    proofs,
-                } = wad;
+                    wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
 
                 match wallet::receive_wad(
                     SEED_PHRASE_MANAGER,
@@ -591,18 +597,18 @@ async fn main() -> Result<()> {
                     &mut node_client,
                     node_id,
                     &node_url,
-                    &unit,
-                    proofs,
-                    &memo,
+                    &wad.unit,
+                    wad.proofs,
+                    &wad.memo,
                 )
                 .await
                 {
                     Ok(a) => {
                         println!("Received tokens on node `{}`", node_id);
-                        if let Some(memo) = memo {
+                        if let Some(memo) = wad.memo {
                             println!("Memo: {}", memo);
                         }
-                        println!("{} {}", a, unit.as_str());
+                        println!("{} {}", a, wad.unit.as_str());
                     }
                     Err(e) => {
                         println!(
@@ -696,9 +702,9 @@ async fn main() -> Result<()> {
 pub async fn connect_to_node(
     conn: &mut Connection,
     node_id: u32,
-) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
+) -> Result<wallet::ConnectToNodeResponse<GrpcClient>> {
     let node_url = wallet::db::node::get_url_by_id(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = wallet::connect_to_node(&node_url, None).await?;
-    Ok((node_client, node_url))
+    let connect_to_node_response = wallet::connect_to_node(node_url, None).await?;
+    Ok(connect_to_node_response)
 }

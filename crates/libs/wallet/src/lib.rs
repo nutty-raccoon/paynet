@@ -11,27 +11,26 @@ pub mod types;
 pub mod wad;
 pub mod wallet;
 
-use errors::{
-    CommonError, Error, handle_out_of_sync_keyset_errors, handle_proof_verification_errors,
-};
-use node_client::{AcknowledgeRequest, NodeClient, hash_swap_request};
+use cashu_client::{CashuClient, GrpcClient};
+use errors::{CommonError, Error};
+use node_client::NodeClient;
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
 use nuts::nut00::{self, BlindedMessage, Proof};
 use nuts::nut01::{self, PublicKey, SecretKey};
 use nuts::nut02::KeysetId;
-use nuts::nut19::Route;
+use nuts::nut19::{Route, hash_swap_request};
 use nuts::{Amount, SplitTarget};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, Transaction, params};
 use std::str::FromStr;
-use tonic::Request;
-use tonic::transport::Channel;
 use types::compact_wad::CompactKeysetProofs;
 use types::{BlindingData, NodeUrl, PreMints, ProofState};
 use wallet::SeedPhraseManager;
+
+use crate::errors::{handle_already_spent_proofs, handle_crypto_invalid_proofs};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -58,7 +57,7 @@ pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node_client::BlindedMe
 
 pub async fn read_or_import_node_keyset(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     keyset_id: KeysetId,
 ) -> Result<(String, u64), Error> {
@@ -74,14 +73,9 @@ pub async fn read_or_import_node_keyset(
 
     let keyset_id_as_bytes = keyset_id.to_bytes();
 
-    let resp = node_client
-        .keys(node_client::GetKeysRequest {
-            keyset_id: Some(keyset_id_as_bytes.to_vec()),
-        })
-        .await?
-        .into_inner();
+    let resp = node_client.keys(Some(keyset_id)).await?;
     let keyset = resp.keysets.first().unwrap();
-    let max_order = keyset.keys.iter().map(|k| k.amount).max().unwrap();
+    let max_order: u64 = keyset.keys.iter().map(|k| k.amount.into()).max().unwrap();
 
     let db_conn = pool.get()?;
     db_conn.execute(
@@ -89,10 +83,16 @@ pub async fn read_or_import_node_keyset(
         params![keyset_id_as_bytes, node_id, &keyset.unit, keyset.active],
     )?;
 
+    let pairs: Vec<(u64, String)> = keyset
+        .keys
+        .iter()
+        .map(|k| (k.amount.into(), k.publickey.to_hex()))
+        .collect();
+
     db::insert_keyset_keys(
         &db_conn,
         keyset_id,
-        keyset.keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
+        pairs.iter().map(|(amt, s)| (*amt, s.as_str())),
     )?;
 
     Ok((keyset.unit.clone(), max_order))
@@ -179,7 +179,7 @@ pub fn store_new_proofs_from_blind_signatures(
 pub async fn fetch_inputs_ids_from_db_or_node(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     target_amount: Amount,
     unit: &str,
@@ -302,7 +302,7 @@ pub fn unprotected_load_tokens_from_db(
 pub async fn swap_to_have_target_amount(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     unit: &str,
     target_amount: Amount,
@@ -327,17 +327,17 @@ pub async fn swap_to_have_target_amount(
         blinding_data,
     )?;
 
-    let inputs = vec![node_client::Proof {
-        amount: proof_to_swap.1.into(),
-        keyset_id: input_unblind_signature.0.to_bytes().to_vec(),
-        secret: input_unblind_signature.2.to_string(),
-        unblind_signature: input_unblind_signature.1.to_bytes().to_vec(),
+    let inputs = vec![nuts::nut00::Proof {
+        amount: proof_to_swap.1,
+        keyset_id: input_unblind_signature.0,
+        secret: input_unblind_signature.2,
+        c: input_unblind_signature.1,
     }];
 
-    let outputs = pre_mints.build_node_client_outputs();
+    let outputs = pre_mints.build_nuts_outputs();
 
-    let swap_request = node_client::SwapRequest { inputs, outputs };
-    let swap_request_hash = hash_swap_request(&swap_request);
+    let swap_request = nuts::nut03::SwapRequest { inputs, outputs };
+    let swap_request_hash = nuts::nut19::hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
 
     let new_tokens = {
@@ -345,13 +345,33 @@ pub async fn swap_to_have_target_amount(
         let swap_response = match swap_result {
             Ok(r) => {
                 db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Spent)?;
-                r.into_inner()
+                r
             }
             Err(e) => {
                 // TODO: add retry once we are sync
-                handle_out_of_sync_keyset_errors(&e, pool, node_client, node_id).await?;
-                handle_proof_verification_errors(&e, &[proof_to_swap.0], &db_conn)?;
-                return Err(e.into());
+                match &e {
+                    cashu_client::CashuClientError::Proof(proof_errors) => {
+                        if !proof_errors[0].indexes.is_empty() {
+                            handle_already_spent_proofs(
+                                proof_errors[0].indexes.clone(),
+                                &[proof_to_swap.0],
+                                &db_conn,
+                            )?;
+                        }
+                        if !proof_errors[1].indexes.is_empty() {
+                            handle_crypto_invalid_proofs(
+                                proof_errors[1].indexes.clone(),
+                                &[proof_to_swap.0],
+                                &db_conn,
+                            )?;
+                        }
+                    }
+                    cashu_client::CashuClientError::InactiveKeyset => {
+                        crate::node::refresh_keysets(pool, node_client, node_id).await?;
+                    }
+                    _ => {}
+                };
+                return Err((e).into());
             }
         };
 
@@ -384,7 +404,7 @@ pub enum ReceiveWadError {
     #[error("failed to prepare insert proof statement: {0}")]
     ExecuteInsertProofStatment(#[source] rusqlite::Error),
     #[error("failed to swap proofs with node: {0}")]
-    SwapWithNode(#[source] tonic::Status),
+    SwapWithNode(#[source] cashu_client::CashuClientError),
     #[error(transparent)]
     SetProofsToState(#[from] db::proof::SetProofsToStateError),
     #[error(transparent)]
@@ -395,7 +415,7 @@ pub enum ReceiveWadError {
 pub async fn receive_wad(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     node_url: &NodeUrl,
     unit: &str,
@@ -452,11 +472,11 @@ pub async fn receive_wad(
                 .checked_add(&compact_proof.amount)
                 .ok_or(ReceiveWadError::TotalWadAmountOverflow)?;
 
-            inputs.push(node_client::Proof {
-                amount,
-                keyset_id: compact_keyset_proof.keyset_id.to_bytes().to_vec(),
-                secret: compact_proof.secret.to_string(),
-                unblind_signature: compact_proof.c.to_bytes().to_vec(),
+            inputs.push(Proof {
+                amount: amount.into(),
+                keyset_id: compact_keyset_proof.keyset_id,
+                secret: compact_proof.secret.clone(),
+                c: compact_proof.c,
             });
             stmt_params.push((
                 y,
@@ -498,19 +518,31 @@ pub async fn receive_wad(
 
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)
         .map_err(|e| CommonError::GeneratePremintsForAmount(total_amount, e))?;
-    let outputs = pre_mints.build_node_client_outputs();
+    let outputs = pre_mints.build_nuts_outputs();
 
-    let swap_request = node_client::SwapRequest { inputs, outputs };
+    let swap_request = nuts::nut03::SwapRequest {
+        inputs: inputs.clone(),
+        outputs,
+    };
     let swap_request_hash = hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
 
     {
         let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
         let swap_response = match swap_result {
-            Ok(r) => r.into_inner(),
+            Ok(r) => r,
             Err(e) => {
-                handle_proof_verification_errors(&e, &ys, &db_conn)
-                    .map_err(CommonError::HandleProofVerificationErrors)?;
+                if let cashu_client::CashuClientError::Proof(errors) = &e {
+                    if !errors[0].indexes.is_empty() {
+                        handle_already_spent_proofs(errors[0].indexes.clone(), &ys, &db_conn)
+                            .map_err(CommonError::HandleProofVerificationErrors)?;
+                    }
+                    if !errors[1].indexes.is_empty() {
+                        handle_crypto_invalid_proofs(errors[1].indexes.clone(), &ys, &db_conn)
+                            .map_err(CommonError::HandleProofVerificationErrors)?;
+                    }
+                }
+
                 return Err(ReceiveWadError::SwapWithNode(e));
             }
         };
@@ -543,10 +575,16 @@ pub enum ConnectToNodeError {
     TlsConfig(#[source] tonic::transport::Error),
 }
 
+#[derive(Debug)]
+pub struct ConnectToNodeResponse<C: CashuClient> {
+    pub client: C,
+    pub url: NodeUrl,
+}
+
 pub async fn connect_to_node(
-    node_url: &NodeUrl,
+    node_url: NodeUrl,
     root_ca_certificate: Option<tonic::transport::Certificate>,
-) -> Result<NodeClient<Channel>, ConnectToNodeError> {
+) -> Result<ConnectToNodeResponse<GrpcClient>, ConnectToNodeError> {
     let uses_tls = node_url.0.scheme() == "https";
     let url_str = node_url.0.to_string();
 
@@ -570,13 +608,18 @@ pub async fn connect_to_node(
         .await
         .map_err(ConnectToNodeError::Tonic)?;
 
-    Ok(NodeClient::new(channel))
+    Ok(ConnectToNodeResponse {
+        client: GrpcClient {
+            node: NodeClient::new(channel),
+        },
+        url: node_url,
+    })
 }
 
 pub fn connect_to_node_lazy(
-    node_url: &NodeUrl,
+    node_url: NodeUrl,
     root_ca_certificate: Option<tonic::transport::Certificate>,
-) -> Result<NodeClient<Channel>, ConnectToNodeError> {
+) -> Result<ConnectToNodeResponse<GrpcClient>, ConnectToNodeError> {
     let uses_tls = node_url.0.scheme() == "https";
     let url_str = node_url.0.to_string();
 
@@ -597,19 +640,23 @@ pub fn connect_to_node_lazy(
 
     let channel = endpoint.connect_lazy();
 
-    Ok(NodeClient::new(channel))
+    let client = GrpcClient {
+        node: NodeClient::new(channel),
+    };
+
+    Ok(ConnectToNodeResponse {
+        client,
+        url: node_url,
+    })
 }
 
 pub async fn acknowledge(
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     route: Route,
     message_hash: u64,
-) -> Result<(), tonic::Status> {
+) -> Result<(), cashu_client::CashuClientError> {
     node_client
-        .acknowledge(Request::new(AcknowledgeRequest {
-            path: route.to_string(),
-            request_hash: message_hash,
-        }))
+        .acknowledge(route.to_string(), message_hash)
         .await?;
 
     Ok(())

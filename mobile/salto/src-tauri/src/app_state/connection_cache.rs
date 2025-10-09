@@ -4,12 +4,12 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use node_client::{GetNodeInfoRequest, NodeClient};
+use cashu_client::{CashuClient, GrpcClient};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use starknet_types::Unit;
 use tokio::sync::RwLock;
-use tonic::transport::{Certificate, Channel};
+use tonic::transport::Certificate;
 use tracing::info;
 use wallet::{ConnectToNodeError, connect_to_node};
 
@@ -29,18 +29,17 @@ pub enum ConnectionCacheError {
 
 #[derive(Debug, Clone)]
 struct CachedConnection {
-    client: NodeClient<Channel>,
+    client: GrpcClient,
     info: Option<NodeInfo>,
     created_at: SystemTime,
 }
 
 impl CachedConnection {
-    async fn new(mut client: NodeClient<Channel>) -> Self {
-        let opt_node_info = match client.get_node_info(GetNodeInfoRequest {}).await {
-            Ok(r) => serde_json::from_str(&r.into_inner().info).ok(),
+    async fn new(mut client: GrpcClient) -> Self {
+        let opt_node_info = match client.info().await {
+            Ok(r) => serde_json::from_str(&r.info).ok(),
             Err(_) => None,
         };
-
         Self {
             client,
             info: opt_node_info,
@@ -81,7 +80,7 @@ impl ConnectionCache {
     pub async fn get_or_create_client(
         &self,
         node_id: u32,
-    ) -> Result<NodeClient<Channel>, ConnectionCacheError> {
+    ) -> Result<GrpcClient, ConnectionCacheError> {
         // Check cache first
         {
             let cache = self.cache.read().await;
@@ -100,16 +99,16 @@ impl ConnectionCache {
         };
 
         // Create new connection
-        let client = connect_to_node(&node_url, self.opt_root_ca_cert.clone()).await?;
+        let client = connect_to_node(node_url, self.opt_root_ca_cert.clone()).await?;
 
         // Update cache
         {
             let mut cache = self.cache.write().await;
-            let cached_connection = CachedConnection::new(client.clone()).await;
+            let cached_connection = CachedConnection::new(client.client.clone()).await;
             cache.insert(node_id, cached_connection);
         }
 
-        Ok(client)
+        Ok(client.client)
     }
 
     pub async fn get_node_info(
@@ -136,10 +135,10 @@ impl ConnectionCache {
         // Update cache
         let info = {
             // Create new connection
-            let client = connect_to_node(&node_url, self.opt_root_ca_cert.clone()).await?;
+            let client = connect_to_node(node_url, self.opt_root_ca_cert.clone()).await?;
 
             let mut cache = self.cache.write().await;
-            let cached_connection = CachedConnection::new(client.clone()).await;
+            let cached_connection = CachedConnection::new(client.client.clone()).await;
             let info = cached_connection.info.clone();
             cache.insert(node_id, cached_connection);
 

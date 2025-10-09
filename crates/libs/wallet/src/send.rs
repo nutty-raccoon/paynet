@@ -1,10 +1,9 @@
-use node_client::NodeClient;
+use cashu_client::CashuClient;
 use num_traits::Zero;
 use nuts::{Amount, nut01::PublicKey, traits::Unit};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
-use tonic::transport::Channel;
 use tracing::error;
 
 use crate::{
@@ -106,7 +105,7 @@ pub enum GatherProofIdsFromNodeError {
 pub async fn gather_proofs_ids_for_node<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
     seed_phrase_manager: impl SeedPhraseManager,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     amount: Amount,
     unit: U,

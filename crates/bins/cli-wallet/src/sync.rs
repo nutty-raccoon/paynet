@@ -1,12 +1,11 @@
 use anyhow::{Result, anyhow};
-use node_client::NodeClient;
+use cashu_client::GrpcClient;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
+use wallet::ConnectToNodeResponse;
 use wallet::db::melt_quote::PendingMeltQuote;
 use wallet::melt::format_melt_transfers_id_into_term_message;
-use wallet::types::NodeUrl;
 
 use crate::SEED_PHRASE_MANAGER;
 
@@ -25,11 +24,11 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
             .ok_or(anyhow!("unknown node id: {}", node_id))?;
         println!("Syncing node {} ({}) mint quotes", node_id, node_url);
 
-        let (mut node_client, _) = connect_to_node(pool.clone(), node_id).await?;
+        let mut node_client = connect_to_node(pool.clone(), node_id).await?;
         wallet::sync::mint_quotes(
             SEED_PHRASE_MANAGER,
             pool.clone(),
-            &mut node_client,
+            &mut node_client.client,
             node_id,
             pending_quotes,
             true,
@@ -41,8 +40,8 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
             .ok_or(anyhow!("unknown node id: {}", node_id))?;
         println!("Syncing node {} ({}) melt quotes", node_id, node_url);
 
-        let (mut node_client, _) = connect_to_node(pool.clone(), node_id).await?;
-        sync_melt_quotes(&pool, &mut node_client, &pending_quotes).await?;
+        let mut node_client = connect_to_node(pool.clone(), node_id).await?;
+        sync_melt_quotes(&pool, &mut node_client.client, &pending_quotes).await?;
     }
 
     // Sync pending WADs using the lib wallet function i
@@ -64,7 +63,7 @@ pub async fn sync_all_pending_operations(pool: Pool<SqliteConnectionManager>) ->
 
 async fn sync_melt_quotes(
     pool: &Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut GrpcClient,
     pending_melt_quotes: &[PendingMeltQuote],
 ) -> Result<()> {
     for pending_melt_quote in pending_melt_quotes {
@@ -82,7 +81,7 @@ async fn sync_melt_quotes(
 
 async fn sync_melt_quote(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut GrpcClient,
     method: String,
     quote_id: String,
 ) -> Result<bool> {
@@ -116,16 +115,16 @@ pub fn display_paid_melt_quote(quote_id: String, tx_ids: Vec<String>) {
 async fn connect_to_node(
     pool: Pool<SqliteConnectionManager>,
     node_id: u32,
-) -> Result<(NodeClient<Channel>, NodeUrl)> {
+) -> Result<ConnectToNodeResponse<GrpcClient>> {
     let node_url = {
         let db_conn = pool.get()?;
         wallet::db::node::get_url_by_id(&db_conn, node_id)?
             .ok_or(anyhow!("unknown node id: {}", node_id))?
     };
 
-    let node_client = wallet::connect_to_node(&node_url, None)
+    let connect_to_node_restponse = wallet::connect_to_node(node_url, None)
         .await
-        .map_err(|e| anyhow!("Failed to connect to node {}: {}", node_url, e))?;
+        .map_err(|e| anyhow!("Failed to connect to node: {}", e))?;
 
-    Ok((node_client, node_url))
+    Ok(connect_to_node_restponse)
 }

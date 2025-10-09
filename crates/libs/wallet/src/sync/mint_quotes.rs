@@ -1,10 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use node_client::{NodeClient, QuoteStateRequest, UnspecifiedEnum};
+use cashu_client::CashuClient;
+use node_client::UnspecifiedEnum;
 use nuts::nut04::MintQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::{Code, transport::Channel};
 use tracing::{Level, error, event};
 
 use crate::{
@@ -29,7 +29,7 @@ pub struct MintQuotesStateUpdate {
 pub async fn mint_quotes(
     seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     pending_mint_quotes: Vec<PendingMintQuote>,
     trigger_redeem: bool,
@@ -104,8 +104,8 @@ pub enum SyncMintQuoteError {
     Delete(rusqlite::Error),
     #[error("failed to set quote state: {0}")]
     SetState(rusqlite::Error),
-    #[error("failed to intact witht he node: {0}")]
-    Tonic(#[from] tonic::Status),
+    #[error("failed to interact with the node: {0}")]
+    CashuClient(#[from] cashu_client::CashuClientError),
 }
 
 /// Sync the state of this quote from the node.
@@ -118,25 +118,17 @@ pub enum SyncMintQuoteError {
 /// otherwise returns its current state.
 pub async fn mint_quote(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: String,
 ) -> Result<Option<MintQuoteState>, SyncMintQuoteError> {
-    let response = node_client
-        .mint_quote_state(QuoteStateRequest {
-            method,
-            quote: quote_id.clone(),
-        })
-        .await;
+    let response = node_client.mint_quote_state(method, quote_id.clone()).await;
 
     let db_conn = pool.get()?;
     match response {
         Ok(response) => {
-            let response = response.into_inner();
-            let state = MintQuoteState::try_from(
-                node_client::MintQuoteState::try_from(response.state)
-                    .map_err(|e| SyncMintQuoteError::InvalidState(e.to_string()))?,
-            )?;
+            let state =
+                MintQuoteState::try_from(node_client::MintQuoteState::from(response.state))?;
 
             if state == MintQuoteState::Unpaid {
                 let now = SystemTime::now()
@@ -155,10 +147,10 @@ pub async fn mint_quote(
 
             Ok(Some(state))
         }
-        Err(s) if s.code() == Code::NotFound => {
+        Err(cashu_client::CashuClientError::QuoteNotFound) => {
             db::mint_quote::delete(&db_conn, &quote_id).map_err(SyncMintQuoteError::Delete)?;
             Ok(None)
         }
-        Err(e) => Err(e)?,
+        Err(e) => Err(SyncMintQuoteError::CashuClient(e)),
     }
 }

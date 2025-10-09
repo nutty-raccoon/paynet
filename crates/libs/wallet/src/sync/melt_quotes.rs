@@ -1,10 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use node_client::{NodeClient, UnspecifiedEnum};
+use node_client::UnspecifiedEnum;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::{Code, transport::Channel};
 use tracing::{Level, debug, event};
 
 use crate::{
@@ -27,7 +26,7 @@ pub struct MeltQuotesStateUpdate {
 
 pub async fn melt_quotes(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl cashu_client::CashuClient,
     pending_melt_quotes: Vec<PendingMeltQuote>,
 ) -> Result<MeltQuotesStateUpdate, SyncMeltQuotesError> {
     let mut states_updates = MeltQuotesStateUpdate::default();
@@ -87,7 +86,7 @@ pub enum SyncMeltQuoteError {
     #[error("failed register transfers ids: {0}")]
     RegisterTransferIds(rusqlite::Error),
     #[error("failed to interact with the node: {0}")]
-    Tonic(#[from] tonic::Status),
+    Client(#[from] cashu_client::CashuClientError),
     #[error("failed to start database transaction: {0}")]
     StartDbTransaction(#[source] rusqlite::Error),
     #[error("failed to commit database transaction: {0}")]
@@ -106,25 +105,17 @@ pub enum SyncMeltQuoteError {
 /// otherwise returns its current state.
 pub async fn melt_quote(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl cashu_client::CashuClient,
     method: String,
     quote_id: String,
 ) -> Result<Option<(MeltQuoteState, Vec<String>)>, SyncMeltQuoteError> {
-    let response = node_client
-        .melt_quote_state(node_client::MeltQuoteStateRequest {
-            method,
-            quote: quote_id.clone(),
-        })
-        .await;
+    let response = node_client.melt_quote_state(method, quote_id.clone()).await;
 
     let mut db_conn = pool.get()?;
     match response {
         Ok(response) => {
-            let response = response.into_inner();
-            let state = MeltQuoteState::try_from(
-                node_client::MeltQuoteState::try_from(response.state)
-                    .map_err(|e| SyncMeltQuoteError::InvalidState(e.to_string()))?,
-            )?;
+            let state =
+                MeltQuoteState::try_from(node_client::MeltQuoteState::from(response.state))?;
 
             let tx = db_conn
                 .transaction()
@@ -143,7 +134,7 @@ pub async fn melt_quote(
                 }
                 MeltQuoteState::Pending => {}
                 MeltQuoteState::Paid => {
-                    if !response.transfer_ids.is_empty() {
+                    if response.transfer_ids.is_some() {
                         let transfer_ids_to_store = serde_json::to_string(&response.transfer_ids)?;
                         db::melt_quote::register_transfer_ids(
                             &tx,
@@ -160,9 +151,9 @@ pub async fn melt_quote(
             tx.commit()
                 .map_err(SyncMeltQuoteError::CommitDbTransaction)?;
 
-            Ok(Some((state, response.transfer_ids)))
+            Ok(Some((state, response.transfer_ids.unwrap_or_default())))
         }
-        Err(s) if s.code() == Code::NotFound => {
+        Err(cashu_client::CashuClientError::QuoteNotFound) => {
             db::mint_quote::delete(&db_conn, &quote_id).map_err(SyncMeltQuoteError::Delete)?;
             Ok(None)
         }
