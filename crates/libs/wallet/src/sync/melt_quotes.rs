@@ -4,7 +4,6 @@ use node_client::UnspecifiedEnum;
 use nuts::nut05::MeltQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::Code;
 use tracing::{Level, debug, event};
 
 use crate::{
@@ -87,7 +86,7 @@ pub enum SyncMeltQuoteError {
     #[error("failed register transfers ids: {0}")]
     RegisterTransferIds(rusqlite::Error),
     #[error("failed to interact with the node: {0}")]
-    Client(#[from] cashu_client::Error),
+    Client(#[from] cashu_client::CashuClientError),
     #[error("failed to start database transaction: {0}")]
     StartDbTransaction(#[source] rusqlite::Error),
     #[error("failed to commit database transaction: {0}")]
@@ -154,7 +153,7 @@ pub async fn melt_quote(
 
             Ok(Some((state, response.transfer_ids.unwrap_or_default())))
         }
-        Err(cashu_client::Error::Grpc(s)) if s.code() == Code::NotFound => {
+        Err(cashu_client::CashuClientError::QuoteNotFound) => {
             db::mint_quote::delete(&db_conn, &quote_id).map_err(SyncMeltQuoteError::Delete)?;
             Ok(None)
         }

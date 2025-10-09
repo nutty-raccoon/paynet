@@ -29,7 +29,7 @@ pub enum CommonError {
     #[error("failed to store the PreMints new tokens: {0}")]
     PreMintsStoreNewTokens(#[source] crate::Error),
     #[error("failed to acknowledge node response to {0}: {0}")]
-    AcknowledgeNodeResponse(&'static str, #[source] cashu_client::Error),
+    AcknowledgeNodeResponse(&'static str, #[source] cashu_client::CashuClientError),
 }
 
 #[derive(Error, Debug)]
@@ -93,13 +93,13 @@ pub enum Error {
     #[error("fail to refresh node keyset: {0}")]
     RefreshNodeKeyset(#[from] RefreshNodeKeysetError),
     #[error(transparent)]
-    Cashu(#[from] cashu_client::Error),
-    #[error(transparent)]
     SetProofsToState(#[from] db::proof::SetProofsToStateError),
     #[error(transparent)]
     GetProofsByIds(#[from] db::proof::GetProofsByIdsError),
     #[error(transparent)]
     UpdateWadStatusError(#[from] db::wad::UpdateWadStatusError),
+    #[error("failed to interact with the node: {0}")]
+    CashuClient(#[from] cashu_client::CashuClientError),
 }
 
 impl From<StoreNewProofsError> for Error {

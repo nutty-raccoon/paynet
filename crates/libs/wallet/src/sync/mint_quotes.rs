@@ -5,7 +5,6 @@ use node_client::UnspecifiedEnum;
 use nuts::nut04::MintQuoteState;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::Code;
 use tracing::{Level, error, event};
 
 use crate::{
@@ -105,8 +104,8 @@ pub enum SyncMintQuoteError {
     Delete(rusqlite::Error),
     #[error("failed to set quote state: {0}")]
     SetState(rusqlite::Error),
-    #[error("failed to intact witht he node: {0}")]
-    Tonic(#[from] cashu_client::Error),
+    #[error("failed to interact with the node: {0}")]
+    CashuClient(#[from] cashu_client::CashuClientError),
 }
 
 /// Sync the state of this quote from the node.
@@ -148,10 +147,10 @@ pub async fn mint_quote(
 
             Ok(Some(state))
         }
-        Err(cashu_client::Error::Grpc(s)) if s.code() == Code::NotFound => {
+        Err(cashu_client::CashuClientError::QuoteNotFound) => {
             db::mint_quote::delete(&db_conn, &quote_id).map_err(SyncMintQuoteError::Delete)?;
             Ok(None)
         }
-        Err(e) => Err(e)?,
+        Err(e) => Err(SyncMintQuoteError::CashuClient(e)),
     }
 }

@@ -1,10 +1,10 @@
 use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
-    nut01::{self, PublicKey},
-    nut02::{self, KeysetId},
+    nut01::PublicKey,
+    nut02::KeysetId,
     nut03::{SwapRequest, SwapResponse},
-    nut04::{self, MintQuoteResponse, MintRequest, MintResponse},
+    nut04::{MintQuoteResponse, MintRequest, MintResponse},
     nut05::{MeltQuoteState, MeltRequest, MeltResponse},
     nut07::CheckStateResponse,
 };
@@ -15,24 +15,6 @@ mod proof_errors_handler;
 
 pub use grpc_client::GrpcClient;
 pub use proof_errors_handler::ProofErrorHandler;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("gRPC error: {0}")]
-    Grpc(#[from] tonic::Status),
-    #[error("Invalid State in {method}")]
-    InvalidState { method: String },
-    #[error(transparent)]
-    KeysetId(nut02::Error),
-    #[error(transparent)]
-    PublicKey(nut01::Error),
-    #[error(transparent)]
-    Method(nut04::Error),
-    #[error("invalid field format: '[' or ']' not found")]
-    InvalidFormat,
-    #[error("invalid index: {0}")]
-    ParseError(#[from] std::num::ParseIntError),
-}
 
 #[derive(Debug, Clone)]
 pub struct ClientMintQuoteRequest {
@@ -111,72 +93,69 @@ pub struct ClientRestoreResponse {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum CashuClientError<E: std::error::Error> {
+pub enum CashuClientError {
     #[error("proofs already spent at indexes: {indexes:?}")]
     AlreadySpent { indexes: Vec<u32> },
     #[error("invalid proofs at indexes: {indexes:?}")]
     InvalidProof { indexes: Vec<u32> },
     #[error("keyset with id {keyset_id} inactive")]
     InactiveKeyset { keyset_id: KeysetId },
+    #[error("quote not found")]
+    QuoteNotFound,
     #[error(transparent)]
-    Other(E),
+    Other(Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 #[async_trait::async_trait]
 pub trait CashuClient: ProofErrorHandler + Send + Sync + Clone {
     type InnerError: std::error::Error;
 
-    async fn keysets(
-        &mut self,
-    ) -> Result<ClientKeysetsResponse, CashuClientError<Self::InnerError>>;
+    async fn keysets(&mut self) -> Result<ClientKeysetsResponse, CashuClientError>;
     async fn keys(
         &mut self,
         keyset_id: Option<KeysetId>,
-    ) -> Result<ClientKeysResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<ClientKeysResponse, CashuClientError>;
     async fn mint_quote(
         &mut self,
         req: ClientMintQuoteRequest,
-    ) -> Result<MintQuoteResponse<String>, CashuClientError<Self::InnerError>>;
+    ) -> Result<MintQuoteResponse<String>, CashuClientError>;
     async fn mint(
         &mut self,
         req: MintRequest<String>,
         method: String,
-    ) -> Result<MintResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<MintResponse, CashuClientError>;
     async fn mint_quote_state(
         &mut self,
         method: String,
         quote: String,
-    ) -> Result<MintQuoteResponse<String>, CashuClientError<Self::InnerError>>;
-    async fn swap(
-        &mut self,
-        req: SwapRequest,
-    ) -> Result<SwapResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<MintQuoteResponse<String>, CashuClientError>;
+    async fn swap(&mut self, req: SwapRequest) -> Result<SwapResponse, CashuClientError>;
     async fn melt_quote(
         &mut self,
         req: ClientMeltQuoteRequest,
-    ) -> Result<ClientMeltQuoteResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<ClientMeltQuoteResponse, CashuClientError>;
     async fn melt(
         &mut self,
         method: String,
         req: MeltRequest<String>,
-    ) -> Result<MeltResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<MeltResponse, CashuClientError>;
     async fn melt_quote_state(
         &mut self,
         method: String,
         quote: String,
-    ) -> Result<ClientMeltQuoteResponse, CashuClientError<Self::InnerError>>;
-    async fn info(&mut self) -> Result<NodeInfoResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<ClientMeltQuoteResponse, CashuClientError>;
+    async fn info(&mut self) -> Result<NodeInfoResponse, CashuClientError>;
     async fn check_state(
         &mut self,
         req: CheckStateRequest,
-    ) -> Result<CheckStateResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<CheckStateResponse, CashuClientError>;
     async fn acknowledge(
         &mut self,
         path: String,
         request_hash: u64,
-    ) -> Result<(), CashuClientError<Self::InnerError>>;
+    ) -> Result<(), CashuClientError>;
     async fn restore(
         &mut self,
         outputs: Vec<BlindedMessage>,
-    ) -> Result<ClientRestoreResponse, CashuClientError<Self::InnerError>>;
+    ) -> Result<ClientRestoreResponse, CashuClientError>;
 }

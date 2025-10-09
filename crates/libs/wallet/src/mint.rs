@@ -86,7 +86,7 @@ pub enum RedeemQuoteError {
     #[error("failed to generate pre-mints: {0}")]
     PreMints(#[from] crate::errors::Error),
     #[error(transparent)]
-    CashuClient(#[from] cashu_client::Error),
+    CashuClient(#[from] cashu_client::CashuClientError),
 }
 
 #[allow(clippy::too_many_arguments)]

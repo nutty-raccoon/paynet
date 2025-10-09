@@ -1,4 +1,4 @@
-use crate::{Error, GrpcClient};
+use crate::{GrpcClient, grpc_client::Error};
 use tonic::Code;
 use tonic_types::StatusExt;
 

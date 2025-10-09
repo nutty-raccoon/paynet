@@ -57,9 +57,9 @@ pub enum PayMeltQuoteError {
     #[error("failed to handle the error occured during proof verification: {0}")]
     HandleProofsVerficationErrors(#[source] Error),
     #[error("melt operation failed: {0}")]
-    MeltOperationFailed(#[source] cashu_client::Error),
+    MeltOperationFailed(#[source] cashu_client::CashuClientError),
     #[error("failed to acknowledge: {0}")]
-    Acknowledge(#[source] cashu_client::Error),
+    Acknowledge(#[source] cashu_client::CashuClientError),
     #[error("failed to serialize transfer ids: {0}")]
     SerializeTransferIds(#[from] serde_json::Error),
     #[error(transparent)]

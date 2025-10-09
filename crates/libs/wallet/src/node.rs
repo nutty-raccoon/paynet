@@ -72,7 +72,7 @@ pub enum RestoreNodeError {
     #[error("failed to interact with wallet")]
     Wallet(#[from] crate::wallet::Error),
     #[error(transparent)]
-    Client(#[from] cashu_client::Error),
+    Client(#[from] cashu_client::CashuClientError),
 }
 
 pub async fn restore(
@@ -196,7 +196,7 @@ async fn restore_keyset(
 #[derive(Debug, thiserror::Error)]
 pub enum RefreshNodeKeysetError {
     #[error("failed to get keysets from the node: {0}")]
-    GetKeysets(#[from] cashu_client::Error),
+    GetKeysets(#[from] cashu_client::CashuClientError),
     #[error("failed connect to database: {0}")]
     R2d2(#[from] r2d2::Error),
     #[error("fail to interact with the database: {0}")]
@@ -221,11 +221,7 @@ pub async fn refresh_keysets(
     let mut futures = futures::stream::FuturesUnordered::new();
     for new_keyset_id in new_keyset_ids {
         let mut cloned_node_client = node_client.clone();
-        futures.push(async move {
-            cloned_node_client
-                .keys(Some(new_keyset_id.to_bytes().to_vec()))
-                .await
-        })
+        futures.push(async move { cloned_node_client.keys(Some(new_keyset_id)).await })
     }
 
     while let Some(res) = futures.next().await {

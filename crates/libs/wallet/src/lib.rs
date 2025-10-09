@@ -73,7 +73,7 @@ pub async fn read_or_import_node_keyset(
 
     let keyset_id_as_bytes = keyset_id.to_bytes();
 
-    let resp = node_client.keys(Some(keyset_id_as_bytes.to_vec())).await?;
+    let resp = node_client.keys(Some(keyset_id)).await?;
     let keyset = resp.keysets.first().unwrap();
     let max_order: u64 = keyset.keys.iter().map(|k| k.amount.into()).max().unwrap();
 
@@ -402,7 +402,7 @@ pub enum ReceiveWadError {
     #[error("failed to prepare insert proof statement: {0}")]
     ExecuteInsertProofStatment(#[source] rusqlite::Error),
     #[error("failed to swap proofs with node: {0}")]
-    SwapWithNode(#[source] cashu_client::Error),
+    SwapWithNode(#[source] cashu_client::CashuClientError),
     #[error(transparent)]
     SetProofsToState(#[from] db::proof::SetProofsToStateError),
     #[error(transparent)]
@@ -651,7 +651,7 @@ pub async fn acknowledge(
     node_client: &mut impl CashuClient,
     route: Route,
     message_hash: u64,
-) -> Result<(), cashu_client::Error> {
+) -> Result<(), cashu_client::CashuClientError> {
     node_client
         .acknowledge(route.to_string(), message_hash)
         .await?;
