@@ -2,7 +2,7 @@ use nuts::{
     Amount,
     nut00::{BlindSignature, BlindedMessage},
     nut01::{self, PublicKey},
-    nut02::{self},
+    nut02::{self, KeysetId},
     nut03::{SwapRequest, SwapResponse},
     nut04::{self, MintQuoteResponse, MintRequest, MintResponse},
     nut05::{MeltQuoteState, MeltRequest, MeltResponse},
@@ -110,44 +110,73 @@ pub struct ClientRestoreResponse {
     pub signatures: Vec<BlindSignature>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum CashuClientError<E: std::error::Error> {
+    #[error("proofs already spent at indexes: {indexes:?}")]
+    AlreadySpent { indexes: Vec<u32> },
+    #[error("invalid proofs at indexes: {indexes:?}")]
+    InvalidProof { indexes: Vec<u32> },
+    #[error("keyset with id {keyset_id} inactive")]
+    InactiveKeyset { keyset_id: KeysetId },
+    #[error(transparent)]
+    Other(E),
+}
+
 #[async_trait::async_trait]
 pub trait CashuClient: ProofErrorHandler + Send + Sync + Clone {
-    async fn keysets(&mut self) -> Result<ClientKeysetsResponse, Error>;
-    async fn keys(&mut self, keyset_id: Option<Vec<u8>>) -> Result<ClientKeysResponse, Error>;
+    type InnerError: std::error::Error;
+
+    async fn keysets(
+        &mut self,
+    ) -> Result<ClientKeysetsResponse, CashuClientError<Self::InnerError>>;
+    async fn keys(
+        &mut self,
+        keyset_id: Option<KeysetId>,
+    ) -> Result<ClientKeysResponse, CashuClientError<Self::InnerError>>;
     async fn mint_quote(
         &mut self,
         req: ClientMintQuoteRequest,
-    ) -> Result<MintQuoteResponse<String>, Error>;
+    ) -> Result<MintQuoteResponse<String>, CashuClientError<Self::InnerError>>;
     async fn mint(
         &mut self,
         req: MintRequest<String>,
         method: String,
-    ) -> Result<MintResponse, Error>;
+    ) -> Result<MintResponse, CashuClientError<Self::InnerError>>;
     async fn mint_quote_state(
         &mut self,
         method: String,
         quote: String,
-    ) -> Result<MintQuoteResponse<String>, Error>;
-    async fn swap(&mut self, req: SwapRequest) -> Result<SwapResponse, Error>;
+    ) -> Result<MintQuoteResponse<String>, CashuClientError<Self::InnerError>>;
+    async fn swap(
+        &mut self,
+        req: SwapRequest,
+    ) -> Result<SwapResponse, CashuClientError<Self::InnerError>>;
     async fn melt_quote(
         &mut self,
         req: ClientMeltQuoteRequest,
-    ) -> Result<ClientMeltQuoteResponse, Error>;
+    ) -> Result<ClientMeltQuoteResponse, CashuClientError<Self::InnerError>>;
     async fn melt(
         &mut self,
         method: String,
         req: MeltRequest<String>,
-    ) -> Result<MeltResponse, Error>;
+    ) -> Result<MeltResponse, CashuClientError<Self::InnerError>>;
     async fn melt_quote_state(
         &mut self,
         method: String,
         quote: String,
-    ) -> Result<ClientMeltQuoteResponse, Error>;
-    async fn info(&mut self) -> Result<NodeInfoResponse, Error>;
-    async fn check_state(&mut self, req: CheckStateRequest) -> Result<CheckStateResponse, Error>;
-    async fn acknowledge(&mut self, path: String, request_hash: u64) -> Result<(), Error>;
+    ) -> Result<ClientMeltQuoteResponse, CashuClientError<Self::InnerError>>;
+    async fn info(&mut self) -> Result<NodeInfoResponse, CashuClientError<Self::InnerError>>;
+    async fn check_state(
+        &mut self,
+        req: CheckStateRequest,
+    ) -> Result<CheckStateResponse, CashuClientError<Self::InnerError>>;
+    async fn acknowledge(
+        &mut self,
+        path: String,
+        request_hash: u64,
+    ) -> Result<(), CashuClientError<Self::InnerError>>;
     async fn restore(
         &mut self,
         outputs: Vec<BlindedMessage>,
-    ) -> Result<ClientRestoreResponse, Error>;
+    ) -> Result<ClientRestoreResponse, CashuClientError<Self::InnerError>>;
 }
