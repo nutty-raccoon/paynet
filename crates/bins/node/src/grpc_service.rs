@@ -192,7 +192,7 @@ impl Node for GrpcState {
     async fn swap(
         &self,
         swap_request: Request<SwapRequest>,
-    ) -> Result<Response<GrpcSwapResponse>, Status> {
+    ) -> Result<Response<SwapResponse>, Status> {
         let swap_request = swap_request.into_inner();
 
         if swap_request.inputs.len() > 64 {
@@ -249,15 +249,26 @@ impl Node for GrpcState {
         let cache_key = (Route::Swap, hash_swap_request(&nut_swap_request));
         // Try to get from cache first
         if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(swap_response));
+            let resp = SwapResponse {
+                signatures: swap_response
+                    .signatures
+                    .into_iter()
+                    .map(|bs| node::BlindSignature {
+                        amount: bs.amount.into(),
+                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                        blind_signature: bs.c.to_bytes().to_vec(),
+                    })
+                    .collect(),
+            };
+            return Ok(Response::new(resp));
         }
 
         let promises = self.inner_swap(&inputs, &outputs).await?;
 
-        let swap_response = GrpcSwapResponse {
+        let swap_response = SwapResponse {
             signatures: promises
                 .iter()
-                .map(|p| GrpcBlindSignature {
+                .map(|p| node::BlindSignature {
                     amount: p.amount.into(),
                     keyset_id: p.keyset_id.to_bytes().to_vec(),
                     blind_signature: p.c.to_bytes().to_vec(),
@@ -266,7 +277,7 @@ impl Node for GrpcState {
         };
 
         // Store in cache
-        let nut_swap_response = SwapResponse {
+        let nut_swap_response = nuts::nut03::SwapResponse {
             signatures: promises.clone(),
         };
         self.cache_response(cache_key, CachedResponse::Swap(nut_swap_response))?;
@@ -302,7 +313,7 @@ impl Node for GrpcState {
     async fn mint(
         &self,
         mint_request: Request<MintRequest>,
-    ) -> Result<Response<GrpcMintResponse>, Status> {
+    ) -> Result<Response<MintResponse>, Status> {
         let mint_request = mint_request.into_inner();
 
         if mint_request.outputs.is_empty() {
@@ -337,7 +348,18 @@ impl Node for GrpcState {
         let cache_key = (Route::Mint, hash_mint_request(&nut_mint_request));
         // Try to get from cache first
         if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(mint_response));
+            let resp = MintResponse {
+                signatures: mint_response
+                    .signatures
+                    .into_iter()
+                    .map(|bs| node::BlindSignature {
+                        amount: bs.amount.into(),
+                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                        blind_signature: bs.c.to_bytes().to_vec(),
+                    })
+                    .collect(),
+            };
+            return Ok(Response::new(resp));
         }
 
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
@@ -355,12 +377,12 @@ impl Node for GrpcState {
             })
             .collect::<Vec<_>>();
 
-        let mint_response = GrpcMintResponse {
+        let mint_response = MintResponse {
             signatures: signatures.clone(),
         };
 
         // Store in cache
-        let nut_mint_response = MintResponse {
+        let nut_mint_response = nuts::nut04::MintResponse {
             signatures: promises.clone(),
         };
         self.cache_response(cache_key, CachedResponse::Mint(nut_mint_response))?;
@@ -432,7 +454,11 @@ impl Node for GrpcState {
 
         // Try to get from cache first
         if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(melt_response));
+            let resp = MeltResponse {
+                state: melt_response.state.into(),
+                transfer_ids: melt_response.transfer_ids.unwrap_or_default(),
+            };
+            return Ok(Response::new(resp));
         }
 
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;

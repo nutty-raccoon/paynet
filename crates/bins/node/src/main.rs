@@ -11,10 +11,12 @@ use gauge::DbMetricsObserver;
 #[cfg(feature = "rest")]
 use initialization::launch_rest_server_task;
 use initialization::{
-    connect_to_db_and_run_migrations, connect_to_signer, create_app_state,
-    launch_tonic_server_task, read_env_variables,
+    connect_to_db_and_run_migrations, connect_to_signer, launch_tonic_server_task,
+    read_env_variables,
 };
 use tracing::{info, trace};
+
+use crate::initialization::create_app_state;
 
 mod app_state;
 mod errors;
@@ -77,7 +79,6 @@ async fn main() -> Result<(), anyhow::Error> {
         env_variables.quote_ttl,
     )
     .await?;
-
     #[cfg(all(feature = "grpc", not(feature = "rest")))]
     {
         // Only gRPC enabled

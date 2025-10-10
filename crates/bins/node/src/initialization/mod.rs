@@ -4,20 +4,21 @@ mod db;
 mod nuts_settings;
 pub use db::connect_to_db_and_run_migrations;
 mod signer_client;
+use nuts::QuoteTTLConfig;
+use signer::SignerClient;
 pub use signer_client::connect_to_signer;
 mod grpc;
 pub use grpc::launch_tonic_server_task;
+use tracing::instrument;
 #[cfg(feature = "rest")]
 mod rest;
+use crate::{
+    app_state::AppState, grpc_service::InitKeysetError, liquidity_sources::LiquiditySources,
+};
+use nuts_settings::nuts_settings;
+
 #[cfg(feature = "rest")]
 pub use rest::launch_rest_server_task;
-use tracing::instrument;
-
-use crate::grpc_service::InitKeysetError;
-use crate::{app_state::AppState, liquidity_sources::LiquiditySources};
-use nuts::QuoteTTLConfig;
-use nuts_settings::nuts_settings;
-use signer::SignerClient;
 use sqlx::Postgres;
 use starknet_types::Unit;
 use tonic::transport::Channel;
@@ -55,7 +56,7 @@ pub async fn create_app_state(
     signer_client: SignerClient<trace::Grpc<Channel>>,
     liquidity_sources: LiquiditySources<Unit>,
     quote_ttl: Option<u64>,
-) -> Result<AppState, super::Error> {
+) -> Result<AppState, Error> {
     let nuts_settings = nuts_settings();
     let ttl = quote_ttl.unwrap_or(3600);
     let app_state = AppState::new(
@@ -69,9 +70,11 @@ pub async fn create_app_state(
         liquidity_sources,
     );
 
+    let units = vec![Unit::MilliStrk];
+
     // Initialize first keysets
     app_state
-        .init_first_keysets(&[Unit::MilliStrk], 0, 32)
+        .init_first_keysets(units.into_iter(), 0, 32)
         .await
         .map_err(|e| Error::InitKeysets(e))?;
 

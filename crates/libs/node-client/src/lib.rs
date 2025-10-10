@@ -1,4 +1,4 @@
-use nuts::{nut03::SwapRequest as NutSwapRequest, nut04, nut05};
+use nuts::{nut04, nut05};
 pub use proto::bdhke::{BlindSignature, BlindedMessage, Proof};
 #[cfg(feature = "keyset-rotation")]
 pub use proto::keyset_rotation::keyset_rotation_service_client::KeysetRotationServiceClient;

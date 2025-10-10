@@ -6,8 +6,11 @@ edition = "2024"
 [dependencies]
 nuts = { workspace = true }
 thiserror = { workspace = true }
-async-trait = { workspace = true } 
+async-trait = { workspace = true }
 tonic = { workspace = true }
 tonic-types = { workspace = true }
 node-client = { workspace = true }
 reqwest = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

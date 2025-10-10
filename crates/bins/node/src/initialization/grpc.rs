@@ -1,6 +1,6 @@
 #[cfg(feature = "keyset-rotation")]
 use node::KeysetRotationServiceServer;
-use std::{collections::HashSet, net::SocketAddr};
+use std::net::SocketAddr;
 use tonic::transport::Server;
 use tower::ServiceBuilder;
 use tracing::instrument;
@@ -9,54 +9,26 @@ use futures::TryFutureExt;
 use node::NodeServer;
 use tonic::service::LayerExt;
 
-use crate::app_state::AppState;
+use crate::{app_state::AppState, grpc_service::GrpcState};
 
-use super::Error;
-#[cfg(feature = "tls")]
-use super::read_env_variables;
+use super::{Error, env_variables::EnvVariables};
 
 #[instrument]
 pub async fn launch_tonic_server_task(
     app_state: AppState,
-    grpc_port: u16,
+    env_vars: u16,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), crate::Error>>), super::Error> {
-    let nuts_settings = super::nuts_settings::nuts_settings();
-    let supported_units: HashSet<_> = nuts_settings
-        .nut04
-        .methods
-        .iter()
-        .map(|m| m.unit)
-        .chain(nuts_settings.nut05.methods.iter().map(|m| m.unit))
-        .collect();
-
-    let ttl = env_vars.quote_ttl.unwrap_or(3600);
-    let grpc_state = GrpcState::new(
-        pg_pool,
-        signer_client,
-        nuts_settings,
-        QuoteTTLConfig {
-            mint_ttl: ttl,
-            melt_ttl: ttl,
-        },
-        liquidity_sources,
-    );
-    let address = format!("[::0]:{}", env_vars.grpc_port)
+    let address = format!("[::0]:{}", env_vars)
         .parse()
         .map_err(Error::InvalidGrpcAddress)?;
-
-    // TODO: take into account past keyset rotations
-    // init node shared
-    grpc_state
-        .init_first_keysets(supported_units.into_iter(), 0, 32)
-        .await?;
 
     // init health reporter service
     let health_service = {
         let (health_reporter, health_service) = tonic_health::server::health_reporter();
-        health_reporter.set_serving::<NodeServer<AppState>>().await;
+        health_reporter.set_serving::<NodeServer<GrpcState>>().await;
         #[cfg(feature = "keyset-rotation")]
         health_reporter
-            .set_serving::<KeysetRotationServiceServer<AppState>>()
+            .set_serving::<KeysetRotationServiceServer<GrpcState>>()
             .await;
 
         health_service
@@ -67,7 +39,7 @@ pub async fn launch_tonic_server_task(
     #[cfg(feature = "keyset-rotation")]
     let keyset_rotation_service = ServiceBuilder::new()
         .layer(optl_layer.clone())
-        .named_layer(KeysetRotationServiceServer::new(app_state.clone()));
+        .named_layer(KeysetRotationServiceServer::new(grpc_state.clone()));
 
     let node_service = ServiceBuilder::new()
         .layer(optl_layer)

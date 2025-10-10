@@ -6,7 +6,6 @@
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
-use sqlx::types::Uuid;
 
 /// Mint settings
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -306,7 +306,7 @@ async fn mint_quote(
 async fn mint(
     State(app_state): State<AppState>,
     Path(method): Path<String>,
-    Json(request): Json<MintRequest<Uuid>>,
+    Json(request): Json<MintRequest<String>>,
 ) -> Result<Json<MintResponse>, (StatusCode, Json<ErrorResponse>)> {
     let cache_key = (Route::Mint, hash_mint_request(&request));
     if let Some(CachedResponse::Mint(mint_response)) = app_state.get_cached_response(&cache_key) {
@@ -336,8 +336,16 @@ async fn mint(
             }),
         )
     })?;
+    let quote_uuid = Uuid::from_str(&request.quote).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
     let signatures = app_state
-        .inner_mint(method, request.quote, &request.outputs)
+        .inner_mint(method, quote_uuid, &request.outputs)
         .await
         .map_err(|e| {
             (
@@ -389,7 +397,8 @@ async fn mint_quote_state(
                     error: e.to_string(),
                 }),
             )
-        })?;
+        })?
+        .unwrap();
 
     Ok(Json(RestMintQuoteResponse {
         quote: response.quote.to_string(),
@@ -462,7 +471,7 @@ async fn melt_quote(
 async fn melt(
     State(app_state): State<AppState>,
     Path(method): Path<String>,
-    Json(request): Json<MeltRequest<Uuid>>,
+    Json(request): Json<MeltRequest<String>>,
 ) -> Result<Json<MeltResponse>, (StatusCode, Json<ErrorResponse>)> {
     let cache_key = (Route::Melt, hash_melt_request(&request));
     if let Some(CachedResponse::Melt(melt_response)) = app_state.get_cached_response(&cache_key) {
@@ -496,8 +505,16 @@ async fn melt(
         )
     })?;
 
+    let quote_uuid = Uuid::from_str(&request.quote).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
     let response = app_state
-        .inner_melt(method, request.quote, &request.inputs)
+        .inner_melt(method, quote_uuid, &request.inputs)
         .await
         .map_err(|e| {
             (
