@@ -11,14 +11,9 @@ pub mod types;
 pub mod wad;
 pub mod wallet;
 
-<<<<<<< HEAD
-use errors::Error;
-use node_client::{AcknowledgeRequest, NodeClient, SwapRequest};
-=======
 use cashu_client::{CashuClient, GrpcClient};
 use errors::{CommonError, Error};
 use node_client::NodeClient;
->>>>>>> origin/HEAD
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -332,56 +327,18 @@ pub async fn swap_to_have_target_amount(
         blinding_data,
     )?;
 
-<<<<<<< HEAD
-    let inputs = vec![nut00::Proof {
-=======
     let inputs = vec![nuts::nut00::Proof {
->>>>>>> origin/HEAD
         amount: proof_to_swap.1,
         keyset_id: input_unblind_signature.0,
         secret: input_unblind_signature.2,
         c: input_unblind_signature.1,
     }];
-    let node_outputs = pre_mints.build_node_client_outputs();
-    let outputs = node_outputs
-        .clone()
-        .into_iter()
-        .map(|bm| -> Result<BlindedMessage, Error> {
-            Ok(BlindedMessage {
-                amount: bm.amount.into(),
-                keyset_id: KeysetId::from_bytes(&bm.keyset_id)?,
-                blinded_secret: PublicKey::from_slice(&bm.blinded_secret)?,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
 
-<<<<<<< HEAD
-    let swap_request = nuts::nut03::SwapRequest {
-        inputs: inputs.clone(),
-        outputs,
-    };
-    let swap_request_hash = hash_swap_request(&swap_request);
-
-    let node_swap_request = SwapRequest {
-        inputs: inputs
-            .into_iter()
-            .map(|i| node_client::Proof {
-                amount: i.amount.into(),
-                keyset_id: i.keyset_id.to_bytes().to_vec(),
-                secret: i.secret.to_string(),
-                unblind_signature: i.c.to_bytes().to_vec(),
-            })
-            .collect(),
-        outputs: node_outputs,
-    };
-    let swap_result = node_client.swap(node_swap_request).await;
-=======
     let outputs = pre_mints.build_nuts_outputs();
 
     let swap_request = nuts::nut03::SwapRequest { inputs, outputs };
     let swap_request_hash = nuts::nut19::hash_swap_request(&swap_request);
     let swap_result = node_client.swap(swap_request).await;
->>>>>>> origin/HEAD
 
     let new_tokens = {
         let mut db_conn = pool.get()?;
@@ -559,57 +516,16 @@ pub async fn receive_wad(
         (wad_id, binding_data)
     };
 
-<<<<<<< HEAD
-    let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
-    let node_outputs = pre_mints.build_node_client_outputs();
-    let outputs = node_outputs
-        .clone()
-        .into_iter()
-        .map(|bm| -> Result<BlindedMessage, Error> {
-            Ok(BlindedMessage {
-                amount: bm.amount.into(),
-                keyset_id: KeysetId::from_bytes(&bm.keyset_id)?,
-                blinded_secret: PublicKey::from_slice(&bm.blinded_secret)?,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let inputs = inputs
-        .into_iter()
-        .map(|p| -> Result<Proof, Error> {
-            Ok(Proof {
-                amount: p.amount.into(),
-                keyset_id: KeysetId::from_bytes(&p.keyset_id)?,
-                secret: Secret::new(p.secret)?,
-                c: PublicKey::from_slice(&p.unblind_signature)?,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-=======
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)
         .map_err(|e| CommonError::GeneratePremintsForAmount(total_amount, e))?;
     let outputs = pre_mints.build_nuts_outputs();
 
->>>>>>> origin/HEAD
     let swap_request = nuts::nut03::SwapRequest {
         inputs: inputs.clone(),
         outputs,
     };
     let swap_request_hash = hash_swap_request(&swap_request);
-    let node_swap_request = SwapRequest {
-        inputs: inputs
-            .into_iter()
-            .map(|i| node_client::Proof {
-                amount: i.amount.into(),
-                keyset_id: i.keyset_id.to_bytes().to_vec(),
-                secret: i.secret.to_string(),
-                unblind_signature: i.c.to_bytes().to_vec(),
-            })
-            .collect(),
-        outputs: node_outputs,
-    };
-    let swap_result = node_client.swap(node_swap_request).await;
+    let swap_result = node_client.swap(swap_request).await;
 
     {
         let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;

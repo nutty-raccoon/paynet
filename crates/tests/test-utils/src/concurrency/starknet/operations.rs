@@ -1,38 +1,18 @@
-<<<<<<< HEAD
-use std::{collections::HashSet, str::FromStr, time::Duration};
-
-use futures::future::join_all;
-use node_client::{
-    AcknowledgeRequest, BlindedMessage, GetKeysRequest, MeltQuoteRequest, MeltRequest,
-    MeltResponse, MintQuoteRequest, MintQuoteResponse, MintRequest, MintResponse, NodeClient,
-    Proof, SwapRequest, SwapResponse,
-};
-=======
 use anyhow::Result;
 use cashu_client::{CashuClient, ClientMeltQuoteRequest, ClientMintQuoteRequest};
 use std::{collections::HashSet, time::Duration};
 
 use futures::future::join_all;
->>>>>>> origin/HEAD
 use nuts::{
     Amount,
     dhke::{blind_message, unblind_message},
     nut00::secret::Secret,
-<<<<<<< HEAD
-    nut01::PublicKey,
-=======
->>>>>>> origin/HEAD
     nut02::KeysetId,
     nut19::hash_mint_request,
 };
 use primitive_types::U256;
 use starknet_types::{DepositPayload, STARKNET_STR, Unit, constants::ON_CHAIN_CONSTANTS};
 use starknet_types_core::felt::Felt;
-<<<<<<< HEAD
-use tonic::transport::Channel;
-use uuid::Uuid;
-=======
->>>>>>> origin/HEAD
 
 use crate::{
     common::utils::{EnvVariables, starknet::pay_invoices},
@@ -268,17 +248,6 @@ pub async fn swap_same_input(mut node_client: impl CashuClient, env: EnvVariable
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
     let secret = Secret::generate();
-<<<<<<< HEAD
-    let (blinded_secret, r) =
-        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
-    let mint_request = MintRequest {
-        method: "starknet".to_string(),
-        quote: original_mint_quote_response.quote.clone(),
-        outputs: vec![BlindedMessage {
-            amount: amount.into(),
-            keyset_id: active_keyset.id.clone(),
-            blinded_secret: blinded_secret.to_bytes().to_vec(),
-=======
     let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
 
     let mint_request = nuts::nut04::MintRequest {
@@ -287,29 +256,13 @@ pub async fn swap_same_input(mut node_client: impl CashuClient, env: EnvVariable
             amount,
             keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())?,
             blinded_secret,
->>>>>>> origin/HEAD
-        }],
-    };
-    let nut_mint_request = nuts::nut04::MintRequest {
-        quote: Uuid::from_str(&original_mint_quote_response.quote)
-            .map_err(|e| Error::Other(e.into()))?,
-        outputs: vec![nuts::nut00::BlindedMessage {
-            amount,
-            keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())
-                .map_err(|e| Error::Other(e.into()))?,
-            blinded_secret,
         }],
     };
 
-<<<<<<< HEAD
-    let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&nut_mint_request);
-=======
     let original_mint_response = node_client
         .mint(mint_request.clone(), "starknet".to_string())
         .await?;
     let request_hash = hash_mint_request(&mint_request);
->>>>>>> origin/HEAD
     node_client
         .acknowledge("mint".to_string(), request_hash)
         .await?;
@@ -385,33 +338,6 @@ pub async fn melt_same_input(mut node_client: impl CashuClient, env: EnvVariable
     let active_keyset =
         get_active_keyset(&mut node_client.clone(), Unit::MilliStrk.as_str()).await?;
     let secret = Secret::generate();
-<<<<<<< HEAD
-    let (blinded_secret, r) =
-        blind_message(secret.as_bytes(), None).map_err(|e| Error::Other(e.into()))?;
-    let mint_request = MintRequest {
-        method: "starknet".to_string(),
-        quote: original_mint_quote_response.quote.clone(),
-        outputs: vec![BlindedMessage {
-            amount: amount.into(),
-            keyset_id: active_keyset.id.clone(),
-            blinded_secret: blinded_secret.to_bytes().to_vec(),
-        }],
-    };
-
-    let nut_mint_request = nuts::nut04::MintRequest {
-        quote: Uuid::from_str(&original_mint_quote_response.quote)
-            .map_err(|e| Error::Other(e.into()))?,
-        outputs: vec![nuts::nut00::BlindedMessage {
-            amount,
-            keyset_id: KeysetId::from_bytes(&active_keyset.id.clone())
-                .map_err(|e| Error::Other(e.into()))?,
-            blinded_secret,
-        }],
-    };
-
-    let original_mint_response = node_client.mint(mint_request.clone()).await?.into_inner();
-    let request_hash = hash_mint_request(&nut_mint_request);
-=======
     let (blinded_secret, r) = blind_message(secret.as_bytes(), None)?;
 
     let mint_request = nuts::nut04::MintRequest {
@@ -427,7 +353,6 @@ pub async fn melt_same_input(mut node_client: impl CashuClient, env: EnvVariable
         .mint(mint_request.clone(), "starknet".to_string())
         .await?;
     let request_hash = hash_mint_request(&mint_request);
->>>>>>> origin/HEAD
     node_client
         .acknowledge("mint".to_string(), request_hash)
         .await?;

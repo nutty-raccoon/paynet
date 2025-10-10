@@ -24,6 +24,7 @@ uuid = { workspace = true, features = ["v5"] }
 tonic-types = { workspace = true }
 keyring = { workspace = true, features = ["apple-native", "linux-native", "windows-native", "sync-secret-service"] }
 cashu-client = { workspace = true }
+async-trait = { workspace = true }
 
 # Db
 r2d2_sqlite = { workspace = true }
