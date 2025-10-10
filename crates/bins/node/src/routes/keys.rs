@@ -1,11 +1,10 @@
-use node::{Key, KeysetKeys};
 use nuts::nut02::KeysetId;
 use sqlx::PgConnection;
 use tonic::Status;
 
-use crate::grpc_service::GrpcState;
+use crate::app_state::{AppState, Key, KeysetKeys};
 
-impl GrpcState {
+impl AppState {
     pub async fn inner_keys_for_keyset_id(
         &self,
         db_conn: &mut PgConnection,

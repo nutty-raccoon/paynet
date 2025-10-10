@@ -8,6 +8,8 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { workspace = true, features = ["timeout"] }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
+parking_lot = { workspace = true, features = ["arc_lock"] }
+hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -31,6 +33,7 @@ bitcoin_hashes = { workspace = true }
 async-trait = { workspace = true }
 liquidity-source = { workspace = true }
 dashmap = { workspace = true }
+cdk-common = { workspace = true }
 cashu-client = { workspace = true }
 
 # gRPC
@@ -46,11 +49,17 @@ open-telemetry-tracing = { workspace = true }
 tower-otel = { workspace = true }
 opentelemetry = { workspace = true }
 
+# http optional
+axum = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true, features = ["trace", "cors"] }
+
 ## Not optional for now as it is our only form of liquidity source
 starknet-liquidity-source = { workspace = true }
 
 [features]
-default = ["starknet"]
+default = ["grpc", "starknet"]
+grpc = []
+rest = ["dep:axum", "dep:tower-http"]
 mock = ["starknet-liquidity-source/mock"]
 starknet = []
 tls = ["tonic/tls-ring"]

@@ -13,8 +13,10 @@ use thiserror::Error;
 
 mod grpc_client;
 mod proof_errors_handler;
+mod rpc_client;
 
 pub use grpc_client::GrpcClient;
+pub use rpc_client::RpcClient;
 
 #[derive(Debug, Clone)]
 pub struct ClientMintQuoteRequest {

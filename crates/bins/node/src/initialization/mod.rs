@@ -4,11 +4,25 @@ mod db;
 mod nuts_settings;
 pub use db::connect_to_db_and_run_migrations;
 mod signer_client;
+use nuts::QuoteTTLConfig;
+use signer::SignerClient;
 pub use signer_client::connect_to_signer;
 mod grpc;
 pub use grpc::launch_tonic_server_task;
+use tracing::instrument;
+#[cfg(feature = "rest")]
+mod rest;
+use crate::{
+    app_state::AppState, grpc_service::InitKeysetError, liquidity_sources::LiquiditySources,
+};
+use nuts_settings::nuts_settings;
 
-use crate::grpc_service::InitKeysetError;
+#[cfg(feature = "rest")]
+pub use rest::launch_rest_server_task;
+use sqlx::Postgres;
+use starknet_types::Unit;
+use tonic::transport::Channel;
+use tower_otel::trace;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -34,4 +48,35 @@ pub enum Error {
     BuildServer(#[source] anyhow::Error),
     #[error("failed to build tonic reflection service: {0}")]
     TonicReflexion(#[from] tonic_reflection::server::Error),
+}
+
+#[instrument]
+pub async fn create_app_state(
+    pg_pool: sqlx::Pool<Postgres>,
+    signer_client: SignerClient<trace::Grpc<Channel>>,
+    liquidity_sources: LiquiditySources<Unit>,
+    quote_ttl: Option<u64>,
+) -> Result<AppState, Error> {
+    let nuts_settings = nuts_settings();
+    let ttl = quote_ttl.unwrap_or(3600);
+    let app_state = AppState::new(
+        pg_pool,
+        signer_client,
+        nuts_settings,
+        QuoteTTLConfig {
+            mint_ttl: ttl,
+            melt_ttl: ttl,
+        },
+        liquidity_sources,
+    );
+
+    let units = vec![Unit::MilliStrk];
+
+    // Initialize first keysets
+    app_state
+        .init_first_keysets(units.into_iter(), 0, 32)
+        .await
+        .map_err(|e| Error::InitKeysets(e))?;
+
+    Ok(app_state)
 }

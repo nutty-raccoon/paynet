@@ -12,7 +12,7 @@ use tonic_types::{ErrorDetails, StatusExt};
 use tracing::{Level, event};
 
 use crate::{
-    grpc_service::GrpcState,
+    app_state::AppState,
     logic::{InputsError, OutputsError, check_outputs_allow_multiple_units, process_outputs},
 };
 
@@ -76,7 +76,7 @@ impl From<Error> for Status {
     }
 }
 
-impl GrpcState {
+impl AppState {
     pub async fn inner_swap(
         &self,
         inputs: &[Proof],

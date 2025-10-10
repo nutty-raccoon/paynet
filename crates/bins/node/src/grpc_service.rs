@@ -1,7 +1,6 @@
 use crate::{
     keyset_cache::CachedKeysetInfo,
-    liquidity_sources::LiquiditySources,
-    response_cache::{CachedResponse, InMemResponseCache, ResponseCache},
+    response_cache::{CachedResponse, ResponseCache},
 };
 use node::{
     AcknowledgeRequest, AcknowledgeResponse, CheckStateRequest, CheckStateResponse, GetKeysRequest,
@@ -11,39 +10,24 @@ use node::{
     ProofCheckState, QuoteStateRequest, RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
 };
 use nuts::{
-    Amount, QuoteTTLConfig,
-    nut00::{BlindedMessage, Proof, secret::Secret},
+    Amount,
+    nut00::{BlindSignature, BlindedMessage, Proof, secret::Secret},
     nut01::{self, PublicKey},
     nut02::{self, KeysetId},
     nut06::{ContactInfo, NodeInfo, NodeVersion, NutsSettings},
     nut19::{CacheResponseKey, Route, hash_melt_request, hash_mint_request, hash_swap_request},
 };
 use signer::GetRootPubKeyRequest;
-use sqlx::PgPool;
 use starknet_types::Unit;
-use std::{str::FromStr, sync::Arc};
+use std::{mem::swap, str::FromStr};
 use thiserror::Error;
-use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::{
-    app_state::{NutsSettingsState, QuoteTTLConfigState, SignerClient},
-    keyset_cache::KeysetCache,
-    methods::Method,
-};
+use crate::{app_state::AppState, methods::Method};
 
-#[derive(Debug, Clone)]
-pub struct GrpcState {
-    pub pg_pool: PgPool,
-    pub signer: SignerClient,
-    pub keyset_cache: KeysetCache,
-    pub nuts: NutsSettingsState,
-    pub quote_ttl: Arc<QuoteTTLConfigState>,
-    pub liquidity_sources: LiquiditySources<Unit>,
-    pub response_cache: Arc<InMemResponseCache<(Route, u64), CachedResponse>>,
-}
+pub type GrpcState = AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitKeysetError {
@@ -57,25 +41,7 @@ pub enum InitKeysetError {
     Sqlx(#[from] sqlx::Error),
 }
 
-impl GrpcState {
-    pub fn new(
-        pg_pool: PgPool,
-        signer_client: SignerClient,
-        nuts_settings: NutsSettings<Method, Unit, serde_json::Value>,
-        quote_ttl: QuoteTTLConfig,
-        liquidity_sources: LiquiditySources<Unit>,
-    ) -> Self {
-        Self {
-            pg_pool,
-            keyset_cache: Default::default(),
-            nuts: Arc::new(RwLock::new(nuts_settings)),
-            quote_ttl: Arc::new(quote_ttl.into()),
-            signer: signer_client,
-            liquidity_sources,
-            response_cache: Arc::new(InMemResponseCache::new(None)),
-        }
-    }
-
+impl AppState {
     pub async fn init_first_keysets(
         &self,
         units: impl Iterator<Item = Unit>,
@@ -215,7 +181,11 @@ impl Node for GrpcState {
             None => self.inner_keys_no_keyset_id(&mut db_conn).await?,
         };
 
-        Ok(Response::new(GetKeysResponse { keysets }))
+        let grpc_keysets = keysets.into_iter().map(Into::into).collect();
+
+        Ok(Response::new(GetKeysResponse {
+            keysets: grpc_keysets,
+        }))
     }
 
     #[instrument(skip(self))]
@@ -279,7 +249,18 @@ impl Node for GrpcState {
         let cache_key = (Route::Swap, hash_swap_request(&nut_swap_request));
         // Try to get from cache first
         if let Some(CachedResponse::Swap(swap_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(swap_response));
+            let resp = SwapResponse {
+                signatures: swap_response
+                    .signatures
+                    .into_iter()
+                    .map(|bs| node::BlindSignature {
+                        amount: bs.amount.into(),
+                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                        blind_signature: bs.c.to_bytes().to_vec(),
+                    })
+                    .collect(),
+            };
+            return Ok(Response::new(resp));
         }
 
         let promises = self.inner_swap(&inputs, &outputs).await?;
@@ -296,7 +277,10 @@ impl Node for GrpcState {
         };
 
         // Store in cache
-        self.cache_response(cache_key, CachedResponse::Swap(swap_response.clone()))?;
+        let nut_swap_response = nuts::nut03::SwapResponse {
+            signatures: promises.clone(),
+        };
+        self.cache_response(cache_key, CachedResponse::Swap(nut_swap_response))?;
 
         Ok(Response::new(swap_response))
     }
@@ -364,7 +348,18 @@ impl Node for GrpcState {
         let cache_key = (Route::Mint, hash_mint_request(&nut_mint_request));
         // Try to get from cache first
         if let Some(CachedResponse::Mint(mint_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(mint_response));
+            let resp = MintResponse {
+                signatures: mint_response
+                    .signatures
+                    .into_iter()
+                    .map(|bs| node::BlindSignature {
+                        amount: bs.amount.into(),
+                        keyset_id: bs.keyset_id.to_bytes().to_vec(),
+                        blind_signature: bs.c.to_bytes().to_vec(),
+                    })
+                    .collect(),
+            };
+            return Ok(Response::new(resp));
         }
 
         let method = Method::from_str(&mint_request.method).map_err(ParseGrpcError::Method)?;
@@ -373,6 +368,7 @@ impl Node for GrpcState {
 
         let promises = self.inner_mint(method, quote_id, &outputs).await?;
         let signatures = promises
+            .clone()
             .iter()
             .map(|p| node::BlindSignature {
                 amount: p.amount.into(),
@@ -386,7 +382,10 @@ impl Node for GrpcState {
         };
 
         // Store in cache
-        self.cache_response(cache_key, CachedResponse::Mint(mint_response.clone()))?;
+        let nut_mint_response = nuts::nut04::MintResponse {
+            signatures: promises.clone(),
+        };
+        self.cache_response(cache_key, CachedResponse::Mint(nut_mint_response))?;
 
         Ok(Response::new(mint_response))
     }
@@ -455,7 +454,11 @@ impl Node for GrpcState {
 
         // Try to get from cache first
         if let Some(CachedResponse::Melt(melt_response)) = self.get_cached_response(&cache_key) {
-            return Ok(Response::new(melt_response));
+            let resp = MeltResponse {
+                state: melt_response.state.into(),
+                transfer_ids: melt_response.transfer_ids.unwrap_or_default(),
+            };
+            return Ok(Response::new(resp));
         }
 
         let method = Method::from_str(&melt_request.method).map_err(ParseGrpcError::Method)?;
@@ -463,13 +466,14 @@ impl Node for GrpcState {
 
         let response = self.inner_melt(method, quote_id, &inputs).await?;
 
+        let cloned_response = response.clone();
         let melt_response = MeltResponse {
-            state: response.state.into(),
-            transfer_ids: response.transfer_ids.unwrap_or_default(),
+            state: cloned_response.state.into(),
+            transfer_ids: cloned_response.transfer_ids.unwrap_or_default(),
         };
 
         // Store in cache
-        self.cache_response(cache_key, CachedResponse::Melt(melt_response.clone()))?;
+        self.cache_response(cache_key, CachedResponse::Melt(response))?;
 
         Ok(Response::new(melt_response))
     }

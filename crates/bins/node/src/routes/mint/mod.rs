@@ -12,7 +12,7 @@ use tracing::{Level, event};
 use uuid::Uuid;
 
 use crate::{
-    grpc_service::GrpcState,
+    app_state::AppState,
     logic::{OutputsError, process_outputs},
     methods::Method,
 };
@@ -69,7 +69,7 @@ impl From<Error> for Status {
     }
 }
 
-impl GrpcState {
+impl AppState {
     pub async fn inner_mint(
         &self,
         method: Method,

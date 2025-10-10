@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Result;
 use cashu_client::{CashuClient, ClientMeltQuoteRequest, ClientMintQuoteRequest};
 use node_tests::init_node_client;

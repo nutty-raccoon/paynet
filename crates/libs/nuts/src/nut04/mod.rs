@@ -95,7 +95,7 @@ pub struct MintRequest<Q> {
     pub outputs: Vec<BlindedMessage>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct MintResponse {
     pub signatures: Vec<BlindSignature>,
 }

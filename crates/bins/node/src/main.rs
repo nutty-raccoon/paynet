@@ -1,3 +1,5 @@
+#[cfg(not(any(feature = "grpc", feature = "rest")))]
+compile_error!("You must enable at least one feature: `grpc` or `rest`.");
 #[cfg(not(any(feature = "starknet")))]
 compile_error!("At least one liquidity feature should be provided during compilation");
 
@@ -6,11 +8,15 @@ use std::time::Duration;
 
 use errors::Error;
 use gauge::DbMetricsObserver;
+#[cfg(feature = "rest")]
+use initialization::launch_rest_server_task;
 use initialization::{
     connect_to_db_and_run_migrations, connect_to_signer, launch_tonic_server_task,
     read_env_variables,
 };
 use tracing::{info, trace};
+
+use crate::initialization::create_app_state;
 
 mod app_state;
 mod errors;
@@ -24,6 +30,8 @@ mod liquidity_sources;
 mod logic;
 mod methods;
 mod response_cache;
+#[cfg(feature = "rest")]
+mod rest_service;
 mod routes;
 mod utils;
 
@@ -63,27 +71,76 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let liquidity_sources = liquidity_sources::LiquiditySources::init(pg_pool.clone()).await?;
 
-    // Launch tonic server task
-    let (address, grpc_future) = launch_tonic_server_task(
+    // Create shared AppState
+    let app_state = create_app_state(
         pg_pool.clone(),
         signer_client,
         liquidity_sources,
-        env_variables,
+        env_variables.quote_ttl,
     )
     .await?;
+    #[cfg(all(feature = "grpc", not(feature = "rest")))]
+    {
+        // Only gRPC enabled
+        info!("Starting gRPC server only");
+        let (grpc_address, grpc_future) =
+            launch_tonic_server_task(app_state, env_variables.grpc_port).await?;
+        trace!(name: "grpc-listen", port = grpc_address.port());
 
-    trace!(name: "grpc-listen", port = address.port());
+        tokio::select! {
+            grpc_res = grpc_future => match grpc_res {
+                Ok(()) => eprintln!("gRPC task should never return"),
+                Err(err) => eprintln!("gRPC task failed: {}", err),
+            },
+            sig = tokio::signal::ctrl_c() => match sig {
+                Ok(()) => info!("gRPC task terminated"),
+                Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
+            }
+        };
+    }
 
-    tokio::select! {
-        grpc_res = grpc_future => match grpc_res {
-            Ok(()) => eprintln!("gRPC task should never return"),
-            Err(err) => eprintln!("gRPC task failed: {}", err),
-        },
-        sig = tokio::signal::ctrl_c() => match sig {
-            Ok(()) => info!("gRPC task terminated"),
-            Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
-        }
-    };
+    #[cfg(all(feature = "rest", not(feature = "grpc")))]
+    {
+        info!("Starting REST server only");
+        let rest_future = launch_rest_server_task(app_state, env_variables.rest_port);
+
+        tokio::select! {
+            http_res = rest_future => match http_res {
+                Ok(()) => eprintln!("REST task should never return"),
+                Err(err) => eprintln!("REST task failed: {}", err),
+            },
+            sig = tokio::signal::ctrl_c() => match sig {
+                Ok(()) => info!("REST task terminated"),
+                Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
+            }
+        };
+    }
+
+    #[cfg(all(feature = "grpc", feature = "rest"))]
+    {
+        // Both gRPC and REST enabled
+        info!("Starting both gRPC and REST servers");
+        let (grpc_address, grpc_future) =
+            launch_tonic_server_task(app_state.clone(), env_variables.grpc_port).await?;
+        trace!(name: "grpc-listen", port = grpc_address.port());
+
+        let rest_future = launch_rest_server_task(app_state, env_variables.rest_port);
+
+        tokio::select! {
+            grpc_res = grpc_future => match grpc_res {
+                Ok(()) => eprintln!("gRPC task should never return"),
+                Err(err) => eprintln!("gRPC task failed: {}", err),
+            },
+            http_res = rest_future => match http_res {
+                Ok(()) => eprintln!("REST task should never return"),
+                Err(err) => eprintln!("REST task failed: {}", err),
+            },
+            sig = tokio::signal::ctrl_c() => match sig {
+                Ok(()) => info!("Servers terminated"),
+                Err(err) => eprintln!("unable to listen for shutdown signal: {}", err)
+            }
+        };
+    }
 
     Ok(())
 }

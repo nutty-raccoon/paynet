@@ -44,7 +44,7 @@ services:
       context: ..
       dockerfile: ./dockerfiles/node.Dockerfile
       args:
-        - CARGO_FEATURES=starknet
+        - CARGO_FEATURES=starknet rest grpc
     volumes:
       - starknet-network-data:/shared
     environment:
@@ -61,6 +61,7 @@ services:
       - STARKNET_SUBSTREAMS_URL=http://starknet-firehose:10016
     ports:
       - "10003:10003"
+      - "80:80"
     depends_on:
       db:
         condition: service_healthy
