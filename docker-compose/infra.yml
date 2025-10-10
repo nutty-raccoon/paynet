@@ -1,0 +1,21 @@
+services:
+  web-app:
+    image: "web-app"
+    build:
+      context: ..
+      dockerfile: ./dockerfiles/web-app.Dockerfile
+      args:
+        TLS_FEATURE: ${TLS_FEATURE}
+    volumes:
+      # There should be a certs/ folder at the root of the repo containing cert.pem and key.pem.
+      # Generate them using `mkcert -key-file certs/key.pem -cert-file certs/cert.pem localhost 127.0.0.1 ::1`
+      - ../certs:/certs
+    restart: always
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+

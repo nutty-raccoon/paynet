@@ -5,7 +5,7 @@ WORKDIR /app
 #------------
 
 FROM chef AS planner
-COPY ./Cargo.toml ./
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./crates/ ./crates/
 RUN cargo chef prepare --recipe-path recipe.json --bin node 
 
@@ -31,7 +31,7 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.4.13 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${PROBE_ARCH} && \
     chmod +x /bin/grpc_health_probe
 
-COPY ./Cargo.toml ./
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./proto/ ./proto/
 COPY ./crates/ ./crates/
 
@@ -45,7 +45,7 @@ RUN cargo build --release -p node --no-default-features --features "${CARGO_FEAT
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y libsqlite3-0 libssl3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates libsqlite3-0 libssl3 && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
 COPY --from=builder /app/target/release/node /usr/local/bin/node
@@ -56,12 +56,20 @@ ENV RUST_LOG=info
 RUN echo '#!/bin/sh\n\
     # Try to read fork block from shared volume\n\
     if [ -f /shared/fork_block.txt ]; then\n\
-    FORK_BLOCK=$(cat /shared/fork_block.txt 2>/dev/null || echo "0")\n\
+    FORK_BLOCK=$(cat /shared/fork_block.txt 2>/dev/null || echo "")\n\
+    if [ -n "$FORK_BLOCK" ]; then\n\
     export STARKNET_INDEXER_START_BLOCK=$FORK_BLOCK\n\
     echo "Using fork block from volume: $FORK_BLOCK"\n\
     else\n\
+    echo "fork_block.txt is empty, keeping existing STARKNET_INDEXER_START_BLOCK: ${STARKNET_INDEXER_START_BLOCK:-not set}"\n\
+    fi\n\
+    else\n\
+    echo "No fork block file found, keeping existing STARKNET_INDEXER_START_BLOCK: ${STARKNET_INDEXER_START_BLOCK:-not set}"\n\
+    fi\n\
+    # If STARKNET_INDEXER_START_BLOCK is still not set, use default\n\
+    if [ -z "$STARKNET_INDEXER_START_BLOCK" ]; then\n\
     export STARKNET_INDEXER_START_BLOCK=0\n\
-    echo "No fork block file found, using default: 0"\n\
+    echo "No existing value found, using default STARKNET_INDEXER_START_BLOCK: 0"\n\
     fi\n\
     # Try to read chain ID from shared volume (optional)\n\
     if [ -f /shared/chain_id.txt ]; then\n\
@@ -70,11 +78,12 @@ RUN echo '#!/bin/sh\n\
     export STARKNET_CHAIN_ID=$CHAIN_ID\n\
     echo "Using chain ID from volume: $CHAIN_ID"\n\
     else\n\
-    echo "chain_id.txt is empty, STARKNET_CHAIN_ID not set"\n\
+    echo "chain_id.txt is empty, keeping existing STARKNET_CHAIN_ID: ${STARKNET_CHAIN_ID:-not set}"\n\
     fi\n\
     else\n\
-    echo "No chain_id.txt found, STARKNET_CHAIN_ID not set"\n\
+    echo "No chain_id.txt found, keeping existing STARKNET_CHAIN_ID: ${STARKNET_CHAIN_ID:-not set}"\n\
     fi\n\
     exec /usr/local/bin/node "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
 
 ENTRYPOINT ["/entrypoint.sh"]

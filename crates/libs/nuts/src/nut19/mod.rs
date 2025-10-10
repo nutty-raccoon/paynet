@@ -96,7 +96,7 @@ use crate::{nut03::SwapRequest, nut04::MintRequest, nut05::MeltRequest};
 
 /// Hash MintRequest to a string
 /// This is used to create a unique identifier for the request
-pub fn hash_mint_request(request: &MintRequest<Uuid>) -> u64 {
+pub fn hash_mint_request(request: &MintRequest<String>) -> u64 {
     let mut hasher = DefaultHasher::new();
 
     request.quote.hash(&mut hasher);
@@ -111,7 +111,7 @@ pub fn hash_mint_request(request: &MintRequest<Uuid>) -> u64 {
 
 /// Hash MeltRequest to a string
 /// This is used to create a unique identifier for the request
-pub fn hash_melt_request(request: &MeltRequest<Uuid>) -> u64 {
+pub fn hash_melt_request(request: &MeltRequest<String>) -> u64 {
     let mut hasher = DefaultHasher::new();
 
     request.quote.hash(&mut hasher);

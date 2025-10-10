@@ -2,10 +2,10 @@ use bitcoin::bip32::Xpriv;
 use nuts::{
     Amount,
     dhke::{sign_message, verify_message},
-    nut01::PublicKey,
+    nut01::{PublicKey, SetKeyPairs},
     nut02::{KeysetId, MintKeySet},
 };
-use server_errors::Error;
+use server_errors::{Error, VerifyProofError, VerifyProofsErrors};
 use signer::{
     DeclareKeysetRequest, DeclareKeysetResponse, GetRootPubKeyRequest, GetRootPubKeyResponse, Key,
     SignBlindedMessagesRequest, SignBlindedMessagesResponse, SignerServer, VerifyProofsRequest,
@@ -18,14 +18,14 @@ use tonic::{Request, Response, Status, service::LayerExt};
 use tower::ServiceBuilder;
 use tracing::{instrument, trace};
 
+mod build_server;
 mod server_errors;
 mod state;
 
+use build_server::build_server;
+
 const ROOT_KEY_ENV_VAR: &str = "ROOT_KEY";
 const GRPC_PORT_ENV_VAR: &str = "GRPC_PORT";
-
-const PROOFS_FIELD: &str = "proofs";
-const MESSAGES_FIELD: &str = "messages";
 
 #[derive(Debug)]
 pub struct SignerState {
@@ -35,7 +35,7 @@ pub struct SignerState {
 
 #[tonic::async_trait]
 impl signer::Signer for SignerState {
-    #[instrument]
+    #[instrument(skip(self))]
     async fn declare_keyset(
         &self,
         declare_keyset_request: Request<DeclareKeysetRequest>,
@@ -84,7 +84,7 @@ impl signer::Signer for SignerState {
         }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn sign_blinded_messages(
         &self,
         sign_blinded_messages_request: Request<SignBlindedMessagesRequest>,
@@ -100,13 +100,12 @@ impl signer::Signer for SignerState {
             if !blinded_message.amount.is_power_of_two() {
                 return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
             }
-            let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id).map_err(|e| {
-                Error::BadKeysetId(MESSAGES_FIELD, idx, &blinded_message.keyset_id, e)
-            })?;
+            let keyset_id = KeysetId::from_bytes(&blinded_message.keyset_id)
+                .map_err(|e| Error::BadKeysetId(idx, &blinded_message.keyset_id, e))?;
 
             let keyset = keyset_cache_read_lock
                 .get(&keyset_id)
-                .ok_or(Error::KeysetNotFound(MESSAGES_FIELD, idx, keyset_id))?;
+                .ok_or(Error::KeysetNotFound(idx, keyset_id))?;
             let max_order: u64 = keyset
                 .last_key_value()
                 .map(|(&k, _)| k)
@@ -121,12 +120,9 @@ impl signer::Signer for SignerState {
             }
 
             let key_pair = {
-                keyset.get(&amount).ok_or(Error::AmountNotFound(
-                    MESSAGES_FIELD,
-                    idx,
-                    keyset_id,
-                    amount,
-                ))?
+                keyset
+                    .get(&amount)
+                    .ok_or(Error::AmountNotFound(idx, keyset_id, amount))?
             };
 
             let blind_secret = PublicKey::from_slice(&blinded_message.blinded_secret)
@@ -141,62 +137,47 @@ impl signer::Signer for SignerState {
         Ok(Response::new(SignBlindedMessagesResponse { signatures }))
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn verify_proofs(
         &self,
         verify_proofs_request: Request<VerifyProofsRequest>,
     ) -> Result<Response<VerifyProofsResponse>, Status> {
         let proofs = verify_proofs_request.into_inner().proofs;
+        let mut validation_errors = Vec::new();
+        let mut invalid_proof_indices = Vec::new();
+
+        let keyset_cache_read_lock = self.keyset_cache.0.read().await;
 
         for (idx, proof) in proofs.into_iter().enumerate() {
-            let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
-                .map_err(|e| Error::BadKeysetId(PROOFS_FIELD, idx, &proof.keyset_id, e))?;
-            let amount = Amount::from(proof.amount);
-            if !proof.amount.is_power_of_two() {
-                return Err(Error::AmountNotPowerOfTwo(idx, amount))?;
+            match validate_single_proof(&proof, &keyset_cache_read_lock) {
+                Ok(validated_proof) => {
+                    match verify_message(
+                        &validated_proof.secret_key,
+                        validated_proof.signature,
+                        validated_proof.secret.as_bytes(),
+                    ) {
+                        Ok(false) => invalid_proof_indices.push(idx as u32),
+                        Ok(true) => {}
+                        Err(error) => {
+                            tracing::error!(name: "verify-message", error = %error);
+                            invalid_proof_indices.push(idx as u32)
+                        }
+                    }
+                }
+                Err(validation_error) => validation_errors.push((idx, validation_error)),
             }
-            let (secret_key, max_order) = {
-                let keyset_cache_read_lock = self.keyset_cache.0.read().await;
-
-                let keyset = keyset_cache_read_lock
-                    .get(&keyset_id)
-                    .ok_or(Error::KeysetNotFound(PROOFS_FIELD, idx, keyset_id))?;
-                let max_order: u64 = keyset
-                    .last_key_value()
-                    .map(|(&k, _)| k)
-                    .unwrap_or_default()
-                    .into();
-
-                let keyset = keyset
-                    .get(&amount)
-                    .ok_or(Error::AmountNotFound(PROOFS_FIELD, idx, keyset_id, amount))?
-                    .secret_key
-                    .clone();
-                (keyset, max_order)
-            };
-
-            if u64::from(amount) > max_order {
-                return Err(Error::AmountGreaterThanMax(
-                    idx,
-                    amount,
-                    Amount::from(max_order),
-                ))?;
-            }
-
-            let c = PublicKey::from_slice(&proof.unblind_signature)
-                .map_err(|e| Error::InvalidSignature(idx, e))?;
-
-            if !verify_message(&secret_key, c, proof.secret.as_bytes())
-                .map_err(|e| Error::CouldNotVerifyProof(idx, c, proof.secret, e))?
-            {
-                return Ok(Response::new(VerifyProofsResponse { is_valid: false }));
-            };
         }
 
-        Ok(Response::new(VerifyProofsResponse { is_valid: true }))
+        if validation_errors.is_empty() {
+            Ok(Response::new(VerifyProofsResponse {
+                invalid_proof_indices,
+            }))
+        } else {
+            Err(VerifyProofsErrors(validation_errors).into())
+        }
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn get_root_pub_key(
         &self,
         _get_root_pub_key_request: tonic::Request<GetRootPubKeyRequest>,
@@ -207,6 +188,54 @@ impl signer::Signer for SignerState {
             root_pubkey: pub_key.to_string(),
         }))
     }
+}
+
+struct ValidatedProof {
+    secret_key: nuts::nut01::SecretKey,
+    signature: PublicKey,
+    secret: String,
+}
+
+fn validate_single_proof(
+    proof: &signer::Proof,
+    keyset_cache: &HashMap<KeysetId, Arc<SetKeyPairs>>,
+) -> Result<ValidatedProof, VerifyProofError> {
+    let keyset_id = KeysetId::from_bytes(&proof.keyset_id)
+        .map_err(|e| VerifyProofError::BadKeysetId(proof.keyset_id.clone(), e))?;
+
+    let amount = Amount::from(proof.amount);
+    if !proof.amount.is_power_of_two() {
+        return Err(VerifyProofError::AmountNotPowerOfTwo(amount));
+    }
+
+    let keyset = keyset_cache
+        .get(&keyset_id)
+        .ok_or(VerifyProofError::KeysetNotFound(keyset_id))?;
+
+    let keypair = keyset
+        .get(&amount)
+        .ok_or(VerifyProofError::AmountNotFound(keyset_id, amount))?;
+
+    let max_order: u64 = keyset
+        .last_key_value()
+        .map(|(&k, _)| k)
+        .unwrap_or_default()
+        .into();
+    if u64::from(amount) > max_order {
+        return Err(VerifyProofError::AmountGreaterThanMax(
+            amount,
+            Amount::from(max_order),
+        ));
+    }
+
+    let signature = PublicKey::from_slice(&proof.unblind_signature)
+        .map_err(VerifyProofError::InvalidSignature)?;
+
+    Ok(ValidatedProof {
+        secret_key: keypair.secret_key.clone(),
+        signature,
+        secret: proof.secret.clone(),
+    })
 }
 
 #[tokio::main]
@@ -251,7 +280,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     trace!(name: "grpc-listen", port = socket_addr.port());
 
-    tonic::transport::Server::builder()
+    let mut server = build_server()?;
+    tracing::info!("🚀 Binding to: http://{}", socket_addr);
+    server
         .add_service(signer_server_service)
         .add_service(health_service)
         .serve(socket_addr)

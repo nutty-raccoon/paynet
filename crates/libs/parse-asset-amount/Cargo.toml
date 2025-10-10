@@ -1,0 +1,13 @@
+[package]
+name = "parse-asset-amount"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+uint = { workspace = true }
+thiserror = { workspace = true }
+nuts = { workspace = true }
+primitive-types = { workspace = true }
+
+[dev-dependencies]
+starknet-types = { workspace = true }

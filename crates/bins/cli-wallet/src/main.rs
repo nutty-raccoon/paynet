@@ -1,9 +1,8 @@
 use anyhow::{Result, anyhow};
-use bitcoin::bip32::Xpriv;
+use cashu_client::GrpcClient;
 use clap::{Args, Parser, Subcommand, ValueHint};
 use colored::*;
-use node_client::NodeClient;
-use nuts::Amount;
+use parse_asset_amount::parse_asset_amount;
 use primitive_types::U256;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
@@ -13,16 +12,22 @@ use std::{fs, path::PathBuf, str::FromStr};
 use sync::display_paid_melt_quote;
 use tracing_subscriber::EnvFilter;
 use wallet::{
+    ConnectToNodeResponse,
     db::balance::Balance,
     melt::wait_for_payment,
+    send::load_proofs_and_create_wads,
     types::{
-        NodeUrl, ProofState, Wad,
+        Wad,
         compact_wad::{CompactWad, CompactWads},
     },
 };
 
 mod init;
 mod sync;
+
+const APP_IDENTIFIER: &str = "paynet-cli-wallet";
+const SEED_PHRASE_MANAGER: wallet::wallet::keyring::SeedPhraseManager =
+    wallet::wallet::keyring::SeedPhraseManager::new(APP_IDENTIFIER);
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -35,6 +40,11 @@ struct Cli {
     /// `dirs::data_dir().cli-wallet.sqlite3`
     #[arg(long, value_hint(ValueHint::FilePath))]
     db_path: Option<PathBuf>,
+    /// The path to a `.pem` root ca file
+    ///
+    /// Used to check the node certificate validity when connecting through `https`.
+    #[arg(long, value_hint(ValueHint::FilePath))]
+    root_ca_cert_path: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -46,8 +56,8 @@ enum MintCommands {
     )]
     New {
         /// Amount requested
-        #[arg(long, value_parser = parse_asset_amount)]
-        amount: U256,
+        #[arg(long)]
+        amount: String,
         /// Asset requested
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
@@ -68,8 +78,6 @@ enum NodeCommands {
         /// Url of the node
         #[arg(long, short)]
         node_url: String,
-        #[arg(long, short)]
-        restore: Option<bool>,
     },
     /// List all know nodes
     #[command(
@@ -103,8 +111,8 @@ enum Commands {
     )]
     Melt {
         /// Amount to melt
-        #[arg(long, value_parser = parse_asset_amount)]
-        amount: U256,
+        #[arg(long)]
+        amount: String,
         /// Unit to melt
         #[arg(long, value_parser = Asset::from_str)]
         asset: Asset,
@@ -122,7 +130,7 @@ enum Commands {
     )]
     Send {
         /// Amount to send
-        #[arg(long, value_parser = parse_asset_amount)]
+        #[arg(long)]
         amount: U256,
         /// Unit to send
         #[arg(long, value_parser = Asset::from_str)]
@@ -195,7 +203,7 @@ struct WadArgs {
 }
 
 impl WadArgs {
-    fn read_wads(&self) -> Result<Vec<CompactWad<Unit>>> {
+    fn read_wads(&self) -> Result<Vec<CompactWad>> {
         let wad_string = if let Some(json_string) = &self.opt_wad_string {
             Ok(json_string.clone())
         } else if let Some(file_path) = &self.opt_wad_file_path {
@@ -203,7 +211,7 @@ impl WadArgs {
         } else {
             Err(anyhow!("cli rules guarantee one and only one will be set"))
         }?;
-        let wads: CompactWads<Unit> = wad_string.parse()?;
+        let wads: CompactWads = wad_string.parse()?;
 
         Ok(wads.0)
     }
@@ -230,6 +238,30 @@ async fn main() -> Result<()> {
             .to_str()
             .ok_or(anyhow!("invalid db path"))?
     );
+    let opt_tls_root_ca_cert = cli
+        .root_ca_cert_path
+        .or_else(|| {
+            std::env::var("TLS_ROOT_CA_CERT_PATH")
+                .ok()
+                .map(PathBuf::from)
+        })
+        .map(
+            |root_ca_cert_path| match std::fs::read(&root_ca_cert_path) {
+                Ok(cert) => {
+                    tracing::info!(
+                        "✅ TLS certificate loaded successfully from {}",
+                        root_ca_cert_path.to_str().unwrap()
+                    );
+                    Ok(tonic::transport::Certificate::from_pem(cert))
+                }
+                Err(e) => Err(anyhow::anyhow!(
+                    "Failed to load TLS certificate at {}: {}",
+                    root_ca_cert_path.to_str().unwrap(),
+                    e
+                )),
+            },
+        )
+        .transpose()?;
 
     let manager = SqliteConnectionManager::file(db_path);
     let pool = r2d2::Pool::new(manager)?;
@@ -237,17 +269,18 @@ async fn main() -> Result<()> {
 
     wallet::db::create_tables(&mut db_conn)?;
 
-    let wallet_count = wallet::db::wallet::count_wallets(&db_conn)?;
+    let has_seed_phrase = wallet::wallet::exists(SEED_PHRASE_MANAGER)?;
 
     match cli.command {
         Commands::Init { .. } | Commands::Restore { .. } => {
-            if wallet_count > 0 {
+            if has_seed_phrase {
                 println!("Wallet already exists");
                 return Ok(());
             }
         }
+        Commands::DecodeWad(_) => {}
         _ => {
-            if wallet_count != 1 {
+            if !has_seed_phrase {
                 println!("Wallet is not initialized. Run `init` or `restore` first");
                 return Ok(());
             }
@@ -255,11 +288,15 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
-        Commands::Node(NodeCommands::Add { node_url, restore }) => {
+        Commands::Node(NodeCommands::Add { node_url }) => {
             let node_url = wallet::types::NodeUrl::from_str(&node_url)?;
+            let ConnectToNodeResponse {
+                client: mut node_client,
+                url: node_url,
+            } = wallet::connect_to_node(node_url, opt_tls_root_ca_cert).await?;
 
             let tx = db_conn.transaction()?;
-            let (node_client, node_id) = wallet::node::register(pool.clone(), &node_url).await?;
+            let node_id = wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
             tx.commit()?;
 
             println!(
@@ -267,28 +304,14 @@ async fn main() -> Result<()> {
                 &node_url, node_id
             );
 
-            let wallet = wallet::db::wallet::get(&db_conn)?.unwrap();
-            let should_restore = match restore {
-                Some(true) => true,
-                Some(false) => false,
-                None => wallet.is_restored,
-            };
-            if should_restore {
-                println!("Restoring proofs");
-                wallet::node::restore(
-                    pool,
-                    node_id,
-                    node_client,
-                    Xpriv::from_str(&wallet.private_key)?,
-                )
-                .await?;
-                println!("Restoring done.");
+            println!("Restoring proofs");
+            wallet::node::restore(SEED_PHRASE_MANAGER, pool, node_id, node_client).await?;
+            println!("Restoring done.");
 
-                let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
-                println!("Balance for node {}:", node_id);
-                for Balance { unit, amount } in balances {
-                    println!("  {} {}", amount, unit);
-                }
+            let balances = wallet::db::balance::get_for_node(&db_conn, node_id)?;
+            println!("Balance for node {}:", node_id);
+            for Balance { unit, amount } in balances {
+                println!("  {} {}", amount, unit);
             }
         }
         Commands::Node(NodeCommands::List {}) => {
@@ -325,17 +348,18 @@ async fn main() -> Result<()> {
             asset,
             node_id,
         }) => {
-            let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
-            println!("Requesting {} to mint {} {}", &node_url, amount, asset);
+            let mut node_client = connect_to_node(&mut db_conn, node_id).await?;
+            println!(
+                "Requesting {} to mint {} {}",
+                &node_client.url, amount, asset
+            );
 
-            let amount = amount
-                .checked_mul(asset.scale_factor())
-                .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
-            let (amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
+            let unit = asset.find_best_unit();
+            let amount = parse_asset_amount(&amount, asset, unit)?;
 
             let mint_quote_response = wallet::mint::create_quote(
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 node_id,
                 STARKNET_STR.to_string(),
                 amount,
@@ -344,34 +368,43 @@ async fn main() -> Result<()> {
             .await?;
 
             println!(
-                "MintQuote created with id: {}\nYou can proceed to payment using the following payload:\n{}",
+                "MintQuote created with id: {}",
                 &mint_quote_response.quote.red(),
-                &mint_quote_response.request.yellow()
             );
-            let deposit_payload: starknet_types::DepositPayload =
-                serde_json::from_str(&mint_quote_response.request)?;
-
-            #[cfg(debug_assertions)]
-            {
-                let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
-                let encoded_payload = urlencoding::encode(&payload_json);
-
-                let url = format!(
-                    "http://localhost:3005/deposit/{}/{}/?payload={}",
-                    STARKNET_STR,
-                    deposit_payload.chain_id.as_str(),
-                    encoded_payload
-                );
-
+            if mint_quote_response.request.is_empty() {
                 println!(
-                    "Or you can pay it with your browser wallet at:\n{}",
-                    url.blue()
+                    "The node sent an empty payment requrest. This most likely means it has been configured as `mock`, for testing purpose.\nIf you see this while interacting with a REAL node, there is a problem."
+                )
+            } else {
+                println!(
+                    "You can proceed to payment using the following payload:\n{}",
+                    &mint_quote_response.request.yellow()
                 );
+                #[cfg(debug_assertions)]
+                {
+                    let deposit_payload: starknet_types::DepositPayload =
+                        serde_json::from_str(&mint_quote_response.request)?;
+
+                    let payload_json = serde_json::to_string(&deposit_payload.call_data)?;
+                    let encoded_payload = urlencoding::encode(&payload_json);
+
+                    let url = format!(
+                        "https://localhost:3005/deposit/{}/{}/?payload={}",
+                        STARKNET_STR,
+                        deposit_payload.chain_id.as_str(),
+                        encoded_payload
+                    );
+
+                    println!(
+                        "Or you can pay it with your browser wallet at:\n{}",
+                        url.blue()
+                    );
+                }
             }
 
             match wallet::mint::wait_for_quote_payment(
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 STARKNET_STR.to_string(),
                 mint_quote_response.quote.clone(),
             )
@@ -384,10 +417,11 @@ async fn main() -> Result<()> {
             }
 
             wallet::mint::redeem_quote(
+                SEED_PHRASE_MANAGER,
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 STARKNET_STR.to_string(),
-                mint_quote_response.quote,
+                &mint_quote_response.quote,
                 node_id,
                 unit.as_str(),
                 amount,
@@ -403,15 +437,13 @@ async fn main() -> Result<()> {
             node_id,
             to,
         } => {
-            let (mut node_client, _node_url) = connect_to_node(&mut db_conn, node_id).await?;
+            let mut node_client = connect_to_node(&mut db_conn, node_id).await?;
 
             println!("Melting {} {} tokens", amount, asset);
 
-            // Convert user inputs to actionable types
-            let on_chain_amount = amount
-                .checked_mul(asset.scale_factor())
-                .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let unit = asset.find_best_unit();
+            let amount = parse_asset_amount(&amount, asset, unit)?;
+            let on_chain_amount = unit.convert_amount_into_u256(amount);
 
             let payee_address = Felt::from_hex(&to)?;
             if !is_valid_starknet_address(&payee_address) {
@@ -429,33 +461,37 @@ async fn main() -> Result<()> {
             // Create the quote
             let melt_quote_response = wallet::melt::create_quote(
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 node_id,
                 method.clone(),
-                unit,
+                unit.to_string(),
                 request,
             )
             .await?;
             println!("Melt quote created!");
 
             let melt_response = wallet::melt::pay_quote(
+                SEED_PHRASE_MANAGER,
                 pool.clone(),
-                &mut node_client,
+                &mut node_client.client,
                 node_id,
                 melt_quote_response.quote.clone(),
-                Amount::from(melt_quote_response.amount),
+                melt_quote_response.amount,
                 method.clone(),
                 unit.as_str(),
             )
             .await?;
             println!("Melt submited!");
 
-            if melt_response.state == node_client::MeltQuoteState::MlqsPaid as i32 {
-                display_paid_melt_quote(melt_quote_response.quote, melt_response.transfer_ids);
+            if melt_response.state == nuts::nut05::MeltQuoteState::Paid {
+                display_paid_melt_quote(
+                    melt_quote_response.quote,
+                    melt_response.transfer_ids.unwrap_or_default(),
+                );
             } else {
                 match wait_for_payment(
                     pool.clone(),
-                    &mut node_client,
+                    &mut node_client.client,
                     method,
                     melt_quote_response.quote.clone(),
                 )
@@ -500,71 +536,30 @@ async fn main() -> Result<()> {
                 .ok_or(anyhow!("amount greater than the maximum for this asset"))?;
             let (total_amount, unit, _remainder) = asset.convert_to_amount_and_unit(amount)?;
 
+            // Decide which amount from which node we are going to use
             let node_ids_with_amount_to_use =
                 wallet::send::plan_spending(&db_conn, total_amount, unit, &node_ids)?;
 
+            // Get the ids of the proofs that we are going to spend for each node
             let mut node_and_proofs = Vec::with_capacity(node_ids_with_amount_to_use.len());
             for (node_id, amount_to_use) in node_ids_with_amount_to_use {
-                let (mut node_client, node_url) = connect_to_node(&mut db_conn, node_id).await?;
+                let mut node_client = connect_to_node(&mut db_conn, node_id).await?;
 
                 let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
+                    crate::SEED_PHRASE_MANAGER,
                     pool.clone(),
-                    &mut node_client,
+                    &mut node_client.client,
                     node_id,
                     amount_to_use,
                     unit.as_str(),
                 )
                 .await?
                 .ok_or(anyhow!("not enough funds"))?;
-
-                println!(
-                    "Spending {} {} from node {} ({})",
-                    amount_to_use, asset, &node_id, &node_url
-                );
-                node_and_proofs.push((node_url, proofs_ids));
+                node_and_proofs.push(((node_id, node_client.url), proofs_ids));
             }
 
-            let mut wads = Vec::with_capacity(node_and_proofs.len());
-            let mut should_revert = None;
-            for (i, (node_url, proofs_ids)) in node_and_proofs.iter().enumerate() {
-                let proofs = match wallet::load_tokens_from_db(&db_conn, proofs_ids) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        println!(
-                            "Failed to load the following proofs for node {}: {}\nProof ids: {:?}\nReverting now.",
-                            node_url, e, proofs_ids
-                        );
-                        should_revert = Some(i);
-                        break;
-                    }
-                };
-
-                let wad =
-                    wallet::wad::create_from_parts(node_url.clone(), unit, memo.clone(), proofs);
-                wads.push(wad);
-            }
-            if let Some(max_reached) = should_revert {
-                node_and_proofs
-                    .iter()
-                    .map(|(_, pids)| pids)
-                    .take(max_reached)
-                    .for_each(|proofs_id| {
-                        if let Err(e) = wallet::db::proof::set_proofs_to_state(
-                            &db_conn,
-                            proofs_id,
-                            ProofState::Unspent,
-                        ) {
-                            println!(
-                                "failed to revet state of the following proofs: {}\nProofs ids: {:?}",
-                                e, proofs_id
-                            );
-                        }
-                    });
-
-                return Err(anyhow!("wad creation reverted"));
-            };
-
-            let wads = CompactWads::new(wads);
+            let wads =
+                load_proofs_and_create_wads(&mut db_conn, node_and_proofs, unit.as_str(), memo)?;
 
             match output {
                 Some((output_path, path_str)) => {
@@ -588,32 +583,32 @@ async fn main() -> Result<()> {
             let wads = args.read_wads()?;
 
             for wad in wads {
-                let (mut node_client, node_id) =
-                    wallet::node::register(pool.clone(), &wad.node_url).await?;
-                let CompactWad {
-                    node_url,
-                    unit,
-                    memo,
-                    proofs,
-                } = wad;
+                let ConnectToNodeResponse {
+                    client: mut node_client,
+                    url: node_url,
+                } = wallet::connect_to_node(wad.node_url, opt_tls_root_ca_cert.clone()).await?;
+
+                let node_id =
+                    wallet::node::register(pool.clone(), &mut node_client, &node_url).await?;
 
                 match wallet::receive_wad(
+                    SEED_PHRASE_MANAGER,
                     pool.clone(),
                     &mut node_client,
                     node_id,
                     &node_url,
-                    wad.unit.as_str(),
-                    proofs,
-                    &memo,
+                    &wad.unit,
+                    wad.proofs,
+                    &wad.memo,
                 )
                 .await
                 {
                     Ok(a) => {
                         println!("Received tokens on node `{}`", node_id);
-                        if let Some(memo) = memo {
+                        if let Some(memo) = wad.memo {
                             println!("Memo: {}", memo);
                         }
-                        println!("{} {}", a, unit.as_str());
+                        println!("{} {}", a, wad.unit.as_str());
                     }
                     Err(e) => {
                         println!(
@@ -660,12 +655,12 @@ async fn main() -> Result<()> {
             sync::sync_all_pending_operations(pool).await?;
         }
         Commands::Init { yes } => {
-            init::init(&db_conn, yes)?;
+            init::init(yes)?;
             println!("Wallet saved!");
         }
         Commands::Restore { seed_phrase } => {
             let seed_phrase = wallet::seed_phrase::create_from_str(&seed_phrase)?;
-            wallet::wallet::restore(&db_conn, seed_phrase)?;
+            wallet::wallet::save_seed_phrase(SEED_PHRASE_MANAGER, &seed_phrase)?;
             println!("Wallet saved!");
         }
         Commands::History { limit } => {
@@ -707,18 +702,9 @@ async fn main() -> Result<()> {
 pub async fn connect_to_node(
     conn: &mut Connection,
     node_id: u32,
-) -> Result<(NodeClient<tonic::transport::Channel>, NodeUrl)> {
+) -> Result<wallet::ConnectToNodeResponse<GrpcClient>> {
     let node_url = wallet::db::node::get_url_by_id(conn, node_id)?
         .ok_or_else(|| anyhow!("no node with id {node_id}"))?;
-    let node_client = wallet::connect_to_node(&node_url).await?;
-    Ok((node_client, node_url))
-}
-
-pub fn parse_asset_amount(amount: &str) -> Result<U256, std::io::Error> {
-    if amount.starts_with("0x") || amount.starts_with("0X") {
-        U256::from_str_radix(amount, 16)
-    } else {
-        U256::from_str_radix(amount, 10)
-    }
-    .map_err(std::io::Error::other)
+    let connect_to_node_response = wallet::connect_to_node(node_url, None).await?;
+    Ok(connect_to_node_response)
 }

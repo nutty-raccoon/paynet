@@ -5,7 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Deposit Route Handler</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    
+    <!-- Critical inline CSS -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        visibility: hidden;
+      }
+      body.loaded {
+        visibility: visible;
+        animation: fadeIn 0.3s ease-in;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+    
     <link rel="stylesheet" href="/static/styles.css" />
+    
+    <!-- Load page immediately -->
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        document.body.classList.add("loaded");
+      });
+    </script>
   </head>
   <body>
     <div class="container">
@@ -51,10 +82,6 @@
           </div>
         </div>
       </main>
-
-      <footer>
-        <p>Built with Rust + Axum + Starknet</p>
-      </footer>
     </div>
 
     <script type="application/json" id="deposit-data">

@@ -8,6 +8,7 @@ use nuts::{
 use starknet_types::Unit;
 use thiserror::Error;
 use tonic::Status;
+use tonic_types::{ErrorDetails, StatusExt};
 use tracing::{Level, event};
 
 use crate::{
@@ -46,7 +47,6 @@ impl From<Error> for Status {
             }
             Error::Outputs(error) => match error {
                 OutputsError::DuplicateOutput
-                | OutputsError::InactiveKeyset(_)
                 | OutputsError::MultipleUnits
                 | OutputsError::TotalAmountTooBig
                 | OutputsError::AlreadySigned
@@ -58,6 +58,15 @@ impl From<Error> for Status {
                     Status::internal(error.to_string())
                 }
                 OutputsError::Signer(status) => status,
+                OutputsError::InactiveKeyset(keyset_id) => Status::with_error_details(
+                    tonic::Code::FailedPrecondition,
+                    "inactive keyset",
+                    ErrorDetails::with_precondition_failure_violation(
+                        "keyset.state",
+                        format!("keyset/{}", keyset_id),
+                        "Keyset must be active to perform this operation",
+                    ),
+                ),
             },
             Error::Inputs(error) => error.into(),
             Error::UnbalancedUnits
@@ -121,8 +130,8 @@ impl AppState {
         event!(
             name: "swap",
             Level::INFO,
-            name = "swap",
             amounts = serde_json::to_string(&outputs_amounts).unwrap(),
+            "Swap"
         );
         let meter = opentelemetry::global::meter("business");
         let n_swap_counter = meter.u64_counter("swap.operation.count").build();

@@ -15,12 +15,13 @@ serde_json = { workspace = true }
 sqlx = { workspace = true }
 dotenvy = { workspace = true }
 node-client = { workspace = true, features = [
-    "keyset-rotation"
+    "keyset-rotation",
 ] }
 starknet-liquidity-source = { workspace = true }
 liquidity-source = { workspace = true  }
 starknet-types = { workspace = true }
 db-node = { workspace = true }
+cashu-client = { workspace = true }
 
 [[test]]
 name = "keyset_rotation"

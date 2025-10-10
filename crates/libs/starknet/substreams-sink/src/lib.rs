@@ -9,6 +9,7 @@ use anyhow::{Error, Result, anyhow};
 use db_node::PaymentEvent;
 use futures::StreamExt;
 use http::Uri;
+use nuts::traits::Unit as UnitT;
 use nuts::{Amount, nut04::MintQuoteState, nut05::MeltQuoteState};
 use pb::{
     invoice_contract::v1::RemittanceEvent,
@@ -348,8 +349,8 @@ async fn handle_mint_payment(
         event!(
             name: "mint-quote-paid",
             Level::INFO,
-            name = "mint-quote-paid",
             %quote_id,
+            "Mint quote paid"
         );
     }
 
@@ -390,8 +391,8 @@ async fn handle_melt_payment(
         event!(
             name: "melt-quote-paid",
             Level::INFO,
-            name = "melt-quote-paid",
             %quote_id,
+            "Melt quote paid"
         );
     }
 

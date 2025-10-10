@@ -44,3 +44,15 @@ pub fn fetch_all(conn: &Connection) -> Result<Vec<(u32, NodeUrl)>> {
 
     rows.collect::<Result<Vec<_>>>()
 }
+
+pub fn fetch_all_ids(conn: &Connection) -> Result<Vec<u32>> {
+    let mut stmt = conn.prepare("SELECT id FROM node;")?;
+
+    let rows = stmt.query_map((), |r| r.get::<_, u32>(0))?;
+
+    rows.collect::<Result<Vec<_>>>()
+}
+
+pub fn delete_by_id(conn: &Connection, node_id: u32) -> Result<usize> {
+    conn.execute("DELETE FROM node WHERE id = ?1;", [node_id])
+}

@@ -89,12 +89,29 @@ services:
     build:
       context: ..
       dockerfile: ./dockerfiles/web-app.Dockerfile
+    volumes:
+      # There should be a certs/ folder at the root of the repo containing cert.pem and key.pem.
+      # Generate them using `mkcert -key-file certs/key.pem -cert-file certs/cert.pem localhost 127.0.0.1 ::1`
+      - ../certs:/certs
     restart: always
     ports:
       - "3005:3005"
     environment:
-      - RUST_LOG=info
       - PORT=3005
+    depends_on:
+      starknet-devnet:
+        condition: service_healthy
+
+  starknet-setup:
+    image: "starknet-setup"
+    build:
+      context: ..
+      dockerfile: ./dockerfiles/starknet-setup.Dockerfile
+    command:
+      - "--chain-id=SN_SEPOLIA"
+      - "--url=http://starknet-devnet:5050"
+      - "--private-key=0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
+      - "--account-address=0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"
     depends_on:
       starknet-devnet:
         condition: service_healthy

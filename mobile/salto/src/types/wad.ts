@@ -1,3 +1,5 @@
+import type { Balance } from "./node";
+
 export type Wads = string;
 
 export enum WadType {
@@ -15,7 +17,7 @@ export interface WadHistoryItem {
     id: string;
     type: WadType;
     status: WadStatus;
-    totalAmountJson: string;
+    amounts: Balance[];
     memo?: string;
     createdAt: number;
     modifiedAt: number;

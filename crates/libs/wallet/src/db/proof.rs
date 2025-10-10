@@ -14,9 +14,9 @@ pub const CREATE_TABLE_PROOF: &str = r#"
             state INTEGER NOT NULL CHECK (state IN (1, 2, 3, 4))
         );
 
-        CREATE INDEX proof_node_id ON proof(node_id); 
-        CREATE INDEX proof_amount ON proof(amount); 
-        CREATE INDEX proof_state ON proof(state); 
+        CREATE INDEX proof_node_id ON proof(node_id);
+        CREATE INDEX proof_amount ON proof(amount);
+        CREATE INDEX proof_state ON proof(state);
     "#;
 
 /// Fetch the proof info and set it to pending
@@ -63,23 +63,42 @@ fn build_ys_placeholder_string_for_in_statement(len: usize) -> String {
     placeholders
 }
 
-pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofState) -> Result<()> {
+#[derive(Debug, thiserror::Error)]
+#[error("failed to set proofs to state {0}: {1}")]
+pub struct SetProofsToStateError(ProofState, #[source] rusqlite::Error);
+
+pub fn set_proofs_to_state(
+    conn: &Connection,
+    ys: &[PublicKey],
+    state: ProofState,
+) -> Result<usize, SetProofsToStateError> {
     let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
 
     // Prepare the statement with dynamic placeholders
     let sql = format!("UPDATE proof SET state = ?1 WHERE y IN ({})", placeholders);
-    let mut stmt = conn.prepare(&sql)?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| SetProofsToStateError(state, e))?;
 
     // Bind state as first parameter
-    stmt.raw_bind_parameter(1, state)?;
+    stmt.raw_bind_parameter(1, state)
+        .map_err(|e| SetProofsToStateError(state, e))?;
     // Bind each public key string to its respective placeholder
     for (i, y) in ys.iter().enumerate() {
-        stmt.raw_bind_parameter(i + 2, y)?;
+        stmt.raw_bind_parameter(i + 2, y)
+            .map_err(|e| SetProofsToStateError(state, e))?;
     }
 
-    stmt.raw_execute()?;
-    Ok(())
+    let rows_affected = stmt
+        .raw_execute()
+        .map_err(|e| SetProofsToStateError(state, e))?;
+
+    Ok(rows_affected)
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed get proofs by id: {0}")]
+pub struct GetProofsByIdsError(#[from] rusqlite::Error);
 
 /// Return the proofs data related to the ids
 ///
@@ -89,7 +108,7 @@ pub fn set_proofs_to_state(conn: &Connection, ys: &[PublicKey], state: ProofStat
 pub fn get_proofs_by_ids(
     conn: &Connection,
     ys: &[PublicKey],
-) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>> {
+) -> Result<Vec<(Amount, KeysetId, PublicKey, Secret)>, GetProofsByIdsError> {
     if ys.is_empty() {
         return Ok(Vec::new());
     }
@@ -118,6 +137,32 @@ pub fn get_proofs_by_ids(
                 ))
             }
         })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(proofs)
+}
+
+/// Return the proofs state related to the ids
+///
+/// Will error if any of those ids doesn't exist
+/// The order of the returned proofs is not guaranteed to match the input `proof_ids`.
+pub fn get_proofs_state_by_ids(conn: &Connection, ys: &[PublicKey]) -> Result<Vec<ProofState>> {
+    if ys.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders = build_ys_placeholder_string_for_in_statement(ys.len());
+    let sql = format!("SELECT state FROM proof WHERE y IN ({})", placeholders);
+
+    let mut stmt = conn.prepare(&sql)?;
+
+    for (i, y) in ys.iter().enumerate() {
+        stmt.raw_bind_parameter(i + 1, y)?;
+    }
+
+    let proofs = stmt
+        .raw_query()
+        .mapped(|r| -> Result<ProofState> { r.get::<_, ProofState>(0) })
         .collect::<Result<Vec<_>>>()?;
 
     Ok(proofs)
@@ -157,9 +202,9 @@ pub fn get_node_total_available_amount_of_unit(
 ) -> Result<Amount> {
     let mut stmt = conn.prepare(
         r#"SELECT COALESCE(
-                (SELECT SUM(p.amount) 
-                 FROM proof p 
-                 JOIN keyset k ON p.keyset_id = k.id 
+                (SELECT SUM(p.amount)
+                 FROM proof p
+                 JOIN keyset k ON p.keyset_id = k.id
                  WHERE p.node_id = ?1 AND p.state = ?2 AND k.unit = ?3),
                 0
               );"#,
@@ -193,8 +238,8 @@ pub fn get_nodes_ids_and_available_funds_ordered_desc(
 
     let query = format!(
         r#"SELECT p.node_id, COALESCE(SUM(p.amount), 0) as total_amount
-           FROM proof p 
-           JOIN keyset k ON p.keyset_id = k.id 
+           FROM proof p
+           JOIN keyset k ON p.keyset_id = k.id
            WHERE p.state = ?1 AND k.unit = ?2 {}
            GROUP BY p.node_id
            ORDER BY total_amount DESC"#,

@@ -38,13 +38,17 @@ pub async fn insert_new<U: Unit>(
 pub async fn build_response_from_db(
     conn: &mut PgConnection,
     quote_id: Uuid,
-) -> Result<MintQuoteResponse<Uuid>, Error> {
-    let record = sqlx::query!(
+) -> Result<Option<MintQuoteResponse<Uuid>>, Error> {
+    let record = match sqlx::query!(
         r#"SELECT request, state AS "state: MintQuoteState", expiry FROM mint_quote where id = $1"#,
         quote_id
     )
-    .fetch_one(conn)
-    .await?;
+    .fetch_optional(conn)
+    .await?
+    {
+        Some(r) => r,
+        None => return Ok(None),
+    };
 
     let expiry = record
         .expiry
@@ -52,12 +56,12 @@ pub async fn build_response_from_db(
         .try_into()
         .map_err(|_| Error::DbToRuntimeConversion)?;
 
-    Ok(MintQuoteResponse {
+    Ok(Some(MintQuoteResponse {
         quote: quote_id,
         request: record.request,
         state: record.state,
         expiry,
-    })
+    }))
 }
 
 pub async fn get_amount_and_state(

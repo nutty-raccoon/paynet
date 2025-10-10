@@ -8,9 +8,7 @@ use nuts::nut00::secret::Secret;
 use nuts::nut00::{Proof, Proofs};
 use nuts::nut01::PublicKey;
 use nuts::nut02::KeysetId;
-use nuts::traits::Unit;
 
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::NodeUrl;
@@ -30,13 +28,13 @@ pub enum Error {
     InvalidCbor(#[from] ciborium::de::Error<std::io::Error>),
 }
 
-impl<U: Unit> CompactWads<U> {
-    pub fn new(wads: Vec<CompactWad<U>>) -> Self {
+impl CompactWads {
+    pub fn new(wads: Vec<CompactWad>) -> Self {
         Self(wads)
     }
 }
 
-impl<U: Unit + Serialize> fmt::Display for CompactWads<U> {
+impl fmt::Display for CompactWads {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for i in 0..self.0.len() {
             let token_as_string = self.0[i].to_string();
@@ -50,7 +48,7 @@ impl<U: Unit + Serialize> fmt::Display for CompactWads<U> {
     }
 }
 
-impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
+impl FromStr for CompactWads {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -68,13 +66,13 @@ impl<U: Unit + DeserializeOwned> FromStr for CompactWads<U> {
 
 /// Token V4
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CompactWad<U: Unit> {
+pub struct CompactWad {
     /// Mint Url
     #[serde(rename = "m")]
     pub node_url: NodeUrl,
     /// Token Unit
     #[serde(rename = "u")]
-    pub unit: U,
+    pub unit: String,
     /// Memo for token
     #[serde(rename = "d", skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
@@ -85,9 +83,9 @@ pub struct CompactWad<U: Unit> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct CompactWads<U: Unit>(pub Vec<CompactWad<U>>);
+pub struct CompactWads(pub Vec<CompactWad>);
 
-impl<U: Unit> CompactWad<U> {
+impl CompactWad {
     /// Proofs from token
     pub fn proofs(&self) -> Proofs {
         self.proofs
@@ -119,14 +117,14 @@ impl<U: Unit> CompactWad<U> {
 
     /// Unit
     #[inline]
-    pub fn unit(&self) -> &U {
+    pub fn unit(&self) -> &str {
         &self.unit
     }
 }
 
 pub const CASHU_PREFIX: &str = "cashuB";
 
-impl<U: Unit + Serialize> fmt::Display for CompactWad<U> {
+impl fmt::Display for CompactWad {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use serde::ser::Error;
         let mut data = Vec::new();
@@ -136,7 +134,7 @@ impl<U: Unit + Serialize> fmt::Display for CompactWad<U> {
     }
 }
 
-impl<U: Unit + DeserializeOwned> FromStr for CompactWad<U> {
+impl FromStr for CompactWad {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -189,7 +187,7 @@ where
 /// Proof V4
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactProof {
-    /// Amount in satoshi
+    /// Amount
     #[serde(rename = "a")]
     pub amount: Amount,
     /// Secret message
@@ -233,51 +231,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nuts::Amount;
     use nuts::nut00::secret::Secret;
     use nuts::nut01::PublicKey;
     use nuts::nut02::KeysetId;
-    use nuts::{Amount, traits::Unit};
     use std::str::FromStr;
 
-    // Simple TestUnit implementation using nuts error types
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-    #[serde(rename_all = "lowercase")]
-    pub enum TestUnit {
-        Sat,
-    }
-
-    impl std::fmt::Display for TestUnit {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "sat")
-        }
-    }
-
-    impl From<TestUnit> for u32 {
-        fn from(_: TestUnit) -> Self {
-            0
-        }
-    }
-
-    impl FromStr for TestUnit {
-        type Err = &'static str;
-
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
-            match s {
-                "sat" => Ok(TestUnit::Sat),
-                _ => Err("invalid unit"),
-            }
-        }
-    }
-
-    impl Unit for TestUnit {}
-
-    impl AsRef<str> for TestUnit {
-        fn as_ref(&self) -> &str {
-            "sat"
-        }
-    }
-
-    fn create_test_compact_wad_single_proof(node_url: &str, amount: u64) -> CompactWad<TestUnit> {
+    fn create_test_compact_wad_single_proof(node_url: &str, amount: u64) -> CompactWad {
         let keyset_id = KeysetId::from_bytes(&[0, 1, 2, 3, 4, 5, 6, 7]).unwrap();
         let secret =
             Secret::from_str("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
@@ -288,15 +248,11 @@ mod tests {
         ])
         .unwrap();
 
-        let node_url = if cfg!(feature = "tls") {
-            NodeUrl::from_str(&format!("https://{}", node_url)).unwrap()
-        } else {
-            NodeUrl::from_str(&format!("http://{}", node_url)).unwrap()
-        };
+        let node_url = NodeUrl::from_str(&format!("https://{}", node_url)).unwrap();
 
         CompactWad {
             node_url,
-            unit: TestUnit::Sat,
+            unit: "sat".to_string(),
             memo: None,
             proofs: vec![CompactKeysetProofs {
                 keyset_id,
@@ -309,10 +265,7 @@ mod tests {
         }
     }
 
-    fn create_test_compact_wad_multiple_proofs(
-        node_url: &str,
-        amounts: &[u64],
-    ) -> CompactWad<TestUnit> {
+    fn create_test_compact_wad_multiple_proofs(node_url: &str, amounts: &[u64]) -> CompactWad {
         let keyset_id = KeysetId::from_bytes(&[0, 1, 2, 3, 4, 5, 6, 7]).unwrap();
         let pubkey = PublicKey::from_slice(&[
             3, 23, 183, 225, 206, 31, 159, 148, 195, 42, 67, 115, 146, 41, 248, 140, 11, 3, 51, 41,
@@ -320,11 +273,7 @@ mod tests {
         ])
         .unwrap();
 
-        let node_url = if cfg!(feature = "tls") {
-            NodeUrl::from_str(&format!("https://{}", node_url)).unwrap()
-        } else {
-            NodeUrl::from_str(&format!("http://{}", node_url)).unwrap()
-        };
+        let node_url = NodeUrl::from_str(&format!("https://{}", node_url)).unwrap();
 
         let mut proofs = Vec::new();
         for (i, &amount) in amounts.iter().enumerate() {
@@ -338,7 +287,7 @@ mod tests {
 
         CompactWad {
             node_url,
-            unit: TestUnit::Sat,
+            unit: "sat".to_string(),
             memo: None,
             proofs: vec![CompactKeysetProofs { keyset_id, proofs }],
         }
@@ -351,7 +300,7 @@ mod tests {
         #[test]
         fn test_token_v4_str_round_trip() {
             let token_str = "cashuBpGF0gaJhaUgArSaMTR9YJmFwgaNhYQFhc3hAOWE2ZGJiODQ3YmQyMzJiYTc2ZGIwZGYxOTcyMTZiMjlkM2I4Y2MxNDU1M2NkMjc4MjdmYzFjYzk0MmZlZGI0ZWFjWCEDhhhUP_trhpXfStS6vN6So0qWvc2X3O4NfM-Y1HISZ5JhZGlUaGFuayB5b3VhbXVodHRwOi8vbG9jYWxob3N0OjMzMzhhdWNzYXQ=";
-            let wad = CompactWad::<TestUnit>::from_str(token_str).unwrap();
+            let wad = CompactWad::from_str(token_str).unwrap();
 
             assert_eq!(
                 wad.node_url,
@@ -373,13 +322,13 @@ mod tests {
         fn test_token_v4_multi_keyset() {
             let token_str_multi_keysets = "cashuBo2F0gqJhaUgA_9SLj17PgGFwgaNhYQFhc3hAYWNjMTI0MzVlN2I4NDg0YzNjZjE4NTAxNDkyMThhZjkwZjcxNmE1MmJmNGE1ZWQzNDdlNDhlY2MxM2Y3NzM4OGFjWCECRFODGd5IXVW-07KaZCvuWHk3WrnnpiDhHki6SCQh88-iYWlIAK0mjE0fWCZhcIKjYWECYXN4QDEzMjNkM2Q0NzA3YTU4YWQyZTIzYWRhNGU5ZjFmNDlmNWE1YjRhYzdiNzA4ZWIwZDYxZjczOGY0ODMwN2U4ZWVhY1ghAjRWqhENhLSsdHrr2Cw7AFrKUL9Ffr1XN6RBT6w659lNo2FhAWFzeEA1NmJjYmNiYjdjYzY0MDZiM2ZhNWQ1N2QyMTc0ZjRlZmY4YjQ0MDJiMTc2OTI2ZDNhNTdkM2MzZGNiYjU5ZDU3YWNYIQJzEpxXGeWZN5qXSmJjY8MzxWyvwObQGr5G1YCCgHicY2FtdWh0dHA6Ly9sb2NhbGhvc3Q6MzMzOGF1Y3NhdA==";
 
-            let wad = CompactWad::<TestUnit>::from_str(token_str_multi_keysets).unwrap();
+            let wad = CompactWad::from_str(token_str_multi_keysets).unwrap();
             let amount = wad.value().expect("valid amount");
 
             assert_eq!(amount, Amount::from(4u64));
 
             let unit = wad.unit();
-            assert_eq!(&TestUnit::Sat, unit);
+            assert_eq!("sat", unit);
 
             assert_eq!(
                 wad.node_url,
@@ -410,7 +359,7 @@ mod tests {
         assert!(!serialized.contains(':'));
 
         // Deserialize from string
-        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+        let deserialized: CompactWads = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
         assert_eq!(wads, deserialized);
@@ -429,7 +378,7 @@ mod tests {
         assert!(!serialized.contains(':'));
 
         // Deserialize from string
-        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+        let deserialized: CompactWads = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
         assert_eq!(wads, deserialized);
@@ -448,7 +397,7 @@ mod tests {
         assert_eq!(serialized.matches(CASHU_PREFIX).count(), 2);
 
         // Deserialize from string
-        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+        let deserialized: CompactWads = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
         assert_eq!(wads, deserialized);
@@ -468,7 +417,7 @@ mod tests {
         assert_eq!(serialized.matches(CASHU_PREFIX).count(), 3);
 
         // Deserialize from string
-        let deserialized: CompactWads<TestUnit> = CompactWads::from_str(&serialized).unwrap();
+        let deserialized: CompactWads = CompactWads::from_str(&serialized).unwrap();
 
         // Assert same content
         assert_eq!(wads, deserialized);
@@ -478,72 +427,60 @@ mod tests {
 
     #[test]
     fn test_wad_string_two_tokens_not_separated_by_colon() {
-        // wad string of two tokens not separated by :
-        let token1 = create_test_compact_wad_single_proof("mint1.example.com", 100);
-        let token2 = create_test_compact_wad_single_proof("mint2.example.com", 200);
-        let token1_str = token1.to_string();
-        let token2_str = token2.to_string();
-        let invalid_wad = format!("{}{}", token1_str, token2_str);
+        let wad1 = create_test_compact_wad_single_proof("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad_single_proof("mint2.example.com", 200);
+        let invalid_wad = format!("{}{}", wad1, wad2);
 
-        let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_string_with_double_colon() {
-        // wad string with ::
-        let invalid_wad = "cashuBvalidtoken::cashuBvalidtoken2";
+        let wad1 = create_test_compact_wad_single_proof("mint1.example.com", 100);
+        let wad2 = create_test_compact_wad_single_proof("mint2.example.com", 200);
+        let invalid_wad = format!("{}::{}", wad1, wad2);
 
-        let result = CompactWads::<TestUnit>::from_str(invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_string_starting_with_colon() {
-        // wad string starting with ":"
-        let token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let token_str = token.to_string();
-        let invalid_wad = format!(":{}", token_str);
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let invalid_wad = format!(":{}", wad);
 
-        let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_string_ending_with_colon() {
         // wad string finishing by ":"
-        let token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let token_str = token.to_string();
-        let invalid_wad = format!("{}:", token_str);
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let invalid_wad = format!("{}:", wad);
 
-        let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_wad_with_valid_and_invalid_token() {
         // wad with a valid and an invalid token
-        let valid_token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let valid_token_str = valid_token.to_string();
-        let invalid_wad = format!("{}:invalidtoken", valid_token_str);
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let invalid_wad = format!("{}:cashuBinvalidtoken", wad);
 
-        let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
+        let result = CompactWads::from_str(&invalid_wad);
         assert!(result.is_err());
-        match result.unwrap_err() {
-            Error::UnsupportedWadFormat => (),
-            other => panic!("Expected UnsupposrtedWadFormat error, got: {:?}", other),
-        }
     }
 
     #[test]
     fn test_wad_string_token_without_cashu_prefix() {
-        // wad string where one token has no cashuB prefix
-        let valid_token = create_test_compact_wad_single_proof("mint.example.com", 100);
-        let valid_token_str = valid_token.to_string();
+        let wad = create_test_compact_wad_single_proof("mint.example.com", 100);
+        let valid_token_str = wad.to_string();
         let token_without_prefix = valid_token_str.strip_prefix(CASHU_PREFIX).unwrap();
-        let invalid_wad = format!("{}:{}", valid_token_str, token_without_prefix);
 
-        let result = CompactWads::<TestUnit>::from_str(&invalid_wad);
+        let result = CompactWad::from_str(token_without_prefix);
         assert!(result.is_err());
         match result.unwrap_err() {
             Error::UnsupportedWadFormat => (),

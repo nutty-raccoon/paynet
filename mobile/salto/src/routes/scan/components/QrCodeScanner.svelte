@@ -7,6 +7,8 @@
     Html5QrcodeSupportedFormats,
     Html5QrcodeScannerState,
   } from "html5-qrcode";
+  import { currentPlatform } from "../../../stores";
+  import { checkMacOSCameraPermission } from "../../../permissions";
 
   interface Props {
     paused: boolean;
@@ -28,6 +30,14 @@
 
   async function initializeScanner() {
     if (scanner) return;
+
+    if (currentPlatform == "macos") {
+      const authorized = await checkMacOSCameraPermission();
+      if (!authorized) {
+        console.log("camera-permission not given");
+        return;
+      }
+    }
 
     scanner = new Html5QrcodeScanner(
       "qr-scanner",

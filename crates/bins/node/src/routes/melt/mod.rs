@@ -161,9 +161,9 @@ impl AppState {
         event!(
             name: "melt",
             Level::INFO,
-            name = "melt",
             %method,
             %quote_id,
+            "Melt"
         );
 
         let (state, transfer_ids) =

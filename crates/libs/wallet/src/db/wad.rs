@@ -1,7 +1,7 @@
 use crate::types::NodeUrl;
 use nuts::{Amount, nut01::PublicKey};
 use rusqlite::{
-    Connection, Result, ToSql, params,
+    Connection, Result, ToSql, Transaction, params,
     types::{FromSql, FromSqlError, FromSqlResult, ToSqlOutput, ValueRef},
 };
 use std::{
@@ -10,12 +10,15 @@ use std::{
 };
 use uuid::Uuid;
 
+use super::balance::Balance;
+
 pub const CREATE_TABLE_WAD: &str = r#"
         CREATE TABLE IF NOT EXISTS wad (
             id BLOB NOT NULL,
+            node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
             type TEXT NOT NULL CHECK (type IN ('IN', 'OUT')),
             status TEXT NOT NULL CHECK (status IN ('PENDING', 'CANCELLED', 'FINISHED', 'FAILED', 'PARTIAL')),
-            node_url TEXT NOT NULL, 
+            node_url TEXT NOT NULL,
             memo TEXT,
             created_at INTEGER NOT NULL,
             modified_at INTEGER NOT NULL,
@@ -121,6 +124,7 @@ pub struct WadRecord {
     pub memo: Option<String>,
     pub created_at: u64,
     pub modified_at: u64,
+    pub node_id: u32,
 }
 
 fn compute_wad_uuid(node_url: &NodeUrl, proofs_ys: &[PublicKey]) -> Uuid {
@@ -141,8 +145,9 @@ fn compute_wad_uuid(node_url: &NodeUrl, proofs_ys: &[PublicKey]) -> Uuid {
 }
 
 pub fn register_wad(
-    conn: &Connection,
+    conn: &Transaction,
     wad_type: WadType,
+    node_id: u32,
     node_url: &NodeUrl,
     memo: &Option<String>,
     proof_ys: &[PublicKey],
@@ -155,16 +160,18 @@ pub fn register_wad(
         .as_secs();
 
     const INSERT_WAD: &str = r#"
-        INSERT INTO wad 
-            (id, type, status, node_url, memo, created_at, modified_at)
-        VALUES 
-            (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        INSERT INTO wad
+            (id, type, status, node_id, node_url, memo, created_at, modified_at)
+        VALUES
+            (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        ON CONFLICT DO NOTHING;
     "#;
     let mut stmt = conn.prepare(INSERT_WAD)?;
     stmt.execute(params![
         wad_id,
         wad_type,
         WadStatus::Pending,
+        node_id,
         node_url,
         memo,
         now,
@@ -194,14 +201,15 @@ fn parse_wad_record(row: &rusqlite::Row) -> rusqlite::Result<WadRecord> {
         memo: row.get(4)?,
         created_at: row.get(5)?,
         modified_at: row.get(6)?,
+        node_id: row.get(7)?,
     })
 }
 
 pub fn get_recent_wads(conn: &Connection, limit: u32) -> Result<Vec<WadRecord>> {
     const GET_RECENT_WADS: &str = r#"
-        SELECT id, type, status, node_url, memo, created_at, modified_at
-        FROM wad 
-        ORDER BY created_at DESC 
+        SELECT id, type, status, node_url, memo, created_at, modified_at, node_id
+        FROM wad
+        ORDER BY created_at DESC
         LIMIT ?1
     "#;
     let mut stmt = conn.prepare(GET_RECENT_WADS)?;
@@ -210,19 +218,42 @@ pub fn get_recent_wads(conn: &Connection, limit: u32) -> Result<Vec<WadRecord>> 
     rows.collect::<Result<Vec<_>, _>>()
 }
 
-pub fn update_wad_status(conn: &Connection, wad_id: Uuid, status: WadStatus) -> Result<()> {
+#[derive(Debug, thiserror::Error)]
+#[error("failed to set wad {0} to status {1}: {2}")]
+pub struct UpdateWadStatusError(Uuid, WadStatus, #[source] rusqlite::Error);
+
+pub fn update_wad_status(
+    conn: &Connection,
+    wad_id: Uuid,
+    status: WadStatus,
+) -> Result<(), UpdateWadStatusError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 
     const UPDATE_WAD_STATUS: &str = r#"
-        UPDATE wad 
-        SET status = ?2, modified_at = ?3 
+        UPDATE wad
+        SET status = ?2, modified_at = ?3
         WHERE id = ?1
     "#;
-    let mut stmt = conn.prepare(UPDATE_WAD_STATUS)?;
-    stmt.execute(params![wad_id, status, now])?;
+    let mut stmt = conn
+        .prepare(UPDATE_WAD_STATUS)
+        .map_err(|e| UpdateWadStatusError(wad_id, status, e))?;
+    stmt.execute(params![wad_id, status, now])
+        .map_err(|e| UpdateWadStatusError(wad_id, status, e))?;
+
+    Ok(())
+}
+
+pub fn delete_wad(conn: &Connection, node_url: &NodeUrl, proof_ys: &[PublicKey]) -> Result<()> {
+    let wad_id = compute_wad_uuid(node_url, proof_ys);
+
+    const DELETE_WAD: &str = r#"
+    DELETE FROM wad
+    WHERE id = ?1"#;
+    let mut stmt = conn.prepare(DELETE_WAD)?;
+    stmt.execute(params![wad_id])?;
 
     Ok(())
 }
@@ -236,8 +267,8 @@ pub(crate) struct SyncData {
 
 pub(crate) fn get_pending_wads(conn: &Connection) -> Result<Vec<SyncData>> {
     const GET_PENDING_WADS: &str = r#"
-        SELECT id, type, node_url 
-        FROM wad 
+        SELECT id, type, node_url
+        FROM wad
         WHERE status = ?1
         ORDER BY created_at ASC
     "#;
@@ -268,10 +299,7 @@ pub fn get_proofs_ys_by_id(conn: &Connection, wad_id: Uuid) -> Result<Vec<Public
     rows.collect::<Result<Vec<_>, _>>()
 }
 
-pub fn get_amounts_by_id<U: FromStr>(
-    conn: &Connection,
-    wad_id: Uuid,
-) -> Result<Vec<(String, Amount)>> {
+pub fn get_amounts_by_id<U: FromStr>(conn: &Connection, wad_id: Uuid) -> Result<Vec<Balance>> {
     const GET_WAD_UNIT_AMOUNTS: &str = r#"
         SELECT k.unit, SUM(p.amount) as total_amount
         FROM wad_proof wp
@@ -284,7 +312,7 @@ pub fn get_amounts_by_id<U: FromStr>(
     let rows = stmt.query_map([wad_id], |row| {
         let unit: String = row.get(0)?;
         let amount: Amount = row.get(1)?;
-        Ok((unit, amount))
+        Ok(Balance { unit, amount })
     })?;
 
     rows.collect::<Result<Vec<_>, _>>()

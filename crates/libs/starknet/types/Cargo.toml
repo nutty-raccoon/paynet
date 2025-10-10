@@ -15,8 +15,6 @@ phf = { workspace = true, features = ["macros"] }
 bitcoin_hashes = { workspace = true }
 starknet-crypto = { workspace = true }
 tracing = { workspace = true }
-
-# Local deps
 starknet = { workspace = true }
 
 

@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
-  import { get_wad_history, sync_wads } from "../../commands";
-  import { formatBalance } from "../../utils";
+  import { getWadHistory, syncWads } from "../../commands";
+  import { formatBalance, getStatusDisplayText } from "../../utils";
   import type { WadHistoryItem, WadStatus } from "../../types/wad";
+  import type { Balance } from "../../types";
+  import { t } from "../../stores/i18n";
 
   let wadHistory: WadHistoryItem[] = $state([]);
   let loading = $state(true);
   let syncing = $state(false);
   let error = $state("");
+  let expandedWadId: [string, string] | null = $state(null);
 
   // Store unsubscribe functions for cleanup
   let unsubscribeWadStatusUpdated: (() => void) | null = null;
@@ -48,24 +51,23 @@
   });
 
   async function loadWadHistory() {
-    console.log("getting wad history");
     try {
       loading = true;
       error = "";
 
-      const history = await get_wad_history(20);
+      // Show cached data immediately
+      const history = await getWadHistory(20);
       wadHistory = history || [];
+      loading = false; // UI updates with cached data
 
-      // Then sync WADs (this will emit events that update the UI in real-time)
+      // Then sync in background
       syncing = true;
-      await sync_wads();
-      syncing = false;
+      await syncWads();
     } catch (err) {
-      console.error("Failed to load transfer history:", err);
-      error = "Failed to load transfer history: " + String(err);
+      // handle error
     } finally {
-      loading = false;
       syncing = false;
+      loading = false;
     }
   }
 
@@ -73,20 +75,17 @@
     return new Date(timestamp * 1000).toLocaleString();
   }
 
-  function formatAmount(amountJson: string): string {
+  function formatAmount(amounts: Balance[]): string {
     try {
-      const parsed = JSON.parse(amountJson);
-
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const [unit, amount] = parsed[0];
-
-        const formatted = formatBalance({ unit, amount: Number(amount) });
-        return `${formatted.amount} ${formatted.asset}`;
-      }
-
-      return "0 STRK";
+      // TODO: handle wads with more than 1 asset
+      const { asset, assetAmount } = formatBalance(
+        amounts[0].unit,
+        amounts[0].amount,
+      );
+      return `${assetAmount} ${asset}`;
     } catch (e) {
-      return "0 STRK";
+      console.log(`failed to format amount: ${e}`);
+      return "";
     }
   }
 
@@ -110,78 +109,134 @@
   }
 
   function getTypeDisplay(type: string): string {
-    return type.toLowerCase() === "in" ? "IN" : "OUT";
+    return type.toLowerCase() === "in" ? $t('history.in') : $t('history.out');
+  }
+
+  function toggleWadExpansion(wadId: string, wadType: string) {
+    if (!expandedWadId) {
+      expandedWadId = [wadId, wadType];
+    } else if (expandedWadId[0] == wadId && expandedWadId[1] == wadType) {
+      expandedWadId = null;
+    } else {
+      expandedWadId = [wadId, wadType];
+    }
+  }
+
+  function isWadSelected(wadId: string, wadType: string) {
+    return (
+      !!expandedWadId &&
+      expandedWadId[0] == wadId &&
+      expandedWadId[1] == wadType
+    );
   }
 </script>
 
 <div class="history-page">
-  <div class="header">
-    <h1>Transfer History</h1>
-  </div>
+  <div class="history-container">
+    <div class="header">
+      <h1>{$t('history.transferHistory')}</h1>
+    </div>
 
-  <div class="content">
-    {#if loading}
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Loading transfer history...</p>
-      </div>
-    {:else if error}
-      <div class="error">
-        <p>{error}</p>
-        <button onclick={loadWadHistory}>Retry</button>
-      </div>
-    {:else if wadHistory.length === 0}
-      <div class="empty">
-        <p>No transfer history found</p>
-      </div>
-    {:else}
-      <div class="history-list">
-        {#each wadHistory as wad}
-          <div class="wad-item">
-            <div class="wad-first-line">
-              <span class="type-icon">{getTypeIcon(wad.type)}</span>
-              <span class="type-text">{getTypeDisplay(wad.type)}</span>
-              <span class="wad-amount">{formatAmount(wad.totalAmountJson)}</span
+    <div class="content">
+      {#if loading}
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>{$t('history.loadingHistory')}</p>
+        </div>
+      {:else if error}
+        <div class="error">
+          <p>{error}</p>
+          <button onclick={loadWadHistory}>{$t('forms.retry')}</button>
+        </div>
+      {:else if wadHistory.length === 0}
+        <div class="empty">
+          <p>{$t('history.noTransactions')}</p>
+        </div>
+      {:else}
+        <div class="history-list">
+          {#each wadHistory as wad}
+            <div class="wad-item">
+              <button
+                class="wad-line clickable"
+                onclick={() => toggleWadExpansion(wad.id, wad.type)}
               >
-              <span
-                class="wad-status"
-                style="color: {getStatusColor(wad.status)}">{wad.status}</span
-              >
+                <span class="type-icon">{getTypeIcon(wad.type)}</span>
+                <span class="type-text">{getTypeDisplay(wad.type)}</span>
+                <span class="wad-time">{formatTimestamp(wad.createdAt)}</span>
+                <span class="spacer"></span>
+                {#if wad.amounts.length === 1}
+                  <span class="wad-amount"
+                    >{formatAmount([wad.amounts[0]])}</span
+                  >
+                {/if}
+                <span class="expand-icon"
+                  >{isWadSelected(wad.id, wad.type) ? "▼" : "▶"}</span
+                >
+                <span
+                  class="wad-status"
+                  style="color: {getStatusColor(wad.status)}">{getStatusDisplayText(wad.status)}</span
+                >
+              </button>
+              {#if isWadSelected(wad.id, wad.type)}
+                <div class="wad-details">
+                  {#if wad.memo}
+                    <div class="memo-section">
+                      <div class="memo-header">{$t('labels.memo')}</div>
+                      <div class="memo-text">{wad.memo}</div>
+                    </div>
+                  {/if}
+                  <div class="balances-header">{$t('history.balancesHeader')}</div>
+                  {#each wad.amounts as balance}
+                    <div class="balance-item">
+                      <span class="balance-amount"
+                        >{formatAmount([balance])}</span
+                      >
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             </div>
-            <div class="wad-second-line">
-              <span class="wad-time">{formatTimestamp(wad.createdAt)}</span>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
+          {/each}
+        </div>
+      {/if}
 
-    <div class="refresh-container">
-      <button
-        class="refresh-btn"
-        onclick={loadWadHistory}
-        disabled={loading || syncing}
-      >
-        {#if syncing}
-          ⏳ Syncing...
-        {:else}
-          🔄 Refresh
-        {/if}
-      </button>
+      <div class="refresh-container">
+        <button
+          class="refresh-btn"
+          onclick={loadWadHistory}
+          disabled={loading || syncing}
+        >
+          {#if syncing}
+            {$t('buttons.syncing')}
+          {:else}
+            {$t('buttons.refresh')}
+          {/if}
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
   .history-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 70px; /* Account for navigation bar */
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    width: 100%;
     background: #ffffff;
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
+    overflow: hidden;
+  }
+
+  .history-container {
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .header {
@@ -215,11 +270,30 @@
     box-sizing: border-box;
   }
 
-  .wad-first-line {
+  .wad-line {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
+    padding: 4px 0;
+  }
+
+  .wad-line.clickable {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    /* Reset button styles */
+    border: none;
+    background: none;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+  }
+
+  .wad-line.clickable:hover {
+    background-color: #f8f9fa;
+  }
+
+  .wad-line.clickable:active {
+    background-color: #e9ecef;
   }
 
   .type-icon {
@@ -234,11 +308,30 @@
     flex-shrink: 0;
   }
 
-  .wad-amount {
+  .wad-time {
+    font-size: 12px;
+    color: #666;
+    flex-shrink: 0;
+  }
+
+  .spacer {
     flex: 1;
-    font-size: 14px;
+  }
+
+  .wad-amount {
+    font-size: 12px;
     font-weight: 500;
-    text-align: right;
+    color: #333;
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+
+  .expand-icon {
+    font-size: 12px;
+    color: #666;
+    flex-shrink: 0;
+    margin-right: 8px;
+    transition: transform 0.2s ease;
   }
 
   .wad-status {
@@ -246,16 +339,60 @@
     font-weight: 500;
     text-transform: uppercase;
     flex-shrink: 0;
-    margin-left: 8px;
   }
 
-  .wad-second-line {
-    display: flex;
+  .wad-details {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid #e9ecef;
   }
 
-  .wad-time {
+  .memo-section {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .memo-header {
     font-size: 12px;
+    font-weight: 600;
     color: #666;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  .memo-text {
+    font-size: 14px;
+    color: #333;
+    line-height: 1.4;
+    word-wrap: break-word;
+  }
+
+  .balances-header {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .balance-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+  }
+
+  .balance-item:not(:last-child) {
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .balance-amount {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
   }
 
   .refresh-container {

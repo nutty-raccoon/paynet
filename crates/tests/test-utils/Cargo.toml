@@ -24,6 +24,7 @@ serde_json = { workspace = true }
 url = { workspace = true }
 log = { workspace = true }
 uuid = {workspace = true }
+cashu-client = { workspace = true }
 
 # Optional
 futures = { workspace = true, optional = true }
@@ -33,7 +34,7 @@ itertools = { workspace = true, optional = true }
 primitive-types = { workspace = true, optional = true }
 starknet-liquidity-source = { workspace = true, optional = true }
 starknet = { workspace = true, optional = true }
-wallet = { workspace = true, optional = true  }
+wallet = { workspace = true, optional = true, features = ["sqlite-seed-phrase"] }
 bip39 = { workspace = true, optional = true }
 bitcoin = { workspace = true, optional = true }
 

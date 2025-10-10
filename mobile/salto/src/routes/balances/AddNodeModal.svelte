@@ -1,18 +1,16 @@
 <script lang="ts">
   import type { EventHandler } from "svelte/elements";
-  import type { NodeData } from "../../types";
   import { addNode } from "../../commands";
+  import { showSuccessToast } from "../../stores/toast";
+  import { t } from "../../stores/i18n";
 
   interface Props {
-    nodes: NodeData[];
     onClose: () => void;
-    onAddNode: (nodeData: NodeData) => void;
   }
 
-  let { nodes, onClose, onAddNode }: Props = $props();
+  let { onClose }: Props = $props();
 
   let isLoading = $state(false);
-  let errorMessage = $state("");
 
   const handleFormSubmit: EventHandler<SubmitEvent, HTMLFormElement> = async (
     event,
@@ -25,38 +23,27 @@
 
     if (!!nodeAddress) {
       let nodeAddressString = nodeAddress.toString();
-      addNode(nodeAddressString).then((newNodeData) => {
-        if (!!newNodeData) {
-          const nodeId = newNodeData[0];
-          // Check if node with this ID already exists in the nodes array
-          const nodeAlreadyListed = nodes.some((node) => node.id === nodeId);
-
-          if (!nodeAlreadyListed) {
-            onAddNode({
-              id: nodeId,
-              url: nodeAddressString,
-              balances: newNodeData[1],
-            });
-          } else {
-            console.log(`node with url ${nodeAddress} already declared`);
-          }
-        }
+      const result = await addNode(nodeAddressString);
+      if (result !== undefined) {
+        showSuccessToast($t('modals.nodeAddSuccess'));
         onClose();
-      });
+      }
     }
+    
+    isLoading = false;
   };
 </script>
 
 <div class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Add Node</h3>
+      <h3>{$t('modals.addNode')}</h3>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <form onsubmit={handleFormSubmit}>
       <div class="form-group">
-        <label for="node-address">Node's address</label>
+        <label for="node-address">{$t('forms.nodeAddress')}</label>
         <input
           type="url"
           id="node-address"
@@ -67,15 +54,9 @@
       </div>
 
       <button type="submit" class="submit-button" disabled={isLoading}>
-        {isLoading ? "Adding node..." : "Add"}
+        {isLoading ? $t('modals.addingNode') : $t('modals.addNode')}
       </button>
     </form>
-
-    {#if errorMessage}
-      <div class="error-message">
-        {errorMessage}
-      </div>
-    {/if}
   </div>
 </div>
 
@@ -180,16 +161,5 @@
   .form-group input:disabled {
     background-color: #f5f5f5;
     cursor: not-allowed;
-  }
-
-  .error-message {
-    background-color: #fee2e2;
-    color: #dc2626;
-    padding: 0.75rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    margin-top: 1rem;
-    border: 1px solid #fecaca;
-    text-align: center;
   }
 </style>

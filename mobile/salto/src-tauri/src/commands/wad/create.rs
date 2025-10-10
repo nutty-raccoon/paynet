@@ -1,15 +1,11 @@
-use std::{cmp::Ordering, str::FromStr};
+use std::str::FromStr;
 
-use nuts::Amount;
 use starknet_types::{Asset, AssetFromStrError, AssetToUnitConversionError};
-use tauri::{AppHandle, Emitter, State};
-use wallet::types::compact_wad::CompactWads;
+use tauri::{AppHandle, State};
+use tracing::{Level, event};
 
-use crate::{
-    AppState,
-    commands::BalanceChange,
-    parse_asset_amount::{ParseAmountStringError, parse_asset_amount},
-};
+use crate::{AppState, front_events::emit_trigger_balance_poll};
+use parse_asset_amount::{ParseAmountStringError, parse_asset_amount};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CreateWadsError {
@@ -29,12 +25,16 @@ pub enum CreateWadsError {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
-    #[error("not enought funds, asked {0}, missing {1}")]
-    NotEnoughFunds(Amount, Amount),
     #[error("not enought funds in node {0}")]
     NotEnoughFundsInNode(u32),
-    #[error(transparent)]
-    NodeConnect(#[from] wallet::ConnectToNodeError),
+    #[error("failed to connect to node: {0}")]
+    ConnectToNode(#[from] wallet::ConnectToNodeError),
+    #[error("cached connection error: {0}")]
+    CachedConnection(#[from] crate::connection_cache::ConnectionCacheError),
+    #[error("failed to plan spending: {0}")]
+    PlanSpending(#[from] wallet::send::PlanSpendingError),
+    #[error("failed to load proofs to create wads: {0}")]
+    LoadProofsAndCreateWads(#[from] wallet::send::LoadProofsAndCreateWadsError),
 }
 
 impl serde::Serialize for CreateWadsError {
@@ -47,51 +47,49 @@ impl serde::Serialize for CreateWadsError {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip(app, state))]
 pub async fn create_wads(
     app: AppHandle,
     state: State<'_, AppState>,
     amount: String,
     asset: String,
 ) -> Result<String, CreateWadsError> {
+    // Prevent two wads being created in parallel
+    // Even if our front end logic should protect us against it,
+    // is is better to also make sure it doesn't happen in the backed
+    let _spend_proofs_lock = state.lock_proof_spending().await;
+
     let asset = Asset::from_str(&asset)?;
     let unit = asset.find_best_unit();
     let amount = parse_asset_amount(&amount, asset, unit)?;
 
-    let amount_to_use_per_node = {
-        let db_conn = state.pool.get()?;
-        let balances = wallet::db::balance::get_for_all_nodes_by_unit(&db_conn, unit)?;
+    event!(name: "planning_wad_spending", Level::INFO,
+        asset = %asset,
+        unit = %unit,
+        amount = %amount,
+        "Planning wad spending"
+    );
 
-        let mut used_node = vec![];
-        let mut rem_amount = amount;
-        for balance in balances {
-            match rem_amount.cmp(&balance.amount) {
-                Ordering::Less | Ordering::Equal => {
-                    used_node.push((balance.id, balance.url, rem_amount));
-                    rem_amount = Amount::ZERO;
-                    break;
-                }
-                Ordering::Greater => {
-                    rem_amount -= balance.amount;
-                    used_node.push((balance.id, balance.url, balance.amount));
-                }
-            }
-        }
+    let mut db_conn = state.pool().get()?;
+    let amount_to_use_per_node = wallet::send::plan_spending(&db_conn, amount, unit, &[])?;
 
-        if rem_amount != Amount::ZERO {
-            return Err(CreateWadsError::NotEnoughFunds(amount, rem_amount));
-        }
+    event!(name: "spending_plan_created", Level::INFO,
+        num_nodes = amount_to_use_per_node.len(),
+        total_amount = %amount,
+        "Spending plan created"
+    );
 
-        used_node
-    };
+    let mut node_and_proofs = Vec::with_capacity(amount_to_use_per_node.len());
 
-    let mut wads = Vec::with_capacity(amount_to_use_per_node.len());
-    let mut balance_decrease_events = Vec::with_capacity(amount_to_use_per_node.len());
-    let mut ys_per_node = Vec::with_capacity(amount_to_use_per_node.len());
-    for (node_id, node_url, amount_to_use) in amount_to_use_per_node {
-        let mut node_client = wallet::connect_to_node(&node_url).await?;
+    for (node_id, amount_to_use) in amount_to_use_per_node {
+        let mut node_client = state
+            .get_node_client_connection(node_id)
+            .await
+            .map_err(CreateWadsError::CachedConnection)?;
 
         let proofs_ids = wallet::fetch_inputs_ids_from_db_or_node(
-            state.pool.clone(),
+            crate::SEED_PHRASE_MANAGER,
+            state.pool().clone(),
             &mut node_client,
             node_id,
             amount_to_use,
@@ -100,30 +98,35 @@ pub async fn create_wads(
         .await?
         .ok_or(CreateWadsError::NotEnoughFundsInNode(node_id))?;
 
-        let db_conn = state.pool.get()?;
-        let proofs = wallet::load_tokens_from_db(&db_conn, &proofs_ids)?;
-        let wad = wallet::wad::create_from_parts(node_url, unit, None, proofs);
-        wads.push(wad);
-        ys_per_node.push(proofs_ids);
-        balance_decrease_events.push(BalanceChange {
-            node_id,
-            unit: unit.as_str().to_string(),
-            amount: amount_to_use.into(),
-        });
-    }
-    let db_conn = state.pool.get()?;
-    for (wad, ys) in wads.iter().zip(ys_per_node) {
-        wallet::db::wad::register_wad(
-            &db_conn,
-            wallet::db::wad::WadType::OUT,
-            &wad.node_url,
-            &wad.memo,
-            &ys,
-        )?;
-    }
-    for event in balance_decrease_events {
-        app.emit("balance-decrease", event)?;
+        // Get node URL for wad creation (still needed by the wallet library)
+        let node_url = wallet::db::node::get_url_by_id(&db_conn, node_id)?
+            .expect("ids come form DB, there should be an url");
+
+        node_and_proofs.push(((node_id, node_url), proofs_ids));
     }
 
-    Ok(CompactWads(wads).to_string())
+    event!(name: "creating_wads_from_proofs", Level::INFO,
+        num_nodes = node_and_proofs.len(),
+        unit = %unit,
+        "Creating wads from proofs"
+    );
+
+    let wads = wallet::send::load_proofs_and_create_wads(
+        &mut db_conn,
+        node_and_proofs,
+        unit.as_str(),
+        None,
+    )?;
+
+    event!(name: "wads_created_successfully", Level::INFO,
+        wad_string_length = wads.to_string().len(),
+        unit = %unit,
+        total_amount = %amount,
+        "Wad created successfully"
+    );
+
+    // Trigger immediate balance polling
+    let _ = emit_trigger_balance_poll(&app);
+
+    Ok(wads.to_string())
 }

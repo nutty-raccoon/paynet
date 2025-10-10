@@ -1,11 +1,10 @@
 [package]
 name = "salto"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -19,10 +18,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # Tauri
-tauri = { workspace = true }
+tauri = { workspace = true, features = ["tracing"] }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-sql = { workspace = true, features = ["sqlite"] }
-tauri-plugin-log = { workspace = true }
+tauri-plugin-log = { workspace = true, features = ["tracing"] }
 tauri-plugin-os = { workspace = true }
 tauri-plugin-clipboard-manager = { workspace = true }
 
@@ -39,12 +38,41 @@ r2d2 = { workspace = true }
 thiserror = { workspace = true }
 primitive-types = { workspace = true }
 num-traits = { workspace = true }
-uint = { workspace = true }
-log = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+tokio = { workspace = true }
 bitcoin = { workspace = true }
+tracing = { workspace = true }
+log = { workspace = true }
 uuid = { workspace = true }
+itertools = { workspace = true }
+tonic = { workspace = true, features = ["tls-ring"] }
+urlencoding = { workspace = true }
+futures = { workspace = true }
 
 # Local
-wallet = { workspace = true }
+node-client = { workspace = true }
 starknet-types = { workspace = true }
 nuts = { workspace = true }
+parse-asset-amount = { workspace = true }
+starknet-liquidity-source = { workspace = true }
+cashu-client = { workspace = true }
+
+# Keyring
+[target.'cfg(target_os = "android")'.dependencies]
+android-keyring = { workspace = true }
+
+# Camera check
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-macos-permissions = "2.3.0"
+
+# Mobile
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-biometric = "2"
+wallet = { workspace = true, features = ["mobile"] }
+
+# Desktop
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+wallet = { workspace = true, features = ["desktop"] }
+
+[features]
+tls-local-mkcert = []

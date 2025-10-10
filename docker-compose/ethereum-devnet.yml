@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  ethereum-devnet:
+    build:
+      context: ..
+      dockerfile: dockerfiles/ethereum-setup.Dockerfile
+    container_name: ethereum-devnet
+    restart: unless-stopped
+    ports:
+      - "8545:8545"  # HTTP RPC
+    environment:
+      # Anvil configuration
+      - ANVIL_HOST=0.0.0.0
+      - ANVIL_PORT=8545
+      - ANVIL_IP_ADDR=0.0.0.0  # Keep your original variable for compatibility
+      - CHAIN_ID=1337
+      - BLOCK_TIME=2
+      - ACCOUNTS=10
+      - BALANCE=10000
+      - GAS_LIMIT=30000000
+      - MAX_WAIT=30
+      
+      # Deployment configuration
+      - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # First Anvil account
+    # volumes:
+      # Optional: Persist Anvil state
+      # - ethereum_state:/tmp     
+      # Optional: Mount contract artifacts for external access
+      # - contract_artifacts:/home/foundry/contract/out      
+      # Optional: Mount broadcast data for deployment tracking
+      # - contract_broadcasts:/home/foundry/contract/broadcast
+    networks:
+      - ethereum-network
+
+networks:
+  ethereum-network:
+    driver: bridge
+    name: ethereum-devnet
+
+# volumes:
+#   ethereum_state:
+#     name: ethereum-devnet-state
+#   contract_artifacts:
+#     name: ethereum-devnet-artifacts
+#   contract_broadcasts:
+#     name: ethereum-devnet-broadcasts

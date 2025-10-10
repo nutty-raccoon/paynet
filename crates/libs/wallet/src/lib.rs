@@ -11,8 +11,14 @@ pub mod types;
 pub mod wad;
 pub mod wallet;
 
+<<<<<<< HEAD
 use errors::Error;
 use node_client::{AcknowledgeRequest, NodeClient, SwapRequest};
+=======
+use cashu_client::{CashuClient, GrpcClient};
+use errors::{CommonError, Error};
+use node_client::NodeClient;
+>>>>>>> origin/HEAD
 use num_traits::{CheckedAdd, Zero};
 use nuts::dhke::{self, hash_to_curve, unblind_message};
 use nuts::nut00::secret::Secret;
@@ -25,10 +31,11 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, Transaction, params};
 use std::str::FromStr;
-use tonic::Request;
-use tonic::transport::Channel;
 use types::compact_wad::CompactKeysetProofs;
 use types::{BlindingData, NodeUrl, PreMints, ProofState};
+use wallet::SeedPhraseManager;
+
+use crate::errors::{handle_already_spent_proofs, handle_crypto_invalid_proofs};
 
 pub fn convert_inputs(inputs: &[Proof]) -> Vec<node_client::Proof> {
     inputs
@@ -55,7 +62,7 @@ pub fn convert_outputs(outputs: &[BlindedMessage]) -> Vec<node_client::BlindedMe
 
 pub async fn read_or_import_node_keyset(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     keyset_id: KeysetId,
 ) -> Result<(String, u64), Error> {
@@ -71,14 +78,9 @@ pub async fn read_or_import_node_keyset(
 
     let keyset_id_as_bytes = keyset_id.to_bytes();
 
-    let resp = node_client
-        .keys(node_client::GetKeysRequest {
-            keyset_id: Some(keyset_id_as_bytes.to_vec()),
-        })
-        .await?
-        .into_inner();
+    let resp = node_client.keys(Some(keyset_id)).await?;
     let keyset = resp.keysets.first().unwrap();
-    let max_order = keyset.keys.iter().map(|k| k.amount).max().unwrap();
+    let max_order: u64 = keyset.keys.iter().map(|k| k.amount.into()).max().unwrap();
 
     let db_conn = pool.get()?;
     db_conn.execute(
@@ -86,10 +88,16 @@ pub async fn read_or_import_node_keyset(
         params![keyset_id_as_bytes, node_id, &keyset.unit, keyset.active],
     )?;
 
+    let pairs: Vec<(u64, String)> = keyset
+        .keys
+        .iter()
+        .map(|k| (k.amount.into(), k.publickey.to_hex()))
+        .collect();
+
     db::insert_keyset_keys(
         &db_conn,
         keyset_id,
-        keyset.keys.iter().map(|k| (k.amount, k.pubkey.as_str())),
+        pairs.iter().map(|(amt, s)| (*amt, s.as_str())),
     )?;
 
     Ok((keyset.unit.clone(), max_order))
@@ -174,8 +182,9 @@ pub fn store_new_proofs_from_blind_signatures(
 }
 
 pub async fn fetch_inputs_ids_from_db_or_node(
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     target_amount: Amount,
     unit: &str,
@@ -194,11 +203,16 @@ pub async fn fetch_inputs_ids_from_db_or_node(
         }
 
         let mut stmt = db_conn.prepare(
-            "SELECT y, amount FROM proof WHERE node_id = ?1 AND state = ?2 ORDER BY amount DESC;",
+            "SELECT p.y, p.amount 
+                    FROM proof p 
+                    JOIN keyset k ON p.keyset_id = k.id 
+                    WHERE p.node_id = ?1 AND p.state = ?2 AND k.unit = ?3 
+                  ORDER BY p.amount DESC;",
         )?;
-        let proofs_res_iterator = stmt.query_map(params![node_id, ProofState::Unspent], |r| {
-            Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
-        })?;
+        let proofs_res_iterator = stmt
+            .query_map(params![node_id, ProofState::Unspent, unit], |r| {
+                Ok((r.get::<_, PublicKey>(0)?, r.get::<_, Amount>(1)?))
+            })?;
 
         for proof_res in proofs_res_iterator {
             let (y, proof_amount) = proof_res?;
@@ -228,6 +242,7 @@ pub async fn fetch_inputs_ids_from_db_or_node(
             .unwrap();
 
         let new_tokens = swap_to_have_target_amount(
+            seed_phrase_manager,
             pool.clone(),
             node_client,
             node_id,
@@ -256,10 +271,18 @@ pub async fn fetch_inputs_ids_from_db_or_node(
     Ok(Some(proofs_ids))
 }
 
-pub fn load_tokens_from_db(
+#[derive(Debug, thiserror::Error)]
+#[error("failed to load tokens from db: {0}")]
+pub enum UnprotectedLoadTokensFormDbError {
+    SetProofsToState(#[from] db::proof::SetProofsToStateError),
+    GetProofsByIds(#[from] db::proof::GetProofsByIdsError),
+}
+
+/// You should revert the state of the proofs yourself in case of error in your flow
+pub fn unprotected_load_tokens_from_db(
     db_conn: &Connection,
     proofs_ids: &[PublicKey],
-) -> Result<nut00::Proofs, Error> {
+) -> Result<nut00::Proofs, UnprotectedLoadTokensFormDbError> {
     if proofs_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -267,16 +290,14 @@ pub fn load_tokens_from_db(
     let proofs = db::proof::get_proofs_by_ids(db_conn, proofs_ids)?
         .into_iter()
         .map(
-            |(amount, keyset_id, unblinded_signature, secret)| -> Result<nut00::Proof, Error> {
-                Ok(nut00::Proof {
-                    amount,
-                    keyset_id,
-                    secret,
-                    c: unblinded_signature,
-                })
+            |(amount, keyset_id, unblinded_signature, secret)| nut00::Proof {
+                amount,
+                keyset_id,
+                secret,
+                c: unblinded_signature,
             },
         )
-        .collect::<Result<Vec<_>, Error>>()?;
+        .collect();
 
     db::proof::set_proofs_to_state(db_conn, proofs_ids, ProofState::Reserved)?;
 
@@ -284,8 +305,9 @@ pub fn load_tokens_from_db(
 }
 
 pub async fn swap_to_have_target_amount(
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     unit: &str,
     target_amount: Amount,
@@ -294,7 +316,8 @@ pub async fn swap_to_have_target_amount(
     let (blinding_data, input_unblind_signature) = {
         let db_conn = pool.get()?;
 
-        let blinding_data = BlindingData::load_from_db(&db_conn, node_id, unit)?;
+        let blinding_data =
+            BlindingData::load_from_db(seed_phrase_manager, &db_conn, node_id, unit)?;
 
         let input_unblind_signature =
             db::proof::get_proof_and_set_state_pending(&db_conn, proof_to_swap.0)?
@@ -309,7 +332,11 @@ pub async fn swap_to_have_target_amount(
         blinding_data,
     )?;
 
+<<<<<<< HEAD
     let inputs = vec![nut00::Proof {
+=======
+    let inputs = vec![nuts::nut00::Proof {
+>>>>>>> origin/HEAD
         amount: proof_to_swap.1,
         keyset_id: input_unblind_signature.0,
         secret: input_unblind_signature.2,
@@ -328,6 +355,7 @@ pub async fn swap_to_have_target_amount(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+<<<<<<< HEAD
     let swap_request = nuts::nut03::SwapRequest {
         inputs: inputs.clone(),
         outputs,
@@ -347,18 +375,46 @@ pub async fn swap_to_have_target_amount(
         outputs: node_outputs,
     };
     let swap_result = node_client.swap(node_swap_request).await;
+=======
+    let outputs = pre_mints.build_nuts_outputs();
+
+    let swap_request = nuts::nut03::SwapRequest { inputs, outputs };
+    let swap_request_hash = nuts::nut19::hash_swap_request(&swap_request);
+    let swap_result = node_client.swap(swap_request).await;
+>>>>>>> origin/HEAD
 
     let new_tokens = {
         let mut db_conn = pool.get()?;
         let swap_response = match swap_result {
             Ok(r) => {
                 db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Spent)?;
-                r.into_inner()
+                r
             }
             Err(e) => {
-                // TODO: delete instead when invalid input
-                db::proof::set_proof_to_state(&db_conn, proof_to_swap.0, ProofState::Unspent)?;
-                return Err(e.into());
+                // TODO: add retry once we are sync
+                match &e {
+                    cashu_client::CashuClientError::Proof(proof_errors) => {
+                        if !proof_errors[0].indexes.is_empty() {
+                            handle_already_spent_proofs(
+                                proof_errors[0].indexes.clone(),
+                                &[proof_to_swap.0],
+                                &db_conn,
+                            )?;
+                        }
+                        if !proof_errors[1].indexes.is_empty() {
+                            handle_crypto_invalid_proofs(
+                                proof_errors[1].indexes.clone(),
+                                &[proof_to_swap.0],
+                                &db_conn,
+                            )?;
+                        }
+                    }
+                    cashu_client::CashuClientError::InactiveKeyset => {
+                        crate::node::refresh_keysets(pool, node_client, node_id).await?;
+                    }
+                    _ => {}
+                };
+                return Err((e).into());
             }
         };
 
@@ -374,15 +430,41 @@ pub async fn swap_to_have_target_amount(
     Ok(new_tokens)
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ReceiveWadError {
+    #[error("failed to read or import node keysets: {0}")]
+    ReadOrImportNodeKeysets(#[source] crate::Error),
+    #[error("keyset unit mismatch, expected `{0}` got `{1}`")]
+    UnitMissmatch(String, String),
+    #[error(transparent)]
+    Common(#[from] CommonError),
+    #[error("amount overflow during computation of the wad total value")]
+    TotalWadAmountOverflow,
+    #[error("failed to register wad, most likely because we already seen it: {0}")]
+    RegisterWad(#[source] rusqlite::Error),
+    #[error("failed to prepare insert proof statement: {0}")]
+    PrepareInsertProofStatment(#[source] rusqlite::Error),
+    #[error("failed to prepare insert proof statement: {0}")]
+    ExecuteInsertProofStatment(#[source] rusqlite::Error),
+    #[error("failed to swap proofs with node: {0}")]
+    SwapWithNode(#[source] cashu_client::CashuClientError),
+    #[error(transparent)]
+    SetProofsToState(#[from] db::proof::SetProofsToStateError),
+    #[error(transparent)]
+    UpdateWadStatus(#[from] db::wad::UpdateWadStatusError),
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn receive_wad(
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     node_url: &NodeUrl,
     unit: &str,
     compact_keyset_proofs: Vec<CompactKeysetProofs>,
     memo: &Option<String>,
-) -> Result<Amount, Error> {
+) -> Result<Amount, ReceiveWadError> {
     const INSERT_PROOF: &str = r#"
         INSERT INTO proof
             (y, node_id, keyset_id, amount, secret, unblind_signature, state)
@@ -403,36 +485,41 @@ pub async fn receive_wad(
             node_id,
             compact_keyset_proof.keyset_id,
         )
-        .await?;
+        .await
+        .map_err(ReceiveWadError::ReadOrImportNodeKeysets)?;
+
         if keyset_unit != unit {
-            return Err(Error::UnitMissmatch(keyset_unit, unit.to_string()));
+            return Err(ReceiveWadError::UnitMissmatch(
+                keyset_unit,
+                unit.to_string(),
+            ));
         }
 
         for compact_proof in compact_keyset_proof.proofs.into_iter() {
             let amount = u64::from(compact_proof.amount);
             if !amount.is_power_of_two() || amount == 0 {
-                return Err(Error::Protocol(
-                    "All proof amounts must be powers of two".to_string(),
-                ));
+                return Err(CommonError::ProofAmountPowerOfTwo(amount))?;
             }
             if amount >= max_order {
-                return Err(Error::Protocol(format!(
-                    "Proof amount {} is not less than max_order {} for keyset {}",
-                    amount, max_order, compact_keyset_proof.keyset_id
-                )));
+                return Err(CommonError::ProofAmountGreaterThanKeysetMaxOrder(
+                    compact_keyset_proof.keyset_id,
+                    max_order,
+                    amount,
+                ))?;
             }
-            let y = hash_to_curve(compact_proof.secret.as_ref())?;
+            let y =
+                hash_to_curve(compact_proof.secret.as_ref()).map_err(CommonError::HashToCurve)?;
             ys.push(y);
 
             total_amount = total_amount
                 .checked_add(&compact_proof.amount)
-                .ok_or(Error::AmountOverflow)?;
+                .ok_or(ReceiveWadError::TotalWadAmountOverflow)?;
 
-            inputs.push(node_client::Proof {
-                amount,
-                keyset_id: compact_keyset_proof.keyset_id.to_bytes().to_vec(),
-                secret: compact_proof.secret.to_string(),
-                unblind_signature: compact_proof.c.to_bytes().to_vec(),
+            inputs.push(Proof {
+                amount: amount.into(),
+                keyset_id: compact_keyset_proof.keyset_id,
+                secret: compact_proof.secret.clone(),
+                c: compact_proof.c,
             });
             stmt_params.push((
                 y,
@@ -447,24 +534,32 @@ pub async fn receive_wad(
     }
 
     let (wad_id, blinding_data) = {
-        let mut db_conn = pool.get()?;
-        let tx = db_conn.transaction()?;
+        let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
+        let tx = db_conn
+            .transaction()
+            .map_err(CommonError::CreateDbTransaction)?;
 
-        // Error if wad have already been seen
-        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_url, memo, &ys)?;
         {
-            let mut insert_proof_stmt = tx.prepare(INSERT_PROOF)?;
+            let mut insert_proof_stmt = tx
+                .prepare(INSERT_PROOF)
+                .map_err(ReceiveWadError::PrepareInsertProofStatment)?;
             for params in stmt_params {
-                insert_proof_stmt.execute(params)?;
+                insert_proof_stmt
+                    .execute(params)
+                    .map_err(ReceiveWadError::ExecuteInsertProofStatment)?;
             }
         }
-        let binding_data = BlindingData::load_from_db(&tx, node_id, unit)?;
+        let wad_id = db::wad::register_wad(&tx, db::wad::WadType::IN, node_id, node_url, memo, &ys)
+            .map_err(ReceiveWadError::RegisterWad)?;
+        let binding_data = BlindingData::load_from_db(seed_phrase_manager, &tx, node_id, unit)
+            .map_err(CommonError::LoadBlindingData)?;
 
-        tx.commit()?;
+        tx.commit().map_err(CommonError::CommitDbTransaction)?;
 
         (wad_id, binding_data)
     };
 
+<<<<<<< HEAD
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
     let node_outputs = pre_mints.build_node_client_outputs();
     let outputs = node_outputs
@@ -491,6 +586,12 @@ pub async fn receive_wad(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+=======
+    let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)
+        .map_err(|e| CommonError::GeneratePremintsForAmount(total_amount, e))?;
+    let outputs = pre_mints.build_nuts_outputs();
+
+>>>>>>> origin/HEAD
     let swap_request = nuts::nut03::SwapRequest {
         inputs: inputs.clone(),
         outputs,
@@ -511,116 +612,135 @@ pub async fn receive_wad(
     let swap_result = node_client.swap(node_swap_request).await;
 
     {
-        let mut db_conn = pool.get()?;
+        let mut db_conn = pool.get().map_err(CommonError::GetDbConnection)?;
         let swap_response = match swap_result {
-            Ok(r) => r.into_inner(),
+            Ok(r) => r,
             Err(e) => {
-                db::proof::delete_proofs(&db_conn, &ys)?;
-                return Err(e.into());
+                if let cashu_client::CashuClientError::Proof(errors) = &e {
+                    if !errors[0].indexes.is_empty() {
+                        handle_already_spent_proofs(errors[0].indexes.clone(), &ys, &db_conn)
+                            .map_err(CommonError::HandleProofVerificationErrors)?;
+                    }
+                    if !errors[1].indexes.is_empty() {
+                        handle_crypto_invalid_proofs(errors[1].indexes.clone(), &ys, &db_conn)
+                            .map_err(CommonError::HandleProofVerificationErrors)?;
+                    }
+                }
+
+                return Err(ReceiveWadError::SwapWithNode(e));
             }
         };
 
-        let tx = db_conn.transaction()?;
+        let tx = db_conn
+            .transaction()
+            .map_err(CommonError::CreateDbTransaction)?;
         db::proof::set_proofs_to_state(&tx, &ys, ProofState::Spent)?;
-        pre_mints.store_new_tokens(&tx, node_id, swap_response.signatures)?;
+        pre_mints
+            .store_new_tokens(&tx, node_id, swap_response.signatures)
+            .map_err(CommonError::PreMintsStoreNewTokens)?;
         db::wad::update_wad_status(&tx, wad_id, db::wad::WadStatus::Finished)?;
-        tx.commit()?;
+        tx.commit().map_err(CommonError::CommitDbTransaction)?;
     }
 
-    acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash).await?;
+    acknowledge(node_client, nuts::nut19::Route::Swap, swap_request_hash)
+        .await
+        .map_err(|e| CommonError::AcknowledgeNodeResponse(nuts::nut19::SWAP, e))?;
 
     Ok(total_amount)
 }
 
-#[cfg(feature = "tls")]
-#[derive(thiserror::Error, Debug)]
-pub enum TlsError {
-    #[error("failed to build tls connector: {0}")]
-    BuildConnector(openssl::error::ErrorStack),
-    #[error("failed set ALPN protocols: {0}")]
-    SetAlpnProtos(openssl::error::ErrorStack),
-    #[error("failed to get the node's socket address: {0}")]
-    Socket(#[from] std::io::Error),
-    #[error("invalid uri")]
-    Uri,
-    #[error("failed to connect to the node: {0}")]
-    Connect(#[from] tonic_tls::Error),
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectToNodeError {
+    #[error("invalid server endpoint: {0:?}")]
+    Endpoint(String),
     #[error("failed to connect to node")]
-    Tonic(#[from] tonic::transport::Error),
+    Tonic(#[source] tonic::transport::Error),
+    #[error("invalid tls config: {0}")]
+    TlsConfig(#[source] tonic::transport::Error),
 }
 
-#[cfg(not(feature = "tls"))]
+#[derive(Debug)]
+pub struct ConnectToNodeResponse<C: CashuClient> {
+    pub client: C,
+    pub url: NodeUrl,
+}
+
 pub async fn connect_to_node(
-    node_url: &NodeUrl,
-) -> Result<NodeClient<Channel>, ConnectToNodeError> {
-    #[cfg(not(feature = "tls"))]
-    let node_client = NodeClient::connect(node_url.0.to_string()).await?;
+    node_url: NodeUrl,
+    root_ca_certificate: Option<tonic::transport::Certificate>,
+) -> Result<ConnectToNodeResponse<GrpcClient>, ConnectToNodeError> {
+    let uses_tls = node_url.0.scheme() == "https";
+    let url_str = node_url.0.to_string();
 
-    Ok(node_client)
+    let mut endpoint = tonic::transport::Endpoint::new(url_str)
+        .map_err(|e| ConnectToNodeError::Endpoint(format!("endpoint error: {:?}", e)))?;
+
+    if uses_tls {
+        let mut tls_config = tonic::transport::ClientTlsConfig::new().with_enabled_roots();
+
+        if let Some(ca_cert) = root_ca_certificate {
+            tls_config = tls_config.ca_certificate(ca_cert);
+        }
+
+        endpoint = endpoint
+            .tls_config(tls_config)
+            .map_err(ConnectToNodeError::TlsConfig)?;
+    }
+
+    let channel = endpoint
+        .connect()
+        .await
+        .map_err(ConnectToNodeError::Tonic)?;
+
+    Ok(ConnectToNodeResponse {
+        client: GrpcClient {
+            node: NodeClient::new(channel),
+        },
+        url: node_url,
+    })
 }
 
-#[cfg(feature = "tls")]
-pub async fn connect_to_node(node_url: &NodeUrl) -> Result<NodeClient<Channel>, Error> {
-    let node_client = {
-        let mut connector = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())
-            .map_err(|e| Error::Tls(TlsError::BuildConnector(e)))?;
-        // ignore server cert validation errors.
-        connector.set_verify_callback(openssl::ssl::SslVerifyMode::PEER, |ok, ctx| {
-            if !ok {
-                let e = ctx.error();
-                #[cfg(feature = "tls-allow-self-signed")]
-                if e.as_raw() == openssl_sys::X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT {
-                    return true;
-                }
-                log::error!("verify failed with code {}: {}", e.as_raw(), e);
-                return false;
-            }
-            true
-        });
-        connector
-            .set_alpn_protos(tonic_tls::openssl::ALPN_H2_WIRE)
-            .map_err(|e| Error::Tls(TlsError::SetAlpnProtos(e)))?;
-        let ssl_conn = connector.build();
-        let socket_address = node_url
-            .0
-            .socket_addrs(|| None)
-            .map_err(|e| Error::Tls(TlsError::Socket(e)))?[0];
-        let uri: tonic::transport::Uri = socket_address
-            .to_string()
-            .parse()
-            .map_err(|_| Error::Tls(TlsError::Uri))?;
+pub fn connect_to_node_lazy(
+    node_url: NodeUrl,
+    root_ca_certificate: Option<tonic::transport::Certificate>,
+) -> Result<ConnectToNodeResponse<GrpcClient>, ConnectToNodeError> {
+    let uses_tls = node_url.0.scheme() == "https";
+    let url_str = node_url.0.to_string();
 
-        let connector = tonic_tls::openssl::TlsConnector::new(
-            uri.clone(),
-            ssl_conn,
-            // Safe to unwrap because NodeUrl guarantee it has a domain
-            node_url.0.domain().unwrap().to_string(),
-        );
-        let channel = tonic_tls::new_endpoint()
-            .connect_with_connector(connector)
-            .await
-            .map_err(|e| Error::Tls(TlsError::Connect(tonic_tls::Error::from(e))))?;
+    let mut endpoint = tonic::transport::Endpoint::new(url_str)
+        .map_err(|e| ConnectToNodeError::Endpoint(format!("endpoint error: {:?}", e)))?;
 
-        NodeClient::new(channel)
+    if uses_tls {
+        let mut tls_config = tonic::transport::ClientTlsConfig::new();
+
+        if let Some(ca_cert) = root_ca_certificate {
+            tls_config = tls_config.ca_certificate(ca_cert);
+        }
+
+        endpoint = endpoint
+            .tls_config(tls_config)
+            .map_err(ConnectToNodeError::TlsConfig)?;
+    }
+
+    let channel = endpoint.connect_lazy();
+
+    let client = GrpcClient {
+        node: NodeClient::new(channel),
     };
 
-    Ok(node_client)
+    Ok(ConnectToNodeResponse {
+        client,
+        url: node_url,
+    })
 }
 
 pub async fn acknowledge(
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     route: Route,
     message_hash: u64,
-) -> Result<(), Error> {
+) -> Result<(), cashu_client::CashuClientError> {
     node_client
-        .acknowledge(Request::new(AcknowledgeRequest {
-            path: route.to_string(),
-            request_hash: message_hash,
-        }))
+        .acknowledge(route.to_string(), message_hash)
         .await?;
 
     Ok(())

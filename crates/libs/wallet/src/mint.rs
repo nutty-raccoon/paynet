@@ -1,44 +1,38 @@
-use std::str::FromStr;
-
-use node_client::{MintQuoteRequest, MintQuoteResponse, MintRequest, NodeClient};
+use cashu_client::{CashuClient, ClientMintQuoteRequest};
 use nuts::{
     Amount, SplitTarget,
-    nut00::BlindedMessage,
-    nut01::PublicKey,
-    nut02::KeysetId,
-    nut04::MintQuoteState,
-    nut19::{Route, hash_mint_request},
+    nut04::{MintQuoteResponse, MintQuoteState},
+    nut19::Route,
     traits::Unit,
 };
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use tonic::transport::Channel;
-use uuid::Uuid;
 
 use crate::{
     acknowledge, db,
     errors::Error,
-    sync,
+    node::refresh_keysets,
+    sync::{self, SyncMintQuoteError},
     types::{BlindingData, PreMints},
+    wallet::SeedPhraseManager,
 };
 
 pub async fn create_quote<U: Unit>(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     node_id: u32,
     method: String,
     amount: Amount,
     unit: U,
-) -> Result<MintQuoteResponse, Error> {
+) -> Result<MintQuoteResponse<String>, Error> {
     let response = node_client
-        .mint_quote(MintQuoteRequest {
+        .mint_quote(ClientMintQuoteRequest {
             method: method.clone(),
             amount: amount.into(),
             unit: unit.as_ref().to_string(),
             description: None,
         })
-        .await?
-        .into_inner();
+        .await?;
 
     let db_conn = pool.get()?;
     db::mint_quote::store(&db_conn, node_id, method, amount, unit.as_ref(), &response)?;
@@ -53,10 +47,10 @@ pub enum QuotePaymentIssue {
 
 pub async fn wait_for_quote_payment(
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
     quote_id: String,
-) -> Result<QuotePaymentIssue, Error> {
+) -> Result<QuotePaymentIssue, SyncMintQuoteError> {
     loop {
         let state =
             match sync::mint_quote(pool.clone(), node_client, method.clone(), quote_id.clone())
@@ -77,52 +71,70 @@ pub async fn wait_for_quote_payment(
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RedeemQuoteError {
+    #[error("failed to refresh keyset: {0}")]
+    RefreshKeyset(#[from] crate::node::RefreshNodeKeysetError),
+    #[error(transparent)]
+    R2d2(#[from] r2d2::Error),
+    #[error(transparent)]
+    Rusqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    Wallet(#[from] crate::wallet::Error),
+    #[error(transparent)]
+    Grpc(#[from] tonic::Status),
+    #[error("failed to generate pre-mints: {0}")]
+    PreMints(#[from] crate::errors::Error),
+    #[error(transparent)]
+    CashuClient(#[from] cashu_client::CashuClientError),
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn redeem_quote(
+    seed_phrase_manager: impl SeedPhraseManager,
     pool: Pool<SqliteConnectionManager>,
-    node_client: &mut NodeClient<Channel>,
+    node_client: &mut impl CashuClient,
     method: String,
-    quote_id: String,
+    quote_id: &str,
     node_id: u32,
     unit: &str,
     total_amount: Amount,
-) -> Result<(), Error> {
+) -> Result<(), RedeemQuoteError> {
+    refresh_keysets(pool.clone(), node_client, node_id).await?;
+
     let blinding_data = {
         let db_conn = pool.get()?;
-        BlindingData::load_from_db(&db_conn, node_id, unit)?
+        BlindingData::load_from_db(seed_phrase_manager, &db_conn, node_id, unit)?
     };
 
     let pre_mints = PreMints::generate_for_amount(total_amount, &SplitTarget::None, blinding_data)?;
 
-    let outputs = pre_mints.build_node_client_outputs();
+    let outputs = pre_mints.build_nuts_outputs();
 
-    let mint_request = MintRequest {
-        method,
-        quote: quote_id.clone(),
-        outputs: outputs.clone(),
+    let mint_request = nuts::nut04::MintRequest {
+        quote: quote_id.to_string(),
+        outputs,
     };
 
-    let nut_mint_request = nuts::nut04::MintRequest {
-        quote: Uuid::from_str(&quote_id).map_err(Error::Uuid)?,
-        outputs: outputs
-            .into_iter()
-            .map(|bm| -> Result<BlindedMessage, Error> {
-                Ok(BlindedMessage {
-                    amount: bm.amount.into(),
-                    keyset_id: KeysetId::from_bytes(&bm.keyset_id)?,
-                    blinded_secret: PublicKey::from_slice(&bm.blinded_secret)?,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?,
-    };
+    let mint_request_hash = nuts::nut19::hash_mint_request(&mint_request);
 
-    let mint_request_hash = hash_mint_request(&nut_mint_request);
-    let mint_response = node_client.mint(mint_request).await?.into_inner();
+    let mint_result = node_client.mint(mint_request, method).await;
+    let mint_response = match mint_result {
+        Ok(r) => r,
+        Err(e) => {
+            // TODO: add retry once we are sync
+            if let cashu_client::CashuClientError::InactiveKeyset = e {
+                crate::node::refresh_keysets(pool, node_client, node_id).await?;
+            }
+            return Err(e.into());
+        }
+    };
 
     {
         let mut db_conn = pool.get()?;
         let tx = db_conn.transaction()?;
         pre_mints.store_new_tokens(&tx, node_id, mint_response.signatures)?;
-        db::mint_quote::set_state(&tx, &quote_id, MintQuoteState::Issued)?;
+        db::mint_quote::set_state(&tx, quote_id, MintQuoteState::Issued)?;
         tx.commit()?;
     }
 
